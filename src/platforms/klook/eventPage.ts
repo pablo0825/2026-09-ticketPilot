@@ -7,7 +7,7 @@ const selectors = {
     option: ".spec-LwNjSh",
 };
 
-// 排隊與個人資料過期返回後，共用相同的選票入口檢查。
+// 排隊、選位與個人資料過期返回後，共用相同的選票入口檢查。
 export async function isEventPageReady(page: Page, eventUrl: string): Promise<boolean> {
     const expected = new URL(eventUrl);
     const current = new URL(page.url());

@@ -1,3 +1,4 @@
+import { KlookSeatRecovery } from "./platforms/klook/seatRecovery.js";
 import { PaymentPageError, waitForPaymentPage } from "./platforms/klook/paymentPage.js";
 import { loadContactDetails } from "./config/contact.config.js";
 import { KlookContactForm } from "./platforms/klook/contactForm.js";
@@ -120,7 +121,8 @@ async function main() {
                 reportState("CONTACT_VERIFIED");
             }
         },
-    }, new KlookQueueRecovery(page, eventConfig.eventUrl), new KlookContactRecovery(page, eventConfig.eventUrl));
+    }, new KlookQueueRecovery(page, eventConfig.eventUrl), new KlookContactRecovery(page, eventConfig.eventUrl),
+        new KlookSeatRecovery(page, eventConfig.eventUrl));
 
     // 提交永遠在恢復範圍外；即使此刻才到期，也停止而不冒險重送。
     if (contactDetails) {

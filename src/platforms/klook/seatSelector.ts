@@ -1,3 +1,4 @@
+import { throwIfSeatReservationExpired, throwIfSeatError } from "./seatErrors.js";
 import type { Locator, Page } from "playwright";
 import type { TicketTarget } from "../../core/types.js";
 import { log } from "../../core/logger.js";
@@ -94,11 +95,11 @@ export class KlookSeatSelector {
     }
 
     async confirmVerifiedSeats(target: TicketTarget, expectedSeats: AssignedSeat[]): Promise<void> {
-        await this.throwIfReservationExpired();
+        await throwIfSeatReservationExpired(this.page);
         if (!await this.isPanelVisible()) throw new Error("選位彈窗已關閉，無法確認。");
         // 點擊前重讀，避免送出已改變的配位結果。
         const result = await this.readSeatResult();
-        this.throwIfSeatError(result.text);
+        throwIfSeatError(result.text);
         const mismatch = getSeatResultMismatch(result, target);
         if (mismatch) throw new Error(`確認前核對失敗：${mismatch}`);
         const seatKeys = (seats: AssignedSeat[]) => seats.map(seat =>
@@ -107,7 +108,7 @@ export class KlookSeatSelector {
             throw new Error("確認前座位已改變，已停止。");
         }
         if (!await this.isConfirmReady()) throw new Error("確認按鈕目前無法操作，已停止。");
-        await this.throwIfReservationExpired();
+        await throwIfSeatReservationExpired(this.page);
         await this.panel.getByRole("button", { name: "確認", exact: true }).click({ timeout: this.timeout });
         log("已按選位確認，等待填寫資料頁；不會重複點擊。");
     }
@@ -122,10 +123,10 @@ export class KlookSeatSelector {
         const deadline = Date.now() + this.timeout;
         let lastReason = "選位彈窗尚未出現";
         while (Date.now() < deadline) {
-            await this.throwIfReservationExpired();
+            await throwIfSeatReservationExpired(this.page);
             if (await this.isPanelVisible()) {
                 const result = await this.readSeatResult();
-                this.throwIfSeatError(result.text);
+                throwIfSeatError(result.text);
                 const mismatch = getSeatResultMismatch(result, target);
                 if (mismatch) lastReason = mismatch;
                 else if (await this.isConfirmReady()) return result;
@@ -159,20 +160,6 @@ export class KlookSeatSelector {
                 seats,
             };
         }, selectors);
-    }
-
-    private async throwIfReservationExpired(): Promise<void> {
-        // 到期提示是另一層彈窗，不能只檢查座位清單容器。
-        const notices = this.page.getByText(/未於時限內確認[，,]\s*票券預留失敗/);
-        for (const notice of await notices.all()) {
-            if (await notice.isVisible()) throw new Error("票券預留已到期，已停止確認；不會自動重整或重新配位。");
-        }
-    }
-
-    private throwIfSeatError(text: string): void {
-        if (/選位失敗|已逾時|已超時|時間已到/.test(text)) {
-            throw new Error("選位畫面顯示失敗或逾時，請人工檢查；未判定售罄。");
-        }
     }
 
     private async isConfirmReady(): Promise<boolean> {
