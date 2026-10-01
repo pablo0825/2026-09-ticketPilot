@@ -5,7 +5,6 @@ import { prepareBooking } from "../src/core/bookingPreparation.js";
 import { KlookSeatRecovery } from "../src/platforms/klook/seatRecovery.js";
 import { KlookSeatSelector } from "../src/platforms/klook/seatSelector.js";
 import { KlookTicketSelector } from "../src/platforms/klook/ticketSelector.js";
-import { throwIfSeatReservationExpired } from "../src/platforms/klook/seatErrors.js";
 
 const eventUrl = "https://www.klook.com/zh-TW/event-detail/test/";
 const target = { date: "2026-10-03", time: "12:00", area: "A區", quantity: 1, adjacent: false };
@@ -51,7 +50,11 @@ test("選位恢復限定原活動與唯一過期彈窗；錯頁、歧義、其�
         assert.equal(await page.locator('body').getAttribute('data-ok'), '1');
         assert.equal(await page.locator('body').getAttribute('data-confirm'), null);
         await page.setContent(panel() + modal().replace('class="klk-modal-alert"', 'class="klk-modal-alert" hidden'));
-        await throwIfSeatReservationExpired(page);
+        await new KlookSeatSelector(page, 1000).confirmVerifiedSeats(target, [
+            { section: "A1", row: "10", number: "17" },
+        ]);
+        assert.equal(await page.locator('body').getAttribute('data-confirm'), '1');
+        assert.equal(await page.locator('body').getAttribute('data-ok'), null);
     } finally { await browser.close(); }
 });
 
