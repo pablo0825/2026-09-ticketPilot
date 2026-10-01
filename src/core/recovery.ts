@@ -40,6 +40,8 @@ export async function runWithRecovery<T>(attempt: () => Promise<T>, recovery: Fl
         try {
             return await attempt();
         } catch (error) {
+            // 人工取消優先於頁面上的過期提示，不得轉成重跑。
+            if (error instanceof Error && error.name === "AbortError") throw error;
             // 不需要恢復，就拋出錯誤
             if (!await recovery.isRequired()) throw error;
             await recoverOnce();

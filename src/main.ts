@@ -1,3 +1,4 @@
+import { FlowPause } from "./core/flowPause.js";
 import { KlookSeatRecovery } from "./platforms/klook/seatRecovery.js";
 import { PaymentPageError, waitForPaymentPage } from "./platforms/klook/paymentPage.js";
 import { loadContactDetails } from "./config/contact.config.js";
@@ -19,9 +20,13 @@ async function main() {
     reportState("STARTING");
     // 驗證活動資料是否符合規定
     validateBookingExpectation(bookingExpectation);
+    const pause = new FlowPause(process.env.FLOW_PAUSE);
 
     // 載入個人資料
     const contactDetails = await loadContactDetails();
+    if (process.env.FLOW_PAUSE === "contact" && !contactDetails) {
+        throw new Error("FLOW_PAUSE=contact 需要先設定 contact.local.json。");
+    }
     // 取出購票資訊
     const target = eventConfig.targets[0];
     
@@ -104,6 +109,7 @@ async function main() {
         },
         confirmSeats: async ({ seatSelector, seats }) => {
             reportState("SEATS_VERIFIED");
+            await pause.waitAt("seats");
             reportState("SEAT_CONFIRMATION");
             await seatSelector.confirmVerifiedSeats(target, seats);
             await waitForPersonalInfoPage(page, eventConfig.eventUrl);
@@ -119,6 +125,11 @@ async function main() {
                 verifyBookingSummary(await readBookingSummary(page, eventConfig.eventUrl), target, seats, bookingExpectation);
                 await contactForm.verify(contactDetails);
                 reportState("CONTACT_VERIFIED");
+                if (await pause.waitAt("contact")) {
+                    // 暫停期間可能過期或被修改，返回前重新核對；仍在恢復範圍內。
+                    verifyBookingSummary(await readBookingSummary(page, eventConfig.eventUrl), target, seats, bookingExpectation);
+                    await contactForm.verify(contactDetails);
+                }
             }
         },
     }, new KlookQueueRecovery(page, eventConfig.eventUrl), new KlookContactRecovery(page, eventConfig.eventUrl),
