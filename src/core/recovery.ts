@@ -15,7 +15,7 @@ export async function runWithRecovery<T>(attempt: () => Promise<T>, recovery: Fl
     // 恢復流程
     async function recoverOnce(): Promise<void> {
         // 若 recovered 為 true, 就拋出錯誤
-        if (recovered) throw new Error("排隊逾時再次出現，已達一次恢復上限，請人工檢查。");
+        if (recovered) throw new Error("再次需要恢復，已達一次恢復上限，請人工檢查。");
 
         recovered = true;
 

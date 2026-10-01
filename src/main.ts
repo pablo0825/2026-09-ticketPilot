@@ -2,7 +2,8 @@ import { PaymentPageError, waitForPaymentPage } from "./platforms/klook/paymentP
 import { loadContactDetails } from "./config/contact.config.js";
 import { KlookContactForm } from "./platforms/klook/contactForm.js";
 import { readBookingSummary, verifyBookingSummary, validateBookingExpectation } from "./platforms/klook/bookingSummary.js";
-import { runWithRecovery } from "./core/recovery.js";
+import { prepareBooking } from "./core/bookingPreparation.js";
+import { KlookContactRecovery } from "./platforms/klook/contactRecovery.js";
 import { KlookQueueRecovery } from "./platforms/klook/queueRecovery.js";
 import { chromium } from "playwright";
 import { eventConfig, bookingExpectation } from "./config/event.config.js";
@@ -91,33 +92,38 @@ async function main() {
 
     // status 為活動頁面(應該是打開活動頁的意思？)
     reportState("EVENT_PAGE");
-    const { seatSelector, seats } = await runWithRecovery(async () => {
-        await runSelection(eventConfig, new KlookTicketSelector(page));
+    const contactForm = new KlookContactForm(page, eventConfig.eventUrl);
+    await prepareBooking({
+        selectSeats: async () => {
+            await runSelection(eventConfig, new KlookTicketSelector(page));
+            reportState("SEAT_ASSIGNMENT");
+            const seatSelector = new KlookSeatSelector(page);
+            const seats = await seatSelector.openAndVerify(target);
+            return { seatSelector, seats };
+        },
+        confirmSeats: async ({ seatSelector, seats }) => {
+            reportState("SEATS_VERIFIED");
+            reportState("SEAT_CONFIRMATION");
+            await seatSelector.confirmVerifiedSeats(target, seats);
+            await waitForPersonalInfoPage(page, eventConfig.eventUrl);
+            reportState("PERSONAL_INFO_READY");
+        },
+        prepareContact: async ({ seats }) => {
+            const summary = await readBookingSummary(page, eventConfig.eventUrl);
+            verifyBookingSummary(summary, target, seats, bookingExpectation);
+            reportState("BOOKING_VERIFIED");
+            if (contactDetails) {
+                reportState("CONTACT_FILLING");
+                await contactForm.fillAndVerify(contactDetails);
+                verifyBookingSummary(await readBookingSummary(page, eventConfig.eventUrl), target, seats, bookingExpectation);
+                await contactForm.verify(contactDetails);
+                reportState("CONTACT_VERIFIED");
+            }
+        },
+    }, new KlookQueueRecovery(page, eventConfig.eventUrl), new KlookContactRecovery(page, eventConfig.eventUrl));
 
-        reportState("SEAT_ASSIGNMENT");
-
-        const seatSelector = new KlookSeatSelector(page);
-        const seats = await seatSelector.openAndVerify(target);
-        
-        return { seatSelector, seats };
-    }, new KlookQueueRecovery(page, eventConfig.eventUrl));
-    
-    // 確認及導頁不自動重跑，避免送出結果未知時重複操作。
-    reportState("SEATS_VERIFIED");
-    reportState("SEAT_CONFIRMATION");
-    await seatSelector.confirmVerifiedSeats(target, seats);
-    await waitForPersonalInfoPage(page, eventConfig.eventUrl);
-    reportState("PERSONAL_INFO_READY");
-    const summary = await readBookingSummary(page, eventConfig.eventUrl);
-    verifyBookingSummary(summary, target, seats, bookingExpectation);
-    reportState("BOOKING_VERIFIED");
+    // 提交永遠在恢復範圍外；即使此刻才到期，也停止而不冒險重送。
     if (contactDetails) {
-        reportState("CONTACT_FILLING");
-        const contactForm = new KlookContactForm(page, eventConfig.eventUrl);
-        await contactForm.fillAndVerify(contactDetails);
-        verifyBookingSummary(await readBookingSummary(page, eventConfig.eventUrl), target, seats, bookingExpectation);
-        reportState("CONTACT_VERIFIED");
-        await contactForm.verify(contactDetails);
         reportState("CONTACT_SUBMISSION");
         await contactForm.submit();
         try {
