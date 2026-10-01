@@ -99,3 +99,63 @@ test("個資彈窗與未知彈窗同時存在時，不點原始確認", async ()
         assert.equal(await page.locator('body').getAttribute('data-clicked'), null);
     } finally { await browser.close(); }
 });
+
+test("獨立排隊、預留與返程排隊最多三次動作；返程排隊不扣獨立額度", async () => {
+    for (const queueFirst of [true, false]) {
+        let stage: 'queue' | 'contact' | 'returnQueue' | 'ready' = queueFirst ? 'queue' : 'ready';
+        const clicks: string[] = [];
+        const queue = {
+            isRequired: async () => stage === 'queue' || stage === 'returnQueue',
+            recover: async () => { clicks.push(stage); stage = 'ready'; },
+        };
+        const contact = {
+            isRequired: async () => stage === 'contact',
+            recover: async (returnQueue?: import('../src/core/recovery.js').FlowRecovery) => {
+                clicks.push('contact');
+                stage = 'returnQueue';
+                assert.ok(returnQueue);
+                assert.equal(await returnQueue.isRequired(), true);
+                await returnQueue.recover();
+            },
+        };
+        let selections = 0;
+        const prepared: number[] = [];
+        await prepareBooking({
+            selectSeats: async () => {
+                const seat = ++selections;
+                if (!queueFirst && seat === 2) { stage = 'queue'; throw new Error('獨立排隊'); }
+                return seat;
+            },
+            confirmSeats: async () => {},
+            prepareContact: async seat => {
+                if (seat === 1) { stage = 'contact'; throw new Error('明確個資過期'); }
+                prepared.push(seat);
+            },
+        }, queue, contact);
+        assert.deepEqual(clicks, queueFirst ? ['queue', 'contact', 'returnQueue'] : ['contact', 'returnQueue', 'queue']);
+        assert.deepEqual(prepared, [queueFirst ? 2 : 3]);
+    }
+});
+
+test("返程排隊失敗就停止，不能改用未使用的獨立排隊額度", async () => {
+    let contactExpired = false, returning = false, selections = 0, queueClicks = 0;
+    const failure = new Error('返回途中排隊恢復失敗');
+    const queue = {
+        isRequired: async () => returning,
+        recover: async () => { queueClicks++; throw failure; },
+    };
+    await assert.rejects(prepareBooking({
+        selectSeats: async () => ++selections,
+        confirmSeats: async () => {},
+        prepareContact: async () => { contactExpired = true; },
+    }, queue, {
+        isRequired: async () => contactExpired,
+        recover: async returnQueue => {
+            returning = true;
+            assert.ok(returnQueue);
+            await returnQueue.recover();
+        },
+    }), error => error === failure);
+    assert.equal(queueClicks, 1);
+    assert.equal(selections, 1);
+});

@@ -1,27 +1,32 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { chromium } from 'playwright';
-import { runWithRecovery } from '../src/core/recovery.js';
+import { runWithRecovery, type FlowRecovery } from '../src/core/recovery.js';
 import { KlookQueueRecovery } from '../src/platforms/klook/queueRecovery.js';
 
-test('已知例外才恢復；共用一次上限；未知錯誤原樣拋出', async () => {
+function queueAction(recovery: FlowRecovery) {
+    return async () => await recovery.isRequired()
+        ? { kind: 'queue' as const, recover: () => recovery.recover() } : null;
+}
+
+test('已知例外才恢復；排隊一次上限；未知錯誤原樣拋出', async () => {
     let expired = true, recoveries = 0, attempts = 0;
     const recovery = { isRequired: async () => expired, recover: async () => { recoveries++; expired = false; } };
-    assert.equal(await runWithRecovery(async () => ++attempts, recovery), 1);
+    assert.equal(await runWithRecovery(async () => ++attempts, queueAction(recovery)), 1);
     assert.equal(recoveries, 1);
     expired = false; recoveries = 0; attempts = 0;
     assert.equal(await runWithRecovery(async () => {
         if (++attempts === 1) { expired = true; throw new Error('操作失敗'); }
         return '成功';
-    }, recovery), '成功');
+    }, queueAction(recovery)), '成功');
     assert.equal(attempts, 2);
     assert.equal(recoveries, 1);
     expired = true; recoveries = 0;
-    await assert.rejects(runWithRecovery(async () => { expired = true; throw new Error('再次過期'); }, recovery), /一次恢復上限/);
+    await assert.rejects(runWithRecovery(async () => { expired = true; throw new Error('再次過期'); }, queueAction(recovery)), /一次恢復上限/);
     assert.equal(recoveries, 1);
     expired = false;
     const unknown = new Error('未知故障');
-    await assert.rejects(runWithRecovery(async () => { throw unknown; }, recovery), error => error === unknown);
+    await assert.rejects(runWithRecovery(async () => { throw unknown; }, queueAction(recovery)), error => error === unknown);
 });
 
 const url = 'https://www.klook.com/zh-TW/event-detail/test/';
@@ -77,10 +82,27 @@ test('整合恢復：OK 觸發重新載入，等待延遲選項後才開始下�
             attempts++;
             assert.equal(await page.locator('body').getAttribute('data-ready'), 'true');
             return '選票入口已恢復';
-        }, new KlookQueueRecovery(page, url, 3000));
+        }, queueAction(new KlookQueueRecovery(page, url, 3000)));
         assert.equal(result, '選票入口已恢復');
         assert.equal(loads, 2);
         assert.equal(attempts, 1);
         assert.equal(await page.evaluate(() => sessionStorage.getItem('okClicks')), '1');
     } finally { await browser.close(); }
+});
+
+test('恢復失敗不換用其他額度；人工取消不進入恢復', async () => {
+    let actions = 0, attempts = 0;
+    const failure = new Error('返回入口失敗');
+    await assert.rejects(runWithRecovery(async () => { attempts++; }, async () => {
+        actions++;
+        return { kind: actions === 1 ? 'reservation' : 'queue', recover: async () => { throw failure; } };
+    }), error => error === failure);
+    assert.equal(actions, 1);
+    assert.equal(attempts, 0);
+
+    let checked = 0;
+    await assert.rejects(runWithRecovery(async () => {
+        throw new DOMException('取消', 'AbortError');
+    }, async () => { checked++; return null; }), { name: 'AbortError' });
+    assert.equal(checked, 1);
 });

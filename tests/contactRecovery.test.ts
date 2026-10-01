@@ -49,7 +49,7 @@ test("個資逾期後重新取得座位；第二次逾期停止，且不提交",
     assert.equal(attempts, 2);
 });
 
-test("排隊和個資恢復共用一次額度，不論發生順序", async () => {
+test("排隊和個資各一次，不論發生順序；再次個資逾期停止", async () => {
     for (const queueFirst of [true, false]) {
         const queue = fakeRecovery();
         const contact = fakeRecovery();
@@ -63,8 +63,8 @@ test("排隊和個資恢復共用一次額度，不論發生順序", async () =>
             confirmSeats: async () => {},
             prepareContact: async () => { contact.expired = true; throw new Error("個資過期"); },
         }, queue, contact), /一次恢復上限/);
-        assert.equal(queue.count + contact.count, 1);
-        assert.equal(queue.count, queueFirst ? 1 : 0);
+        assert.equal(queue.count, 1);
+        assert.equal(contact.count, 1);
     }
 });
 

@@ -115,25 +115,56 @@ test("確認已按下但導頁失敗時，即使出現過期提示也不重選�
     } finally { await browser.close(); }
 });
 
-test("三種恢復共用一次額度；選位與其他恢復前後排列、連續過期均不超限", async () => {
+test("排隊與預留各一次；選位和個資共用額度，所有先後組合皆不超限", async () => {
     for (const first of ['queue', 'seat', 'contact'] as const) {
         for (const second of ['queue', 'seat', 'contact'] as const) {
             const queue = fakeRecovery(), seat = fakeRecovery(), contact = fakeRecovery();
             const recoveries = { queue, seat, contact };
-            recoveries[first].expired = first !== 'contact';
+            const sequence = [first, second];
             let attempts = 0;
-            await assert.rejects(prepareBooking({
+            const run = prepareBooking({
                 selectSeats: async () => {
-                    attempts++;
-                    if (first !== 'contact' || attempts > 1) {
-                        recoveries[second].expired = true;
-                        if (second !== 'contact') throw new Error('選票階段過期');
+                    const current = sequence[attempts++];
+                    if (current && current !== 'contact') {
+                        recoveries[current].expired = true;
+                        throw new Error('選票／選位階段過期');
                     }
                 },
                 confirmSeats: async () => {},
-                prepareContact: async () => { contact.expired = true; },
-            }, queue, contact, seat), /一次恢復上限/);
-            assert.equal(queue.count + seat.count + contact.count, 1);
+                prepareContact: async () => {
+                    if (sequence[attempts - 1] === 'contact') contact.expired = true;
+                },
+            }, queue, contact, seat);
+            const differentBudgets = (first === 'queue') !== (second === 'queue');
+            if (differentBudgets) {
+                await run;
+                assert.equal(attempts, 3);
+                assert.equal(queue.count, 1);
+                assert.equal(seat.count + contact.count, 1);
+            } else {
+                await assert.rejects(run, /一次恢復上限/);
+                assert.equal(attempts, 2);
+                assert.equal(queue.count + seat.count + contact.count, 1);
+            }
         }
     }
+});
+
+test("辨識與動作間由排隊變成選位過期時停止，不切換恢復種類", async () => {
+    let queueChecks = 0;
+    let clicks = 0;
+    const queue = {
+        isRequired: async () => ++queueChecks === 1,
+        recover: async () => { clicks++; },
+    };
+    const seat = {
+        isRequired: async () => queueChecks > 1,
+        recover: async () => { clicks++; },
+    };
+    await assert.rejects(prepareBooking({
+        selectSeats: async () => assert.fail('不應開始選票'),
+        confirmSeats: async () => {},
+        prepareContact: async () => {},
+    }, queue, fakeRecovery(), seat), /例外狀態已變動/);
+    assert.equal(clicks, 0);
 });

@@ -42,8 +42,14 @@ availability alone. Stop with reasons for incomplete data, unknown states, or
 failed validation; do not label these sold out.
 
 Keep recovery separate from selection/form logic. Handle only recognized
-exceptions with explicit triggers and completion conditions. Allow at most one
-recovery per run; revalidate afterward and reject expired seat/order data.
+exceptions with explicit triggers and completion conditions. Per run, allow one
+independent queue recovery and one reservation recovery shared by seat and contact
+expiry, regardless of order. During reservation recovery, allow one additional
+queue-expiry handling step on the return to the event page. This allows at most
+two top-level recoveries and three recovery-dialog click attempts. Consume each
+budget before acting; never reset budgets on a rerun. A failed recovery stops
+rather than falling back to another budget. Revalidate afterward and reject
+expired seat/order data.
 Preserve strict ticket matching. Never automatically retry seat confirmation.
 After verifying the booking summary and configured contact details, submit once
 and verify arrival at checkout and the expected amount. Stop before confirming

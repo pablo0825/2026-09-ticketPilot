@@ -1,3 +1,4 @@
+import { log } from "./logger.js";
 import { reportState } from "./state.js";
 
 export interface FlowRecovery {
@@ -6,46 +7,40 @@ export interface FlowRecovery {
     recover(returnQueueRecovery?: FlowRecovery): Promise<void>;
 }
 
-// 只在已辨識的例外出現時重跑；不與正在執行的選票操作並行。
-// 遇到例外問題的處理機制
-// attempt 要執行的操作
-// recovery 提供 是否需要恢復 以及 恢復方法
-export async function runWithRecovery<T>(attempt: () => Promise<T>, recovery: FlowRecovery): Promise<T> {
-    let recovered = false;
+// 種類在辨識時確定，不能在扣額度後換成另一種恢復。
+export interface RecoveryAction {
+    kind: "queue" | "reservation";
+    recover(): Promise<void>;
+}
 
-    // 恢復流程
-    async function recoverOnce(): Promise<void> {
-        // 若 recovered 為 true, 就拋出錯誤
-        if (recovered) throw new Error("再次需要恢復，已達一次恢復上限，請人工檢查。");
+// 整次執行各一份額度；恢復失敗直接停止，不轉用其他額度。
+export async function runWithRecovery<T>(attempt: () => Promise<T>,
+    findRecovery: () => Promise<RecoveryAction | null>): Promise<T> {
+    const used = { queue: false, reservation: false };
 
-        recovered = true;
-
-        // 顯示 status 為恢復
+    async function recoverOnce(action: RecoveryAction): Promise<void> {
+        const label = action.kind === "queue" ? "獨立排隊" : "選位／個資預留";
+        if (used[action.kind]) throw new Error(`${label}已達一次恢復上限，請人工檢查。`);
+        used[action.kind] = true;
         reportState("RECOVERING");
-
-        // 紀錄正在恢復
-        await recovery.recover();
-        // status 為活動頁面
+        log(`${label}恢復額度：1/1（已使用）。`);
+        await action.recover();
         reportState("EVENT_PAGE");
     }
 
-    // 條件永遠成立
     while (true) {
-        // 檢查是否需要恢復
-        if (await recovery.isRequired()) {
-            // 執行恢復流程
-            await recoverOnce();
-            // 繼續
+        const initial = await findRecovery();
+        if (initial) {
+            await recoverOnce(initial);
             continue;
         }
         try {
             return await attempt();
         } catch (error) {
-            // 人工取消優先於頁面上的過期提示，不得轉成重跑。
             if (error instanceof Error && error.name === "AbortError") throw error;
-            // 不需要恢復，就拋出錯誤
-            if (!await recovery.isRequired()) throw error;
-            await recoverOnce();
+            const action = await findRecovery();
+            if (!action) throw error;
+            await recoverOnce(action);
         }
     }
 }
