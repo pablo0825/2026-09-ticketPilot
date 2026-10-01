@@ -67,5 +67,9 @@ Use Conventional Commits: `<type>(<scope>): <summary>`.
 Use focused commits, imperative summaries, and module scopes,
 e.g. `fix(seats): reject mismatched quantities`. Separate unrelated refactoring.
 
+After implementation or edits, automatically commit task-related changes once
+required verification and review pass. Stage only changes made for the current task;
+leave unrelated changes uncommitted. Report the commit hash when finished.
+
 Base optional `contact.local.json` on `contact.example.json`.
 Never commit personal data, secrets, or `browser-profile/`.
