@@ -2,7 +2,8 @@ import { reportState } from "./state.js";
 
 export interface FlowRecovery {
     isRequired(): Promise<boolean>;
-    recover(): Promise<void>;
+    // 選位／個資返回途中可接續一次排隊恢復；完成仍代表入口已就緒。
+    recover(returnQueueRecovery?: FlowRecovery): Promise<void>;
 }
 
 // 只在已辨識的例外出現時重跑；不與正在執行的選票操作並行。

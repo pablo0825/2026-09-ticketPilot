@@ -1,7 +1,7 @@
 import type { Locator, Page } from "playwright";
 import type { FlowRecovery } from "../../core/recovery.js";
 import { log } from "../../core/logger.js";
-import { isEventPageReady } from "./eventPage.js";
+import { waitForEventPage } from "./eventPage.js";
 
 const expiredMessage = /^未於時限內確認[，,]\s*票券預留失敗$/;
 
@@ -27,7 +27,7 @@ export class KlookSeatRecovery implements FlowRecovery {
             await this.expiredDialog().count() > 0;
     }
 
-    async recover(): Promise<void> {
+    async recover(returnQueueRecovery?: FlowRecovery): Promise<void> {
         if (!await this.isRequired() || await this.expiredDialog().count() !== 1 ||
             await this.page.locator(".klk-modal-alert").filter({ visible: true }).count() !== 1) {
             throw new Error("無法確認唯一的選位逾期彈窗，已停止恢復。");
@@ -38,14 +38,8 @@ export class KlookSeatRecovery implements FlowRecovery {
         }
         log("選位預留已過期：按一次 OK，等待原活動選票區恢復。");
         await ok.click({ timeout: this.timeout });
-        const deadline = Date.now() + this.timeout;
-        while (Date.now() < deadline) {
-            if (await isEventPageReady(this.page, this.eventUrl)) {
-                log("選票入口已恢復，重新核對選票條件並取得新座位。");
-                return;
-            }
-            await this.page.waitForTimeout(200);
-        }
-        throw new Error("選位逾期按 OK 後未能恢復選票入口，已停止；不再次點擊或重整。");
+        await waitForEventPage(this.page, this.eventUrl, this.timeout,
+            "選位逾期按 OK 後未能恢復選票入口，已停止；不再次點擊或重整。", returnQueueRecovery);
+        log("選票入口已恢復，重新核對選票條件並取得新座位。");
     }
 }

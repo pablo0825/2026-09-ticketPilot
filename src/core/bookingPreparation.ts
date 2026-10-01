@@ -23,7 +23,7 @@ export async function prepareBooking<T>(steps: BookingSteps<T>, queueRecovery: F
         recover: async () => {
             const selected = await findSelectionRecovery();
             if (!selected) throw new Error("選票／選位例外已變動，已停止恢復。");
-            await selected.recover();
+            await selected.recover(selected === queueRecovery ? undefined : queueRecovery);
         },
     };
     let activeRecovery: FlowRecovery | null = selectionRecovery;
@@ -31,7 +31,7 @@ export async function prepareBooking<T>(steps: BookingSteps<T>, queueRecovery: F
         isRequired: async () => activeRecovery !== null && await activeRecovery.isRequired(),
         recover: async () => {
             if (!activeRecovery) throw new Error("目前階段不允許恢復。");
-            await activeRecovery.recover();
+            await activeRecovery.recover(activeRecovery === selectionRecovery ? undefined : queueRecovery);
             activeRecovery = selectionRecovery;
         },
     };

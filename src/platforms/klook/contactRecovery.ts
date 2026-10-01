@@ -1,7 +1,7 @@
 import type { Locator, Page } from "playwright";
 import type { FlowRecovery } from "../../core/recovery.js";
 import { log } from "../../core/logger.js";
-import { isEventPageReady } from "./eventPage.js";
+import { waitForEventPage } from "./eventPage.js";
 
 const expiredMessage = /^未於時限內確認[，,]\s*票券預留失敗$/;
 
@@ -24,8 +24,9 @@ export class KlookContactRecovery implements FlowRecovery {
         return this.isContactPage() && await this.expiredDialog().count() > 0;
     }
 
-    async recover(): Promise<void> {
-        if (!this.isContactPage() || await this.expiredDialog().count() !== 1) {
+    async recover(returnQueueRecovery?: FlowRecovery): Promise<void> {
+        if (!this.isContactPage() || await this.expiredDialog().count() !== 1 ||
+            await this.page.locator(".klk-modal-alert").filter({ visible: true }).count() !== 1) {
             throw new Error("無法確認唯一的個人資料逾期彈窗，已停止恢復。");
         }
         const confirm = this.expiredDialog().getByRole("button", { name: "確認", exact: true });
@@ -34,14 +35,8 @@ export class KlookContactRecovery implements FlowRecovery {
         }
         log("個人資料預留已過期：按一次彈窗確認，等待原活動頁恢復。");
         await confirm.click({ timeout: this.timeout });
-        const deadline = Date.now() + this.timeout;
-        while (Date.now() < deadline) {
-            if (await isEventPageReady(this.page, this.eventUrl)) {
-                log("已返回原活動頁，重新選票與配位；不沿用舊預留資料。");
-                return;
-            }
-            await this.page.waitForTimeout(200);
-        }
-        throw new Error("確認逾期後未能恢復原活動選票區，已停止；不再次點擊或重整。");
+        await waitForEventPage(this.page, this.eventUrl, this.timeout,
+            "確認逾期後未能恢復原活動選票區，已停止；不再次點擊或重整。", returnQueueRecovery);
+        log("已返回原活動頁，重新選票與配位；不沿用舊預留資料。");
     }
 }
