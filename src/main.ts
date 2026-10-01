@@ -1,3 +1,4 @@
+import { waitForPaymentPage } from "./platforms/klook/paymentPage.js";
 import { loadContactDetails } from "./config/contact.config.js";
 import { KlookContactForm } from "./platforms/klook/contactForm.js";
 import { readBookingSummary, verifyBookingSummary, validateBookingExpectation } from "./platforms/klook/bookingSummary.js";
@@ -112,10 +113,20 @@ async function main() {
     reportState("BOOKING_VERIFIED");
     if (contactDetails) {
         reportState("CONTACT_FILLING");
-        await new KlookContactForm(page, eventConfig.eventUrl).fillAndVerify(contactDetails);
+        const contactForm = new KlookContactForm(page, eventConfig.eventUrl);
+        await contactForm.fillAndVerify(contactDetails);
         verifyBookingSummary(await readBookingSummary(page, eventConfig.eventUrl), target, seats, bookingExpectation);
         reportState("CONTACT_VERIFIED");
-        console.log("聯絡資料填寫與欄位核對完成，已停在提交前。請人工確認收據及網站提示；不會前往付款。");
+        await contactForm.verify(contactDetails);
+        reportState("CONTACT_SUBMISSION");
+        await contactForm.submit();
+        try {
+            await waitForPaymentPage(page, eventConfig.eventUrl, bookingExpectation.totalPrice);
+        } catch {
+            throw new Error("已嘗試提交，但未能核對付款頁。請人工檢查頁面及訂單；不會重新提交或重跑購票。");
+        }
+        reportState("PAYMENT_READY");
+        console.log("已核對付款頁與金額，停在付款前；不會按確認付款。");
     } else {
         console.log("摘要核對通過。未提供 contact.local.json，停在個人資料頁。");
     }

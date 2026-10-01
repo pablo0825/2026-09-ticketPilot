@@ -45,8 +45,10 @@ Keep recovery separate from selection/form logic. Handle only recognized
 exceptions with explicit triggers and completion conditions. Allow at most one
 recovery per run; revalidate afterward and reject expired seat/order data.
 Preserve strict ticket matching. Never automatically retry seat confirmation.
-After verified seat confirmation, stop before submitting contact details,
-placing an order, or making payment.
+After verifying the booking summary and configured contact details, submit once
+and verify arrival at checkout and the expected amount. Stop before confirming
+payment. Never retry contact submission or restart purchasing after an uncertain
+submission result. Without contact configuration, stop on the contact page.
 
 ## Verification & Review
 

@@ -83,3 +83,18 @@
 - klk-option-hovering 只表示滑鼠所在項目，不能當成已選。
 - 後續若實作：限定電話區碼群組，按完整選項文字匹配，驗證唯一及 selected class。不可使用原生 selectOption。
 - 本次未讀取手機號碼、未更改選項。
+
+## 提交到付款頁（2026-10-01）
+
+使用者手動完成一次提交，觀察到：
+- 個人資料頁可見按鈕「前往付款」，class 包含 `submit-button`；提交前沒有可見 `.klk-modal`。
+- 提交後進入同站 `/zh-TW/order-checkout/`，query 有 `order_no`；不保存實際訂單編號。
+- 可見 `.payment_type-name` 包含 LINE Pay、信用卡/記帳卡、Google Pay。
+- 可見 `.oc_submit_price` 為 `NT$ 4,880`；「確認付款」按鈕可見且可操作。
+- 同一 DOM 仍存在隱藏的「前往付款」及其他按鈕，定位須限定可見元素。
+
+提交由 `contactForm.ts` 的 `submit()` 負責；`paymentPage.ts` 獨立核對網址、付款選項、金額與按鈕。
+`contactForm.ts` 提供不重新填寫的 `verify`，供提交前再次核對；main 的提交與付款頁核對在 recovery 範圍外。
+有 contact.local.json 時，核對後送出並停在付款頁；沒有設定時仍停在個人資料頁。
+提交結果未知或付款頁核對失敗時停止，不自動重送、不重跑購票、不按確認付款。
+本次實作以本機 fixture 測試；新的自動提交程式仍待使用者實站驗證。
