@@ -1,4 +1,4 @@
-import { waitForPaymentPage } from "./platforms/klook/paymentPage.js";
+import { PaymentPageError, waitForPaymentPage } from "./platforms/klook/paymentPage.js";
 import { loadContactDetails } from "./config/contact.config.js";
 import { KlookContactForm } from "./platforms/klook/contactForm.js";
 import { readBookingSummary, verifyBookingSummary, validateBookingExpectation } from "./platforms/klook/bookingSummary.js";
@@ -122,8 +122,9 @@ async function main() {
         await contactForm.submit();
         try {
             await waitForPaymentPage(page, eventConfig.eventUrl, bookingExpectation.totalPrice);
-        } catch {
-            throw new Error("已嘗試提交，但未能核對付款頁。請人工檢查頁面及訂單；不會重新提交或重跑購票。");
+        } catch (error) {
+            const reason = error instanceof PaymentPageError ? error.message : "付款頁核對發生未知錯誤。";
+            throw new Error(`已嘗試提交，但未能核對付款頁：${reason} 請人工檢查頁面及訂單；不會重新提交或重跑購票。`);
         }
         reportState("PAYMENT_READY");
         console.log("已核對付款頁與金額，停在付款前；不會按確認付款。");

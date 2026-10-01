@@ -92,3 +92,29 @@ test("提交按鈕被遮擋而點擊逾時時，回報結果未知且不自行�
         assert.equal(await page.locator("body").getAttribute("data-clicks"), null);
     } finally { await browser.close(); }
 });
+
+test("付款頁診斷區分檢查階段，錯誤不含訂單編號或原始頁面內容", async () => {
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
+    try {
+        await page.route("**/*", route => route.fulfill({ body: payment, contentType: "text/html; charset=utf-8" }));
+        await page.goto(paymentUrl.replace("test", "private-order"));
+        for (const [html, expected] of [
+            [payment.replace('>確認付款<', '>其他<'), /確認付款按鈕.*失敗/],
+            [payment.replace('payment_type-name', 'missing'), /付款方式.*失敗/],
+            [payment.replace('oc_submit_price', 'missing'), /付款金額.*失敗/],
+            [payment.replace('4,880', '3,880'), /金額不符/],
+            [payment.replace('onclick="document.body.dataset.paid=1"', 'disabled'), /按鈕目前停用/],
+            [payment + '<div class="klk_c_dialog">private-dialog</div>', /有可見彈窗/],
+        ] as const) {
+            await page.setContent(html);
+            await assert.rejects(waitForPaymentPage(page, eventUrl, 4880, 200), error => {
+                assert.ok(error instanceof Error);
+                assert.match(error.message, expected);
+                assert.doesNotMatch(error.message, /private-order|private-dialog/);
+                return true;
+            });
+            assert.equal(await page.locator("body").getAttribute("data-paid"), null);
+        }
+    } finally { await browser.close(); }
+});
