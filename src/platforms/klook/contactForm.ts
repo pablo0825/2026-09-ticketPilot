@@ -1,3 +1,4 @@
+import { isPersonalInfoPage } from "./personalInfoPage.js";
 import type { Page } from "playwright";
 import { validateContactDetails, type ContactDetails } from "../../config/contact.config.js";
 
@@ -44,8 +45,7 @@ export class KlookContactForm {
 
     // 呼叫端須先核對摘要與聯絡資料；每次呼叫嘗試提交一次，不參與 recovery。
     async submit(): Promise<void> {
-        const current = new URL(this.page.url());
-        if (current.origin !== new URL(this.eventUrl).origin || current.pathname !== "/zh-TW/event/payment/") {
+        if (!isPersonalInfoPage(this.page.url(), this.eventUrl)) {
             throw new Error("不在個人資料頁，未提交。");
         }
         const blockers = this.page.locator('.klk-modal, .klk-form-item-error, .klk-form-item-is-error, [aria-invalid="true"]')
@@ -84,8 +84,7 @@ export class KlookContactForm {
     }
 
     private async assertAvailable(): Promise<void> {
-        const current = new URL(this.page.url());
-        if (current.origin !== new URL(this.eventUrl).origin || current.pathname !== "/zh-TW/event/payment/") throw new Error("已離開個人資料頁");
+        if (!isPersonalInfoPage(this.page.url(), this.eventUrl)) throw new Error("已離開個人資料頁");
         if (await this.page.locator(".klk-modal").filter({ visible: true }).count() > 0) throw new Error("有彈窗");
         if (!await this.page.getByRole("heading", { name: "聯絡資料", exact: true }).isVisible()) throw new Error("聯絡資料未就緒");
     }

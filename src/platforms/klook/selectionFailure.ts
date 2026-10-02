@@ -1,8 +1,9 @@
+import { getSelectionNotices, seatPanelSelector, seatShellSelector } from "./notices.js";
 import type { Locator, Page } from "playwright";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { KlookSeatRecovery } from "./seatRecovery.js";
 import { KlookQueueRecovery } from "./queueRecovery.js";
-import { isEventPageReady } from "./eventPage.js";
+import { isEventPageReady, isEventPage } from "./eventPage.js";
 
 type FailureReason = "sold-out" | "assignment-failed";
 
@@ -20,29 +21,13 @@ export class KlookSelectionFailure {
     constructor(private readonly page: Page, private readonly eventUrl: string,
         private readonly timeout = 30_000) {}
 
-    private isEventPage(): boolean {
-        const current = new URL(this.page.url());
-        const expected = new URL(this.eventUrl);
-        return current.origin === expected.origin && current.pathname === expected.pathname;
-    }
-
-    private async notices(): Promise<Locator[]> {
-        const result: Locator[] = [];
-        for (const notice of await this.page.locator('.klk-modal-alert, [role="dialog"], dialog').filter({ visible: true }).all()) {
-            if (await notice.evaluate(el => el.matches(".seatModal, .main_right-ZMnX67"))) continue;
-            if (await notice.locator(".main_right-ZMnX67").count()) continue;
-            result.push(notice);
-        }
-        return result;
-    }
-
     private async readFailure(): Promise<{ dialog: Locator; reason: FailureReason } | null> {
-        if (!this.isEventPage()) return null;
-        const notices = await this.notices();
+        if (!isEventPage(this.page.url(), this.eventUrl)) return null;
+        const notices = await getSelectionNotices(this.page);
         if (notices.length !== 1) return null;
         const dialog = notices[0]!;
         if (!await dialog.evaluate(el => el.matches(".klk-modal-alert"))) return null;
-        if (await this.page.locator(".main_right-ZMnX67 .list_item-jYRAN7").filter({ visible: true }).count() > 0) return null;
+        if (await this.page.locator(seatPanelSelector).locator(".list_item-jYRAN7").filter({ visible: true }).count() > 0) return null;
         const text = (await dialog.innerText()).replace(/\s/g, "");
         // 比對整個可見提示（含唯一按鈕文案），不接受任意包含「失敗」的文字。
         if (/^已經沒有票了[。！!]?(?:OK|確認|確定)$/.test(text)) return { dialog, reason: "sold-out" };
@@ -51,12 +36,12 @@ export class KlookSelectionFailure {
     }
 
     async assertNoExistingNotice(): Promise<void> {
-        const notices = await this.notices();
+        const notices = await getSelectionNotices(this.page);
         if (notices.length === 1 && (await new KlookQueueRecovery(this.page, this.eventUrl).isRequired() ||
             await new KlookSeatRecovery(this.page, this.eventUrl).isRequired())) {
             throw new Error("選票前出現已知過期提示，交由既有恢復核對。");
         }
-        if (!this.isEventPage() || notices.length > 0) {
+        if (!isEventPage(this.page.url(), this.eventUrl) || notices.length > 0) {
             throw new PurchaseStop("選票前已有提示或已離開活動頁，停止；不將舊提示視為本次失敗。");
         }
     }
@@ -84,8 +69,8 @@ export class KlookSelectionFailure {
         const deadline = Date.now() + this.timeout;
         while (Date.now() < deadline) {
             // 不接續排隊恢復，也不自行 reload；只等網站完成返回。
-            if (this.isEventPage() && (await this.notices()).length === 0 &&
-                await this.page.locator(".seatModal").filter({ visible: true }).count() === 0 &&
+            if (isEventPage(this.page.url(), this.eventUrl) && (await getSelectionNotices(this.page)).length === 0 &&
+                await this.page.locator(seatShellSelector).filter({ visible: true }).count() === 0 &&
                 await isEventPageReady(this.page, this.eventUrl)) return;
             await this.page.waitForTimeout(100);
         }

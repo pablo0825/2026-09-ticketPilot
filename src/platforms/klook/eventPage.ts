@@ -1,19 +1,25 @@
+import { seatPanelSelector } from "./notices.js";
 import type { Page } from "playwright";
 import type { FlowRecovery } from "../../core/recovery.js";
 import { log } from "../../core/logger.js";
 
 const selectors = {
     alert: ".klk-modal-alert",
-    seatPanel: ".main_right-ZMnX67",
+    seatPanel: seatPanelSelector,
     tickets: "#ticket-options",
     option: ".spec-LwNjSh",
 };
 
+// 網址身分不等於入口已就緒；各操作仍須核對自己的 DOM 條件。
+export function isEventPage(currentUrl: string | URL, eventUrl: string): boolean {
+    const expected = new URL(eventUrl);
+    const current = new URL(currentUrl);
+    return current.origin === expected.origin && current.pathname === expected.pathname;
+}
+
 // 排隊、選位與個人資料過期返回後，共用相同的選票入口檢查。
 export async function isEventPageReady(page: Page, eventUrl: string): Promise<boolean> {
-    const expected = new URL(eventUrl);
-    const current = new URL(page.url());
-    if (current.origin !== expected.origin || current.pathname !== expected.pathname) return false;
+    if (!isEventPage(page.url(), eventUrl)) return false;
     if (await page.locator(selectors.alert).filter({ visible: true }).count() > 0) return false;
     if (await page.locator(selectors.seatPanel).filter({ visible: true }).count() > 0) return false;
 

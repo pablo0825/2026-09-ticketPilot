@@ -1,3 +1,4 @@
+import { isPersonalInfoPage } from "./personalInfoPage.js";
 import { validateBookingExpectation } from "../../core/purchaseValidation.js";
 import type { Page } from "playwright";
 import type { TicketTarget, BookingExpectation } from "../../core/types.js";
@@ -62,8 +63,7 @@ function verifySeats(labels: string[], expectedSeats: AssignedSeat[], quantity: 
 }
 
 async function assertPageAvailable(page: Page, eventUrl: string): Promise<void> {
-    const url = new URL(page.url());
-    if (url.origin !== new URL(eventUrl).origin || url.pathname !== "/zh-TW/event/payment/") {
+    if (!isPersonalInfoPage(page.url(), eventUrl)) {
         throw new Error("目前不在預期的個人資料頁。");
     }
     if (await page.locator(".klk-modal").filter({ visible: true }).count() > 0) {

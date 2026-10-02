@@ -1,29 +1,20 @@
+import { expiredDialog, reservationExpiredMessage, seatPanelSelector } from "./notices.js";
 import type { Locator, Page } from "playwright";
 import type { FlowRecovery } from "../../core/recovery.js";
 import { log } from "../../core/logger.js";
-import { waitForEventPage } from "./eventPage.js";
-
-const expiredMessage = /^未於時限內確認[，,]\s*票券預留失敗$/;
+import { waitForEventPage, isEventPage } from "./eventPage.js";
 
 // 由流程協調層限定於尚未嘗試座位確認的階段。
 export class KlookSeatRecovery implements FlowRecovery {
     constructor(private readonly page: Page, private readonly eventUrl: string, private readonly timeout = 30_000) {}
 
-    private isEventPage(): boolean {
-        const current = new URL(this.page.url());
-        const expected = new URL(this.eventUrl);
-        return current.origin === expected.origin && current.pathname === expected.pathname;
-    }
-
     private expiredDialog(): Locator {
-        return this.page.locator(".klk-modal-alert").filter({
-            has: this.page.getByText(expiredMessage), visible: true,
-        });
+        return expiredDialog(this.page, reservationExpiredMessage);
     }
 
     async isRequired(): Promise<boolean> {
-        return this.isEventPage() &&
-            await this.page.locator(".main_right-ZMnX67").filter({ visible: true }).count() === 1 &&
+        return isEventPage(this.page.url(), this.eventUrl) &&
+            await this.page.locator(seatPanelSelector).filter({ visible: true }).count() === 1 &&
             await this.expiredDialog().count() > 0;
     }
 

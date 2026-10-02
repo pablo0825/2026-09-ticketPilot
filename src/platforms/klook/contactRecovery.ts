@@ -1,31 +1,24 @@
+import { expiredDialog, reservationExpiredMessage } from "./notices.js";
+import { isPersonalInfoPage } from "./personalInfoPage.js";
 import type { Locator, Page } from "playwright";
 import type { FlowRecovery } from "../../core/recovery.js";
 import { log } from "../../core/logger.js";
 import { waitForEventPage } from "./eventPage.js";
 
-const expiredMessage = /^未於時限內確認[，,]\s*票券預留失敗$/;
-
 // 只由尚未提交的個人資料準備階段啟用，不處理選位或付款頁。
 export class KlookContactRecovery implements FlowRecovery {
     constructor(private readonly page: Page, private readonly eventUrl: string, private readonly timeout = 30_000) {}
 
-    private isContactPage(): boolean {
-        const current = new URL(this.page.url());
-        return current.origin === new URL(this.eventUrl).origin && current.pathname === "/zh-TW/event/payment/";
-    }
-
     private expiredDialog(): Locator {
-        return this.page.locator(".klk-modal-alert").filter({
-            has: this.page.getByText(expiredMessage), visible: true,
-        });
+        return expiredDialog(this.page, reservationExpiredMessage);
     }
 
     async isRequired(): Promise<boolean> {
-        return this.isContactPage() && await this.expiredDialog().count() > 0;
+        return isPersonalInfoPage(this.page.url(), this.eventUrl) && await this.expiredDialog().count() > 0;
     }
 
     async recover(returnQueueRecovery?: FlowRecovery): Promise<void> {
-        if (!this.isContactPage() || await this.expiredDialog().count() !== 1 ||
+        if (!isPersonalInfoPage(this.page.url(), this.eventUrl) || await this.expiredDialog().count() !== 1 ||
             await this.page.locator(".klk-modal-alert").filter({ visible: true }).count() !== 1) {
             throw new Error("無法確認唯一的個人資料逾期彈窗，已停止恢復。");
         }

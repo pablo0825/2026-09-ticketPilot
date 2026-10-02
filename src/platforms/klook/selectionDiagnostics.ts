@@ -1,3 +1,4 @@
+import { isEventPage } from "./eventPage.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Page } from "playwright";
@@ -5,9 +6,7 @@ import type { Page } from "playwright";
 // 只保存結構與已知購票用語，不保存任意文字、屬性、輸入值或 URL。
 export async function captureSelectionDiagnostics(page: Page, eventUrl: string, directory: string,
     label: "failure" | "returned"): Promise<void> {
-    const expected = new URL(eventUrl);
-    const current = new URL(page.url());
-    if (current.origin !== expected.origin || current.pathname !== expected.pathname) {
+    if (!isEventPage(page.url(), eventUrl)) {
         throw new Error("不在原活動頁，略過選票診斷。");
     }
     const snapshot = await page.evaluate(() => {

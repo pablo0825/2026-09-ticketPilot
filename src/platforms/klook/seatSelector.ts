@@ -1,3 +1,4 @@
+import { getSelectionNotices, isExpiryNotice, reservationExpiredNotice, seatPanelSelector } from "./notices.js";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { SeatExpiredBeforeConfirmationError } from "../../core/seatExpiry.js";
 import type { Locator, Page } from "playwright";
@@ -19,7 +20,7 @@ export interface SeatResult {
 
 // 取自實際選位彈窗；只讀取主頁的配位結果，不操作座位圖 iframe。
 const selectors = {
-    panel: ".main_right-ZMnX67",
+    panel: seatPanelSelector,
     list: ".seat_list-BhwLqz",
     area: ".seat_list_cat-vMvUjF",
     seat: ".list_item-jYRAN7",
@@ -138,18 +139,12 @@ export class KlookSeatSelector {
     }
 
     private async checkObservationDialog(): Promise<void> {
-        const dialogs = this.page.locator('.klk-modal-alert, [role="dialog"], dialog').filter({ visible: true });
-        // 座位面板本身可能是 dialog；只檢查面板外的提示。
-        const notices = [];
-        for (const dialog of await dialogs.all()) {
-            if (!await dialog.locator(selectors.panel).count() &&
-                !await dialog.evaluate(el => el.matches(".main_right-ZMnX67, .seatModal"))) notices.push(dialog);
-        }
+        const notices = await getSelectionNotices(this.page);
         if (notices.length === 0) return;
         if (notices.length !== 1) throw new PurchaseStop("配位時出現多個提示，已停止操作。");
         const text = (await notices[0]!.innerText()).trim();
-        if (/^未於時限內確認[，,]\s*票券預留失敗\s*OK$/.test(text)) return;
-        if (/^抱歉，時間到了！\s*請返回並重新排隊\s*OK$/.test(text)) {
+        if (isExpiryNotice(text, "reservation")) return;
+        if (isExpiryNotice(text, "queue")) {
             throw new Error("配位期間排隊過期，交由既有恢復模組核對。");
         }
         throw new PurchaseStop("出現尚未支援的配位提示，已停止；不自動關閉或換區。");
@@ -180,7 +175,7 @@ export class KlookSeatSelector {
 
     private async throwIfSeatReservationExpired(): Promise<void> {
         // 提示在座位清單外；先停止操作，恢復模組再嚴格確認彈窗。
-        const notices = this.page.getByText(/未於時限內確認[，,]\s*票券預留失敗/);
+        const notices = this.page.getByText(reservationExpiredNotice);
         for (const notice of await notices.all()) {
             if (await notice.isVisible()) {
                 throw new SeatExpiredBeforeConfirmationError("票券預留已到期，已停止確認；僅在符合恢復條件時重新配位。");
