@@ -3,23 +3,26 @@ import { KlookSeatRecovery } from "./platforms/klook/seatRecovery.js";
 import { PaymentPageError, waitForPaymentPage } from "./platforms/klook/paymentPage.js";
 import { loadContactDetails } from "./config/contact.config.js";
 import { KlookContactForm } from "./platforms/klook/contactForm.js";
-import { readBookingSummary, verifyBookingSummary, validateBookingExpectation } from "./platforms/klook/bookingSummary.js";
+import { readBookingSummary, verifyBookingSummary } from "./platforms/klook/bookingSummary.js";
 import { prepareBooking } from "./core/bookingPreparation.js";
 import { KlookContactRecovery } from "./platforms/klook/contactRecovery.js";
 import { KlookQueueRecovery } from "./platforms/klook/queueRecovery.js";
 import { chromium } from "playwright";
-import { eventConfig, bookingExpectation } from "./config/event.config.js";
-import { runSelection } from "./core/strategy.js";
+import { eventConfig } from "./config/event.config.js";
+import { PriorityStrategy } from "./core/priorityStrategy.js";
+import { collectStoppedDiagnostics } from "./core/stoppedDiagnostics.js";
+import { captureSelectionDiagnostics } from "./platforms/klook/selectionDiagnostics.js";
+import { KlookTargetAttempt } from "./platforms/klook/targetAttempt.js";
+import { randomUUID } from "node:crypto";
+import { join } from "node:path";
 import { reportState } from "./core/state.js";
-import { KlookTicketSelector } from "./platforms/klook/ticketSelector.js";
-import { KlookSeatSelector } from "./platforms/klook/seatSelector.js";
 import { waitForPersonalInfoPage } from "./platforms/klook/personalInfoPage.js";
 
 async function main() {
     // 顯示 status 為正在啟動
     reportState("STARTING");
     // 驗證活動資料是否符合規定
-    validateBookingExpectation(bookingExpectation);
+    const strategy = new PriorityStrategy(eventConfig);
     const pause = new FlowPause(process.env.FLOW_PAUSE);
 
     // 載入個人資料
@@ -99,15 +102,14 @@ async function main() {
     // status 為活動頁面(應該是打開活動頁的意思？)
     reportState("EVENT_PAGE");
     const contactForm = new KlookContactForm(page, eventConfig.eventUrl);
-    await prepareBooking({
+    let selecting = false;
+    const prepared = await prepareBooking({
         selectSeats: async () => {
-            await runSelection(eventConfig, new KlookTicketSelector(page));
-            reportState("SEAT_ASSIGNMENT");
-            const seatSelector = new KlookSeatSelector(page);
-            const seats = await seatSelector.openAndVerify(target);
-            return { seatSelector, seats };
+            selecting = true;
+            return strategy.select(new KlookTargetAttempt(page));
         },
-        confirmSeats: async ({ seatSelector, seats }) => {
+        confirmSeats: async ({ target, value: { seatSelector, seats } }) => {
+            selecting = false;
             reportState("SEATS_VERIFIED");
             await pause.waitAt("seats");
             reportState("SEAT_CONFIRMATION");
@@ -115,7 +117,8 @@ async function main() {
             await waitForPersonalInfoPage(page, eventConfig.eventUrl);
             reportState("PERSONAL_INFO_READY");
         },
-        prepareContact: async ({ seats }) => {
+        prepareContact: async ({ target, value: { seats } }) => {
+            const bookingExpectation = target.expectation;
             const summary = await readBookingSummary(page, eventConfig.eventUrl);
             verifyBookingSummary(summary, target, seats, bookingExpectation);
             reportState("BOOKING_VERIFIED");
@@ -133,14 +136,23 @@ async function main() {
             }
         },
     }, new KlookQueueRecovery(page, eventConfig.eventUrl), new KlookContactRecovery(page, eventConfig.eventUrl),
-        new KlookSeatRecovery(page, eventConfig.eventUrl));
+        new KlookSeatRecovery(page, eventConfig.eventUrl)).catch(async (error: unknown) => {
+        // 已離開 recovery 範圍；採集失敗或手動返回都不能再次購買。
+        if (selecting && !(error instanceof Error && error.name === "AbortError")) {
+            reportState("MANUAL_REQUIRED");
+            const directory = join("diagnostics", randomUUID());
+            console.log(`購買已停止，診斷目錄：${directory}`);
+            await collectStoppedDiagnostics(label => captureSelectionDiagnostics(page, eventConfig.eventUrl, directory, label));
+        }
+        throw error;
+    });
 
     // 提交永遠在恢復範圍外；即使此刻才到期，也停止而不冒險重送。
     if (contactDetails) {
         reportState("CONTACT_SUBMISSION");
         await contactForm.submit();
         try {
-            await waitForPaymentPage(page, eventConfig.eventUrl, bookingExpectation.totalPrice);
+            await waitForPaymentPage(page, eventConfig.eventUrl, prepared.target.expectation.totalPrice);
         } catch (error) {
             const reason = error instanceof PaymentPageError ? error.message : "付款頁核對發生未知錯誤。";
             throw new Error(`已嘗試提交，但未能核對付款頁：${reason} 請人工檢查頁面及訂單；不會重新提交或重跑購票。`);

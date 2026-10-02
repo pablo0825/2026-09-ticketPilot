@@ -9,7 +9,7 @@ interface BookingSteps<T> {
 
 // 只重跑提交前的準備流程。每次 attempt 都取得新座位，不沿用上一次結果。
 export async function prepareBooking<T>(steps: BookingSteps<T>, queueRecovery: FlowRecovery,
-    contactRecovery: FlowRecovery, seatRecovery?: FlowRecovery): Promise<void> {
+    contactRecovery: FlowRecovery, seatRecovery?: FlowRecovery): Promise<T> {
     let stage: "selection" | "seats" | "contact" | null = "selection";
 
     async function findActiveRecovery(): Promise<FlowRecovery | null> {
@@ -43,7 +43,7 @@ export async function prepareBooking<T>(steps: BookingSteps<T>, queueRecovery: F
     }
 
     // 獨立排隊一次；選位與個資共用預留額度一次，重跑不重設。
-    await runWithRecovery(async () => {
+    return runWithRecovery(async () => {
         stage = "selection";
         const seats = await steps.selectSeats();
 
@@ -64,5 +64,6 @@ export async function prepareBooking<T>(steps: BookingSteps<T>, queueRecovery: F
         await steps.prepareContact(seats);
         if (await contactRecovery.isRequired()) throw new Error("個人資料預留已過期。");
         stage = null;
+        return seats;
     }, findRecovery);
 }

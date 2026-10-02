@@ -1,3 +1,4 @@
+import { PurchaseStop } from "../../core/purchaseStop.js";
 import { SeatExpiredBeforeConfirmationError } from "../../core/seatExpiry.js";
 import type { Locator, Page } from "playwright";
 import type { TicketTarget } from "../../core/types.js";
@@ -123,6 +124,7 @@ export class KlookSeatSelector {
         const deadline = Date.now() + this.timeout;
         let lastReason = "選位彈窗尚未出現";
         while (Date.now() < deadline) {
+            await this.checkObservationDialog();
             await this.throwIfSeatReservationExpired();
             if (await this.isPanelVisible()) {
                 const result = await this.readSeatResult();
@@ -136,7 +138,25 @@ export class KlookSeatSelector {
             }
             await this.page.waitForTimeout(200);
         }
-        throw new Error(`等待配位結果逾時：${lastReason}；狀態未知，未判定售罄。`);
+        throw new PurchaseStop(`等待配位結果逾時：${lastReason}；狀態未知，未判定售罄。`);
+    }
+
+    private async checkObservationDialog(): Promise<void> {
+        const dialogs = this.page.locator('.klk-modal-alert, [role="dialog"], dialog').filter({ visible: true });
+        // 座位面板本身可能是 dialog；只檢查面板外的提示。
+        const notices = [];
+        for (const dialog of await dialogs.all()) {
+            if (!await dialog.locator(selectors.panel).count() &&
+                !await dialog.evaluate(el => el.matches(".main_right-ZMnX67, .seatModal"))) notices.push(dialog);
+        }
+        if (notices.length === 0) return;
+        if (notices.length !== 1) throw new PurchaseStop("配位時出現多個提示，已停止操作。");
+        const text = (await notices[0]!.innerText()).trim();
+        if (/^未於時限內確認[，,]\s*票券預留失敗\s*OK$/.test(text)) return;
+        if (/^抱歉，時間到了！\s*請返回並重新排隊\s*OK$/.test(text)) {
+            throw new Error("配位期間排隊過期，交由既有恢復模組核對。");
+        }
+        throw new PurchaseStop("出現尚未支援的配位提示，已停止；不自動關閉或換區。");
     }
 
     private async isPanelVisible(): Promise<boolean> {
@@ -174,7 +194,7 @@ export class KlookSeatSelector {
 
     private throwIfSeatError(text: string): void {
         if (/選位失敗|已逾時|已超時|時間已到/.test(text)) {
-            throw new Error("選位畫面顯示失敗或逾時，請人工檢查；未判定售罄。");
+            throw new PurchaseStop("選位畫面顯示失敗或逾時，請人工檢查；未判定售罄。");
         }
     }
 

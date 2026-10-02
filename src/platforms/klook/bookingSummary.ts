@@ -2,11 +2,8 @@ import type { Page } from "playwright";
 import type { TicketTarget } from "../../core/types.js";
 import type { AssignedSeat } from "./seatSelector.js";
 
-export interface BookingExpectation {
-    eventName: string;
-    unitPrice: number; // 新台幣整數，票種顯示的單價。
-    totalPrice: number; // 預訂摘要 footer 的總價，不代表付款完成。
-}
+import type { BookingExpectation } from "../../core/types.js";
+export type { BookingExpectation } from "../../core/types.js";
 
 export interface BookingSummary {
     eventName: string;

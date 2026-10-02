@@ -18,3 +18,6 @@ test-results/
 
 # 個人聯絡資料，禁止納入版本控制
 contact.local.json
+
+# 本機購票診斷，不提交
+diagnostics/

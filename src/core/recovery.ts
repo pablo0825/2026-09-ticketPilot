@@ -1,3 +1,4 @@
+import { PurchaseStop } from "./purchaseStop.js";
 import { log } from "./logger.js";
 import { reportState } from "./state.js";
 
@@ -37,7 +38,7 @@ export async function runWithRecovery<T>(attempt: () => Promise<T>,
         try {
             return await attempt();
         } catch (error) {
-            if (error instanceof Error && error.name === "AbortError") throw error;
+            if (error instanceof PurchaseStop || (error instanceof Error && error.name === "AbortError")) throw error;
             const action = await findRecovery();
             if (!action) throw error;
             await recoverOnce(action);
