@@ -1,5 +1,5 @@
 import type { Locator, Page } from "playwright";
-import type { TicketAdapter, TicketTarget } from "../../core/types.js";
+import type { TicketTarget } from "../../core/types.js";
 import { log } from "../../core/logger.js";
 
 // Klook 改版時，優先檢查這裡的定位方式。
@@ -25,7 +25,7 @@ function escapeRegex(text: string): string {
 }
 
 // Klook 票務選擇器
-export class KlookTicketSelector implements TicketAdapter {
+export class KlookTicketSelector {
     // 儲存票卷選擇區的定位器
     // Locator Playwright 用來定位網頁元素的物件
     private readonly root: Locator;

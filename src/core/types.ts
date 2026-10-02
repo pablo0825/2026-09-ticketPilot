@@ -13,11 +13,6 @@ export interface EventConfig {
     excludeKeywords: string[];
 }
 
-export interface TicketAdapter {
-    // 僅完成 UI 選取與驗證；失敗拋錯，不建立訂單或進入下一步。
-    selectAndVerify(target: TicketTarget): Promise<void>;
-}
-
 export interface BookingExpectation {
     eventName: string;
     unitPrice: number;

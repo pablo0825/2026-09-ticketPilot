@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { chromium } from 'playwright';
-import { KlookSeatSelector, matchesSeatResult, getSeatResultMismatch, type SeatResult } from '../src/platforms/klook/seatSelector.js';
+import { KlookSeatSelector, getSeatResultMismatch, type SeatResult } from '../src/platforms/klook/seatSelector.js';
 
 const target = { date: '2026-10-03', time: '12:00', area: 'A區', quantity: 1, adjacent: false };
 const result: SeatResult = {
@@ -11,7 +11,7 @@ const result: SeatResult = {
 };
 
 test('核對場次、票種、完整且不重複的座位；A2 不等同票種名稱', () => {
-    assert.equal(matchesSeatResult(result, target), true);
+    assert.equal((getSeatResultMismatch(result, target) === undefined), true);
     for (const change of [
         { text: result.text.replace('2026年', '2027年') },
         { text: result.text.replace('下午', '上午') },
@@ -20,9 +20,9 @@ test('核對場次、票種、完整且不重複的座位；A2 不等同票種�
         { area: 'B區（NT$3,880）' },
         { total: '共計2個座位' }, { seats: [] },
         { seats: [{ section: 'A2', row: '4', number: '' }] },
-    ]) assert.equal(matchesSeatResult({ ...result, ...change }, target), false);
-    assert.equal(matchesSeatResult({ ...result, text: result.text.replace('已選1', '已選2'),
-        total: '共計2個座位', seats: [...result.seats, ...result.seats] }, { ...target, quantity: 2 }), false);
+    ]) assert.equal((getSeatResultMismatch({ ...result, ...change }, target) === undefined), false);
+    assert.equal((getSeatResultMismatch({ ...result, text: result.text.replace('已選1', '已選2'),
+        total: '共計2個座位', seats: [...result.seats, ...result.seats] }, { ...target, quantity: 2 }) === undefined), false);
 });
 
 test('等待彈窗內延遲配位；只按一次下一步且不按確認；不完整或停用時停止', async () => {
@@ -55,7 +55,7 @@ test('不符原因可供診斷，上午十二點與下午十二點正確區分',
     assert.match(getSeatResultMismatch({ ...result, text: result.text.replace('12:00', '06:00') }, target)!, /預期 12:00，實際 18:00/);
     assert.match(getSeatResultMismatch({ ...result, area: 'B區（NT$3,880）' }, target)!, /票種不符/);
     assert.match(getSeatResultMismatch({ ...result, seats: [{ section: 'A2', row: '', number: '17' }] }, target)!, /資料不完整/);
-    assert.equal(matchesSeatResult({ ...result, text: result.text.replace('下午', '上午') }, { ...target, time: '00:00' }), true);
+    assert.equal((getSeatResultMismatch({ ...result, text: result.text.replace('下午', '上午') }, { ...target, time: '00:00' }) === undefined), true);
 });
 
 test('錯誤提示立即停止；不符保留原因；已有或重複彈窗不按下一步', async () => {
@@ -79,6 +79,6 @@ test('錯誤提示立即停止；不符保留原因；已有或重複彈窗不�
 
 test('場次後接倒數時保留文字邊界，不把 12:00 與 00:06 黏在一起', () => {
     const text = '2026年10月3日 週六 下午12:00\n00:06\n已選1個座位';
-    assert.equal(matchesSeatResult({ ...result, text }, target), true);
-    assert.equal(matchesSeatResult({ ...result, text: text.replace('下午12:00', '下午06:00') }, target), false);
+    assert.equal((getSeatResultMismatch({ ...result, text }, target) === undefined), true);
+    assert.equal((getSeatResultMismatch({ ...result, text: text.replace('下午12:00', '下午06:00') }, target) === undefined), false);
 });

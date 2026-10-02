@@ -125,3 +125,16 @@ test("A 換 B 後排隊與預留各一次；再次排隊停止，順位與額度
     assert.equal(queue.count, 1);
     assert.equal(contact.count, 1);
 });
+
+
+test("排除目標不呼叫 adapter；未知錯誤不返回或換順位", async () => {
+    let calls = 0;
+    const adapter: TargetAttempt<void> = {
+        async attempt() { calls++; throw new Error("UNKNOWN"); },
+        async returnAfterFailure() { assert.fail("未知錯誤不可返回換區"); },
+    };
+    assert.throws(() => new PriorityStrategy({ ...config, excludeKeywords: ["A區"] }), /排除條件/);
+    assert.equal(calls, 0);
+    await assert.rejects(new PriorityStrategy(config).select(adapter), /UNKNOWN/);
+    assert.equal(calls, 1);
+});

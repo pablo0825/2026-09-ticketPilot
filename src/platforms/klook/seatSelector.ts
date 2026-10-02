@@ -76,11 +76,6 @@ export function getSeatResultMismatch(result: SeatResult, target: TicketTarget):
         ?? checkSeats(result, target.quantity);
 }
 
-// 保留原本的布林介面，既有呼叫端與測試不需變更。
-export function matchesSeatResult(result: SeatResult, target: TicketTarget): boolean {
-    return getSeatResultMismatch(result, target) === undefined;
-}
-
 export class KlookSeatSelector {
     private readonly panel: Locator;
 

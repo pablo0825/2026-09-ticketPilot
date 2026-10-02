@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";
 import { KlookTicketSelector } from "../src/platforms/klook/ticketSelector.js";
-import { runSelection } from "../src/core/strategy.js";
-import { eventConfig } from "../src/config/event.config.js";
 
 let browser: Browser;
 before(async () => { browser = await chromium.launch({ headless: true }); });
@@ -46,7 +44,7 @@ test("選 A 區一張、保留不適用的連票設定並停在下一步之前�
     try {
         await page.setContent(fixture());
         const adapter = new KlookTicketSelector(page, 800);
-        await runSelection({ ...eventConfig, targets: [target] }, adapter);
+        await adapter.selectAndVerify(target);
         await adapter.selectAndVerify(target);
         assert.equal(await page.locator('.value-xWKzpL').innerText(), "1");
         assert.equal(await page.locator('[role=checkbox]').getAttribute('aria-checked'), "true");
@@ -94,15 +92,6 @@ test("點擊未生效時不宣告成功", async () => {
         await assert.rejects(new KlookTicketSelector(page, 400).selectAndVerify(target), /點選後沒有確認選中/);
         assert.equal(await page.locator('body').getAttribute('data-next'), null);
     } finally { await page.close(); }
-});
-
-test("Strategy 排除目標時不呼叫 Adapter；失敗不 fallback", async () => {
-    let calls = 0;
-    const adapter = { async selectAndVerify() { calls++; throw new Error("UNKNOWN"); } };
-    await assert.rejects(runSelection({ ...eventConfig, excludeKeywords: ["A區"] }, adapter), /排除條件/);
-    assert.equal(calls, 0);
-    await assert.rejects(runSelection({ ...eventConfig, targets: [target, { ...target, area: "B區" }] }, adapter), /UNKNOWN/);
-    assert.equal(calls, 1);
 });
 
 test("錯誤設定或年份不符時停止，不變更選票", async () => {

@@ -3,7 +3,6 @@ import type { TicketTarget } from "../../core/types.js";
 import type { AssignedSeat } from "./seatSelector.js";
 
 import type { BookingExpectation } from "../../core/types.js";
-export type { BookingExpectation } from "../../core/types.js";
 
 export interface BookingSummary {
     eventName: string;
