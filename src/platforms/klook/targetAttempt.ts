@@ -1,6 +1,6 @@
 import type { PurchaseTarget } from "../../core/types.js";
 import type { TargetAttempt, AttemptResult } from "../../core/priorityStrategy.js";
-import { PurchaseStop } from "../../core/purchaseStop.js";
+import { KlookSelectionFailure, SelectionFailure } from "./selectionFailure.js";
 import { reportState } from "../../core/state.js";
 import type { Page } from "playwright";
 import { KlookTicketSelector } from "./ticketSelector.js";
@@ -12,20 +12,30 @@ export interface KlookAssignment {
 }
 
 export class KlookTargetAttempt implements TargetAttempt<KlookAssignment> {
-    constructor(private readonly page: Page) {}
+    private readonly failure: KlookSelectionFailure;
+
+    constructor(private readonly page: Page, eventUrl: string, private readonly timeout = 30_000) {
+        this.failure = new KlookSelectionFailure(page, eventUrl, timeout);
+    }
 
     async attempt(target: PurchaseTarget): Promise<AttemptResult<KlookAssignment>> {
+        await this.failure.assertNoExistingNotice();
         reportState("TICKET_SELECTION");
-        await new KlookTicketSelector(this.page).selectAndVerify(target);
+        await new KlookTicketSelector(this.page, this.timeout).selectAndVerify(target);
         reportState("SELECTION_VERIFIED");
         reportState("SEAT_ASSIGNMENT");
-        const seatSelector = new KlookSeatSelector(this.page);
-        const seats = await seatSelector.openAndVerify(target);
-        return { status: "matched", value: { seatSelector, seats } };
+        const seatSelector = new KlookSeatSelector(this.page, this.timeout);
+        await this.failure.assertNoExistingNotice();
+        try {
+            const seats = await seatSelector.openAndVerify(target, () => this.failure.observe());
+            return { status: "matched", value: { seatSelector, seats } };
+        } catch (error) {
+            if (error instanceof SelectionFailure) return { status: "unavailable", reason: error.reason };
+            throw error;
+        }
     }
 
     async returnAfterFailure(): Promise<void> {
-        // 尚無真實失敗彈窗及返回證據；不可使用測試 fixture 的 selector 點擊實站。
-        throw new PurchaseStop("Klook 無票彈窗自動返回尚未啟用。");
+        await this.failure.returnAfterFailure();
     }
 }

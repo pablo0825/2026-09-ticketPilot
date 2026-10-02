@@ -88,9 +88,9 @@ export class KlookSeatSelector {
         this.panel = page.locator(selectors.panel);
     }
 
-    async openAndVerify(target: TicketTarget): Promise<AssignedSeat[]> {
+    async openAndVerify(target: TicketTarget, observeFailure?: () => Promise<void>): Promise<AssignedSeat[]> {
         await this.openSeatDialog();
-        const result = await this.waitForMatchingSeats(target);
+        const result = await this.waitForMatchingSeats(target, observeFailure);
         this.logResult(result);
         return result.seats;
     }
@@ -120,10 +120,11 @@ export class KlookSeatSelector {
         await next.click({ timeout: this.timeout }); // 只點一次，後續只讀取 DOM。
     }
 
-    private async waitForMatchingSeats(target: TicketTarget): Promise<SeatResult> {
+    private async waitForMatchingSeats(target: TicketTarget, observeFailure?: () => Promise<void>): Promise<SeatResult> {
         const deadline = Date.now() + this.timeout;
         let lastReason = "選位彈窗尚未出現";
         while (Date.now() < deadline) {
+            await observeFailure?.();
             await this.checkObservationDialog();
             await this.throwIfSeatReservationExpired();
             if (await this.isPanelVisible()) {

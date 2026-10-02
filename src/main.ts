@@ -106,7 +106,7 @@ async function main() {
     const prepared = await prepareBooking({
         selectSeats: async () => {
             selecting = true;
-            return strategy.select(new KlookTargetAttempt(page));
+            return strategy.select(new KlookTargetAttempt(page, eventConfig.eventUrl));
         },
         confirmSeats: async ({ target, value: { seatSelector, seats } }) => {
             selecting = false;
