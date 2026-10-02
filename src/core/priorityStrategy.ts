@@ -1,3 +1,4 @@
+import { validatePurchaseConfig } from "./purchaseValidation.js";
 import type { PurchaseConfig, PurchaseTarget } from "./types.js";
 import { PurchaseStop } from "./purchaseStop.js";
 
@@ -10,30 +11,6 @@ export interface TargetAttempt<T> {
     attempt(target: PurchaseTarget): Promise<AttemptResult<T>>;
     // 只處理本次已辨識失敗；按一次並驗證安全返回，否則拋錯。
     returnAfterFailure(): Promise<void>;
-}
-
-export function validatePurchaseConfig(config: PurchaseConfig): void {
-    if (config.fallbackMode !== "STRICT" || config.targets.length === 0) {
-        throw new Error("必須設定 STRICT 與至少一個目標。");
-    }
-    for (const target of config.targets) {
-        const date = new Date(`${target.date}T00:00:00Z`);
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(target.date) || Number.isNaN(date.getTime()) ||
-            date.toISOString().slice(0, 10) !== target.date || !/^([01]\d|2[0-3]):[0-5]\d$/.test(target.time) ||
-            !Number.isSafeInteger(target.quantity) || target.quantity < 1 || typeof target.adjacent !== "boolean") {
-            throw new Error("目標日期、時間、張數或連位設定無效。");
-        }
-        const normalize = (text: string) => text.normalize("NFKC").replace(/\s/g, "");
-        const area = normalize(target.area);
-        if (!area || config.excludeKeywords.some(word => normalize(word) && area.includes(normalize(word)))) {
-            throw new Error("目標票區空白或符合排除條件。");
-        }
-        const expected = target.expectation;
-        if (!expected || !expected.eventName.trim() ||
-            ![expected.unitPrice, expected.totalPrice].every(price => Number.isSafeInteger(price) && price > 0)) {
-            throw new Error("每個目標都必須設定活動名稱、正整數單價與總價。");
-        }
-    }
 }
 
 // 每次程式執行建立一次，放在 prepareBooking 外；恢復重跑不會倒退順位。

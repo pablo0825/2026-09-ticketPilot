@@ -1,8 +1,7 @@
+import { validateBookingExpectation } from "../../core/purchaseValidation.js";
 import type { Page } from "playwright";
-import type { TicketTarget } from "../../core/types.js";
+import type { TicketTarget, BookingExpectation } from "../../core/types.js";
 import type { AssignedSeat } from "./seatSelector.js";
-
-import type { BookingExpectation } from "../../core/types.js";
 
 export interface BookingSummary {
     eventName: string;
@@ -14,19 +13,6 @@ export interface BookingSummary {
 }
 
 const normalizeText = (text: string): string => text.normalize("NFKC").replace(/\s+/g, "").trim();
-
-// 驗證活動資料的規定
-export function validateBookingExpectation(expected: BookingExpectation): void {
-    // eventName 若為空，就返回錯誤
-    // .trim() 清除前後空格
-    if (!expected.eventName.trim()) throw new Error("請設定預期活動名稱。");
-    
-    // 把 unitPrice, totalPrice 等，拿去跑安全數以及整數檢查
-    // .isSafeInteger 安全數檢查
-    if (![expected.unitPrice, expected.totalPrice].every(value => Number.isSafeInteger(value) && value > 0)) {
-        throw new Error("預期單價與總價必須是正整數新台幣金額。");
-    }
-}
 
 function parseAmount(text: string): number {
     if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(text)) throw new Error("摘要金額格式無法辨識。");

@@ -1,3 +1,4 @@
+import { validateTicketTarget } from "../../core/purchaseValidation.js";
 import type { Locator, Page } from "playwright";
 import type { TicketTarget } from "../../core/types.js";
 import { log } from "../../core/logger.js";
@@ -39,7 +40,7 @@ export class KlookTicketSelector {
 
     async selectAndVerify(target: TicketTarget): Promise<void> {
         // 檢查票券格式是否符合
-        this.validateTarget(target);
+        validateTicketTarget(target);
         // 確認票券選擇區只有一個元素
         await this.waitForUniqueElement(this.root, "票券選擇區");
 
@@ -58,31 +59,6 @@ export class KlookTicketSelector {
         await this.verifyAdjacentPreference(target);
 
         log("選票驗證完成，目前尚未取得座位。");
-    }
-
-    // 檢驗目標
-    private validateTarget(target: TicketTarget): void {
-        const date = new Date(`${target.date}T00:00:00Z`);
-        // 三個條件需要成立
-        // 確認 target.date 的格式是 YYYY-MM-DD
-        // 檢查是不是數字
-        // 確認解析後的日期，跟原始輸入相同
-        const validDate = /^\d{4}-\d{2}-\d{2}$/.test(target.date)
-            && !Number.isNaN(date.getTime())
-            && date.toISOString().slice(0, 10) === target.date;
-
-        if (!validDate) throw new Error("日期格式或日期無效。");
-
-        // 檢查時間格式，合法格式為 23:59
-        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(target.time)) {
-            throw new Error("時間格式無效。");
-        }
-        // 檢查 quantity 是不是安全數字，且 quantity 小於 1
-        if (!Number.isSafeInteger(target.quantity) || target.quantity < 1) {
-            throw new Error("票數必須是正整數。");
-        }
-        // 字串正規化，移除頭尾空白，檢查是否為空白字串
-        if (!target.area.normalize("NFKC").trim()) throw new Error("票區不能為空。");
     }
 
     // 找到並選中日期，最後回傳定位器
