@@ -1,8 +1,7 @@
 import { getSelectionNotices, seatPanelSelector, seatShellSelector } from "./notices.js";
 import type { Locator, Page } from "playwright";
 import { PurchaseStop } from "../../core/purchaseStop.js";
-import { KlookSeatRecovery } from "./seatRecovery.js";
-import { KlookQueueRecovery } from "./queueRecovery.js";
+import { KlookSeatRecovery, KlookQueueRecovery } from "./expiryRecovery.js";
 import { isEventPageReady, isEventPage } from "./eventPage.js";
 
 type FailureReason = "sold-out" | "assignment-failed";

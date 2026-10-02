@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import { prepareBooking } from "../src/core/bookingPreparation.js";
-import { KlookContactRecovery } from "../src/platforms/klook/contactRecovery.js";
+import { KlookContactRecovery } from "../src/platforms/klook/expiryRecovery.js";
 
 const eventUrl = "https://www.klook.com/zh-TW/event-detail/test/";
 const contactUrl = "https://www.klook.com/zh-TW/event/payment/?shoppingcart_guid=fixture";

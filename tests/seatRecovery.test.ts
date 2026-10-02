@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import { prepareBooking } from "../src/core/bookingPreparation.js";
-import { KlookSeatRecovery } from "../src/platforms/klook/seatRecovery.js";
+import { KlookSeatRecovery } from "../src/platforms/klook/expiryRecovery.js";
 import { KlookSeatSelector } from "../src/platforms/klook/seatSelector.js";
 import { KlookTicketSelector } from "../src/platforms/klook/ticketSelector.js";
 

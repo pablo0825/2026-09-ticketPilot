@@ -3,9 +3,7 @@ import { test } from "node:test";
 import { chromium } from "playwright";
 import { prepareBooking } from "../src/core/bookingPreparation.js";
 import { SeatExpiredBeforeConfirmationError } from "../src/core/seatExpiry.js";
-import { KlookContactRecovery } from "../src/platforms/klook/contactRecovery.js";
-import { KlookSeatRecovery } from "../src/platforms/klook/seatRecovery.js";
-import { KlookQueueRecovery } from "../src/platforms/klook/queueRecovery.js";
+import { KlookContactRecovery, KlookSeatRecovery, KlookQueueRecovery } from "../src/platforms/klook/expiryRecovery.js";
 import { isEventPageReady } from "../src/platforms/klook/eventPage.js";
 
 const eventUrl = "https://www.klook.com/zh-TW/event-detail/test/";

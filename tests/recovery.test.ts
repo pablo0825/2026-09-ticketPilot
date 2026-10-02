@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { chromium } from 'playwright';
 import { runWithRecovery, type FlowRecovery } from '../src/core/recovery.js';
-import { KlookQueueRecovery } from '../src/platforms/klook/queueRecovery.js';
+import { KlookQueueRecovery } from '../src/platforms/klook/expiryRecovery.js';
 
 function queueAction(recovery: FlowRecovery) {
     return async () => await recovery.isRequired()

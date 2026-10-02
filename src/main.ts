@@ -1,12 +1,10 @@
 import { FlowPause } from "./core/flowPause.js";
-import { KlookSeatRecovery } from "./platforms/klook/seatRecovery.js";
+import { KlookSeatRecovery, KlookContactRecovery, KlookQueueRecovery } from "./platforms/klook/expiryRecovery.js";
 import { PaymentPageError, waitForPaymentPage } from "./platforms/klook/paymentPage.js";
 import { loadContactDetails } from "./config/contact.config.js";
 import { KlookContactForm } from "./platforms/klook/contactForm.js";
 import { readBookingSummary, verifyBookingSummary } from "./platforms/klook/bookingSummary.js";
 import { prepareBooking } from "./core/bookingPreparation.js";
-import { KlookContactRecovery } from "./platforms/klook/contactRecovery.js";
-import { KlookQueueRecovery } from "./platforms/klook/queueRecovery.js";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
 import { isEventPage } from "./platforms/klook/eventPage.js";
