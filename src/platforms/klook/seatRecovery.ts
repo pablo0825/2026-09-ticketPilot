@@ -2,7 +2,8 @@ import { expiredDialog, reservationExpiredMessage, seatPanelSelector } from "./n
 import type { Locator, Page } from "playwright";
 import type { FlowRecovery } from "../../core/recovery.js";
 import { log } from "../../core/logger.js";
-import { waitForEventPage, isEventPage } from "./eventPage.js";
+import { isEventPage } from "./eventPage.js";
+import { waitForRecoveryReturn } from "./recoveryReturn.js";
 
 // 由流程協調層限定於尚未嘗試座位確認的階段。
 export class KlookSeatRecovery implements FlowRecovery {
@@ -29,7 +30,7 @@ export class KlookSeatRecovery implements FlowRecovery {
         }
         log("選位預留已過期：按一次 OK，等待原活動選票區恢復。");
         await ok.click({ timeout: this.timeout });
-        await waitForEventPage(this.page, this.eventUrl, this.timeout,
+        await waitForRecoveryReturn(this.page, this.eventUrl, this.timeout,
             "選位逾期按 OK 後未能恢復選票入口，已停止；不再次點擊或重整。", returnQueueRecovery);
         log("選票入口已恢復，重新核對選票條件並取得新座位。");
     }

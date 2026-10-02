@@ -1,7 +1,8 @@
 import { expiredDialog, queueExpiredMessage } from "./notices.js";
 import type { Locator, Page } from "playwright";
 import type { FlowRecovery } from "../../core/recovery.js";
-import { waitForEventPage, isEventPage } from "./eventPage.js";
+import { isEventPage } from "./eventPage.js";
+import { waitForRecoveryReturn } from "./recoveryReturn.js";
 import { log } from "../../core/logger.js";
 
 // 僅處理已觀察到的排隊逾時；不處理座位預留失敗或其他 OK 彈窗。
@@ -26,7 +27,7 @@ export class KlookQueueRecovery implements FlowRecovery {
         if (await ok.count() !== 1 || !await ok.isVisible() || !await ok.isEnabled()) throw new Error("排隊逾時彈窗的 OK 按鈕不唯一或無法操作。");
         log("排隊逾時：按一次 OK，等待原活動頁恢復。");
         await ok.click({ timeout: this.timeout });
-        await waitForEventPage(this.page, this.eventUrl, this.timeout,
+        await waitForRecoveryReturn(this.page, this.eventUrl, this.timeout,
             "按 OK 後未能確認活動頁恢復，已停止；不再次點擊或重整。");
         log("原活動頁已恢復，重新核對並設定票券；不沿用舊座位。");
     }

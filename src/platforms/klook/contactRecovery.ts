@@ -3,7 +3,7 @@ import { isPersonalInfoPage } from "./personalInfoPage.js";
 import type { Locator, Page } from "playwright";
 import type { FlowRecovery } from "../../core/recovery.js";
 import { log } from "../../core/logger.js";
-import { waitForEventPage } from "./eventPage.js";
+import { waitForRecoveryReturn } from "./recoveryReturn.js";
 
 // 只由尚未提交的個人資料準備階段啟用，不處理選位或付款頁。
 export class KlookContactRecovery implements FlowRecovery {
@@ -28,7 +28,7 @@ export class KlookContactRecovery implements FlowRecovery {
         }
         log("個人資料預留已過期：按一次彈窗確認，等待原活動頁恢復。");
         await confirm.click({ timeout: this.timeout });
-        await waitForEventPage(this.page, this.eventUrl, this.timeout,
+        await waitForRecoveryReturn(this.page, this.eventUrl, this.timeout,
             "確認逾期後未能恢復原活動選票區，已停止；不再次點擊或重整。", returnQueueRecovery);
         log("已返回原活動頁，重新選票與配位；不沿用舊預留資料。");
     }
