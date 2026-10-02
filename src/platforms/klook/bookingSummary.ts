@@ -2,7 +2,7 @@ import { isPersonalInfoPage } from "./personalInfoPage.js";
 import { validateBookingExpectation } from "../../core/purchaseValidation.js";
 import type { Page } from "playwright";
 import type { TicketTarget, BookingExpectation } from "../../core/types.js";
-import type { AssignedSeat } from "./seatSelector.js";
+import { seatKey, type AssignedSeat } from "./seatSelector.js";
 
 export interface BookingSummary {
     eventName: string;
@@ -20,10 +20,6 @@ function parseAmount(text: string): number {
     const amount = Number(text.replace(/,/g, ""));
     if (!Number.isSafeInteger(amount)) throw new Error("摘要金額超出可核對範圍。");
     return amount;
-}
-
-function seatKey(seat: AssignedSeat): string {
-    return JSON.stringify([seat.section, seat.row, seat.number].map(normalizeText));
 }
 
 // 純核對函式：不讀 DOM、不點按鈕，任何不符均拋錯。

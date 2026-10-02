@@ -31,6 +31,10 @@ function normalize(text: string): string {
     return text.normalize("NFKC").replace(/\s/g, "");
 }
 
+export function seatKey(seat: AssignedSeat): string {
+    return JSON.stringify([seat.section, seat.row, seat.number].map(normalize));
+}
+
 function checkSession(text: string, target: TicketTarget): string | undefined {
     const [year, month, day] = target.date.split("-").map(Number);
     const [hour, minute] = target.time.split(":").map(Number);
@@ -65,7 +69,7 @@ function checkSeats(result: SeatResult, quantity: number): string | undefined {
     if (result.seats.some(seat => !seat.section.trim() || !seat.row.trim() || !seat.number.trim())) {
         return "座位資料不完整：區、排、座號不可缺少";
     }
-    const keys = result.seats.map(seat => JSON.stringify([seat.section, seat.row, seat.number].map(normalize)));
+    const keys = result.seats.map(seatKey);
     if (new Set(keys).size !== quantity) return "座位明細出現重複座位";
     return undefined;
 }
@@ -99,8 +103,7 @@ export class KlookSeatSelector {
         this.throwIfSeatError(result.text);
         const mismatch = getSeatResultMismatch(result, target);
         if (mismatch) throw new Error(`確認前核對失敗：${mismatch}`);
-        const seatKeys = (seats: AssignedSeat[]) => seats.map(seat =>
-            JSON.stringify([seat.section, seat.row, seat.number].map(normalize))).sort();
+        const seatKeys = (seats: AssignedSeat[]) => seats.map(seatKey).sort();
         if (JSON.stringify(seatKeys(result.seats)) !== JSON.stringify(seatKeys(expectedSeats))) {
             throw new Error("確認前座位已改變，已停止。");
         }

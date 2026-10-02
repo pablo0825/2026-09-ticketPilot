@@ -45,6 +45,7 @@ test("選 A 區一張、保留不適用的連票設定並停在下一步之前�
         await page.setContent(fixture());
         const adapter = new KlookTicketSelector(page, 800);
         await adapter.selectAndVerify(target);
+        // 重跑應保持指定張數，不可再次累加票數。
         await adapter.selectAndVerify(target);
         assert.equal(await page.locator('.value-xWKzpL').innerText(), "1");
         assert.equal(await page.locator('[role=checkbox]').getAttribute('aria-checked'), "true");

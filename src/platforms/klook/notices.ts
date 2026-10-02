@@ -4,6 +4,7 @@ import type { Locator, Page } from "playwright";
 export const seatPanelSelector = ".main_right-ZMnX67";
 export const seatShellSelector = ".seatModal";
 export const queueExpiredMessage = /^抱歉，時間到了！\s*請返回並重新排隊$/;
+// 完整文案供恢復辨識；部分文案只用來先停止操作，不能單憑它啟動恢復。
 export const reservationExpiredMessage = /^未於時限內確認[，,]\s*票券預留失敗$/;
 export const reservationExpiredNotice = /未於時限內確認[，,]\s*票券預留失敗/;
 
