@@ -37,16 +37,18 @@ export function validateContactDetails(value: unknown): ContactDetails {
     throw new Error(message);
 }
 
-// 缺少本機設定時，維持只核對摘要的原有流程。
-export async function loadContactDetails(): Promise<ContactDetails | null> {
+// 個人資料是啟動前的必要設定；缺少資料時不開啟瀏覽器或選票。
+export async function loadContactDetails(): Promise<ContactDetails> {
     let source: string;
 
     try {
         // 把個人資料讀取出來
         source = await readFile(new URL("../../contact.local.json", import.meta.url), "utf8");
     } catch (error) {
-        // 檔案不存在就拋出 null
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        // 缺檔也屬於準備失敗，提示補齊而不是進入個資頁才停止。
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            throw new Error("缺少 contact.local.json，請依 contact.example.json 補齊個人資料後重新啟動；未開始購票。");
+        }
 
         // 其他錯誤
         throw new Error("無法讀取 contact.local.json。");

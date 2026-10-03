@@ -95,7 +95,7 @@
 
 提交由 `contactForm.ts` 的 `submit()` 負責；`paymentPage.ts` 獨立核對網址、付款選項、金額與按鈕。
 `contactForm.ts` 提供不重新填寫的 `verify`，供提交前再次核對；main 的提交與付款頁核對在 recovery 範圍外。
-有 contact.local.json 時，核對後送出並停在付款頁；沒有設定時仍停在個人資料頁。
+個人資料為啟動前必要設定：缺少 contact.local.json、JSON 無效或欄位驗證失敗時，在開啟瀏覽器前停止。資料有效時，核對後送出並停在付款頁。
 提交結果未知或付款頁核對失敗時停止，不自動重送、不重跑購票、不按確認付款。
 本次實作以本機 fixture 測試；新的自動提交程式仍待使用者實站驗證。
 

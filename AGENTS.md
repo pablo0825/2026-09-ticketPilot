@@ -54,7 +54,8 @@ Preserve strict ticket matching. Never automatically retry seat confirmation.
 After verifying the booking summary and configured contact details, submit once
 and verify arrival at checkout and the expected amount. Stop before confirming
 payment. Never retry contact submission or restart purchasing after an uncertain
-submission result. Without contact configuration, stop on the contact page.
+submission result. Require valid contact configuration before opening the browser; missing or invalid
+contact data stops startup before ticket selection.
 
 ## Verification & Review
 
@@ -79,5 +80,5 @@ After implementation or edits, automatically commit task-related changes once
 required verification and review pass. Stage only changes made for the current task;
 leave unrelated changes uncommitted. Report the commit hash when finished.
 
-Base optional `contact.local.json` on `contact.example.json`.
+Base required `contact.local.json` on `contact.example.json`.
 Never commit personal data, secrets, or `browser-profile/`.

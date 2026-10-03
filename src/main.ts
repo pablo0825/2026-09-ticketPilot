@@ -71,11 +71,8 @@ async function main() {
     const strategy = new PriorityStrategy(eventConfig);
     const pause = new FlowPause(process.env.FLOW_PAUSE);
 
-    // 載入個人資料
+    // 必須在開啟瀏覽器前載入並驗證個人資料。
     const contactDetails = await loadContactDetails();
-    if (process.env.FLOW_PAUSE === "contact" && !contactDetails) {
-        throw new Error("FLOW_PAUSE=contact 需要先設定 contact.local.json。");
-    }
     for (const [index, target] of eventConfig.targets.entries()) {
         console.log(`順位 ${index + 1}：${target.date} ${target.time} / ${target.area} / ${target.quantity} 張`);
     }
@@ -103,17 +100,15 @@ async function main() {
             const summary = await readBookingSummary(page, eventConfig.eventUrl);
             verifyBookingSummary(summary, target, allocation, bookingExpectation);
             reportState("BOOKING_VERIFIED");
-            if (contactDetails) {
-                reportState("CONTACT_FILLING");
-                await contactForm.fillAndVerify(contactDetails);
+            reportState("CONTACT_FILLING");
+            await contactForm.fillAndVerify(contactDetails);
+            verifyBookingSummary(await readBookingSummary(page, eventConfig.eventUrl), target, allocation, bookingExpectation);
+            await contactForm.verify(contactDetails);
+            reportState("CONTACT_VERIFIED");
+            if (await pause.waitAt("contact")) {
+                // 暫停期間可能過期或被修改，返回前重新核對；仍在恢復範圍內。
                 verifyBookingSummary(await readBookingSummary(page, eventConfig.eventUrl), target, allocation, bookingExpectation);
                 await contactForm.verify(contactDetails);
-                reportState("CONTACT_VERIFIED");
-                if (await pause.waitAt("contact")) {
-                    // 暫停期間可能過期或被修改，返回前重新核對；仍在恢復範圍內。
-                    verifyBookingSummary(await readBookingSummary(page, eventConfig.eventUrl), target, allocation, bookingExpectation);
-                    await contactForm.verify(contactDetails);
-                }
             }
         },
     }, new KlookQueueRecovery(page, eventConfig.eventUrl), new KlookContactRecovery(page, eventConfig.eventUrl),
@@ -129,11 +124,7 @@ async function main() {
     });
 
     // 提交永遠在恢復範圍外；即使此刻才到期，也停止而不冒險重送。
-    if (contactDetails) {
-        await submitAndVerifyPayment(page, eventConfig.eventUrl, contactForm, prepared.target.expectation.totalPrice);
-    } else {
-        console.log("摘要核對通過。未提供 contact.local.json，停在個人資料頁。");
-    }
+    await submitAndVerifyPayment(page, eventConfig.eventUrl, contactForm, prepared.target.expectation.totalPrice);
     console.log("操作結束後，請關閉瀏覽器視窗。");
 }
 
