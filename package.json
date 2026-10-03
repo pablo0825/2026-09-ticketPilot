@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node --import tsx --test tests/*.test.ts",
     "start": "tsx src/main.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "gui": "tsx src/local/main.ts"
   },
   "keywords": [],
   "author": "",
