@@ -50,7 +50,7 @@ test("選位恢復限定原活動與唯一過期彈窗；錯頁、歧義、其�
         assert.equal(await page.locator('body').getAttribute('data-ok'), '1');
         assert.equal(await page.locator('body').getAttribute('data-confirm'), null);
         await page.setContent(panel() + modal().replace('class="klk-modal-alert"', 'class="klk-modal-alert" hidden'));
-        await new KlookSeatSelector(page, 1000).confirmVerifiedSeats(target, [
+        await new KlookSeatSelector(page, 4880, 1000).confirmVerifiedSeats(target, [
             { section: "A1", row: "10", number: "17" },
         ]);
         assert.equal(await page.locator('body').getAttribute('data-confirm'), '1');
@@ -69,12 +69,12 @@ ${group('日期', '10月3日(週六)')}${group('時間', '12:00')}${group('票�
 <script>document.querySelector('#next').onclick=()=>{const n=Number(document.body.dataset.assignments||0)+1;document.body.dataset.assignments=String(n);document.body.insertAdjacentHTML('beforeend', ${JSON.stringify(panel('__NUMBER__'))}.replace('__NUMBER__',String(16+n)));};</script>`;
         await page.route('**/*', route => route.fulfill({ body: html, contentType: 'text/html; charset=utf-8' }));
         await page.goto(eventUrl);
-        const selector = new KlookSeatSelector(page, 1000);
+        const selector = new KlookSeatSelector(page, 4880, 1000);
         let confirmations = 0;
         const checked: string[] = [];
         await prepareBooking({
             selectSeats: async () => {
-                await new KlookTicketSelector(page, 1000).selectAndVerify(target);
+                await new KlookTicketSelector(page, 1000).selectAndVerify(target, 4880);
                 return selector.openAndVerify(target);
             },
             confirmSeats: async seats => {
@@ -103,7 +103,7 @@ test("確認已按下但導頁失敗時，即使出現過期提示也不重選�
         await assert.rejects(prepareBooking({
             selectSeats: async () => { selections++; return [{ section: 'A1', row: '10', number: '17' }]; },
             confirmSeats: async seats => {
-                await new KlookSeatSelector(page, 500).confirmVerifiedSeats(target, seats);
+                await new KlookSeatSelector(page, 4880, 500).confirmVerifiedSeats(target, seats);
                 await page.locator('body').evaluate((el, html) => el.insertAdjacentHTML('beforeend', html), modal());
                 throw new Error('確認已送出，導頁結果未知');
             },

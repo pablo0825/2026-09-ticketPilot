@@ -1,3 +1,5 @@
+import { PurchaseStop } from "../../core/purchaseStop.js";
+import { normalizeTicketName, parseTicketLabel } from "./ticketLabel.js";
 import { validateTicketTarget } from "../../core/purchaseValidation.js";
 import type { Locator, Page } from "playwright";
 import type { TicketTarget } from "../../core/types.js";
@@ -38,16 +40,19 @@ export class KlookTicketSelector {
         this.root = page.locator(selectors.root);
     }
 
-    async selectAndVerify(target: TicketTarget): Promise<void> {
+    async selectAndVerify(target: TicketTarget, expectedUnitPrice: number): Promise<void> {
         // 檢查票券格式是否符合
         validateTicketTarget(target);
+        if (!Number.isSafeInteger(expectedUnitPrice) || expectedUnitPrice <= 0) {
+            throw new PurchaseStop("預期單價必須是正整數。");
+        }
         // 確認票券選擇區只有一個元素
         await this.waitForUniqueElement(this.root, "票券選擇區");
 
         // 
         const date = await this.selectDate(target.date);
         const time = await this.selectTime(target.time);
-        const area = await this.selectArea(target.area);
+        const area = await this.selectArea(target.area, expectedUnitPrice);
         await this.setQuantity(target.quantity);
         await this.setAdjacentPreference(target);
 
@@ -55,6 +60,8 @@ export class KlookTicketSelector {
         await this.verifySelectedOption(date, "日期");
         await this.verifySelectedOption(time, "時間");
         await this.verifySelectedOption(area, "票區");
+        const matched = await this.findArea(target.area, expectedUnitPrice);
+        await this.verifySelectedOption(matched, "票區");
         await this.verifyQuantity(target.quantity);
         await this.verifyAdjacentPreference(target);
 
@@ -86,11 +93,40 @@ export class KlookTicketSelector {
         return this.selectOption("時間", new RegExp(`^\\s*${escapeRegex(time)}\\s*$`));
     }
 
-    private selectArea(area: string): Promise<Locator> {
-        const name = area.normalize("NFKC").replace(/\s/g, "");
-        // 比對完整名稱及價格，避免 A區誤選成 A區愛心席。
-        const label = new RegExp(`^\\s*${escapeRegex(name)}\\s*[（(]NT\\$[\\d,]+[）)]\\s*$`);
-        return this.selectOption("票種", label);
+    private async findArea(area: string, expectedUnitPrice: number): Promise<Locator> {
+        const heading = this.page.locator(selectors.groupName).filter({ hasText: /^票種\s*$/ });
+        const group = this.root.locator(selectors.group).filter({ has: heading });
+        // 此處失敗是無法確認購買目標，不可被解讀為售罄或啟用恢復。
+        try {
+            await this.waitForUniqueElement(group, "票種群組");
+            const options = group.locator(selectors.option).filter({ visible: true });
+            await this.waitUntil(async () => await options.count() > 0, "票種尚未載入");
+            const matches: Locator[] = [];
+            let sameName = false;
+            for (const option of await options.all()) {
+                const parsed = parseTicketLabel(await option.innerText());
+                if (parsed.name !== normalizeTicketName(area)) continue;
+                sameName = true;
+                if (parsed.unitPrice === expectedUnitPrice) matches.push(option);
+            }
+            if (matches.length > 1) throw new Error("票種有多個匹配項，已停止。");
+            if (matches.length === 0) {
+                throw new Error(sameName ? "票種單價不符，已停止。" : "找不到符合完整名稱與單價的票種，狀態未知，未判定售罄。");
+            }
+            return matches[0]!;
+        } catch (error) {
+            throw new PurchaseStop(error instanceof Error ? error.message : "無法核對票種與單價。");
+        }
+    }
+
+    private async selectArea(area: string, expectedUnitPrice: number): Promise<Locator> {
+        const option = await this.findArea(area, expectedUnitPrice);
+        if (!await this.isSelected(option)) {
+            await option.click({ timeout: this.timeout });
+            await this.waitUntil(() => this.isSelected(option), "票種點選後沒有確認選中");
+        }
+        log(`票種已選：${(await option.innerText()).trim()}`);
+        return option;
     }
 
     // 找到群組中的選項，並回傳定位器
@@ -176,12 +212,12 @@ export class KlookTicketSelector {
         const siblings = option.locator("..");
         const selectedCount = await siblings.locator(`${selectors.option}.${selectors.selectedClass}`).count();
         if (!await this.isSelected(option) || selectedCount !== 1) {
-            throw new Error(`${name}最終驗證不一致。`);
+            throw new PurchaseStop(`${name}最終驗證不一致。`);
         }
     }
 
     private async verifyQuantity(wanted: number): Promise<void> {
-        if (await this.readQuantity() !== wanted) throw new Error("最終票數不一致。");
+        if (await this.readQuantity() !== wanted) throw new PurchaseStop("最終票數不一致。");
     }
 
     private async verifyAdjacentPreference(target: TicketTarget): Promise<void> {

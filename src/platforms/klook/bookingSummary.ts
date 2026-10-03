@@ -1,3 +1,4 @@
+import { normalizeTicketName, parseTicketLabel, parseTicketAmount } from "./ticketLabel.js";
 import { isPersonalInfoPage } from "./personalInfoPage.js";
 import { validateBookingExpectation } from "../../core/purchaseValidation.js";
 import type { Page } from "playwright";
@@ -15,13 +16,6 @@ export interface BookingSummary {
 
 const normalizeText = (text: string): string => text.normalize("NFKC").replace(/\s+/g, "").trim();
 
-function parseAmount(text: string): number {
-    if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(text)) throw new Error("摘要金額格式無法辨識。");
-    const amount = Number(text.replace(/,/g, ""));
-    if (!Number.isSafeInteger(amount)) throw new Error("摘要金額超出可核對範圍。");
-    return amount;
-}
-
 // 純核對函式：不讀 DOM、不點按鈕，任何不符均拋錯。
 export function verifyBookingSummary(summary: BookingSummary, target: TicketTarget,
     expectedSeats: AssignedSeat[], expected: BookingExpectation): void {
@@ -34,11 +28,11 @@ export function verifyBookingSummary(summary: BookingSummary, target: TicketTarg
 }
 
 function verifyPrices(summary: BookingSummary, area: string, expected: BookingExpectation): void {
-    const packageMatch = normalizeText(summary.packageName).match(/^(.+)\(NT\$([\d,]+)\)$/);
-    if (!packageMatch || packageMatch[1] !== normalizeText(area)) throw new Error("預訂摘要票種不符或格式未知。");
-    if (parseAmount(packageMatch[2]!) !== expected.unitPrice) throw new Error("預訂摘要單價不符。");
+    const ticket = parseTicketLabel(summary.packageName);
+    if (ticket.name !== normalizeTicketName(area)) throw new Error("預訂摘要票種不符。");
+    if (ticket.unitPrice !== expected.unitPrice) throw new Error("預訂摘要單價不符。");
     const totalMatch = normalizeText(summary.total).match(/^NT\$([\d,]+)$/);
-    if (!totalMatch || parseAmount(totalMatch[1]!) !== expected.totalPrice) throw new Error("預訂摘要總價不符。");
+    if (!totalMatch || parseTicketAmount(totalMatch[1]!) !== expected.totalPrice) throw new Error("預訂摘要總價不符。");
 }
 
 function parseSeat(label: string): AssignedSeat {

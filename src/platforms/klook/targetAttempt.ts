@@ -21,10 +21,10 @@ export class KlookTargetAttempt implements TargetAttempt<KlookAssignment> {
     async attempt(target: PurchaseTarget): Promise<AttemptResult<KlookAssignment>> {
         await this.failure.assertNoExistingNotice();
         reportState("TICKET_SELECTION");
-        await new KlookTicketSelector(this.page, this.timeout).selectAndVerify(target);
+        await new KlookTicketSelector(this.page, this.timeout).selectAndVerify(target, target.expectation.unitPrice);
         reportState("SELECTION_VERIFIED");
         reportState("SEAT_ASSIGNMENT");
-        const seatSelector = new KlookSeatSelector(this.page, this.timeout);
+        const seatSelector = new KlookSeatSelector(this.page, target.expectation.unitPrice, this.timeout);
         await this.failure.assertNoExistingNotice();
         try {
             const seats = await seatSelector.openAndVerify(target, () => this.failure.observe());

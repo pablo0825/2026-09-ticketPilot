@@ -25,15 +25,16 @@ test('確認前重新核對：座位改變、場次不符、按鈕停用時不�
         for (const [html, error] of [
             [fixture() + '<div>未於時限內確認，票券預留失敗</div>', /預留已到期/],
             [fixture('18'), /座位已改變/],
+            [fixture().replace('NT$4,880', 'NT$5,000'), /單價不符/],
             [fixture('17', '06:00'), /時間不符/],
             [fixture('17', '12:00', true), /無法操作/],
         ] as const) {
             await page.setContent(html);
-            await assert.rejects(new KlookSeatSelector(page, 800).confirmVerifiedSeats(target, seats), error);
+            await assert.rejects(new KlookSeatSelector(page, 4880, 800).confirmVerifiedSeats(target, seats), error);
             assert.equal(await page.locator('body').getAttribute('data-clicks'), null);
         }
         await page.setContent(fixture());
-        await new KlookSeatSelector(page, 800).confirmVerifiedSeats(target, seats);
+        await new KlookSeatSelector(page, 4880, 800).confirmVerifiedSeats(target, seats);
         assert.equal(await page.locator('body').getAttribute('data-clicks'), '1');
     } finally { await browser.close(); }
 });
@@ -48,7 +49,7 @@ test('確認後等待填寫資料頁：網址與表單都要符合，且不點�
                 ? fixture().replace('document.body.dataset.clicks=String(Number(document.body.dataset.clicks || 0)+1)', `location.href='${checkoutUrl}'`)
                 : '<h2>聯絡資料</h2><input aria-label="名"><button onclick="document.body.dataset.paid=1">前往付款</button>' }));
         await page.goto(eventUrl);
-        await new KlookSeatSelector(page, 800).confirmVerifiedSeats(target, seats);
+        await new KlookSeatSelector(page, 4880, 800).confirmVerifiedSeats(target, seats);
         await waitForPersonalInfoPage(page, eventUrl, 800);
         assert.equal(await page.getByRole('textbox').inputValue(), '');
         assert.equal(await page.locator('body').getAttribute('data-paid'), null);

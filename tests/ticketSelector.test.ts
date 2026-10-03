@@ -1,3 +1,7 @@
+import { PurchaseStop } from "../src/core/purchaseStop.js";
+import { PriorityStrategy } from "../src/core/priorityStrategy.js";
+import { prepareBooking } from "../src/core/bookingPreparation.js";
+import { eventConfig } from "../src/config/event.config.js";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";
@@ -44,9 +48,9 @@ test("選 A 區一張、保留不適用的連票設定並停在下一步之前�
     try {
         await page.setContent(fixture());
         const adapter = new KlookTicketSelector(page, 800);
-        await adapter.selectAndVerify(target);
+        await adapter.selectAndVerify(target, 4880);
         // 重跑應保持指定張數，不可再次累加票數。
-        await adapter.selectAndVerify(target);
+        await adapter.selectAndVerify(target, 4880);
         assert.equal(await page.locator('.value-xWKzpL').innerText(), "1");
         assert.equal(await page.locator('[role=checkbox]').getAttribute('aria-checked'), "true");
         assert.deepEqual(await page.locator('.active-vB3nra').allTextContents(), ["10月3日(週六)", "12:00", "A區（NT$4,880）"]);
@@ -58,7 +62,7 @@ test("從三張減到一張", async () => {
     const page = await browser.newPage();
     try {
         await page.setContent(fixture(3));
-        await new KlookTicketSelector(page, 800).selectAndVerify(target);
+        await new KlookTicketSelector(page, 800).selectAndVerify(target, 4880);
         assert.equal(await page.locator('.value-xWKzpL').innerText(), "1");
     } finally { await page.close(); }
 });
@@ -68,9 +72,9 @@ test("單張票沒有連票元件也可通過；多張仍驗證連票設定", as
     try {
         await page.setContent(fixture());
         await page.locator('.consecutive').evaluate(el => el.remove());
-        await new KlookTicketSelector(page, 800).selectAndVerify(target);
+        await new KlookTicketSelector(page, 800).selectAndVerify(target, 4880);
         await page.setContent(fixture());
-        await new KlookTicketSelector(page, 800).selectAndVerify({ ...target, quantity: 2 });
+        await new KlookTicketSelector(page, 800).selectAndVerify({ ...target, quantity: 2 }, 4880);
         assert.equal(await page.locator('[role=checkbox]').getAttribute('aria-checked'), "false");
         assert.equal(await page.locator('body').getAttribute('data-next'), null);
     } finally { await page.close(); }
@@ -80,7 +84,7 @@ test("超過 UI 上限停止，不點下一步", async () => {
     const page = await browser.newPage();
     try {
         await page.setContent(fixture());
-        await assert.rejects(new KlookTicketSelector(page, 800).selectAndVerify({ ...target, quantity: 5 }), /超過 UI 上限/);
+        await assert.rejects(new KlookTicketSelector(page, 800).selectAndVerify({ ...target, quantity: 5 }, 4880), /超過 UI 上限/);
         assert.equal(await page.locator('.value-xWKzpL').innerText(), "0");
         assert.equal(await page.locator('body').getAttribute('data-next'), null);
     } finally { await page.close(); }
@@ -90,7 +94,7 @@ test("點擊未生效時不宣告成功", async () => {
     const page = await browser.newPage();
     try {
         await page.setContent(fixture(0, true));
-        await assert.rejects(new KlookTicketSelector(page, 400).selectAndVerify(target), /點選後沒有確認選中/);
+        await assert.rejects(new KlookTicketSelector(page, 400).selectAndVerify(target, 4880), /點選後沒有確認選中/);
         assert.equal(await page.locator('body').getAttribute('data-next'), null);
     } finally { await page.close(); }
 });
@@ -107,7 +111,7 @@ test("錯誤設定或年份不符時停止，不變更選票", async () => {
             { ...target, area: "　" },
             { ...target, date: "2027-10-03" },
         ]) {
-            await assert.rejects(adapter.selectAndVerify(invalid));
+            await assert.rejects(adapter.selectAndVerify(invalid, 4880));
         }
         assert.deepEqual(await page.locator('.active-vB3nra').allTextContents(), ["10月3日(週六)", "18:00", "B區（NT$3,880）"]);
         assert.equal(await page.locator('body').getAttribute('data-next'), null);
@@ -121,7 +125,7 @@ test("同名票區重複時停止，不任選第一個", async () => {
         await page.getByText('A區（NT$4,880）', { exact: true }).evaluate(el => {
             el.parentElement!.append(el.cloneNode(true));
         });
-        await assert.rejects(new KlookTicketSelector(page, 400).selectAndVerify(target), /多個匹配項/);
+        await assert.rejects(new KlookTicketSelector(page, 400).selectAndVerify(target, 4880), /多個匹配項/);
         assert.equal(await page.locator('.value-xWKzpL').innerText(), "0");
     } finally { await page.close(); }
 });
@@ -133,7 +137,7 @@ test("加號停用時停止，不誤判目標票數已完成", async () => {
         await page.locator('.klk-icon-icon_other_plus_xs').evaluate(el => {
             el.parentElement!.classList.add('btnDisabled-O7fKf4');
         });
-        await assert.rejects(new KlookTicketSelector(page, 400).selectAndVerify(target), /數量按鈕目前停用/);
+        await assert.rejects(new KlookTicketSelector(page, 400).selectAndVerify(target, 4880), /數量按鈕目前停用/);
         assert.equal(await page.locator('.value-xWKzpL').innerText(), "0");
     } finally { await page.close(); }
 });
@@ -150,7 +154,7 @@ test("調整數量意外重設票區時，最終驗證必須失敗", async () =>
                 }
             });
         });
-        await assert.rejects(new KlookTicketSelector(page, 400).selectAndVerify(target), /票區最終驗證不一致/);
+        await assert.rejects(new KlookTicketSelector(page, 400).selectAndVerify(target, 4880), /票區最終驗證不一致/);
         assert.equal(await page.locator('body').getAttribute('data-next'), null);
     } finally { await page.close(); }
 });
@@ -159,7 +163,79 @@ test("多張票的连票勾選未生效時仍然失敗", async () => {
     const page = await browser.newPage();
     try {
         await page.setContent(fixture().replace("checkbox.onclick = () => checkbox.setAttribute('aria-checked', String(checkbox.getAttribute('aria-checked') !== 'true'));", "checkbox.onclick = () => {};"));
-        await assert.rejects(new KlookTicketSelector(page, 400).selectAndVerify({ ...target, quantity: 2 }));
+        await assert.rejects(new KlookTicketSelector(page, 400).selectAndVerify({ ...target, quantity: 2 }, 4880));
         assert.equal(await page.locator('body').getAttribute('data-next'), null);
+    } finally { await page.close(); }
+});
+
+test("名稱與單價唯一匹配，三種價格格式皆可設定兩張", async () => {
+    const page = await browser.newPage();
+    try {
+        for (const label of ["A區（NT$4,880）", "A區 NT$4880", "A區 $4,880"]) {
+            await page.setContent(fixture().replaceAll("A區（NT$4,880）", label));
+            await new KlookTicketSelector(page, 500).selectAndVerify({ ...target, quantity: 2 }, 4880);
+            assert.equal(await page.locator('.value-xWKzpL').innerText(), "2");
+            assert.equal(await page.locator('.spec-LwNjSh.active-vB3nra').filter({ hasText: label }).count(), 1);
+            assert.equal(await page.locator('body').getAttribute('data-next'), null);
+        }
+    } finally { await page.close(); }
+});
+
+test("價格不符、同價異名、格式未知與重複選項均停止，不點票種或下一步", async () => {
+    const page = await browser.newPage();
+    try {
+        for (const label of ["A區 NT$5000", "A區身障票 NT$4880", "A區 NT$48,80", "A區 NT$4880起", "A區（NT$4,880）</div><div class='spec-LwNjSh'>A區 $4,880"]) {
+            await page.setContent(fixture().replace("A區（NT$4,880）", label));
+            await page.locator('.skuGroup-hk2pfU').filter({ hasText: "票種" }).evaluate(el => {
+                el.addEventListener('click', () => document.body.dataset.ticketClicked = '1');
+            });
+            await assert.rejects(new KlookTicketSelector(page, 500).selectAndVerify(target, 4880), PurchaseStop);
+            assert.equal(await page.locator('body').getAttribute('data-ticket-clicked'), null);
+            assert.equal(await page.locator('body').getAttribute('data-next'), null);
+        }
+    } finally { await page.close(); }
+});
+
+test("調整張數後價格改變仍須停止，不沿用先前核對", async () => {
+    const page = await browser.newPage();
+    try {
+        await page.setContent(fixture());
+        await page.locator('.klk-icon-icon_other_plus_xs').evaluate(el => {
+            el.parentElement!.addEventListener('click', () => {
+                const option = [...document.querySelectorAll('.spec-LwNjSh')].find(item => item.textContent === 'A區（NT$4,880）')!;
+                option.textContent = 'A區 NT$5000';
+            });
+        });
+        await assert.rejects(new KlookTicketSelector(page, 500).selectAndVerify(target, 4880), PurchaseStop);
+        assert.equal(await page.locator('body').getAttribute('data-next'), null);
+    } finally { await page.close(); }
+});
+
+test("價格不符即使同時有恢復需求，也不換順位、不返回、不消耗恢復", async () => {
+    const page = await browser.newPage();
+    const attempts: string[] = [];
+    let returns = 0; let recoveries = 0; let active = false;
+    const recovery = { async isRequired() { return active; }, async recover() { recoveries++; } };
+    const strategy = new PriorityStrategy({ ...eventConfig, targets: [
+        { ...eventConfig.targets[0]!, area: 'A區' }, { ...eventConfig.targets[0]!, area: 'B區' },
+    ] });
+    try {
+        await page.setContent(fixture().replace('A區（NT$4,880）', 'A區 NT$5000'));
+        await assert.rejects(prepareBooking({
+            selectSeats: () => strategy.select({
+                async attempt(candidate) {
+                    attempts.push(candidate.area);
+                    active = true;
+                    await new KlookTicketSelector(page, 500).selectAndVerify(candidate, candidate.expectation.unitPrice);
+                    return { status: 'matched', value: true };
+                },
+                async returnAfterFailure() { returns++; },
+            }),
+            async confirmSeats() { assert.fail('不得進入選位確認'); },
+            async prepareContact() { assert.fail('不得填表'); },
+        }, recovery, recovery), PurchaseStop);
+        assert.deepEqual(attempts, ['A區']);
+        assert.equal(returns, 0);
+        assert.equal(recoveries, 0);
     } finally { await page.close(); }
 });

@@ -9,7 +9,9 @@ const seats = [{ section: 'A1', row: '4', number: '15' }];
 const summary: BookingSummary = { eventName: expected.eventName, packageName: 'A區（NT$4,880）', dateTime: '2026-10-03 12:00:00', quantity: '1', seatLabels: ['A1區, 第4排, 15號座位'], total: 'NT$ 4,880' };
 
 test('摘要逐項核對，錯誤場次／票種／價格／張數／座位均停止', () => {
-    verifyBookingSummary(summary, target, seats, expected);
+    for (const packageName of [summary.packageName, "A區 NT$4880", "A區 $4,880"]) {
+        verifyBookingSummary({ ...summary, packageName }, target, seats, expected);
+    }
     for (const change of [
         { eventName: '別的活動' }, { dateTime: '2026-10-03 18:00:00' },
         { packageName: 'A區愛心席（NT$4,880）' }, { packageName: 'A區（NT$4,890）' },

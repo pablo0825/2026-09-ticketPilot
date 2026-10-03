@@ -1,3 +1,4 @@
+import { parseTicketLabel, normalizeTicketName } from "./ticketLabel.js";
 import { getSelectionNotices, isExpiryNotice, reservationExpiredNotice, seatPanelSelector } from "./notices.js";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { SeatExpiredBeforeConfirmationError } from "../../core/seatExpiry.js";
@@ -55,8 +56,10 @@ function checkSession(text: string, target: TicketTarget): string | undefined {
 }
 
 function checkArea(area: string, wanted: string): string | undefined {
-    const actual = normalize(area).replace(/\(NT\$[\d,]+\)$/, "");
-    if (actual !== normalize(wanted)) return `票種不符：預期 ${wanted}，實際 ${area.trim() || "尚未出現"}`;
+    let actual: string;
+    try { actual = parseTicketLabel(area).name; }
+    catch { return "票種名稱或價格格式尚未能辨識"; }
+    if (actual !== normalizeTicketName(wanted)) return `票種不符：預期 ${wanted}，實際 ${area.trim() || "尚未出現"}`;
     return undefined;
 }
 
@@ -84,7 +87,8 @@ export function getSeatResultMismatch(result: SeatResult, target: TicketTarget):
 export class KlookSeatSelector {
     private readonly panel: Locator;
 
-    constructor(private readonly page: Page, private readonly timeout = 30_000) {
+    constructor(private readonly page: Page, private readonly expectedUnitPrice: number, private readonly timeout = 30_000) {
+        if (!Number.isSafeInteger(expectedUnitPrice) || expectedUnitPrice <= 0) throw new PurchaseStop("預期單價必須是正整數。");
         this.panel = page.locator(selectors.panel);
     }
 
@@ -103,6 +107,7 @@ export class KlookSeatSelector {
         this.throwIfSeatError(result.text);
         const mismatch = getSeatResultMismatch(result, target);
         if (mismatch) throw new Error(`確認前核對失敗：${mismatch}`);
+        this.verifyUnitPrice(result.area);
         const seatKeys = (seats: AssignedSeat[]) => seats.map(seatKey).sort();
         if (JSON.stringify(seatKeys(result.seats)) !== JSON.stringify(seatKeys(expectedSeats))) {
             throw new Error("確認前座位已改變，已停止。");
@@ -111,6 +116,12 @@ export class KlookSeatSelector {
         await this.throwIfSeatReservationExpired();
         await this.panel.getByRole("button", { name: "確認", exact: true }).click({ timeout: this.timeout });
         log("已按選位確認，等待填寫資料頁；不會重複點擊。");
+    }
+
+    private verifyUnitPrice(label: string): void {
+        if (parseTicketLabel(label).unitPrice !== this.expectedUnitPrice) {
+            throw new PurchaseStop("配位票種單價不符，已停止。");
+        }
     }
 
     private async openSeatDialog(): Promise<void> {
@@ -131,7 +142,10 @@ export class KlookSeatSelector {
                 this.throwIfSeatError(result.text);
                 const mismatch = getSeatResultMismatch(result, target);
                 if (mismatch) lastReason = mismatch;
-                else if (await this.isConfirmReady()) return result;
+                else if (await this.isConfirmReady()) {
+                    this.verifyUnitPrice(result.area);
+                    return result;
+                }
                 else lastReason = "確認按鈕尚未可操作或不唯一";
             } else {
                 lastReason = "選位彈窗尚未出現或已關閉";
