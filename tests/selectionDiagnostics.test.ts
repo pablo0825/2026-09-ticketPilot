@@ -9,7 +9,7 @@ import { captureSelectionDiagnostics } from "../src/platforms/klook/selectionDia
 import { collectStoppedDiagnostics } from "../src/core/stoppedDiagnostics.js";
 import { KlookSeatSelector } from "../src/platforms/klook/seatSelector.js";
 import { PurchaseStop } from "../src/core/purchaseStop.js";
-import { eventConfig } from "../src/config/event.config.js";
+import { fixtureConfig as eventConfig } from "./fixtures/purchaseConfig.js";
 
 const eventUrl = "https://www.klook.com/zh-TW/event-detail/fixture/";
 

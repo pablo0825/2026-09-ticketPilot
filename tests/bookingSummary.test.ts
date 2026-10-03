@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { chromium } from 'playwright';
 import { readBookingSummary, verifyBookingSummary, type BookingSummary } from '../src/platforms/klook/bookingSummary.js';
-import { eventConfig } from '../src/config/event.config.js';
+import { fixtureConfig as eventConfig } from './fixtures/purchaseConfig.js';
 const expected = eventConfig.targets[0]!.expectation;
 const target = { date: '2026-10-03', time: '12:00', area: 'A區', quantity: 1, adjacent: false };
 const seats = [{ section: 'A1', row: '4', number: '15' }];

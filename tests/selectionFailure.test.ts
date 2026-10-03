@@ -4,7 +4,7 @@ import { chromium } from "playwright";
 import { KlookSelectionFailure, SelectionFailure } from "../src/platforms/klook/selectionFailure.js";
 import { KlookTargetAttempt } from "../src/platforms/klook/targetAttempt.js";
 import { PriorityStrategy } from "../src/core/priorityStrategy.js";
-import { eventConfig } from "../src/config/event.config.js";
+import { fixtureConfig as eventConfig } from "./fixtures/purchaseConfig.js";
 
 const url = "https://www.klook.com/zh-TW/event-detail/test/";
 const modal = (message: string, button = "OK", action = "window.clicks=(window.clicks||0)+1;this.parentElement.remove()") =>

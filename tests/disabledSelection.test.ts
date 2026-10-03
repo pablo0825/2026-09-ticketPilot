@@ -4,7 +4,7 @@ import { chromium } from "playwright";
 import { PriorityStrategy } from "../src/core/priorityStrategy.js";
 import { prepareBooking } from "../src/core/bookingPreparation.js";
 import { KlookTargetAttempt } from "../src/platforms/klook/targetAttempt.js";
-import { eventConfig } from "../src/config/event.config.js";
+import { fixtureConfig as eventConfig } from "./fixtures/purchaseConfig.js";
 
 const url = "https://www.klook.com/zh-TW/event-detail/test/";
 const config = { ...eventConfig, eventUrl: url, targets: ["A區", "B區"].map((area, i) => ({

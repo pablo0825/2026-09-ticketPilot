@@ -1,7 +1,7 @@
 import { PurchaseStop } from "../src/core/purchaseStop.js";
 import { PriorityStrategy } from "../src/core/priorityStrategy.js";
 import { prepareBooking } from "../src/core/bookingPreparation.js";
-import { eventConfig } from "../src/config/event.config.js";
+import { fixtureConfig as eventConfig } from "./fixtures/purchaseConfig.js";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";

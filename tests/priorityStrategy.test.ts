@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { chromium } from "playwright";
 import { PriorityStrategy, type TargetAttempt } from "../src/core/priorityStrategy.js";
 import { prepareBooking } from "../src/core/bookingPreparation.js";
-import { eventConfig } from "../src/config/event.config.js";
+import { fixtureConfig as eventConfig } from "./fixtures/purchaseConfig.js";
 import { PurchaseStop } from "../src/core/purchaseStop.js";
 
 const config = { ...eventConfig, targets: ["A區", "B區"].map((area, index) => ({
