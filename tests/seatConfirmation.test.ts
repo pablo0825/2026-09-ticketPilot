@@ -5,15 +5,15 @@ import { KlookSeatSelector } from '../src/platforms/klook/seatSelector.js';
 import { waitForPersonalInfoPage } from '../src/platforms/klook/personalInfoPage.js';
 
 const target = { date: '2026-10-03', time: '12:00', area: 'A區', quantity: 1, adjacent: false };
-const seats = [{ section: 'A2', row: '4', number: '17' }];
+const allocation = { kind: 'reserved' as const, seats: [{ section: 'A2', row: '4', number: '17' }] };
 const eventUrl = 'https://www.klook.com/zh-TW/event-detail/test/';
 const checkoutUrl = 'https://www.klook.com/zh-TW/event/payment/?shoppingcart_guid=test';
 function fixture(number = '17', time = '12:00', disabled = false) {
     return `<div class="main_right-ZMnX67">2026年10月3日 週六 下午${time}<div>00:06</div>
-    <div class="seat_list-BhwLqz">已選1個座位
+    <div class="seat_list-BhwLqz"><div class="seat_list_top-Bk0UC9"><div><div>已選1個座位</div></div></div>
     <div class="seat_list_cat-vMvUjF">A區（NT$4,880）</div>
-    <div class="list_item-jYRAN7"><ins>A2</ins><ins>4</ins><ins>${number}</ins></div>
-    <div class="con_seats-a3N26U">共計1個座位</div>
+    <div class="seat_footer_list-TWhU8V"><div class="list_item-jYRAN7"><span>區 <ins>A2</ins></span><span>排 <ins>4</ins></span><span>座位 <ins>${number}</ins></span></div></div>
+    <div class="con_seats-a3N26U">共計1個座位</div><div class="con_price-YYYONb">NT$4880</div>
     <button ${disabled ? 'disabled' : ''} onclick="document.body.dataset.clicks=String(Number(document.body.dataset.clicks || 0)+1)">確認</button>
     </div></div>`;
 }
@@ -24,17 +24,17 @@ test('確認前重新核對：座位改變、場次不符、按鈕停用時不�
     try {
         for (const [html, error] of [
             [fixture() + '<div>未於時限內確認，票券預留失敗</div>', /預留已到期/],
-            [fixture('18'), /座位已改變/],
+            [fixture('18'), /配位結果已改變/],
             [fixture().replace('NT$4,880', 'NT$5,000'), /單價不符/],
             [fixture('17', '06:00'), /時間不符/],
             [fixture('17', '12:00', true), /無法操作/],
         ] as const) {
             await page.setContent(html);
-            await assert.rejects(new KlookSeatSelector(page, 4880, 800).confirmVerifiedSeats(target, seats), error);
+            await assert.rejects(new KlookSeatSelector(page, 4880, 800).confirmVerifiedSeats(target, allocation), error);
             assert.equal(await page.locator('body').getAttribute('data-clicks'), null);
         }
         await page.setContent(fixture());
-        await new KlookSeatSelector(page, 4880, 800).confirmVerifiedSeats(target, seats);
+        await new KlookSeatSelector(page, 4880, 800).confirmVerifiedSeats(target, allocation);
         assert.equal(await page.locator('body').getAttribute('data-clicks'), '1');
     } finally { await browser.close(); }
 });
@@ -49,7 +49,7 @@ test('確認後等待填寫資料頁：網址與表單都要符合，且不點�
                 ? fixture().replace('document.body.dataset.clicks=String(Number(document.body.dataset.clicks || 0)+1)', `location.href='${checkoutUrl}'`)
                 : '<h2>聯絡資料</h2><input aria-label="名"><button onclick="document.body.dataset.paid=1">前往付款</button>' }));
         await page.goto(eventUrl);
-        await new KlookSeatSelector(page, 4880, 800).confirmVerifiedSeats(target, seats);
+        await new KlookSeatSelector(page, 4880, 800).confirmVerifiedSeats(target, allocation);
         await waitForPersonalInfoPage(page, eventUrl, 800);
         assert.equal(await page.getByRole('textbox').inputValue(), '');
         assert.equal(await page.locator('body').getAttribute('data-paid'), null);

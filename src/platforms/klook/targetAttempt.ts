@@ -6,11 +6,11 @@ import { KlookSelectionFailure, SelectionFailure } from "./selectionFailure.js";
 import { reportState } from "../../core/state.js";
 import type { Page } from "playwright";
 import { KlookTicketSelector } from "./ticketSelector.js";
-import { KlookSeatSelector, type AssignedSeat } from "./seatSelector.js";
+import { KlookSeatSelector, type Allocation } from "./seatSelector.js";
 
 export interface KlookAssignment {
     seatSelector: KlookSeatSelector;
-    seats: AssignedSeat[];
+    allocation: Allocation;
 }
 
 export class KlookTargetAttempt implements TargetAttempt<KlookAssignment> {
@@ -37,8 +37,8 @@ export class KlookTargetAttempt implements TargetAttempt<KlookAssignment> {
         const seatSelector = new KlookSeatSelector(this.page, target.expectation.unitPrice, this.timeout);
         await this.failure.assertNoExistingNotice();
         try {
-            const seats = await seatSelector.openAndVerify(target, () => this.failure.observe());
-            return { status: "matched", value: { seatSelector, seats } };
+            const allocation = await seatSelector.openAndVerify(target, () => this.failure.observe());
+            return { status: "matched", value: { seatSelector, allocation } };
         } catch (error) {
             if (error instanceof SelectionFailure) return { status: "unavailable", reason: error.reason };
             throw error;

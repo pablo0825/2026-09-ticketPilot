@@ -112,29 +112,29 @@ async function main() {
             selecting = true;
             return strategy.select(new KlookTargetAttempt(page, eventConfig.eventUrl));
         },
-        confirmSeats: async ({ target, value: { seatSelector, seats } }) => {
+        confirmSeats: async ({ target, value: { seatSelector, allocation } }) => {
             selecting = false;
             reportState("SEATS_VERIFIED");
             await pause.waitAt("seats");
             reportState("SEAT_CONFIRMATION");
-            await seatSelector.confirmVerifiedSeats(target, seats);
+            await seatSelector.confirmVerifiedSeats(target, allocation);
             await waitForPersonalInfoPage(page, eventConfig.eventUrl);
             reportState("PERSONAL_INFO_READY");
         },
-        prepareContact: async ({ target, value: { seats } }) => {
+        prepareContact: async ({ target, value: { allocation } }) => {
             const bookingExpectation = target.expectation;
             const summary = await readBookingSummary(page, eventConfig.eventUrl);
-            verifyBookingSummary(summary, target, seats, bookingExpectation);
+            verifyBookingSummary(summary, target, allocation, bookingExpectation);
             reportState("BOOKING_VERIFIED");
             if (contactDetails) {
                 reportState("CONTACT_FILLING");
                 await contactForm.fillAndVerify(contactDetails);
-                verifyBookingSummary(await readBookingSummary(page, eventConfig.eventUrl), target, seats, bookingExpectation);
+                verifyBookingSummary(await readBookingSummary(page, eventConfig.eventUrl), target, allocation, bookingExpectation);
                 await contactForm.verify(contactDetails);
                 reportState("CONTACT_VERIFIED");
                 if (await pause.waitAt("contact")) {
                     // 暫停期間可能過期或被修改，返回前重新核對；仍在恢復範圍內。
-                    verifyBookingSummary(await readBookingSummary(page, eventConfig.eventUrl), target, seats, bookingExpectation);
+                    verifyBookingSummary(await readBookingSummary(page, eventConfig.eventUrl), target, allocation, bookingExpectation);
                     await contactForm.verify(contactDetails);
                 }
             }

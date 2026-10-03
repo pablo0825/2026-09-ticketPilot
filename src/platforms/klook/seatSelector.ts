@@ -1,4 +1,4 @@
-import { parseTicketLabel, normalizeTicketName } from "./ticketLabel.js";
+import { parseTicketLabel, normalizeTicketName, parseTicketAmount } from "./ticketLabel.js";
 import { getSelectionNotices, isExpiryNotice, reservationExpiredNotice, seatPanelSelector } from "./notices.js";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { SeatExpiredBeforeConfirmationError } from "../../core/seatExpiry.js";
@@ -12,11 +12,20 @@ export interface AssignedSeat {
     number: string;
 }
 
+export type Allocation =
+    | { kind: "reserved"; seats: AssignedSeat[] }
+    | { kind: "general"; group: string; quantity: number };
+
 export interface SeatResult {
     text: string;
     area: string;
     total: string;
     seats: AssignedSeat[];
+    selected: string;
+    price: string;
+    group: string | null;
+    structureValid: boolean;
+    loading: boolean;
 }
 
 // 取自實際選位彈窗；只讀取主頁的配位結果，不操作座位圖 iframe。
@@ -26,6 +35,9 @@ const selectors = {
     area: ".seat_list_cat-vMvUjF",
     seat: ".list_item-jYRAN7",
     total: ".con_seats-a3N26U",
+    selected: ".seat_list_top-Bk0UC9",
+    price: ".con_price-YYYONb",
+    rows: ".seat_footer_list-TWhU8V",
 };
 
 function normalize(text: string): string {
@@ -65,9 +77,10 @@ function checkArea(area: string, wanted: string): string | undefined {
 
 function checkSeats(result: SeatResult, quantity: number): string | undefined {
     if (normalize(result.total) !== `共計${quantity}個座位` ||
-        !normalize(result.text).includes(`已選${quantity}個座位`)) {
+        normalize(result.selected) !== `已選${quantity}個座位`) {
         return `座位數標示尚未符合 ${quantity} 張`;
     }
+    if (result.group !== null) return undefined;
     if (result.seats.length !== quantity) return `座位明細數量不符：預期 ${quantity} 筆，實際 ${result.seats.length} 筆`;
     if (result.seats.some(seat => !seat.section.trim() || !seat.row.trim() || !seat.number.trim())) {
         return "座位資料不完整：區、排、座號不可缺少";
@@ -81,7 +94,23 @@ function checkSeats(result: SeatResult, quantity: number): string | undefined {
 export function getSeatResultMismatch(result: SeatResult, target: TicketTarget): string | undefined {
     return checkSession(result.text, target)
         ?? checkArea(result.area, target.area)
-        ?? checkSeats(result, target.quantity);
+        ?? (result.loading ? "配位畫面仍在載入" : undefined)
+        ?? (!result.structureValid ? "配位欄位缺少、重複或結構未知" : undefined)
+        ?? checkSeats(result, target.quantity)
+        ?? (result.group !== null && target.quantity > 1 && target.adjacent
+            ? "一般票彙總無法驗證連位需求" : undefined);
+}
+
+function allocationFrom(result: SeatResult, quantity: number): Allocation {
+    return result.group === null
+        ? { kind: "reserved", seats: result.seats }
+        : { kind: "general", group: result.group, quantity };
+}
+
+function allocationKey(allocation: Allocation): string {
+    return allocation.kind === "reserved"
+        ? JSON.stringify([allocation.kind, allocation.seats.map(seatKey).sort()])
+        : JSON.stringify([allocation.kind, normalize(allocation.group), allocation.quantity]);
 }
 
 export class KlookSeatSelector {
@@ -92,14 +121,15 @@ export class KlookSeatSelector {
         this.panel = page.locator(selectors.panel);
     }
 
-    async openAndVerify(target: TicketTarget, observeFailure?: () => Promise<void>): Promise<AssignedSeat[]> {
+    async openAndVerify(target: TicketTarget, observeFailure?: () => Promise<void>): Promise<Allocation> {
         await this.openSeatDialog();
         const result = await this.waitForMatchingSeats(target, observeFailure);
         this.logResult(result);
-        return result.seats;
+        return allocationFrom(result, target.quantity);
     }
 
-    async confirmVerifiedSeats(target: TicketTarget, expectedSeats: AssignedSeat[]): Promise<void> {
+    async confirmVerifiedSeats(target: TicketTarget, expectedAllocation: Allocation): Promise<void> {
+        await this.checkObservationDialog();
         await this.throwIfSeatReservationExpired();
         if (!await this.isPanelVisible()) throw new Error("選位彈窗已關閉，無法確認。");
         // 點擊前重讀，避免送出已改變的配位結果。
@@ -107,10 +137,9 @@ export class KlookSeatSelector {
         this.throwIfSeatError(result.text);
         const mismatch = getSeatResultMismatch(result, target);
         if (mismatch) throw new Error(`確認前核對失敗：${mismatch}`);
-        this.verifyUnitPrice(result.area);
-        const seatKeys = (seats: AssignedSeat[]) => seats.map(seatKey).sort();
-        if (JSON.stringify(seatKeys(result.seats)) !== JSON.stringify(seatKeys(expectedSeats))) {
-            throw new Error("確認前座位已改變，已停止。");
+        this.verifyPrices(result, target.quantity);
+        if (allocationKey(allocationFrom(result, target.quantity)) !== allocationKey(expectedAllocation)) {
+            throw new PurchaseStop("確認前配位結果已改變，已停止。");
         }
         if (!await this.isConfirmReady()) throw new Error("確認按鈕目前無法操作，已停止。");
         await this.throwIfSeatReservationExpired();
@@ -118,9 +147,13 @@ export class KlookSeatSelector {
         log("已按選位確認，等待填寫資料頁；不會重複點擊。");
     }
 
-    private verifyUnitPrice(label: string): void {
-        if (parseTicketLabel(label).unitPrice !== this.expectedUnitPrice) {
+    private verifyPrices(result: SeatResult, quantity: number): void {
+        if (parseTicketLabel(result.area).unitPrice !== this.expectedUnitPrice) {
             throw new PurchaseStop("配位票種單價不符，已停止。");
+        }
+        const match = normalize(result.price).match(/^NT\$([\d,]+)$/);
+        if (!match || parseTicketAmount(match[1]!) !== this.expectedUnitPrice * quantity) {
+            throw new PurchaseStop("配位總額不符，已停止。");
         }
     }
 
@@ -143,7 +176,7 @@ export class KlookSeatSelector {
                 const mismatch = getSeatResultMismatch(result, target);
                 if (mismatch) lastReason = mismatch;
                 else if (await this.isConfirmReady()) {
-                    this.verifyUnitPrice(result.area);
+                    this.verifyPrices(result, target.quantity);
                     return result;
                 }
                 else lastReason = "確認按鈕尚未可操作或不唯一";
@@ -176,16 +209,67 @@ export class KlookSeatSelector {
     private readSeatResult(): Promise<SeatResult> {
         // 一次讀取同一份 DOM，避免各欄位取到不同時間的配位狀態。
         return this.panel.evaluate((element, s): SeatResult => {
-            const list = element.querySelector(s.list);
-            const seats = Array.from(list?.querySelectorAll(s.seat) ?? []).map(row => {
-                const values = Array.from(row.querySelectorAll("ins"), value => value.textContent?.trim() ?? "");
-                return { section: values[0] ?? "", row: values[1] ?? "", number: values[2] ?? "" };
-            });
+            const [list, area, total, selected, price, rows] = [s.list, s.area, s.total, s.selected, s.price, s.rows]
+                .map(selector => {
+                    const matches = element.querySelectorAll(selector);
+                    return matches.length === 1 ? matches[0]! : null;
+                });
+            // 已選張數與「自行選位」按鈕同在 top；只讀唯一的張數子欄位。
+            const selectedCounts = selected?.querySelectorAll(":scope > div > div");
+            const selectedCount = selectedCounts?.length === 1 ? selectedCounts[0]! : null;
+            let structureValid = Boolean(list && [area, total, selected, selectedCount, price, rows]
+                .every(field => field && list.contains(field)));
+            const seats: AssignedSeat[] = [];
+            let group: string | null = null;
+            const items = Array.from(element.querySelectorAll(s.seat));
+            if (items.length === 0) structureValid = false;
+            // textContent 也會包含隱藏資料；每列、欄位及值都必須實際顯示。
+            const requiredNodes = [list, area, total, selected, selectedCount, price, rows,
+                ...items.flatMap(item => [item, ...item.querySelectorAll("span, ins")])];
+            for (const node of requiredNodes) {
+                if (!node || node.getClientRects().length === 0) {
+                    structureValid = false;
+                    continue;
+                }
+                // opacity 不會繼承到子元素的 computed style，需沿祖先檢查。
+                for (let ancestor: Element | null = node; ancestor; ancestor = ancestor.parentElement) {
+                    const style = getComputedStyle(ancestor);
+                    if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse"
+                        || Number(style.opacity) === 0) structureValid = false;
+                }
+            }
+            for (const item of items) {
+                if (!rows?.contains(item)) structureValid = false;
+                const fields = Array.from(item.querySelectorAll("span"));
+                const labels = fields.map(field => Array.from(field.childNodes)
+                    .filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join("").trim());
+                const values = fields.map(field => field.querySelector("ins")?.textContent?.trim() ?? "");
+                // 拒絕每欄多個值、欄外多餘值，以及列內額外文字。
+                const exactFields = fields.every(field => field.querySelectorAll("ins").length === 1 && field.children.length === 1)
+                    && item.querySelectorAll("ins").length === fields.length
+                    && (item.textContent ?? "").replace(/\s/g, "") === fields.map(field => field.textContent ?? "").join("").replace(/\s/g, "");
+                if (exactFields && labels.join("/") === "區/排/座位") {
+                    seats.push({ section: values[0]!, row: values[1]!, number: values[2]! });
+                } else if (exactFields && items.length === 1 && labels.join("/") === "區"
+                    && values[0]?.normalize("NFKC").replace(/\s/g, "") === "一般票") {
+                    group = values[0];
+                } else structureValid = false;
+            }
+            // seatsio 的 hide 仍有尺寸且 display:flex，必須連同 opacity 判讀。
+            const shell = element.closest(".seatModal_main-Dpti0D") ?? element;
+            const loading = Array.from(shell.querySelectorAll(".seatsio-loading-screen, [aria-busy='true']"))
+                .some(loader => {
+                    const style = getComputedStyle(loader);
+                    return style.display !== "none" && style.visibility !== "hidden"
+                        && Number(style.opacity) !== 0 && loader.getClientRects().length > 0;
+                });
             return {
                 text: (element as HTMLElement).innerText,
-                area: list?.querySelector(s.area)?.textContent ?? "",
-                total: list?.querySelector(s.total)?.textContent ?? "",
-                seats,
+                area: area?.textContent ?? "",
+                total: total?.textContent ?? "",
+                selected: selectedCount?.textContent ?? "",
+                price: price?.textContent ?? "",
+                seats, group, structureValid, loading,
             };
         }, selectors);
     }
@@ -213,7 +297,7 @@ export class KlookSeatSelector {
 
     private logResult(result: SeatResult): void {
         const seats = result.seats.map(seat => `${seat.section}區 / ${seat.row}排 / ${seat.number}號`).join("、");
-        log(`配位核對完成：${seats}`);
+        log(`配位核對完成：${result.group === null ? seats : `${result.group}／${result.total.trim()}／${result.price.trim()}`}`);
         log("配位結果已核對，目前尚未按確認。");
     }
 }

@@ -3,7 +3,7 @@ import { isPersonalInfoPage } from "./personalInfoPage.js";
 import { validateBookingExpectation } from "../../core/purchaseValidation.js";
 import type { Page } from "playwright";
 import type { TicketTarget, BookingExpectation } from "../../core/types.js";
-import { seatKey, type AssignedSeat } from "./seatSelector.js";
+import { seatKey, type Allocation, type AssignedSeat } from "./seatSelector.js";
 
 export interface BookingSummary {
     eventName: string;
@@ -18,13 +18,27 @@ const normalizeText = (text: string): string => text.normalize("NFKC").replace(/
 
 // 純核對函式：不讀 DOM、不點按鈕，任何不符均拋錯。
 export function verifyBookingSummary(summary: BookingSummary, target: TicketTarget,
-    expectedSeats: AssignedSeat[], expected: BookingExpectation): void {
+    allocation: Allocation, expected: BookingExpectation): void {
     validateBookingExpectation(expected);
     if (normalizeText(summary.eventName) !== normalizeText(expected.eventName)) throw new Error("預訂摘要活動名稱不符。");
     if (normalizeText(summary.dateTime) !== `${target.date}${target.time}:00`) throw new Error("預訂摘要日期或時間不符。");
     verifyPrices(summary, target.area, expected);
     if (normalizeText(summary.quantity) !== String(target.quantity)) throw new Error("預訂摘要張數不符。");
-    verifySeats(summary.seatLabels, expectedSeats, target.quantity);
+    if (allocation.kind === "reserved") {
+        verifySeats(summary.seatLabels, allocation.seats, target.quantity);
+    } else {
+        verifyGeneralAdmission(summary.seatLabels, allocation, target);
+    }
+}
+
+function verifyGeneralAdmission(labels: string[], allocation: Extract<Allocation, { kind: "general" }>,
+    target: TicketTarget): void {
+    if (target.quantity > 1 && target.adjacent) throw new Error("一般票無法驗證連位要求。");
+    if (allocation.quantity !== target.quantity) throw new Error("預訂摘要張數與已確認一般票不符。");
+    if (normalizeText(allocation.group) !== "一般票" || labels.length !== 1 ||
+        normalizeText(labels[0]!) !== normalizeText(allocation.group)) {
+        throw new Error("預訂摘要票區與已確認一般票不符。");
+    }
 }
 
 function verifyPrices(summary: BookingSummary, area: string, expected: BookingExpectation): void {
@@ -103,7 +117,7 @@ function parseSummaryFields(fields: SummaryFields): BookingSummary {
         eventName: requireSingleValue(fields.names, "活動名稱"),
         packageName: requireSingleValue(fields.packages, "票種"),
         dateTime: labeledValue(fields, /^日期$/),
-        quantity: labeledValue(fields, /^門票[（(]不含全家取票手續費NT\$30\/每筆[）)]$/),
+        quantity: labeledValue(fields, /^門票(?:[（(]不含全家取票手續費NT\$30\/每筆[）)])?$/),
         seatLabels: fields.rows.filter(row => row.labels.length === 0).map(row => requireSingleValue(row.values, "座位")),
         total: requireSingleValue(fields.totals, "總價"),
     };
