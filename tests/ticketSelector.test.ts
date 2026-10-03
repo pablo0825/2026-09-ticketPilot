@@ -26,7 +26,7 @@ function fixture(initialQuantity = 0, brokenSelection = false) {
           <div class="value-xWKzpL">${initialQuantity}</div>
           <div class="btn-vDH5IS"><i class="klk-icon-icon_other_plus_xs">＋</i></div>
         </div><div>最多4張</div></div>
-        <div class="consecutive"><span role="checkbox" tabindex="0" aria-checked="true">相連座位</span></div>
+        <div class="consecutive"><span role="checkbox" tabindex="0" aria-checked="true">相連座位<input type="checkbox" checked hidden></span></div>
         <button onclick="document.body.dataset.next='clicked'">下一步</button>
         </div><script>(() => {
         document.querySelectorAll('.spec-LwNjSh').forEach(el => el.onclick = () => {
@@ -39,7 +39,13 @@ function fixture(initialQuantity = 0, brokenSelection = false) {
           value.textContent = String(Math.max(0, Math.min(4, Number(value.textContent) + (index ? 1 : -1))));
         });
         const checkbox = document.querySelector('[role=checkbox]');
-        checkbox.onclick = () => checkbox.setAttribute('aria-checked', String(checkbox.getAttribute('aria-checked') !== 'true'));
+        checkbox.onclick = () => {
+          const input = checkbox.querySelector('input');
+          input.checked = !input.checked;
+          if (input.checked) checkbox.setAttribute('aria-checked', 'true');
+          else checkbox.removeAttribute('aria-checked');
+          checkbox.dataset.clicks = String(Number(checkbox.dataset.clicks || 0) + 1);
+        };
         })();</script>`;
 }
 
@@ -75,7 +81,8 @@ test("單張票沒有連票元件也可通過；多張仍驗證連票設定", as
         await new KlookTicketSelector(page, 800).selectAndVerify(target, 4880);
         await page.setContent(fixture());
         await new KlookTicketSelector(page, 800).selectAndVerify({ ...target, quantity: 2 }, 4880);
-        assert.equal(await page.locator('[role=checkbox]').getAttribute('aria-checked'), "false");
+        assert.equal(await page.locator('[role=checkbox]').getAttribute('aria-checked'), null);
+        assert.equal(await page.locator('.consecutive input').isChecked(), false);
         assert.equal(await page.locator('body').getAttribute('data-next'), null);
     } finally { await page.close(); }
 });
@@ -162,7 +169,8 @@ test("調整數量意外重設票區時，最終驗證必須失敗", async () =>
 test("多張票的连票勾選未生效時仍然失敗", async () => {
     const page = await browser.newPage();
     try {
-        await page.setContent(fixture().replace("checkbox.onclick = () => checkbox.setAttribute('aria-checked', String(checkbox.getAttribute('aria-checked') !== 'true'));", "checkbox.onclick = () => {};"));
+        await page.setContent(fixture());
+        await page.locator('[role=checkbox]').evaluate(el => { (el as HTMLElement).onclick = () => {}; });
         await assert.rejects(new KlookTicketSelector(page, 400).selectAndVerify({ ...target, quantity: 2 }, 4880));
         assert.equal(await page.locator('body').getAttribute('data-next'), null);
     } finally { await page.close(); }
@@ -257,5 +265,67 @@ test("日期改用斜線仍可選票；只有其他區塊或開賣日符合時�
             assert.equal(await page.locator('body').getAttribute('data-clicked'), null);
             assert.equal(await page.locator('body').getAttribute('data-next'), null);
         }
+    } finally { await page.close(); }
+});
+
+test("兩張票可重新勾選連位；已符合設定不重複點擊", async () => {
+    const page = await browser.newPage();
+    try {
+        await page.setContent(fixture());
+        const adapter = new KlookTicketSelector(page, 800);
+        const twoTickets = { ...target, quantity: 2 };
+        await adapter.selectAndVerify(twoTickets, 4880);
+        await adapter.selectAndVerify(twoTickets, 4880);
+        assert.equal(await page.locator('[role=checkbox]').getAttribute('data-clicks'), '1');
+        await adapter.selectAndVerify({ ...twoTickets, adjacent: true }, 4880);
+        await adapter.selectAndVerify({ ...twoTickets, adjacent: true }, 4880);
+        assert.equal(await page.locator('.consecutive input').isChecked(), true);
+        assert.equal(await page.locator('[role=checkbox]').getAttribute('data-clicks'), '2');
+        assert.equal(await page.locator('body').getAttribute('data-next'), null);
+    } finally { await page.close(); }
+});
+
+test("連位元件缺少、重複、類型錯誤或狀態矛盾時，不操作連位或提交", async () => {
+    const page = await browser.newPage();
+    try {
+        for (const mode of ['missing', 'duplicate', 'wrong-type', 'indeterminate', 'mixed', 'contradiction', 'unknown', 'outer-duplicate', 'outer-hidden']) {
+            await page.setContent(fixture());
+            await page.locator('[role=checkbox]').evaluate((element, mode) => {
+                const input = element.querySelector('input')!;
+                if (mode === 'missing') input.remove();
+                if (mode === 'duplicate') element.append(input.cloneNode());
+                if (mode === 'wrong-type') input.type = 'text';
+                if (mode === 'indeterminate') input.indeterminate = true;
+                if (mode === 'mixed') element.setAttribute('aria-checked', 'mixed');
+                if (mode === 'contradiction') input.checked = false;
+                if (mode === 'unknown') element.removeAttribute('aria-checked');
+                if (mode === 'outer-duplicate') element.parentElement!.append(element.cloneNode(true));
+                if (mode === 'outer-hidden') (element as HTMLElement).style.display = 'none';
+            }, mode);
+            await assert.rejects(new KlookTicketSelector(page, 400).selectAndVerify({ ...target, quantity: 2 }, 4880), /相連座位/);
+            assert.equal(await page.locator('[data-clicks]').count(), 0, mode);
+            assert.equal(await page.locator('body').getAttribute('data-next'), null, mode);
+        }
+    } finally { await page.close(); }
+});
+
+test("連位在最後驗證時被重設，必須停止", async () => {
+    const page = await browser.newPage();
+    try {
+        await page.setContent(fixture());
+        await page.locator('[role=checkbox]').evaluate(element => {
+            const original = element.getAttribute.bind(element);
+            let reads = 0;
+            // 精確在第三次讀取（操作前、操作後、最終驗證）重設，避免 timer 競速。
+            element.getAttribute = name => {
+                if (name === 'aria-checked' && ++reads === 3) {
+                    element.querySelector('input')!.checked = false;
+                    element.removeAttribute('aria-checked');
+                }
+                return original(name);
+            };
+        });
+        await assert.rejects(new KlookTicketSelector(page, 800).selectAndVerify({ ...target, quantity: 2, adjacent: true }, 4880), /最終相連座位設定不一致/);
+        assert.equal(await page.locator('body').getAttribute('data-next'), null);
     } finally { await page.close(); }
 });

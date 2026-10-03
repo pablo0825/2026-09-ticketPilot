@@ -204,9 +204,10 @@ export class KlookTicketSelector {
         }
         const checkbox = this.root.locator(selectors.adjacent);
         await this.waitForUniqueElement(checkbox, "相連座位設定");
+        await this.readAdjacentPreference();
         await checkbox.setChecked(target.adjacent, { timeout: this.timeout });
         await this.waitUntil(async () =>
-            await checkbox.getAttribute("aria-checked") === String(target.adjacent),
+            await this.readAdjacentPreference() === target.adjacent,
             "相連座位設定未更新");
     }
 
@@ -224,8 +225,27 @@ export class KlookTicketSelector {
 
     private async verifyAdjacentPreference(target: TicketTarget): Promise<void> {
         if (target.quantity === 1) return;
-        const checked = await this.root.locator(selectors.adjacent).getAttribute("aria-checked");
-        if (checked !== String(target.adjacent)) throw new Error("最終相連座位設定不一致。");
+        const checked = await this.readAdjacentPreference();
+        if (checked !== target.adjacent) throw new PurchaseStop("最終相連座位設定不一致。");
+    }
+
+    private async readAdjacentPreference(): Promise<boolean> {
+        const checkbox = this.root.locator(selectors.adjacent);
+        if (await checkbox.count() !== 1 || !await checkbox.isVisible()) {
+            throw new PurchaseStop("找不到唯一可見的相連座位設定，已停止。");
+        }
+        const checked = await checkbox.evaluate(element => {
+            const inputs = element.querySelectorAll("input");
+            const input = inputs[0];
+            if (inputs.length !== 1 || !(input instanceof HTMLInputElement)
+                || input.type !== "checkbox" || input.indeterminate) return null;
+            // 客製控制項的 input 可以隱藏；取消勾選時 Klook 會移除外層 ARIA 屬性。
+            const aria = element.getAttribute("aria-checked");
+            const consistent = input.checked ? aria === "true" : aria === null || aria === "false";
+            return consistent ? input.checked : null;
+        });
+        if (checked === null) throw new PurchaseStop("相連座位元件結構或勾選狀態不明確，已停止。");
+        return checked;
     }
 
     private isDisabled(option: Locator): Promise<boolean> {
