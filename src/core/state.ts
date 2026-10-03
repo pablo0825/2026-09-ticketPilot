@@ -1,4 +1,4 @@
-import { log } from "./logger.js";
+import { log, emitRunEvent } from "./logger.js";
 
 export type PurchaseState = "WAITING_FOR_SALE" | "SALE_REFRESH" | "STARTING" | "LOGIN_CHECK" | "WAITING_FOR_LOGIN" | "READY" | "EVENT_PAGE" | "TICKET_SELECTION"
     | "SELECTION_VERIFIED" | "SEAT_ASSIGNMENT" | "SEATS_VERIFIED"
@@ -7,4 +7,5 @@ export type PurchaseState = "WAITING_FOR_SALE" | "SALE_REFRESH" | "STARTING" | "
 export function reportState(state: PurchaseState): void {
     // 顯示傳入的狀態
     log(`State: ${state}`);
+    emitRunEvent({ type: "state", state });
 }

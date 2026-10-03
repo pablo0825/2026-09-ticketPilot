@@ -1,3 +1,4 @@
+import { log } from "../../core/logger.js";
 import type { SaleSchedule } from "../../core/types.js";
 import { validateSaleSchedule } from "../../core/purchaseValidation.js";
 import type { Page } from "playwright";
@@ -60,7 +61,7 @@ export async function waitForLogin(page: Page, options: StartupOptions = {}): Pr
             manual = true;
             deadline = Math.min(Date.now() + loginTimeout, options.deadline ?? Infinity);
             reportState("WAITING_FOR_LOGIN");
-            console.log(`尚未登入，請在此瀏覽器分頁手動登入；完成後會自動繼續（最多等待 ${Math.max(0, Math.ceil((deadline - Date.now()) / 1000))} 秒）。`);
+            log(`尚未登入，請在此瀏覽器分頁手動登入；完成後會自動繼續（最多等待 ${Math.max(0, Math.ceil((deadline - Date.now()) / 1000))} 秒）。`);
         }
         await page.waitForTimeout(Math.max(0, Math.min(options.pollInterval ?? 500, deadline - Date.now())));
     }
@@ -69,7 +70,7 @@ export async function waitForLogin(page: Page, options: StartupOptions = {}): Pr
 
 async function navigate(page: Page, url: string, label: string, timeout: number): Promise<void> {
     const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout });
-    console.log(`${label}導覽 HTTP 狀態：${response?.status() ?? "未知"}`);
+    log(`${label}導覽 HTTP 狀態：${response?.status() ?? "未知"}`);
     if (!response || !response.ok()) {
         throw new PurchaseStop(`${label}載入失敗：HTTP ${response?.status() ?? "未知"}；請人工檢查，不會自動重試。`);
     }
@@ -103,7 +104,7 @@ export async function prepareStartup(page: Page, eventUrl: string, options: Star
             if (notices.length > 0) {
                 if (notices.length === 1 && await isQueueExpiryShown(page, eventUrl)) {
                     if (login === "logged-in") {
-                        console.log("活動頁出現已知排隊過期提示，交由既有恢復流程核對；尚未宣告 READY。");
+                        log("活動頁出現已知排隊過期提示，交由既有恢復流程核對；尚未宣告 READY。");
                         return "queue-expired";
                     }
                     // 已知提示不代表頁首已載入；登入未知時仍使用原頁面等待期限。
@@ -116,7 +117,7 @@ export async function prepareStartup(page: Page, eventUrl: string, options: Star
             if (login === "logged-in" && await tickets.count() === 1 && await tickets.isVisible() &&
                 await tickets.locator(".spec-LwNjSh").filter({ visible: true }).count() > 0) {
                 reportState("READY");
-                console.log("登入與活動頁檢查完成，開始依設定順位選票。");
+                log("登入與活動頁檢查完成，開始依設定順位選票。");
                 return "ready";
             }
             await page.waitForTimeout(options.pollInterval ?? 500);
@@ -140,7 +141,7 @@ async function waitForSale(page: Page, eventUrl: string, saleAt: number,
     let prepared = false;
     let unknownSince: number | undefined;
     reportState("WAITING_FOR_SALE");
-    console.log(`等待開賣：${options.saleSchedule!.saleAt}；提前 ${options.saleSchedule!.advanceSeconds ?? 1} 秒刷新。`);
+    log(`等待開賣：${options.saleSchedule!.saleAt}；提前 ${options.saleSchedule!.advanceSeconds ?? 1} 秒刷新。`);
 
     async function refresh(restoreEvent = false): Promise<void> {
         const started = Date.now();
@@ -207,14 +208,14 @@ async function waitForSale(page: Page, eventUrl: string, saleAt: number,
             loadDeadline = cutoff;
             if (!prepared) {
                 prepared = true;
-                console.log("登入與活動頁檢查完成，等待開賣；尚未開始選票。");
+                log("登入與活動頁檢查完成，等待開賣；尚未開始選票。");
             }
             if (queue) {
                 // 已知彈窗優先；不以刷新蓋掉它，也不在開賣前消耗恢復額度。
                 if (Date.now() >= saleAt) return "queue-expired";
             } else if (lastRefresh !== undefined && hasOptions && Date.now() >= saleAt) {
                 reportState("READY");
-                console.log("開賣等待完成，交由既有順位策略核對票券。");
+                log("開賣等待完成，交由既有順位策略核對票券。");
                 return "ready";
             } else if ((lastRefresh === undefined && Date.now() >= refreshAt) ||
                 (comingSoon && lastRefresh !== undefined && Date.now() >= saleAt && Date.now() - lastRefresh >= 3000)) {
