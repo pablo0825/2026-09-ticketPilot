@@ -104,7 +104,6 @@ test("付款頁診斷區分檢查階段，錯誤不含訂單編號或原始頁�
             [payment.replace('payment_type-name', 'missing'), /付款方式.*失敗/],
             [payment.replace('oc_submit_price', 'missing'), /付款金額.*失敗/],
             [payment.replace('4,880', '3,880'), /金額不符/],
-            [payment.replace('onclick="document.body.dataset.paid=1"', 'disabled'), /按鈕目前停用/],
             [payment + '<div class="klk_c_dialog">private-dialog</div>', /有可見彈窗/],
         ] as const) {
             await page.setContent(html);
@@ -114,6 +113,29 @@ test("付款頁診斷區分檢查階段，錯誤不含訂單編號或原始頁�
                 assert.doesNotMatch(error.message, /private-order|private-dialog/);
                 return true;
             });
+            assert.equal(await page.locator("body").getAttribute("data-paid"), null);
+        }
+    } finally { await browser.close(); }
+});
+
+
+test("確認付款按鈕停用仍可核對到達付款頁；不付款且不忽略其他異常", async () => {
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
+    const disabledPayment = payment.replace('<button onclick=', '<button disabled onclick=');
+    try {
+        await page.route("**/*", route => route.fulfill({ body: disabledPayment, contentType: "text/html; charset=utf-8" }));
+        await page.goto(paymentUrl);
+        await waitForPaymentPage(page, eventUrl, 4880, 500);
+        assert.equal(await page.getByRole("button", { name: "確認付款", exact: true }).isEnabled(), false);
+        assert.equal(await page.locator("body").getAttribute("data-paid"), null);
+        for (const html of [
+            disabledPayment.replace("4,880", "3,880"),
+            disabledPayment + '<div class="klk_c_dialog">已過期</div>',
+            disabledPayment + '<button disabled>確認付款</button>',
+        ]) {
+            await page.setContent(html);
+            await assert.rejects(waitForPaymentPage(page, eventUrl, 4880, 200));
             assert.equal(await page.locator("body").getAttribute("data-paid"), null);
         }
     } finally { await browser.close(); }

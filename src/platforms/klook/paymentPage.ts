@@ -31,7 +31,7 @@ export async function waitForPaymentPage(page: Page, eventUrl: string, expectedT
             throw new PaymentPageError("核對期間已離開預期付款頁，或缺少訂單編號。");
         }
         if (await confirm.count() !== 1) throw new PaymentPageError("可見的確認付款按鈕不唯一或已消失。");
-        if (!await confirm.isEnabled()) throw new PaymentPageError("確認付款按鈕目前停用。");
+        // 尚未填完付款資料時按鈕可能停用；此處只核對已到付款頁，不要求可付款。
         if (await methods.count() === 0) throw new PaymentPageError("可見的付款方式已消失。");
         if (await page.locator('.klk-modal, .klk_c_dialog').filter({ visible: true }).count() > 0) {
             throw new PaymentPageError("付款頁有可見彈窗，請人工檢查。");
