@@ -7,7 +7,7 @@ import { readBookingSummary, verifyBookingSummary } from "./platforms/klook/book
 import { prepareBooking } from "./core/bookingPreparation.js";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { isEventPage } from "./platforms/klook/eventPage.js";
+import { prepareStartup } from "./platforms/klook/startup.js";
 import { eventConfig } from "./config/event.config.js";
 import { PriorityStrategy } from "./core/priorityStrategy.js";
 import { collectStoppedDiagnostics } from "./core/stoppedDiagnostics.js";
@@ -18,7 +18,7 @@ import { join } from "node:path";
 import { reportState } from "./core/state.js";
 import { waitForPersonalInfoPage } from "./platforms/klook/personalInfoPage.js";
 
-async function openEventPage(eventUrlString: string): Promise<Page | null> {
+async function openEventPage(eventUrlString: string): Promise<Page> {
     const eventUrl = new URL(eventUrlString);
     if (eventUrl.protocol !== "https:" ||
         !(eventUrl.hostname === "klook.com" || eventUrl.hostname.endsWith(".klook.com"))) {
@@ -46,28 +46,7 @@ async function openEventPage(eventUrlString: string): Promise<Page | null> {
     // 讀取瀏覽器的 navigator.webdriver，並打印結果
     console.log("啟動頁 navigator.webdriver：", await page.evaluate(() => navigator.webdriver));
 
-    // 前往活動網址
-    const response = await page.goto(eventUrlString, {
-        waitUntil: "domcontentloaded",
-    });
-
-    console.log(`活動頁導覽 HTTP 狀態：${response?.status() ?? "未知"}`);
-
-    if (response?.status() === 403) {
-        reportState("MANUAL_REQUIRED");
-        console.error("活動頁存取被拒絕；請查看瀏覽器是否提供人工驗證或顯示封鎖頁。");
-        console.log("程式不會自動重試。檢查完成後請關閉瀏覽器。");
-        return null;
-    }
-    if (!response || !response.ok()) {
-        throw new Error(`活動頁載入失敗：HTTP ${response?.status() ?? "未知"}`);
-    }
-
-    if (!isEventPage(page.url(), eventUrlString)) {
-        reportState("MANUAL_REQUIRED");
-        console.log("目前未在目標活動頁，請人工完成登入／驗證後重新執行。");
-        return null;
-    }
+    await prepareStartup(page, eventUrlString);
     return page;
 }
 
@@ -101,10 +80,8 @@ async function main() {
         console.log(`順位 ${index + 1}：${target.date} ${target.time} / ${target.area} / ${target.quantity} 張`);
     }
     const page = await openEventPage(eventConfig.eventUrl);
-    if (!page) return;
 
-    // 活動頁已到達，接著核對選票入口與目標。
-    reportState("EVENT_PAGE");
+    // 啟動檢查完成；已知排隊過期仍由下方既有恢復流程處理。
     const contactForm = new KlookContactForm(page, eventConfig.eventUrl);
     let selecting = false;
     const prepared = await prepareBooking({
