@@ -329,10 +329,10 @@ test("日期以選項為準：兩場月日與完整年份格式不依賴活動�
     } finally { await page.close(); }
 });
 
-test("日期錯年、未知格式、重複或停用皆停止，不換順位或消耗恢復", async () => {
+test("日期錯年、未知格式、重複或矛盾皆停止，不換順位或消耗恢復", async () => {
     const page = await browser.newPage();
     try {
-        for (const mode of ['year', 'unknown', 'duplicate', 'disabled', 'active-disabled', 'missing']) {
+        for (const mode of ['year', 'unknown', 'duplicate', 'active-disabled', 'missing']) {
             await page.setContent(fixture());
             const dateGroup = page.locator('.skuGroup-hk2pfU').filter({ hasText: '日期' });
             await dateGroup.evaluate((el, mode) => {
@@ -343,7 +343,6 @@ test("日期錯年、未知格式、重複或停用皆停止，不換順位或�
                 if (mode === 'missing') option.remove();
                 if (mode.includes('disabled')) {
                     option.classList.add('disabled-ImixBj');
-                    if (mode === 'disabled') option.classList.remove('active-vB3nra');
                 }
             }, mode);
             await page.locator('#ticket-options').evaluate(el => el.addEventListener('click', () => document.body.dataset.clicked = '1'));

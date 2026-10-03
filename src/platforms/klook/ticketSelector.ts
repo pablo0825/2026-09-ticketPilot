@@ -35,8 +35,6 @@ export class KlookTicketSelector {
     // 儲存票卷選擇區的定位器
     // Locator Playwright 用來定位網頁元素的物件
     private readonly root: Locator;
-    // 尚未觀察到跨場次下游更新完成的實站訊號；切換後不能沿用停用判斷。
-    private sessionChanged = false;
 
     // page, timeout 作為物件的私有屬性
     constructor(private readonly page: Page, private readonly timeout = 10_000,
@@ -47,7 +45,6 @@ export class KlookTicketSelector {
     }
 
     async selectAndVerify(target: TicketTarget, expectedUnitPrice: number): Promise<"selected" | "disabled"> {
-        this.sessionChanged = false;
         // 檢查票券格式是否符合
         validateTicketTarget(target);
         if (!Number.isSafeInteger(expectedUnitPrice) || expectedUnitPrice <= 0) {
@@ -120,7 +117,6 @@ export class KlookTicketSelector {
             const option = await this.findDate(expected);
             if (await this.isUnavailableSessionOption(option, "日期")) return false;
             if (!await this.isSelected(option)) {
-                this.sessionChanged = true;
                 await option.click({ timeout: this.timeout });
                 await this.waitUntil(() => this.isSelected(option), "日期點選後沒有確認選中", this.observeSelectionNotice);
             }
@@ -137,7 +133,7 @@ export class KlookTicketSelector {
         await this.verifySelectedOption(await this.findDate(expected), "日期");
     }
 
-    // 只有初次選擇時，才可把已觀察的停用＋售罄組合回報為不可選。
+    // 只有初次選擇時才回報不可選；BOYFRIEND 時間停用僅有 disabled class。
     private async isUnavailableSessionOption(option: Locator, name: string): Promise<boolean> {
         const state = await option.evaluate(el => ({
             disabled: el.classList.contains("disabled-ImixBj"),
@@ -145,11 +141,8 @@ export class KlookTicketSelector {
             selected: el.classList.contains("active-vB3nra"),
         }));
         if (state.disabled || state.soldout || !await option.isEnabled()) {
-            if (state.selected || !state.disabled || !state.soldout) {
+            if (state.selected || !state.disabled) {
                 throw new PurchaseStop(`${name}停用狀態不明或矛盾，已停止。`);
-            }
-            if (this.sessionChanged) {
-                throw new PurchaseStop("場次已切換，但尚無法確認下游停用選項屬於新場次，已停止；不跳順位。");
             }
             return true;
         }
@@ -166,7 +159,6 @@ export class KlookTicketSelector {
             await this.waitForUniqueElement(option, "時間選項", this.observeSelectionNotice);
             if (await this.isUnavailableSessionOption(option, "時間")) return null;
             if (!await this.isSelected(option)) {
-                this.sessionChanged = true;
                 await option.click({ timeout: this.timeout });
                 await this.waitUntil(() => this.isSelected(option), "時間點選後沒有確認選中", this.observeSelectionNotice);
             }
@@ -209,7 +201,6 @@ export class KlookTicketSelector {
         const option = await this.findArea(area, expectedUnitPrice);
         if (await this.isDisabled(option)) {
             if (await this.isSelected(option)) throw new PurchaseStop("票種同時為已選取與停用，狀態矛盾，已停止。");
-            if (this.sessionChanged) throw new PurchaseStop("場次已切換，但尚無法確認停用票種屬於新場次，已停止；不跳順位。");
             return null;
         }
         if (!await this.isSelected(option)) {
