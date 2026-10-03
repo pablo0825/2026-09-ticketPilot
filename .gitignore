@@ -21,3 +21,6 @@ contact.local.json
 
 # 本機購票診斷，不提交
 diagnostics/
+
+# GUI 本機活動設定
+local-data/
