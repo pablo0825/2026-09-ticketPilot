@@ -1,5 +1,8 @@
-import { seatPanelSelector } from "./notices.js";
 import type { Page } from "playwright";
+
+// 多個活動頁流程共用的選位結構。
+export const seatPanelSelector = ".main_right-ZMnX67";
+export const seatShellSelector = ".seatModal";
 
 const selectors = {
     alert: ".klk-modal-alert",
@@ -13,6 +16,11 @@ export function isEventPage(currentUrl: string | URL, eventUrl: string): boolean
     const expected = new URL(eventUrl);
     const current = new URL(currentUrl);
     return current.origin === expected.origin && current.pathname === expected.pathname;
+}
+
+// 僅表示已有選位畫面，不代表座位資料完整或符合過期恢復資格。
+export async function hasVisibleSeatScreen(page: Page): Promise<boolean> {
+    return await page.locator(`${seatPanelSelector}, ${seatShellSelector}`).filter({ visible: true }).count() > 0;
 }
 
 // 排隊、選位與個人資料過期返回後，共用相同的選票入口檢查。

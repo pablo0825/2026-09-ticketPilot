@@ -1,7 +1,7 @@
-import { SelectionExpiryNotice, getSelectionNotices, hasQueueExpiryNotice, hasSeatExpiryNotice, seatPanelSelector, seatShellSelector } from "./notices.js";
+import { SelectionExpiryNotice, getSelectionNotices, isQueueExpiryShown, isSeatExpiryShown } from "./notices.js";
 import type { Locator, Page } from "playwright";
 import { PurchaseStop } from "../../core/purchaseStop.js";
-import { isEventPageReady, isEventPage } from "./eventPage.js";
+import { isEventPageReady, isEventPage, seatPanelSelector, seatShellSelector } from "./eventPage.js";
 
 type FailureReason = "sold-out" | "assignment-failed";
 
@@ -35,9 +35,9 @@ export class KlookSelectionFailure {
 
     async assertNoExistingNotice(): Promise<void> {
         const notices = await getSelectionNotices(this.page);
-        if (notices.length === 1 &&
-            ((isEventPage(this.page.url(), this.eventUrl) && await hasQueueExpiryNotice(this.page)) ||
-                (isEventPage(this.page.url(), this.eventUrl) && await hasSeatExpiryNotice(this.page)))) {
+        // 兩次辨識各自重讀網址，避免排隊檢查期間跳頁後仍採用舊頁面資格。
+        if (notices.length === 1 && (await isQueueExpiryShown(this.page, this.eventUrl) ||
+            await isSeatExpiryShown(this.page, this.eventUrl))) {
             throw new SelectionExpiryNotice("選票前出現已知過期提示，交由既有恢復核對。");
         }
         if (!isEventPage(this.page.url(), this.eventUrl) || notices.length > 0) {

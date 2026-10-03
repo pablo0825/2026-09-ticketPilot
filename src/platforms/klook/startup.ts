@@ -3,8 +3,8 @@ import { validateSaleSchedule } from "../../core/purchaseValidation.js";
 import type { Page } from "playwright";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { reportState } from "../../core/state.js";
-import { isEventPage } from "./eventPage.js";
-import { getSelectionNotices, hasQueueExpiryNotice, seatPanelSelector, seatShellSelector } from "./notices.js";
+import { hasVisibleSeatScreen, isEventPage } from "./eventPage.js";
+import { getSelectionNotices, isQueueExpiryShown } from "./notices.js";
 
 export type LoginState = "logged-in" | "logged-out" | "unknown";
 
@@ -99,10 +99,9 @@ export async function prepareStartup(page: Page, eventUrl: string, options: Star
             const login = await readLoginState(page);
             if (login === "logged-out") throw new PurchaseStop("活動頁登入狀態已失效，未開始購票。");
             const notices = await getSelectionNotices(page);
-            const seats = await page.locator(`${seatPanelSelector}, ${seatShellSelector}`).filter({ visible: true }).count();
-            if (seats > 0) throw new PurchaseStop("啟動時已有選位畫面，未開始新的購票流程。");
+            if (await hasVisibleSeatScreen(page)) throw new PurchaseStop("啟動時已有選位畫面，未開始新的購票流程。");
             if (notices.length > 0) {
-                if (notices.length === 1 && isEventPage(page.url(), eventUrl) && await hasQueueExpiryNotice(page)) {
+                if (notices.length === 1 && await isQueueExpiryShown(page, eventUrl)) {
                     if (login === "logged-in") {
                         console.log("活動頁出現已知排隊過期提示，交由既有恢復流程核對；尚未宣告 READY。");
                         return "queue-expired";
@@ -167,10 +166,10 @@ async function waitForSale(page: Page, eventUrl: string, saleAt: number,
         if (!isEventPage(page.url(), eventUrl)) throw new PurchaseStop("未到達目標活動頁，開賣等待已停止。");
         const login = await readLoginState(page);
         const notices = await getSelectionNotices(page);
-        if (await page.locator(`${seatPanelSelector}, ${seatShellSelector}`).filter({ visible: true }).count() > 0) {
+        if (await hasVisibleSeatScreen(page)) {
             throw new PurchaseStop("開賣等待時已有選位畫面，已停止。");
         }
-        const queue = notices.length === 1 && isEventPage(page.url(), eventUrl) && await hasQueueExpiryNotice(page);
+        const queue = notices.length === 1 && await isQueueExpiryShown(page, eventUrl);
         if (notices.length > 0 && !queue) throw new PurchaseStop("活動頁有未處理提示，開賣等待已停止。");
         if (login === "logged-out") {
             await waitForLogin(page, { ...options, deadline: cutoff });
@@ -183,7 +182,7 @@ async function waitForSale(page: Page, eventUrl: string, saleAt: number,
             if (returned.origin !== new URL(eventUrl).origin ||
                 !["/", "/zh-TW/", "/zh-TW/bookings/"].includes(returned.pathname) ||
                 (await getSelectionNotices(page)).length > 0 ||
-                await page.locator(`${seatPanelSelector}, ${seatShellSelector}`).filter({ visible: true }).count() > 0) {
+                await hasVisibleSeatScreen(page)) {
                 throw new PurchaseStop("手動登入後未到達已知返回頁，未重新導覽活動。");
             }
             await refresh(true);

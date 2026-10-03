@@ -1,11 +1,10 @@
 import type { Locator, Page } from "playwright";
+import { isEventPage, seatPanelSelector, seatShellSelector } from "./eventPage.js";
 
 // 僅標記已辨識的選票過期提示；恢復資格與額度仍由恢復流程核對。
 export class SelectionExpiryNotice extends Error {}
 
 // Klook 提示的共用只讀規則；是否恢復、按哪個按鈕由各流程決定。
-export const seatPanelSelector = ".main_right-ZMnX67";
-export const seatShellSelector = ".seatModal";
 export const queueExpiredMessage = /^抱歉，時間到了！\s*請返回並重新排隊$/;
 // 完整文案供恢復辨識；部分文案只用來先停止操作，不能單憑它啟動恢復。
 export const reservationExpiredMessage = /^未於時限內確認[，,]\s*票券預留失敗$/;
@@ -21,13 +20,14 @@ export function expiredDialog(page: Page, message: RegExp): Locator {
     return page.locator(".klk-modal-alert").filter({ has: page.getByText(message), visible: true });
 }
 
-// 只辨識 DOM；呼叫端仍須核對頁面，恢復流程另行檢查唯一彈窗與按鈕。
-export async function hasQueueExpiryNotice(page: Page): Promise<boolean> {
-    return await expiredDialog(page, queueExpiredMessage).count() > 0;
+// 每次辨識都先核對目前網址；恢復流程另行檢查唯一彈窗、按鈕與額度。
+export async function isQueueExpiryShown(page: Page, eventUrl: string): Promise<boolean> {
+    return isEventPage(page.url(), eventUrl) && await expiredDialog(page, queueExpiredMessage).count() > 0;
 }
 
-export async function hasSeatExpiryNotice(page: Page): Promise<boolean> {
-    return await page.locator(seatPanelSelector).filter({ visible: true }).count() === 1 &&
+export async function isSeatExpiryShown(page: Page, eventUrl: string): Promise<boolean> {
+    return isEventPage(page.url(), eventUrl) &&
+        await page.locator(seatPanelSelector).filter({ visible: true }).count() === 1 &&
         await expiredDialog(page, reservationExpiredMessage).count() > 0;
 }
 

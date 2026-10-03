@@ -1,5 +1,6 @@
 import { parseTicketLabel, normalizeTicketName, parseTicketAmount } from "./ticketLabel.js";
-import { getSelectionNotices, isExpiryNotice, reservationExpiredNotice, seatPanelSelector } from "./notices.js";
+import { getSelectionNotices, isExpiryNotice, reservationExpiredNotice } from "./notices.js";
+import { seatPanelSelector } from "./eventPage.js";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { SeatExpiredBeforeConfirmationError } from "../../core/seatExpiry.js";
 import type { Locator, Page } from "playwright";

@@ -3,7 +3,7 @@ import type { FlowRecovery } from "../../core/recovery.js";
 import { log } from "../../core/logger.js";
 import { isEventPage, isEventPageReady } from "./eventPage.js";
 import { isPersonalInfoPage } from "./personalInfoPage.js";
-import { expiredDialog, hasQueueExpiryNotice, hasSeatExpiryNotice, queueExpiredMessage, reservationExpiredMessage } from "./notices.js";
+import { expiredDialog, isQueueExpiryShown, isSeatExpiryShown, queueExpiredMessage, reservationExpiredMessage } from "./notices.js";
 
 // 共用彈窗與按鈕檢查；各類別仍先核對自己的頁面與觸發條件。
 async function requireRecoveryButton(page: Page, dialog: Locator, buttonName: string,
@@ -35,7 +35,7 @@ export class KlookQueueRecovery implements FlowRecovery {
 
     async isRequired(): Promise<boolean> {
         // 已進入填寫資料或其他頁面時，不允許重啟購票。
-        return isEventPage(this.page.url(), this.eventUrl) && await hasQueueExpiryNotice(this.page);
+        return isQueueExpiryShown(this.page, this.eventUrl);
     }
 
     async recover(): Promise<void> {
@@ -58,7 +58,7 @@ export class KlookSeatRecovery implements FlowRecovery {
     }
 
     async isRequired(): Promise<boolean> {
-        return isEventPage(this.page.url(), this.eventUrl) && await hasSeatExpiryNotice(this.page);
+        return isSeatExpiryShown(this.page, this.eventUrl);
     }
 
     async recover(returnQueueRecovery?: FlowRecovery): Promise<void> {

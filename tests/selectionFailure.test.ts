@@ -4,12 +4,48 @@ import { chromium } from "playwright";
 import { KlookSelectionFailure, SelectionFailure } from "../src/platforms/klook/selectionFailure.js";
 import { KlookTargetAttempt } from "../src/platforms/klook/targetAttempt.js";
 import { PriorityStrategy } from "../src/core/priorityStrategy.js";
+import { PurchaseStop } from "../src/core/purchaseStop.js";
 import { fixtureConfig as eventConfig } from "./fixtures/purchaseConfig.js";
 
 const url = "https://www.klook.com/zh-TW/event-detail/test/";
 const modal = (message: string, button = "OK", action = "window.clicks=(window.clicks||0)+1;this.parentElement.remove()") =>
     `<div class="klk-modal-alert"><p>${message}</p><button onclick="${action}">${button}</button></div>`;
 const ready = '<div id="ticket-options"><div class="spec-LwNjSh">option</div><button>重新整理</button></div>';
+
+test("排隊提示檢查期間跳到個資頁：不將殘留座位提示視為可恢復的選位過期", async t => {
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
+    try {
+        await page.route("**/*", route => route.fulfill({ contentType: "text/html; charset=utf-8", body: ready }));
+        await page.goto(url);
+        await page.setContent(ready + '<div class="main_right-ZMnX67">座位</div>' + modal("未於時限內確認，票券預留失敗"));
+
+        // 在非同步彈窗讀取完成前切換網址，保留舊 DOM，模擬導頁中的短暫狀態。
+        // 使用明確的讀取邊界，不以 setTimeout 猜測檢查時機。
+        const locate = page.locator.bind(page);
+        t.mock.method(page, "locator", (selector: string, options?: Parameters<typeof locate>[1]) => {
+            const locator = locate(selector, options);
+            if (selector === ".klk-modal-alert") {
+                const filter = locator.filter.bind(locator);
+                t.mock.method(locator, "filter", (options: Parameters<typeof filter>[0]) => {
+                    const filtered = filter(options);
+                    const count = filtered.count.bind(filtered);
+                    t.mock.method(filtered, "count", async () => {
+                        const result = await count();
+                        await page.evaluate(() => history.replaceState(null, "", "/zh-TW/event/payment/"));
+                        return result;
+                    });
+                    return filtered;
+                });
+            }
+            return locator;
+        });
+
+        await assert.rejects(new KlookSelectionFailure(page, url, 200).assertNoExistingNotice(), PurchaseStop);
+        assert.equal(page.url(), "https://www.klook.com/zh-TW/event/payment/");
+        assert.equal(await page.evaluate("window.clicks || 0"), 0);
+    } finally { await browser.close(); }
+});
 
 test("指定兩種失敗與三種確認按鈕只按一次；變動、重複、停用、錯頁不操作", async () => {
     const browser = await chromium.launch();

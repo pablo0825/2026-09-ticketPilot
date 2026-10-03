@@ -1,5 +1,5 @@
 import { PurchaseStop } from "../../core/purchaseStop.js";
-import { seatPanelSelector, seatShellSelector } from "./notices.js";
+import { hasVisibleSeatScreen } from "./eventPage.js";
 import type { PurchaseTarget } from "../../core/types.js";
 import type { TargetAttempt, AttemptResult } from "../../core/priorityStrategy.js";
 import { KlookSelectionFailure, SelectionFailure } from "./selectionFailure.js";
@@ -29,7 +29,7 @@ export class KlookTargetAttempt implements TargetAttempt<KlookAssignment> {
         if (selection === "disabled") {
             // 跳過前再次確認頁面；有過期或未知提示時，不將本次觀察當成可換順位。
             await this.failure.assertNoExistingNotice();
-            if (await this.page.locator(`${seatPanelSelector}, ${seatShellSelector}`).filter({ visible: true }).count() > 0) {
+            if (await hasVisibleSeatScreen(this.page)) {
                 throw new PurchaseStop("目標停用但已有選位畫面，已停止；不換順位。");
             }
             return { status: "unavailable", reason: "disabled" };
