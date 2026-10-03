@@ -14,6 +14,7 @@ const selectors = {
     groupName: ".name-Cu4gxk",
     option: ".spec-LwNjSh",
     disabledOptionClass: "disabled-ImixBj",
+    soldoutClass: "soldout-sBHQQa",
     selectedClass: "active-vB3nra",
     ticketRow: ".eventUnit-kxDycC",
     counter: ".counter-vVrWZ9",
@@ -135,11 +136,11 @@ export class KlookTicketSelector {
 
     // 只有初次選擇時才回報不可選；BOYFRIEND 時間停用僅有 disabled class。
     private async isUnavailableSessionOption(option: Locator, name: string): Promise<boolean> {
-        const state = await option.evaluate(el => ({
-            disabled: el.classList.contains("disabled-ImixBj"),
-            soldout: el.classList.contains("soldout-sBHQQa"),
-            selected: el.classList.contains("active-vB3nra"),
-        }));
+        const state = await option.evaluate((el, s) => ({
+            disabled: el.classList.contains(s.disabledOptionClass),
+            soldout: el.classList.contains(s.soldoutClass),
+            selected: el.classList.contains(s.selectedClass),
+        }), selectors);
         if (state.disabled || state.soldout || !await option.isEnabled()) {
             if (state.selected || !state.disabled) {
                 throw new PurchaseStop(`${name}停用狀態不明或矛盾，已停止。`);
@@ -263,7 +264,7 @@ export class KlookTicketSelector {
 
     private async verifySelectedOption(option: Locator, name: string): Promise<void> {
         if (await this.isDisabled(option) || !await option.isEnabled() ||
-            await option.evaluate(el => el.classList.contains("soldout-sBHQQa"))) {
+            await option.evaluate((el, className) => el.classList.contains(className), selectors.soldoutClass)) {
             throw new PurchaseStop(`${name}最終驗證發現停用，已停止；不換順位。`);
         }
         const siblings = option.locator("..");

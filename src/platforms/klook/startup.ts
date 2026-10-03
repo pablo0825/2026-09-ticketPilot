@@ -4,12 +4,11 @@ import type { Page } from "playwright";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { reportState } from "../../core/state.js";
 import { isEventPage } from "./eventPage.js";
-import { getSelectionNotices, seatPanelSelector, seatShellSelector } from "./notices.js";
-import { KlookQueueRecovery } from "./expiryRecovery.js";
+import { getSelectionNotices, hasQueueExpiryNotice, seatPanelSelector, seatShellSelector } from "./notices.js";
 
 export type LoginState = "logged-in" | "logged-out" | "unknown";
 
-function isKlookUrl(url: string): boolean {
+export function isKlookUrl(url: string): boolean {
     const parsed = new URL(url);
     return parsed.protocol === "https:" &&
         (parsed.hostname === "klook.com" || parsed.hostname.endsWith(".klook.com"));
@@ -103,7 +102,7 @@ export async function prepareStartup(page: Page, eventUrl: string, options: Star
             const seats = await page.locator(`${seatPanelSelector}, ${seatShellSelector}`).filter({ visible: true }).count();
             if (seats > 0) throw new PurchaseStop("啟動時已有選位畫面，未開始新的購票流程。");
             if (notices.length > 0) {
-                if (notices.length === 1 && await new KlookQueueRecovery(page, eventUrl).isRequired()) {
+                if (notices.length === 1 && isEventPage(page.url(), eventUrl) && await hasQueueExpiryNotice(page)) {
                     if (login === "logged-in") {
                         console.log("活動頁出現已知排隊過期提示，交由既有恢復流程核對；尚未宣告 READY。");
                         return "queue-expired";
@@ -171,7 +170,7 @@ async function waitForSale(page: Page, eventUrl: string, saleAt: number,
         if (await page.locator(`${seatPanelSelector}, ${seatShellSelector}`).filter({ visible: true }).count() > 0) {
             throw new PurchaseStop("開賣等待時已有選位畫面，已停止。");
         }
-        const queue = notices.length === 1 && await new KlookQueueRecovery(page, eventUrl).isRequired();
+        const queue = notices.length === 1 && isEventPage(page.url(), eventUrl) && await hasQueueExpiryNotice(page);
         if (notices.length > 0 && !queue) throw new PurchaseStop("活動頁有未處理提示，開賣等待已停止。");
         if (login === "logged-out") {
             await waitForLogin(page, { ...options, deadline: cutoff });

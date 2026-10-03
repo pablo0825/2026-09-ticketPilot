@@ -3,7 +3,8 @@ import { isPersonalInfoPage } from "./personalInfoPage.js";
 import { validateBookingExpectation } from "../../core/purchaseValidation.js";
 import type { Page } from "playwright";
 import type { TicketTarget, BookingExpectation } from "../../core/types.js";
-import { seatKey, type Allocation, type AssignedSeat } from "./seatSelector.js";
+import { seatKey } from "./allocation.js";
+import type { Allocation, AssignedSeat } from "./allocation.js";
 
 export interface BookingSummary {
     eventName: string;

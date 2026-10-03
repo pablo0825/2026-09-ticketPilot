@@ -7,7 +7,7 @@ import { readBookingSummary, verifyBookingSummary } from "./platforms/klook/book
 import { prepareBooking } from "./core/bookingPreparation.js";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { prepareStartup } from "./platforms/klook/startup.js";
+import { isKlookUrl, prepareStartup } from "./platforms/klook/startup.js";
 import { eventConfig } from "./config/event.config.js";
 import { PriorityStrategy } from "./core/priorityStrategy.js";
 import { collectStoppedDiagnostics } from "./core/stoppedDiagnostics.js";
@@ -19,9 +19,7 @@ import { reportState } from "./core/state.js";
 import { waitForPersonalInfoPage } from "./platforms/klook/personalInfoPage.js";
 
 async function openEventPage(eventUrlString: string): Promise<Page> {
-    const eventUrl = new URL(eventUrlString);
-    if (eventUrl.protocol !== "https:" ||
-        !(eventUrl.hostname === "klook.com" || eventUrl.hostname.endsWith(".klook.com"))) {
+    if (!isKlookUrl(eventUrlString)) {
         throw new Error("活動網址必須是 Klook 的 HTTPS 網址。");
     }
 

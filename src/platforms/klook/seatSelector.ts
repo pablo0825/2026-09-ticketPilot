@@ -5,16 +5,8 @@ import { SeatExpiredBeforeConfirmationError } from "../../core/seatExpiry.js";
 import type { Locator, Page } from "playwright";
 import type { TicketTarget } from "../../core/types.js";
 import { log } from "../../core/logger.js";
-
-export interface AssignedSeat {
-    section: string;
-    row: string;
-    number: string;
-}
-
-export type Allocation =
-    | { kind: "reserved"; seats: AssignedSeat[] }
-    | { kind: "general"; group: string; quantity: number };
+import { seatKey } from "./allocation.js";
+import type { Allocation, AssignedSeat } from "./allocation.js";
 
 export interface SeatResult {
     text: string;
@@ -44,10 +36,6 @@ const selectors = {
 
 function normalize(text: string): string {
     return text.normalize("NFKC").replace(/\s/g, "");
-}
-
-export function seatKey(seat: AssignedSeat): string {
-    return JSON.stringify([seat.section, seat.row, seat.number].map(normalize));
 }
 
 function checkSession(text: string, target: TicketTarget): string | undefined {

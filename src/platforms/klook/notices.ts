@@ -21,6 +21,16 @@ export function expiredDialog(page: Page, message: RegExp): Locator {
     return page.locator(".klk-modal-alert").filter({ has: page.getByText(message), visible: true });
 }
 
+// 只辨識 DOM；呼叫端仍須核對頁面，恢復流程另行檢查唯一彈窗與按鈕。
+export async function hasQueueExpiryNotice(page: Page): Promise<boolean> {
+    return await expiredDialog(page, queueExpiredMessage).count() > 0;
+}
+
+export async function hasSeatExpiryNotice(page: Page): Promise<boolean> {
+    return await page.locator(seatPanelSelector).filter({ visible: true }).count() === 1 &&
+        await expiredDialog(page, reservationExpiredMessage).count() > 0;
+}
+
 export async function getSelectionNotices(page: Page): Promise<Locator[]> {
     const result: Locator[] = [];
     for (const notice of await page.locator('.klk-modal-alert, [role="dialog"], dialog').filter({ visible: true }).all()) {

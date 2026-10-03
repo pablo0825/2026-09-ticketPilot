@@ -6,7 +6,8 @@ import { KlookSelectionFailure, SelectionFailure } from "./selectionFailure.js";
 import { reportState } from "../../core/state.js";
 import type { Page } from "playwright";
 import { KlookTicketSelector } from "./ticketSelector.js";
-import { KlookSeatSelector, type Allocation } from "./seatSelector.js";
+import { KlookSeatSelector } from "./seatSelector.js";
+import type { Allocation } from "./allocation.js";
 
 export interface KlookAssignment {
     seatSelector: KlookSeatSelector;
