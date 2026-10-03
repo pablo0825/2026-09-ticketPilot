@@ -1,5 +1,5 @@
 import { PurchaseStop } from "./purchaseStop.js";
-import { log } from "./logger.js";
+import { log, emitRunEvent } from "./logger.js";
 import { reportState } from "./state.js";
 
 export interface FlowRecovery {
@@ -23,6 +23,7 @@ export async function runWithRecovery<T>(attempt: () => Promise<T>,
         const label = action.kind === "queue" ? "獨立排隊" : "選位／個資預留";
         if (used[action.kind]) throw new Error(`${label}已達一次恢復上限，請人工檢查。`);
         used[action.kind] = true;
+        emitRunEvent({ type: "recovery", queue: Number(used.queue), reservation: Number(used.reservation) });
         reportState("RECOVERING");
         log(`${label}恢復額度：1/1（已使用）。`);
         await action.recover();

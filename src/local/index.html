@@ -1,44 +1,18 @@
-<!doctype html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TicketPilot · 串接預覽</title>
-<style>
-body{font:16px/1.6 system-ui,sans-serif;background:#f2f5f8;color:#203040;margin:0}main{max-width:920px;margin:48px auto;padding:0 24px}h1{margin-bottom:4px}.muted{color:#586b7c}.card{background:white;border:1px solid #dbe3eb;border-radius:12px;padding:24px;margin:20px 0}button,select{font:inherit;padding:10px 16px;margin:6px 8px 6px 0;border:1px solid #afc0cf;border-radius:6px}button{cursor:pointer;background:#143f6a;color:white}button:disabled{opacity:.5;cursor:default}pre{white-space:pre-wrap;background:#122333;color:#dceaf5;padding:20px;min-height:180px;border-radius:8px}#message{color:#8c3c15}
-</style></head><body><main>
-<h1>TicketPilot</h1><div class="muted">第 1–3 階段 · 本機設定與執行串接預覽</div>
-<div class="card"><strong>此頁只執行模擬，不會登入 Klook、取得座位或建立訂單。</strong><p>完整的購票與個資表單將在下一階段加入。目前可建立獨立示範活動，驗證保存、載入及子程序狀態。</p>
-<button id="create">新增示範活動</button><select id="activities" aria-label="已儲存活動"></select><button id="start">開始模擬</button><p class="muted">使用虛構聯絡資料進行格式驗證，不讀取或修改 contact.local.json。</p><div id="message" role="alert"></div></div>
-<div class="card"><strong id="status">尚未執行</strong><p id="target"></p><pre id="logs" aria-label="執行紀錄">等待模擬執行。</pre></div>
-</main><script>
-const token = "__TOKEN__";
-const activities = document.querySelector('#activities'), status = document.querySelector('#status'), logs = document.querySelector('#logs'), start = document.querySelector('#start'), message = document.querySelector('#message');
-let pendingRequest = null;
-let running = false;
-let requesting = false;
-async function api(path, method='GET', value) {
-    const response = await fetch(path, {method,headers:{'X-Local-Token':token,'Content-Type':'application/json'},body:value===undefined?undefined:JSON.stringify(value)});
-    const data = await response.json(); if (!response.ok) throw Error(data.error); return data;
-}
-async function list() {
-    const data=await api('/api/activities'); activities.replaceChildren();
-    for(const activity of data.activities){const option=document.createElement('option');option.value=activity.id;option.textContent=activity.settings.eventName;activities.append(option)}
-    if(data.invalidFiles) message.textContent=`有 ${data.invalidFiles} 個活動檔無法載入，未自動覆寫。`;
-}
-document.querySelector('#create').onclick=async()=>{try{
-    const record=await api('/api/activities','POST',{eventUrl:'https://www.klook.com/zh-TW/event-detail/local-demo/',eventName:'串接示範活動（非真實購票設定）',fallbackMode:'STRICT',excludeKeywords:['愛心席','身障','視線不良'],targets:[{date:'2026-11-02',time:'19:30',area:'B區',unitPrice:5280,quantity:1,adjacent:false}]});
-    await list();activities.value=record.id;message.textContent='示範活動已儲存。';
-}catch(error){message.textContent=error.message}};
-start.onclick=async()=>{requesting=true;start.disabled=true;try{
-    if(!activities.value) throw Error('請先建立或選擇活動。');
-    pendingRequest ??= {requestId:crypto.randomUUID(),activityId:activities.value,contact:{firstName:'Demo',lastName:'Fixture',regionLabel:'台灣 (+886)',phone:'0912345678',email:'demo@example.com'}};
-    render(await api('/api/simulation','POST',pendingRequest));pendingRequest=null;message.textContent='';
-}catch(error){message.textContent=error.message+'；重新按下會沿用同一次請求。'}finally{requesting=false;start.disabled=running}};
-function render(run){
-    if(!run)return;
-    running=run.status==='running';
-    start.disabled=requesting||running;
-    status.textContent=run.status==='running'?'模擬執行中':run.status==='completed'?'模擬完成（未購票）':'模擬中斷，沒有自動重跑';
-    document.querySelector('#target').textContent='執行識別碼：'+run.id;
-    logs.textContent=(run.historyTruncated?'較早紀錄已省略。\n':'')+run.events.filter(item=>item.event.type==='log').map(item=>new Date(item.at).toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei'})+'  '+(item.event.type==='state'?item.event.state:item.event.message)).join('\n');
-}
-const stream=new EventSource('/api/events?token='+encodeURIComponent(token));stream.onmessage=event=>render(JSON.parse(event.data));stream.onerror=()=>{message.textContent='狀態連線中斷，正在重新連線；不會因此重新啟動模擬。'};stream.onopen=()=>{message.textContent=''};
-list().catch(error=>message.textContent=error.message);
-</script></body></html>
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TicketPilot</title><link rel="stylesheet" href="/style.css"></head><body>
+<main><header><div><small>本機購票助手</small><h1>TicketPilot</h1></div><span class="badge">付款前停下，由你完成付款</span></header>
+<nav aria-label="設定步驟"><button data-step="1" class="active">① 活動與順位</button><button data-step="2">② 個資與時間</button><button data-step="3">③ 執行狀態</button></nav>
+<div id="message" role="alert"></div>
+<section id="step1"><div class="card"><div class="section-title"><h2>活動設定</h2><button id="new" class="secondary">新增活動</button></div>
+<label>已儲存活動<select id="activities"><option value="">選擇活動</option></select></label>
+<div class="grid"><label>活動名稱<input id="eventName" required placeholder="輸入官網活動完整名稱"></label><label>活動網址<input id="eventUrl" type="url" required placeholder="https://www.klook.com/zh-TW/event-detail/…/"></label></div>
+<div class="section-title"><div><h2>購票順位</h2><p>由上往下嘗試，只接受你指定的目標。</p></div><button id="add" class="secondary">新增順位</button></div><div id="targets"></div>
+<details><summary>進階設定 · 嚴格順位</summary><p>STRICT：不購買清單以外的票種。</p><label>排除關鍵字（以逗號分隔）<input id="exclude" value="愛心席,身障,視線不良"></label></details>
+<footer><button id="saveActivity">儲存活動，下一步</button></footer></div></section>
+<section id="step2" hidden><div class="card"><h2>聯絡資料</h2><p>與其他活動共用，儲存在本機；執行紀錄不包含個人資料。</p>
+<div class="grid"><label>姓氏<input id="lastName" autocomplete="family-name" required></label><label>名字<input id="firstName" autocomplete="given-name" required></label><label>電話區碼<select id="regionLabel"><option>台灣 (+886)</option><option>香港 (+852)</option><option>澳門 (+853)</option><option>中國 (+86)</option><option>日本 (+81)</option><option>韓國 (+82)</option><option>新加坡 (+65)</option><option>馬來西亞 (+60)</option><option>美國 (+1)</option></select><small>網站若沒有對應選項，程式會停止。</small></label><label>電話<input id="phone" type="tel" autocomplete="tel-national" required></label><label>Email<input id="email" type="email" autocomplete="email" required></label></div>
+<h2>開始時間</h2><label>執行方式<select id="mode"><option value="now">立即開始</option><option value="scheduled">指定開賣時間</option></select></label><div id="schedule" class="grid" hidden><label>開賣時間（台灣 UTC+8）<input id="saleAt" type="datetime-local" step="1"></label><label>提前刷新<select id="advance"><option value="1">1 秒</option><option value="2">2 秒</option></select></label></div>
+<p>指定的是開賣時間，不是演出時間。按開始後會先確認登入、準備活動頁，再等待開賣。</p><footer><button id="saveContact">儲存設定，檢查摘要</button></footer></div></section>
+<section id="step3" hidden><div class="card"><h2>本次設定摘要</h2><pre id="summary">請先完成活動與聯絡資料設定。</pre><label class="check"><input id="confirm" type="checkbox">我已確認活動、順位與金額，並了解程式會提交聯絡資料，停在付款前。</label>
+<button id="start" disabled>開始購票</button><button id="simulate" class="secondary">模擬執行（不購票）</button><p>執行期間設定固定。請勿同時使用 CLI 啟動購票。</p></div>
+<div class="card"><h2 id="status">尚未執行</h2><p id="instruction">完成設定後，即可開始。</p><div class="metrics"><div id="target">順位：—</div><div id="budget">恢復：—</div><div id="countdown"></div></div><p id="browser"></p><div class="section-title"><h3>執行紀錄</h3><div><button id="copy" class="secondary">複製紀錄</button><button id="latest" class="secondary">回到最新</button></div></div><pre id="logs" tabindex="0" aria-label="執行紀錄">尚無紀錄。</pre></div></section>
+</main><script>const token = "__TOKEN__";</script><script src="/app.js"></script></body></html>

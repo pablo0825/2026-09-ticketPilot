@@ -1,3 +1,5 @@
+import { acquirePurchaseLease, verifyPurchaseLease, releasePurchaseLease, type PurchaseLease } from "./purchaseLock.js";
+import { validatePurchaseConfig } from "../core/purchaseValidation.js";
 import { FlowPause } from "../core/flowPause.js";
 import { KlookSeatRecovery, KlookContactRecovery, KlookQueueRecovery } from "../platforms/klook/expiryRecovery.js";
 import { PaymentPageError, waitForPaymentPage } from "../platforms/klook/paymentPage.js";
@@ -71,12 +73,35 @@ export interface PurchaseRunOptions {
     onEvent?: (event: RunEvent) => void;
     onBrowser?: (context: import("playwright").BrowserContext) => void;
     pause?: string;
+    lease?: PurchaseLease;
 }
 
 export async function runPurchase(config: PurchaseConfig, contact: ContactDetails, options: PurchaseRunOptions = {}): Promise<void> {
     const snapshot = structuredClone(config);
     const details = validateContactDetails(contact);
-    return withRunEvents(options.onEvent ?? (() => {}), () => executePurchase(snapshot, details, options));
+    // 前置資料驗證失敗時不取得瀏覽器占用。
+    validatePurchaseConfig(snapshot);
+    const lease = options.lease ?? acquirePurchaseLease();
+    verifyPurchaseLease(lease);
+    let settled = false;
+    let browserClosed = true;
+    let released = false;
+    const release = () => {
+        if (settled && browserClosed && !released) {
+            releasePurchaseLease(lease);
+            released = true;
+        }
+    };
+    try {
+        await withRunEvents(options.onEvent ?? (() => {}), () => executePurchase(snapshot, details, {
+            ...options,
+            onBrowser: context => {
+                browserClosed = false;
+                context.once("close", () => { browserClosed = true; release(); });
+                options.onBrowser?.(context);
+            },
+        }));
+    } finally { settled = true; release(); }
 }
 
 async function executePurchase(eventConfig: PurchaseConfig, contactDetails: ContactDetails, options: PurchaseRunOptions) {

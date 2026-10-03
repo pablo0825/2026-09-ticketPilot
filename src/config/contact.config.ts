@@ -40,12 +40,12 @@ export function validateContactDetails(value: unknown): ContactDetails {
 }
 
 // 個人資料是啟動前的必要設定；缺少資料時不開啟瀏覽器或選票。
-export async function loadContactDetails(): Promise<ContactDetails> {
+export async function loadContactDetails(path: URL | string = new URL("../../contact.local.json", import.meta.url)): Promise<ContactDetails> {
     let source: string;
 
     try {
         // 把個人資料讀取出來
-        source = await readFile(new URL("../../contact.local.json", import.meta.url), "utf8");
+        source = await readFile(path, "utf8");
     } catch (error) {
         // 缺檔也屬於準備失敗，提示補齊而不是進入個資頁才停止。
         if ((error as NodeJS.ErrnoException).code === "ENOENT") {

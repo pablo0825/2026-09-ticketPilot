@@ -25,6 +25,8 @@ export class SimulationRuns {
     private current?: SimulationRun;
     private listeners = new Set<() => void>();
 
+    hasRequest(id: string): boolean { return this.requests.has(id); }
+
     snapshot(): SimulationSnapshot | null {
         return this.current ? structuredClone(this.current.snapshot) : null;
     }

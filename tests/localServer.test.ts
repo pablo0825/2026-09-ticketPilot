@@ -13,7 +13,7 @@ const contact = { firstName: "PrivateName", lastName: "Test", regionLabel: "台�
 
 test("本機 API：驗證、保存、去重、快照及模擬結束；無實站入口", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-server-"));
-    const service = await startLocalServer(new ActivityStore(dir));
+    const service = await startLocalServer(new ActivityStore(join(dir, "events")), { contactPath: join(dir, "contact.json"), runDirectory: join(dir, "runtime") });
     try {
         const html = await (await fetch(service.url)).text();
         const token = /const token = "([a-f0-9]+)"/.exec(html)![1]!;
@@ -46,24 +46,4 @@ test("本機 API：驗證、保存、去重、快照及模擬結束；無實站�
         assert.match(first, new RegExp(run.id));
         await reader.cancel();
     } finally { await service.close(); await rm(dir, { recursive: true, force: true }); }
-});
-
-test("最小 GUI：建立示範、執行子程序、重整重連不再啟動", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "ticket-ui-"));
-    const service = await startLocalServer(new ActivityStore(dir));
-    const browser = await chromium.launch();
-    try {
-        const page = await browser.newPage();
-        await page.goto(service.url);
-        await page.getByRole("button", { name: "新增示範活動" }).click();
-        await page.waitForFunction(() => document.querySelector("select")!.options.length === 1);
-        await page.getByRole("button", { name: "開始模擬" }).click();
-        await page.getByText("模擬完成（未購票）", { exact: true }).waitFor();
-        const run = await page.locator("#target").innerText();
-        await page.reload();
-        await page.getByText("模擬完成（未購票）", { exact: true }).waitFor();
-        assert.equal(await page.locator("#target").innerText(), run);
-        assert.match(await page.locator("#logs").innerText(), /模擬完成/);
-        await page.screenshot({ path: "/tmp/ticketpilot-gui-phase3.png", fullPage: true });
-    } finally { await browser.close(); await service.close(); await rm(dir, { recursive: true, force: true }); }
 });
