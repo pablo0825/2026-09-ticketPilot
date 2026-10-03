@@ -1,21 +1,31 @@
 import type { PurchaseConfig } from "../core/types.js";
 
 export const eventConfig: PurchaseConfig = {
-    // 移除分享網址中的 spm / clickId 追蹤參數。
-    eventUrl: "https://www.klook.com/zh-TW/event-detail/102001091-ben-taipie-concert/",
+    eventUrl: "https://www.klook.com/zh-TW/event-detail/102000938-jason-mraz-2026-taipei-concert/",
     targets: [
         {
-            // 已從活動資訊確認年份為 2026。
-            date: "2026-11-15",
-            time: "17:00",
-            area: "獨立靠近(單人票)",
-            quantity: 2,
+            date: "2026-11-02",
+            time: "19:30",
+            area: "B區",
+            quantity: 1,
             expectation: {
-                eventName: "2026 斑恩 Ben《還是想靠近你》個人專場演唱會",
-                unitPrice: 1280,
-                totalPrice: 2560,
+                eventName: "Jason Mraz ASIA TOUR 2026 IN TAIPEI",
+                unitPrice: 5280,
+                totalPrice: 5280,
             },
-            adjacent: false, // 此場為站票，不要求連位；站票後續流程尚未驗證。
+            adjacent: false, // 單張不適用連位要求。
+        },
+        {
+            date: "2026-11-02",
+            time: "19:30",
+            area: "C區",
+            quantity: 1,
+            expectation: {
+                eventName: "Jason Mraz ASIA TOUR 2026 IN TAIPEI",
+                unitPrice: 4880,
+                totalPrice: 4880,
+            },
+            adjacent: false,
         },
     ],
     fallbackMode: "STRICT",
