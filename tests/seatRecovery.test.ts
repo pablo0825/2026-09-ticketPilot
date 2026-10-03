@@ -62,7 +62,7 @@ test("確認前過期：OK 返回保留選項，重新核對票券並取得新�
     const browser = await chromium.launch(); const page = await browser.newPage();
     try {
         const group = (name: string, value: string) => `<div class="skuGroup-hk2pfU"><div class="name-Cu4gxk">${name}</div><div class="spec-LwNjSh active-vB3nra">${value}</div></div>`;
-        const html = `<p>2026年10月3日</p><div id="ticket-options">
+        const html = `<div id="ticket-info"><p>活動日期｜2026年10月3日</p></div><div id="ticket-options">
 ${group('日期', '10月3日(週六)')}${group('時間', '12:00')}${group('票種', 'A區（NT$4,880）')}
 <div class="eventUnit-kxDycC"><div class="counter-vVrWZ9"><div class="value-xWKzpL">1</div></div><div>最多4張</div></div>
 <button>重新整理</button><button id="next">下一步</button></div>

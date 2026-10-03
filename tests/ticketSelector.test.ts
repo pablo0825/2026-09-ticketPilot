@@ -17,7 +17,7 @@ function fixture(initialQuantity = 0, brokenSelection = false) {
     const group = (name: string, choices: string[], selected: number) =>
         `<div class="skuGroup-hk2pfU"><div class="name-Cu4gxk">${name}</div><div>${choices.map((text, i) =>
             `<div class="spec-LwNjSh ${i === selected ? "active-vB3nra" : ""}">${text}</div>`).join("")}</div></div>`;
-    return `<p>活動日期｜2026 年 10 月 03 日（六）</p><div id="ticket-options">
+    return `<div id="ticket-info"><p>活動日期｜2026 年 10 月 03 日（六）</p></div><div id="ticket-options">
         ${group("日期", ["10月3日(週六)"], 0)}
         ${group("時間", ["12:00", "18:00"], 1)}
         ${group("票種", ["A區（NT$4,880）", "A區愛心席（NT$2,440）", "B區（NT$3,880）"], 2)}
@@ -237,5 +237,25 @@ test("價格不符即使同時有恢復需求，也不換順位、不返回、�
         assert.deepEqual(attempts, ['A區']);
         assert.equal(returns, 0);
         assert.equal(recoveries, 0);
+    } finally { await page.close(); }
+});
+
+test("日期改用斜線仍可選票；只有其他區塊或開賣日符合時不點選", async () => {
+    const page = await browser.newPage();
+    const original = '<div id="ticket-info"><p>活動日期｜2026 年 10 月 03 日（六）</p></div>';
+    try {
+        await page.setContent(fixture().replace(original, '<div id="ticket-info"><p>• 時間｜2026/10/03（六）</p></div>'));
+        await new KlookTicketSelector(page, 500).selectAndVerify(target, 4880);
+        assert.equal(await page.locator('.value-xWKzpL').innerText(), '1');
+        for (const dateInfo of [
+            '<div id="ticket-info"><p>活動日期｜2026/10/04</p></div><p>2026年10月3日</p>',
+            '<div id="ticket-info"><p>開賣日期｜2026/10/03</p></div>',
+        ]) {
+            await page.setContent(fixture().replace(original, dateInfo));
+            await page.locator('#ticket-options').evaluate(el => el.addEventListener('click', () => document.body.dataset.clicked = '1'));
+            await assert.rejects(new KlookTicketSelector(page, 250).selectAndVerify(target, 4880), PurchaseStop);
+            assert.equal(await page.locator('body').getAttribute('data-clicked'), null);
+            assert.equal(await page.locator('body').getAttribute('data-next'), null);
+        }
     } finally { await page.close(); }
 });

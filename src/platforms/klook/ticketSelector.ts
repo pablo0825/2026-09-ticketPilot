@@ -1,3 +1,4 @@
+import { verifyEventDate } from "./eventDate.js";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { normalizeTicketName, parseTicketLabel } from "./ticketLabel.js";
 import { validateTicketTarget } from "../../core/purchaseValidation.js";
@@ -79,20 +80,8 @@ export class KlookTicketSelector {
 
     // 找到並選中日期，最後回傳定位器
     private async selectDate(date: string): Promise<Locator> {
-        // 2026-09-05 變成 [2026, 9, 5]
-        // .split() 切個字串
-        // 轉為 map，並轉換型別為 Number
-        const [year, month, day] = date.split("-").map(Number);
-        // 建立文字比對規則
-        const fullDate = new RegExp(`${year}\\s*年\\s*0?${month}\\s*月\\s*0?${day}\\s*日`);
-        // 取得頁面日期
-        const pageText = await this.page.locator("body").innerText();
-
-        // 選項只有月日，因此另外從活動資訊核對年份。
-        if (!fullDate.test(pageText)) {
-            throw new Error("活動頁未能確認目標完整日期（含年份），已停止。");
-        }
-
+        await verifyEventDate(this.page, date, this.timeout);
+        const [, month, day] = date.split("-").map(Number);
         const label = new RegExp(`^\\s*${month}月${day}日[（(]週.[）)]\\s*$`);
 
         return this.selectOption("日期", label);
