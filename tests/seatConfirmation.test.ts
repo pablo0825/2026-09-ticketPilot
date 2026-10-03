@@ -9,7 +9,7 @@ const allocation = { kind: 'reserved' as const, seats: [{ section: 'A2', row: '4
 const eventUrl = 'https://www.klook.com/zh-TW/event-detail/test/';
 const checkoutUrl = 'https://www.klook.com/zh-TW/event/payment/?shoppingcart_guid=test';
 function fixture(number = '17', time = '12:00', disabled = false) {
-    return `<div class="main_right-ZMnX67">2026年10月3日 週六 下午${time}<div>00:06</div>
+    return `<div class="main_right-ZMnX67"><div class="pc_header_center-mSlDdM"><span>2026年10月3日 週六 下午${time}</span></div><div>00:06</div>
     <div class="seat_list-BhwLqz"><div class="seat_list_top-Bk0UC9"><div><div>已選1個座位</div></div></div>
     <div class="seat_list_cat-vMvUjF">A區（NT$4,880）</div>
     <div class="seat_footer_list-TWhU8V"><div class="list_item-jYRAN7"><span>區 <ins>A2</ins></span><span>排 <ins>4</ins></span><span>座位 <ins>${number}</ins></span></div></div>
@@ -60,5 +60,39 @@ test('確認後等待填寫資料頁：網址與表單都要符合，且不點�
         await assert.rejects(waitForPersonalInfoPage(page, eventUrl, 300));
         await page.goto('https://example.test/zh-TW/event/payment/');
         await assert.rejects(waitForPersonalInfoPage(page, eventUrl, 300));
+    } finally { await browser.close(); }
+});
+
+test('場次只讀唯一可見欄位：錯年、缺年、隱藏或重複時不確認，其他正確日期不能掩蓋', async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    try {
+        for (const html of [
+            fixture().replace('2026年', '2027年').replace('</button>', '</button><p>2026年10月3日 週六 下午12:00</p>'),
+            fixture().replace('2026年', ''),
+            fixture().replace('<span>2026', '<span hidden>2026'),
+            fixture().replace('<span>2026', '<span style="opacity:0">2026'),
+            fixture().replace('</span></div>', '</span><span>2026年10月3日 週六 下午12:00</span></div>'),
+            fixture().replace('下午12:00', '下午12:00 附加日期'),
+        ]) {
+            await page.setContent(html);
+            await assert.rejects(new KlookSeatSelector(page, 4880, 500).confirmVerifiedSeats(target, allocation));
+            assert.equal(await page.locator('body').getAttribute('data-clicks'), null);
+        }
+    } finally { await browser.close(); }
+});
+
+test('配位核對後年份改變，確認前重驗並停止', async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    try {
+        await page.setContent(`<div id="ticket-options"><button onclick="document.querySelector('.main_right-ZMnX67').hidden=false">下一步</button></div>${fixture().replace('class="main_right-ZMnX67"', 'class="main_right-ZMnX67" hidden')}`);
+        const selector = new KlookSeatSelector(page, 4880, 1000);
+        const verified = await selector.openAndVerify(target);
+        await page.locator('.pc_header_center-mSlDdM > span').evaluate(element => {
+            element.textContent = '2027年10月3日 週六 下午12:00';
+        });
+        await assert.rejects(selector.confirmVerifiedSeats(target, verified), /日期不符/);
+        assert.equal(await page.locator('body').getAttribute('data-clicks'), null);
     } finally { await browser.close(); }
 });

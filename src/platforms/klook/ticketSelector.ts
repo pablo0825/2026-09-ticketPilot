@@ -1,4 +1,4 @@
-import { verifyEventDate } from "./eventDate.js";
+import { parseDateOption, matchesDateOption } from "./eventDate.js";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { normalizeTicketName, parseTicketLabel } from "./ticketLabel.js";
 import { validateTicketTarget } from "../../core/purchaseValidation.js";
@@ -52,11 +52,11 @@ export class KlookTicketSelector {
         await this.waitForUniqueElement(this.root, "票券選擇區");
 
         // 
-        const date = await this.selectDate(target.date);
+        await this.selectDate(target.date);
         const time = await this.selectTime(target.time);
         const area = await this.selectArea(target.area, expectedUnitPrice);
         if (!area) {
-            await this.verifySelectedOption(date, "日期");
+            await this.verifyDate(target.date);
             await this.verifySelectedOption(time, "時間");
             log(`票種目前停用：${target.area} / ${expectedUnitPrice}；未送出選票。`);
             return "disabled";
@@ -65,7 +65,7 @@ export class KlookTicketSelector {
         await this.setAdjacentPreference(target);
 
         // 操作完再讀一次，確保後面的操作沒有重設前面的選擇。
-        await this.verifySelectedOption(date, "日期");
+        await this.verifyDate(target.date);
         await this.verifySelectedOption(time, "時間");
         await this.verifySelectedOption(area, "票區");
         const matched = await this.findArea(target.area, expectedUnitPrice);
@@ -78,13 +78,49 @@ export class KlookTicketSelector {
         return "selected";
     }
 
-    // 找到並選中日期，最後回傳定位器
-    private async selectDate(date: string): Promise<Locator> {
-        await verifyEventDate(this.page, date, this.timeout);
-        const [, month, day] = date.split("-").map(Number);
-        const label = new RegExp(`^\\s*${month}月${day}日[（(]週.[）)]\\s*$`);
+    private async findDate(expected: string): Promise<Locator> {
+        try {
+            const heading = this.page.locator(selectors.groupName).filter({ hasText: /^日期\s*$/ });
+            const group = this.root.locator(selectors.group).filter({ has: heading });
+            await this.waitForUniqueElement(group, "日期群組");
+            const options = group.locator(selectors.option).filter({ visible: true });
+            await this.waitUntil(async () => await options.count() > 0, "日期選項尚未載入");
+            const labels = await options.allInnerTexts();
+            const matches = labels.filter(label => matchesDateOption(parseDateOption(label), expected));
+            if (matches.length !== 1) throw new PurchaseStop("日期選項不符合或有多個匹配項，已停止。");
+            // 依文字重新定位，不保留 nth 索引，避免 DOM 重排後指向另一日期。
+            const option = options.filter({ hasText: new RegExp(`^${escapeRegex(matches[0]!)}$`) });
+            await this.waitForUniqueElement(option, "日期選項");
+            if (await this.isDisabled(option) || !await option.isEnabled()) {
+                throw new PurchaseStop("日期選項目前停用，已停止；不換票種。");
+            }
+            if (!matchesDateOption(parseDateOption(await option.innerText()), expected)) {
+                throw new PurchaseStop("日期選項已變動，已停止。");
+            }
+            return option;
+        } catch (error) {
+            if (error instanceof PurchaseStop) throw error;
+            throw new PurchaseStop("日期選項狀態未知，已停止；不換票種或重啟購票。");
+        }
+    }
 
-        return this.selectOption("日期", label);
+    private async selectDate(expected: string): Promise<void> {
+        try {
+            const option = await this.findDate(expected);
+            if (!await this.isSelected(option)) {
+                await option.click({ timeout: this.timeout });
+                await this.waitUntil(() => this.isSelected(option), "日期點選後沒有確認選中");
+            }
+            await this.verifyDate(expected);
+            log(`日期選項已選：${(await option.innerText()).trim()}；完整年份於配位確認前核對。`);
+        } catch (error) {
+            if (error instanceof PurchaseStop) throw error;
+            throw new PurchaseStop("日期選取結果未知，已停止；不換票種或重啟購票。");
+        }
+    }
+
+    private async verifyDate(expected: string): Promise<void> {
+        await this.verifySelectedOption(await this.findDate(expected), "日期");
     }
 
     private selectTime(time: string): Promise<Locator> {

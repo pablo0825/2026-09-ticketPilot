@@ -13,7 +13,7 @@ const config = { ...eventConfig, eventUrl: url, targets: ["A區", "B區"].map((a
 // 停用 class 取自斑恩活動實際 DOM；配位與事件以本機 fixture 模擬。
 function fixture(allDisabled = false) {
     const group = (name: string, values: string[], states: string[]) => `<div class="skuGroup-hk2pfU"><div class="name-Cu4gxk">${name}</div><div>${values.map((value, i) => `<div class="spec-LwNjSh ${states[i]}" onclick="document.body.dataset.optionClicks=(document.body.dataset.optionClicks||'')+'${name}:${i};'; for(const el of this.parentElement.children) el.classList.remove('active-vB3nra'); this.classList.add('active-vB3nra')">${value}</div>`).join('')}</div></div>`;
-    const panel = '<div class="main_right-ZMnX67">2026年10月3日 週六 下午12:00 <div class="seat_list-BhwLqz"><div class="seat_list_top-Bk0UC9"><div><div>已選1個座位</div></div></div><div class="seat_list_cat-vMvUjF">B區 NT$3880</div><div class="seat_footer_list-TWhU8V"><div class="list_item-jYRAN7"><span>區 <ins>B1</ins></span><span>排 <ins>4</ins></span><span>座位 <ins>15</ins></span></div></div><div class="con_seats-a3N26U">共計1個座位</div><div class="con_price-YYYONb">NT$3880</div></div><button onclick="document.body.dataset.confirmed=1">確認</button></div>';
+    const panel = '<div class="main_right-ZMnX67"><div class="pc_header_center-mSlDdM"><span>2026年10月3日 週六 下午12:00</span></div> <div class="seat_list-BhwLqz"><div class="seat_list_top-Bk0UC9"><div><div>已選1個座位</div></div></div><div class="seat_list_cat-vMvUjF">B區 NT$3880</div><div class="seat_footer_list-TWhU8V"><div class="list_item-jYRAN7"><span>區 <ins>B1</ins></span><span>排 <ins>4</ins></span><span>座位 <ins>15</ins></span></div></div><div class="con_seats-a3N26U">共計1個座位</div><div class="con_price-YYYONb">NT$3880</div></div><button onclick="document.body.dataset.confirmed=1">確認</button></div>';
     return `<div id="ticket-info"><p>活動日期｜2026年10月3日</p></div><div id="ticket-options">${group('日期', ['10月3日(週六)'], ['active-vB3nra'])}${group('時間', ['12:00'], ['active-vB3nra'])}${group('票種', ['A區 NT$4880', 'B區 NT$3880'], ['disabled-ImixBj', allDisabled ? 'disabled-ImixBj' : ''])}<div class="eventUnit-kxDycC"><div class="value-xWKzpL">1</div>最多4張</div><button>重新整理</button><button id="next">下一步</button></div><script>document.querySelector('#next').onclick=()=>{document.body.dataset.next=String(Number(document.body.dataset.next||0)+1);document.body.insertAdjacentHTML('beforeend',${JSON.stringify(panel)});};</script>`;
 }
 
@@ -111,5 +111,32 @@ test("調整數量時 B 才變停用：停止送出，不再嘗試 C", async () 
         }), /操作後票種變為停用/);
         assert.deepEqual(attempts, ['A區', 'B區']);
         assert.equal(await page.locator('body').getAttribute('data-next'), null);
+    } finally { await browser.close(); }
+});
+
+test("跳過停用票種後，下一順位仍須完整年份正確才能確認", async () => {
+    const browser = await chromium.launch(); const page = await browser.newPage();
+    let recoveries = 0;
+    const recovery = { async isRequired() { return false; }, async recover() { recoveries++; } };
+    try {
+        await page.route('**/*', route => route.fulfill({ body: fixture(), contentType: 'text/html; charset=utf-8' }));
+        for (const year of ['2026', '2027']) {
+            await page.goto(url);
+            await page.setContent(fixture().replace('2026年10月3日 週六', `${year}年10月3日 週六`));
+            const result = prepareBooking({
+                selectSeats: () => new PriorityStrategy(config).select(new KlookTargetAttempt(page, url, 500)),
+                async confirmSeats({ target, value }) { await value.seatSelector.confirmVerifiedSeats(target, value.allocation); },
+                async prepareContact() {},
+            }, recovery, recovery);
+            if (year === '2026') {
+                assert.equal((await result).target.area, 'B區');
+                assert.equal(await page.locator('body').getAttribute('data-confirmed'), '1');
+            } else {
+                await assert.rejects(result, /日期不符/);
+                assert.equal(await page.locator('body').getAttribute('data-confirmed'), null);
+            }
+            assert.equal(await page.locator('body').getAttribute('data-next'), '1');
+        }
+        assert.equal(recoveries, 0);
     } finally { await browser.close(); }
 });

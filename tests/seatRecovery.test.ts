@@ -11,7 +11,7 @@ const target = { date: "2026-10-03", time: "12:00", area: "A區", quantity: 1, a
 const expiry = '未於時限內確認，票券預留失敗';
 const modal = (action = "document.body.dataset.ok=String(Number(document.body.dataset.ok || 0)+1)") =>
     `<div class="klk-modal-alert"><p>${expiry}</p><button onclick="${action}">OK</button></div>`;
-const panel = (number = '17') => `<div class="main_right-ZMnX67">2026年10月3日 週六 下午12:00
+const panel = (number = '17') => `<div class="main_right-ZMnX67"><div class="pc_header_center-mSlDdM"><span>2026年10月3日 週六 下午12:00</span></div>
 <div>00:00</div><div class="seat_list-BhwLqz"><div class="seat_list_top-Bk0UC9"><div><div>已選1個座位</div></div></div>
 <div class="seat_list_cat-vMvUjF">A區（NT$4,880）</div>
 <div class="seat_footer_list-TWhU8V"><div class="list_item-jYRAN7"><span>區 <ins>A1</ins></span><span>排 <ins>10</ins></span><span>座位 <ins>${number}</ins></span></div></div>

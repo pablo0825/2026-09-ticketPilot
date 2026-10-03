@@ -18,6 +18,7 @@ export type Allocation =
 
 export interface SeatResult {
     text: string;
+    session: string;
     area: string;
     total: string;
     seats: AssignedSeat[];
@@ -32,6 +33,7 @@ export interface SeatResult {
 const selectors = {
     panel: seatPanelSelector,
     list: ".seat_list-BhwLqz",
+    session: ".pc_header_center-mSlDdM > span",
     area: ".seat_list_cat-vMvUjF",
     seat: ".list_item-jYRAN7",
     total: ".con_seats-a3N26U",
@@ -51,15 +53,16 @@ export function seatKey(seat: AssignedSeat): string {
 function checkSession(text: string, target: TicketTarget): string | undefined {
     const [year, month, day] = target.date.split("-").map(Number);
     const [hour, minute] = target.time.split(":").map(Number);
-    const dateTime = new RegExp(`${year}\\s*年\\s*0?${month}\\s*月\\s*0?${day}\\s*日\\s*(?:週|星期)[一二三四五六日天]\\s*(上午|下午)\\s*(\\d{1,2}):(\\d{2})(?!\\d)`);
-    // 保留換行／空白，否則場次 12:00 與倒數 00:06 會變成 12:0000:06。
-    const match = text.normalize("NFKC").match(dateTime);
+    // 只接受唯一場次欄位的完整文字，不從面板其他日期或倒數中搜尋。
+    const match = text.normalize("NFKC").trim().match(/^(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(?:週|星期)[一二三四五六日天]\s*(上午|下午)\s*(\d{1,2}):(\d{2})$/);
     if (!match) return `尚未讀到 ${target.date} 的完整場次資料`;
-
-    const displayedHour = Number(match[2]);
-    if (displayedHour < 1 || displayedHour > 12) return "場次時間格式無法辨識";
-    const actualHour = displayedHour % 12 + (match[1] === "下午" ? 12 : 0);
-    const actualMinute = Number(match[3]);
+    if (Number(match[1]) !== year || Number(match[2]) !== month || Number(match[3]) !== day) {
+        return `日期不符：預期 ${target.date}，實際 ${match[1]}-${match[2]}-${match[3]}`;
+    }
+    const displayedHour = Number(match[5]);
+    const actualMinute = Number(match[6]);
+    if (displayedHour < 1 || displayedHour > 12 || actualMinute > 59) return "場次時間格式無法辨識";
+    const actualHour = displayedHour % 12 + (match[4] === "下午" ? 12 : 0);
     if (actualHour !== hour || actualMinute !== minute) {
         const actualTime = `${String(actualHour).padStart(2, "0")}:${String(actualMinute).padStart(2, "0")}`;
         return `時間不符：預期 ${target.time}，實際 ${actualTime}`;
@@ -92,7 +95,7 @@ function checkSeats(result: SeatResult, quantity: number): string | undefined {
 
 // undefined 代表核對通過；字串是尚未符合的原因，不代表售罄。
 export function getSeatResultMismatch(result: SeatResult, target: TicketTarget): string | undefined {
-    return checkSession(result.text, target)
+    return checkSession(result.session, target)
         ?? checkArea(result.area, target.area)
         ?? (result.loading ? "配位畫面仍在載入" : undefined)
         ?? (!result.structureValid ? "配位欄位缺少、重複或結構未知" : undefined)
@@ -209,7 +212,7 @@ export class KlookSeatSelector {
     private readSeatResult(): Promise<SeatResult> {
         // 一次讀取同一份 DOM，避免各欄位取到不同時間的配位狀態。
         return this.panel.evaluate((element, s): SeatResult => {
-            const [list, area, total, selected, price, rows] = [s.list, s.area, s.total, s.selected, s.price, s.rows]
+            const [list, area, total, selected, price, rows, session] = [s.list, s.area, s.total, s.selected, s.price, s.rows, s.session]
                 .map(selector => {
                     const matches = element.querySelectorAll(selector);
                     return matches.length === 1 ? matches[0]! : null;
@@ -224,7 +227,7 @@ export class KlookSeatSelector {
             const items = Array.from(element.querySelectorAll(s.seat));
             if (items.length === 0) structureValid = false;
             // textContent 也會包含隱藏資料；每列、欄位及值都必須實際顯示。
-            const requiredNodes = [list, area, total, selected, selectedCount, price, rows,
+            const requiredNodes = [list, area, total, selected, selectedCount, price, rows, session,
                 ...items.flatMap(item => [item, ...item.querySelectorAll("span, ins")])];
             for (const node of requiredNodes) {
                 if (!node || node.getClientRects().length === 0) {
@@ -265,6 +268,7 @@ export class KlookSeatSelector {
                 });
             return {
                 text: (element as HTMLElement).innerText,
+                session: session?.textContent ?? "",
                 area: area?.textContent ?? "",
                 total: total?.textContent ?? "",
                 selected: selectedCount?.textContent ?? "",

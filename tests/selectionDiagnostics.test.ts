@@ -56,7 +56,7 @@ test("已觀察的 seatModal 外殼先出現時等待配位；內層未知提示
     try {
         for (const hasUnknown of [false, true]) {
             const page = await browser.newPage();
-            const result = `<div class="main_right-ZMnX67">2026年10月3日 週六 下午12:00
+            const result = `<div class="main_right-ZMnX67"><div class="pc_header_center-mSlDdM"><span>2026年10月3日 週六 下午12:00</span></div>
 <div class="seat_list-BhwLqz"><div class="seat_list_top-Bk0UC9"><div><div>已選1個座位</div></div></div><div class="seat_list_cat-vMvUjF">A區（NT$4,880）</div>
 <div class="seat_footer_list-TWhU8V"><div class="list_item-jYRAN7"><span>區 <ins>A1</ins></span><span>排 <ins>4</ins></span><span>座位 <ins>15</ins></span></div></div><div class="con_seats-a3N26U">共計1個座位</div><div class="con_price-YYYONb">NT$4880</div></div><button>確認</button></div>`;
             await page.setContent(`<div id="ticket-options"><button onclick="document.body.dataset.next='1';document.querySelector('.seatModal').hidden=false;setTimeout(()=>document.querySelector('.seatModal').innerHTML=${JSON.stringify(result).replaceAll('"', '&quot;')},150)">下一步</button></div>

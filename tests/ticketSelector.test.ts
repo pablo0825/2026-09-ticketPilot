@@ -106,7 +106,7 @@ test("點擊未生效時不宣告成功", async () => {
     } finally { await page.close(); }
 });
 
-test("錯誤設定或年份不符時停止，不變更選票", async () => {
+test("錯誤設定時停止，不變更選票", async () => {
     const page = await browser.newPage();
     try {
         await page.setContent(fixture());
@@ -116,7 +116,6 @@ test("錯誤設定或年份不符時停止，不變更選票", async () => {
             { ...target, time: "25:00" },
             { ...target, quantity: 0 },
             { ...target, area: "　" },
-            { ...target, date: "2027-10-03" },
         ]) {
             await assert.rejects(adapter.selectAndVerify(invalid, 4880));
         }
@@ -248,25 +247,6 @@ test("價格不符即使同時有恢復需求，也不換順位、不返回、�
     } finally { await page.close(); }
 });
 
-test("日期改用斜線仍可選票；只有其他區塊或開賣日符合時不點選", async () => {
-    const page = await browser.newPage();
-    const original = '<div id="ticket-info"><p>活動日期｜2026 年 10 月 03 日（六）</p></div>';
-    try {
-        await page.setContent(fixture().replace(original, '<div id="ticket-info"><p>• 時間｜2026/10/03（六）</p></div>'));
-        await new KlookTicketSelector(page, 500).selectAndVerify(target, 4880);
-        assert.equal(await page.locator('.value-xWKzpL').innerText(), '1');
-        for (const dateInfo of [
-            '<div id="ticket-info"><p>活動日期｜2026/10/04</p></div><p>2026年10月3日</p>',
-            '<div id="ticket-info"><p>開賣日期｜2026/10/03</p></div>',
-        ]) {
-            await page.setContent(fixture().replace(original, dateInfo));
-            await page.locator('#ticket-options').evaluate(el => el.addEventListener('click', () => document.body.dataset.clicked = '1'));
-            await assert.rejects(new KlookTicketSelector(page, 250).selectAndVerify(target, 4880), PurchaseStop);
-            assert.equal(await page.locator('body').getAttribute('data-clicked'), null);
-            assert.equal(await page.locator('body').getAttribute('data-next'), null);
-        }
-    } finally { await page.close(); }
-});
 
 test("兩張票可重新勾選連位；已符合設定不重複點擊", async () => {
     const page = await browser.newPage();
@@ -327,5 +307,92 @@ test("連位在最後驗證時被重設，必須停止", async () => {
         });
         await assert.rejects(new KlookTicketSelector(page, 800).selectAndVerify({ ...target, quantity: 2, adjacent: true }, 4880), /最終相連座位設定不一致/);
         assert.equal(await page.locator('body').getAttribute('data-next'), null);
+    } finally { await page.close(); }
+});
+
+test("日期以選項為準：兩場月日與完整年份格式不依賴活動文案", async () => {
+    const page = await browser.newPage();
+    try {
+        for (const [label, date] of [
+            ["11月2日(週一)", "2026-11-02"], ["11月15日(週日)", "2026-11-15"],
+            ["2026/11/02（一）", "2026-11-02"], ["2026年11月2日", "2026-11-02"],
+            ["１１月０２日（週一）", "2026-11-02"],
+        ]) {
+            await page.setContent(fixture().replace('10月3日(週六)', label!));
+            await page.locator('#ticket-info').evaluate(el => el.remove());
+            assert.equal(await new KlookTicketSelector(page, 500).selectAndVerify({ ...target, date: date! }, 4880), 'selected');
+            assert.equal(await page.locator('body').getAttribute('data-next'), null);
+        }
+        // 月日選項不能證明年份；年份交由配位及確認前驗證。
+        await page.setContent(fixture());
+        assert.equal(await new KlookTicketSelector(page, 500).selectAndVerify({ ...target, date: '2027-10-03' }, 4880), 'selected');
+    } finally { await page.close(); }
+});
+
+test("日期錯年、未知格式、重複或停用皆停止，不換順位或消耗恢復", async () => {
+    const page = await browser.newPage();
+    try {
+        for (const mode of ['year', 'unknown', 'duplicate', 'disabled', 'active-disabled', 'missing']) {
+            await page.setContent(fixture());
+            const dateGroup = page.locator('.skuGroup-hk2pfU').filter({ hasText: '日期' });
+            await dateGroup.evaluate((el, mode) => {
+                const option = el.querySelector('.spec-LwNjSh')!;
+                if (mode === 'year') option.textContent = '2027年10月3日';
+                if (mode === 'unknown') option.textContent = '10/03';
+                if (mode === 'duplicate') option.after(option.cloneNode(true));
+                if (mode === 'missing') option.remove();
+                if (mode.includes('disabled')) {
+                    option.classList.add('disabled-ImixBj');
+                    if (mode === 'disabled') option.classList.remove('active-vB3nra');
+                }
+            }, mode);
+            await page.locator('#ticket-options').evaluate(el => el.addEventListener('click', () => document.body.dataset.clicked = '1'));
+            let attempts = 0;
+            let recoveries = 0;
+            const config = { ...eventConfig, targets: [eventConfig.targets[0]!, { ...eventConfig.targets[0]!, area: 'B區' }] };
+            const strategy = new PriorityStrategy(config);
+            const recovery = { isRequired: async () => attempts > 0, recover: async () => { recoveries++; } };
+            await assert.rejects(prepareBooking({
+                selectSeats: () => strategy.select({
+                    attempt: async () => {
+                        attempts++;
+                        await new KlookTicketSelector(page, 250).selectAndVerify(target, 4880);
+                        return { status: 'unavailable', reason: 'disabled' };
+                    }, returnAfterFailure: async () => { throw new Error('不可返回'); },
+                }),
+                confirmSeats: async () => { throw new Error('不可確認'); },
+                prepareContact: async () => { throw new Error('不可提交'); },
+            }, recovery, recovery), PurchaseStop);
+            assert.equal(attempts, 1);
+            assert.equal(recoveries, 0);
+            assert.equal(await page.locator('body').getAttribute('data-clicked'), null);
+        }
+    } finally { await page.close(); }
+});
+
+test("日期在後續選票時重排或改字，重新定位並核對日期", async () => {
+    const page = await browser.newPage();
+    try {
+        for (const mode of ['reorder', 'replace', 'disable', 'duplicate']) {
+            await page.setContent(fixture());
+            await page.evaluate(mode => {
+                const date = document.querySelector('.skuGroup-hk2pfU .spec-LwNjSh')!;
+                // 票種被選取後模擬網站更新日期區塊。
+                const area = Array.from(document.querySelectorAll('.spec-LwNjSh')).find(el => el.textContent === 'A區（NT$4,880）')!;
+                area.addEventListener('click', () => {
+                    if (mode === 'replace') date.textContent = '10月4日(週日)';
+                    if (mode === 'disable') date.classList.add('disabled-ImixBj');
+                    if (mode === 'duplicate' || mode === 'reorder') {
+                        const other = date.cloneNode(true) as HTMLElement;
+                        if (mode === 'reorder') { other.textContent = '10月4日(週日)'; other.classList.remove('active-vB3nra'); }
+                        date.before(other);
+                    }
+                });
+            }, mode);
+            const selection = new KlookTicketSelector(page, 400).selectAndVerify(target, 4880);
+            if (mode === 'reorder') assert.equal(await selection, 'selected');
+            else await assert.rejects(selection, PurchaseStop);
+            assert.equal(await page.locator('body').getAttribute('data-next'), null);
+        }
     } finally { await page.close(); }
 });
