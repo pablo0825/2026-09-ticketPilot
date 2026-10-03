@@ -27,25 +27,39 @@ export async function verifyEventDate(page: Page, expected: string, timeout: num
     const info = page.locator("#ticket-info").filter({ visible: true });
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
-        const count = await info.count();
-        if (count > 1) throw new PurchaseStop("演出日期資訊區塊不唯一，已停止。");
-        if (count === 1) {
-            const dates: string[] = [];
-            for (const row of await info.locator("p, li").filter({ visible: true }).all()) {
-                const sections = await row.evaluate(element => {
-                    const headings: { level: number; text: string }[] = [];
-                    for (const node of element.closest("#ticket-info")!.querySelectorAll("h1, h2, h3, h4, h5, h6, p, li")) {
-                        if (node === element) break;
-                        if (/^H[1-6]$/.test(node.tagName) && node.textContent?.trim()) {
-                            const level = Number(node.tagName[1]);
-                            while (headings.length && headings[headings.length - 1]!.level >= level) headings.pop();
-                            headings.push({ level, text: node.textContent.trim() });
-                        }
+        // 同一次同步讀取完成容器判斷、標題層級與文字；不跨次保留 DOM 節點。
+        // evaluateAll 在容器消失時回傳空集合，不另啟動 locator 的預設等待。
+        const snapshot = await info.evaluateAll(containers => {
+            if (containers.length !== 1) return { count: containers.length, rows: [] };
+            const container = containers[0]!;
+            if (!container.isConnected) return { count: 0, rows: [] };
+            const headings: { level: number; text: string }[] = [];
+            const rows: { sections: string[]; text: string }[] = [];
+            for (const node of container.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, h6, p, li")) {
+                if (/^H[1-6]$/.test(node.tagName)) {
+                    const text = node.textContent?.trim();
+                    if (text) {
+                        const level = Number(node.tagName[1]);
+                        while (headings.length && headings[headings.length - 1]!.level >= level) headings.pop();
+                        headings.push({ level, text });
                     }
-                    return headings.map(heading => heading.text);
-                });
-                if (sections.some(section => /售票|開賣|取票|退票|退款|登記/.test(section))) continue;
-                const text = (await row.innerText()).normalize("NFKC").trim();
+                    continue;
+                }
+                // CSS 隱藏（含祖先 display:none）及無可見尺寸的段落都不採用。
+                const style = getComputedStyle(node);
+                const rect = node.getBoundingClientRect();
+                if (style.visibility === "hidden" || style.visibility === "collapse" || rect.width <= 0 || rect.height <= 0) continue;
+                rows.push({ sections: headings.map(heading => heading.text), text: node.innerText });
+            }
+            return { count: 1, rows };
+        });
+        if (Date.now() >= deadline) break;
+        if (snapshot.count > 1) throw new PurchaseStop("演出日期資訊區塊不唯一，已停止。");
+        if (snapshot.count === 1) {
+            const dates: string[] = [];
+            for (const row of snapshot.rows) {
+                if (row.sections.some(section => /售票|開賣|取票|退票|退款|登記/.test(section))) continue;
+                const text = row.text.normalize("NFKC").trim();
                 const field = text.match(/^[^\p{L}\p{N}]*(活動日期|演出日期|日期|演出時間|時間)\s*[|:]\s*(.+)$/u);
                 if (!field) continue;
                 // 「演出時間｜17:00 開始」只是時間，不能當成完整日期。
@@ -58,7 +72,8 @@ export async function verifyEventDate(page: Page, expected: string, timeout: num
                 return;
             }
         }
-        await page.waitForTimeout(200);
+        const remaining = deadline - Date.now();
+        if (remaining > 0) await page.waitForTimeout(Math.min(200, remaining));
     }
     throw new PurchaseStop("未能讀取明確的演出日期欄位，已停止；不使用開賣日或取票日推測。");
 }
