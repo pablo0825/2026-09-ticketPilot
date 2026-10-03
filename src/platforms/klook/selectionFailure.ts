@@ -1,4 +1,4 @@
-import { getSelectionNotices, seatPanelSelector, seatShellSelector } from "./notices.js";
+import { SelectionExpiryNotice, getSelectionNotices, seatPanelSelector, seatShellSelector } from "./notices.js";
 import type { Locator, Page } from "playwright";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { KlookSeatRecovery, KlookQueueRecovery } from "./expiryRecovery.js";
@@ -38,7 +38,7 @@ export class KlookSelectionFailure {
         const notices = await getSelectionNotices(this.page);
         if (notices.length === 1 && (await new KlookQueueRecovery(this.page, this.eventUrl).isRequired() ||
             await new KlookSeatRecovery(this.page, this.eventUrl).isRequired())) {
-            throw new Error("選票前出現已知過期提示，交由既有恢復核對。");
+            throw new SelectionExpiryNotice("選票前出現已知過期提示，交由既有恢復核對。");
         }
         if (!isEventPage(this.page.url(), this.eventUrl) || notices.length > 0) {
             throw new PurchaseStop("選票前已有提示或已離開活動頁，停止；不將舊提示視為本次失敗。");

@@ -1,3 +1,4 @@
+import { SelectionExpiryNotice } from "./notices.js";
 import { parseDateOption, matchesDateOption } from "./eventDate.js";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { normalizeTicketName, parseTicketLabel } from "./ticketLabel.js";
@@ -36,7 +37,8 @@ export class KlookTicketSelector {
     private readonly root: Locator;
 
     // page, timeout 作為物件的私有屬性
-    constructor(private readonly page: Page, private readonly timeout = 10_000) {
+    constructor(private readonly page: Page, private readonly timeout = 10_000,
+        private readonly observeDateNotice: () => Promise<void> = async () => {}) {
         // 建立定位器
         // .locator 指定檢查哪個元素
         this.root = page.locator(selectors.root);
@@ -82,15 +84,16 @@ export class KlookTicketSelector {
         try {
             const heading = this.page.locator(selectors.groupName).filter({ hasText: /^日期\s*$/ });
             const group = this.root.locator(selectors.group).filter({ has: heading });
-            await this.waitForUniqueElement(group, "日期群組");
+            await this.observeDateNotice();
+            await this.waitForUniqueElement(group, "日期群組", this.observeDateNotice);
             const options = group.locator(selectors.option).filter({ visible: true });
-            await this.waitUntil(async () => await options.count() > 0, "日期選項尚未載入");
+            await this.waitUntil(async () => await options.count() > 0, "日期選項尚未載入", this.observeDateNotice);
             const labels = await options.allInnerTexts();
             const matches = labels.filter(label => matchesDateOption(parseDateOption(label), expected));
             if (matches.length !== 1) throw new PurchaseStop("日期選項不符合或有多個匹配項，已停止。");
             // 依文字重新定位，不保留 nth 索引，避免 DOM 重排後指向另一日期。
             const option = options.filter({ hasText: new RegExp(`^${escapeRegex(matches[0]!)}$`) });
-            await this.waitForUniqueElement(option, "日期選項");
+            await this.waitForUniqueElement(option, "日期選項", this.observeDateNotice);
             if (await this.isDisabled(option) || !await option.isEnabled()) {
                 throw new PurchaseStop("日期選項目前停用，已停止；不換票種。");
             }
@@ -99,7 +102,7 @@ export class KlookTicketSelector {
             }
             return option;
         } catch (error) {
-            if (error instanceof PurchaseStop) throw error;
+            if (error instanceof PurchaseStop || error instanceof SelectionExpiryNotice) throw error;
             throw new PurchaseStop("日期選項狀態未知，已停止；不換票種或重啟購票。");
         }
     }
@@ -109,12 +112,12 @@ export class KlookTicketSelector {
             const option = await this.findDate(expected);
             if (!await this.isSelected(option)) {
                 await option.click({ timeout: this.timeout });
-                await this.waitUntil(() => this.isSelected(option), "日期點選後沒有確認選中");
+                await this.waitUntil(() => this.isSelected(option), "日期點選後沒有確認選中", this.observeDateNotice);
             }
             await this.verifyDate(expected);
             log(`日期選項已選：${(await option.innerText()).trim()}；完整年份於配位確認前核對。`);
         } catch (error) {
-            if (error instanceof PurchaseStop) throw error;
+            if (error instanceof PurchaseStop || error instanceof SelectionExpiryNotice) throw error;
             throw new PurchaseStop("日期選取結果未知，已停止；不換票種或重啟購票。");
         }
     }
@@ -296,7 +299,7 @@ export class KlookTicketSelector {
     }
 
     // 等待唯一的可見元素(就是定義要找網頁中的哪一個區塊)
-    private async waitForUniqueElement(locator: Locator, name: string): Promise<void> {
+    private async waitForUniqueElement(locator: Locator, name: string, observe?: () => Promise<void>): Promise<void> {
         await this.waitUntil(async () => {
             // 取得符合條件的元素數量
             const count = await locator.count();
@@ -306,18 +309,19 @@ export class KlookTicketSelector {
             // 剛好一個元素，而且可見，才回傳 true
             // .isVisible() 檢查已定位的元素是否可見
             return count === 1 && await locator.isVisible();
-        }, `找不到唯一可見的${name}`);
+        }, `找不到唯一可見的${name}`, observe);
     }
 
     // 期限內反覆檢查
     // check 回傳 true, false
-    private async waitUntil(check: () => Promise<boolean>, message: string): Promise<void> {
+    private async waitUntil(check: () => Promise<boolean>, message: string, observe?: () => Promise<void>): Promise<void> {
         // 從現在起約 10 秒
         const deadline = Date.now() + this.timeout;
 
         // 時間還沒到就繼續檢查
         while (Date.now() < deadline) {
             // check 為 true 結束，為 false 繼續執行
+            await observe?.();
             if (await check()) return;
 
             // 只等待 DOM 更新，不刷新網頁。

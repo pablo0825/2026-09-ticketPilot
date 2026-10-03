@@ -1,5 +1,8 @@
 import type { Locator, Page } from "playwright";
 
+// 僅標記已辨識的選票過期提示；恢復資格與額度仍由恢復流程核對。
+export class SelectionExpiryNotice extends Error {}
+
 // Klook 提示的共用只讀規則；是否恢復、按哪個按鈕由各流程決定。
 export const seatPanelSelector = ".main_right-ZMnX67";
 export const seatShellSelector = ".seatModal";
