@@ -46,7 +46,7 @@ async function openEventPage(eventUrlString: string): Promise<Page> {
     // 讀取瀏覽器的 navigator.webdriver，並打印結果
     console.log("啟動頁 navigator.webdriver：", await page.evaluate(() => navigator.webdriver));
 
-    await prepareStartup(page, eventUrlString);
+    await prepareStartup(page, eventUrlString, { saleSchedule: eventConfig.saleSchedule });
     return page;
 }
 
