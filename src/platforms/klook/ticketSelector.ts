@@ -11,6 +11,7 @@ const selectors = {
     group: ".skuGroup-hk2pfU",
     groupName: ".name-Cu4gxk",
     option: ".spec-LwNjSh",
+    disabledOptionClass: "disabled-ImixBj",
     selectedClass: "active-vB3nra",
     ticketRow: ".eventUnit-kxDycC",
     counter: ".counter-vVrWZ9",
@@ -40,7 +41,7 @@ export class KlookTicketSelector {
         this.root = page.locator(selectors.root);
     }
 
-    async selectAndVerify(target: TicketTarget, expectedUnitPrice: number): Promise<void> {
+    async selectAndVerify(target: TicketTarget, expectedUnitPrice: number): Promise<"selected" | "disabled"> {
         // 檢查票券格式是否符合
         validateTicketTarget(target);
         if (!Number.isSafeInteger(expectedUnitPrice) || expectedUnitPrice <= 0) {
@@ -53,6 +54,12 @@ export class KlookTicketSelector {
         const date = await this.selectDate(target.date);
         const time = await this.selectTime(target.time);
         const area = await this.selectArea(target.area, expectedUnitPrice);
+        if (!area) {
+            await this.verifySelectedOption(date, "日期");
+            await this.verifySelectedOption(time, "時間");
+            log(`票種目前停用：${target.area} / ${expectedUnitPrice}；未送出選票。`);
+            return "disabled";
+        }
         await this.setQuantity(target.quantity);
         await this.setAdjacentPreference(target);
 
@@ -62,10 +69,12 @@ export class KlookTicketSelector {
         await this.verifySelectedOption(area, "票區");
         const matched = await this.findArea(target.area, expectedUnitPrice);
         await this.verifySelectedOption(matched, "票區");
+        if (await this.isDisabled(matched)) throw new PurchaseStop("選票操作後票種變為停用，已停止；不送出。");
         await this.verifyQuantity(target.quantity);
         await this.verifyAdjacentPreference(target);
 
         log("選票驗證完成，目前尚未取得座位。");
+        return "selected";
     }
 
     // 找到並選中日期，最後回傳定位器
@@ -119,8 +128,12 @@ export class KlookTicketSelector {
         }
     }
 
-    private async selectArea(area: string, expectedUnitPrice: number): Promise<Locator> {
+    private async selectArea(area: string, expectedUnitPrice: number): Promise<Locator | null> {
         const option = await this.findArea(area, expectedUnitPrice);
+        if (await this.isDisabled(option)) {
+            if (await this.isSelected(option)) throw new PurchaseStop("票種同時為已選取與停用，狀態矛盾，已停止。");
+            return null;
+        }
         if (!await this.isSelected(option)) {
             await option.click({ timeout: this.timeout });
             await this.waitUntil(() => this.isSelected(option), "票種點選後沒有確認選中");
@@ -224,6 +237,10 @@ export class KlookTicketSelector {
         if (target.quantity === 1) return;
         const checked = await this.root.locator(selectors.adjacent).getAttribute("aria-checked");
         if (checked !== String(target.adjacent)) throw new Error("最終相連座位設定不一致。");
+    }
+
+    private isDisabled(option: Locator): Promise<boolean> {
+        return option.evaluate((element, className) => element.classList.contains(className), selectors.disabledOptionClass);
     }
 
     private isSelected(option: Locator): Promise<boolean> {

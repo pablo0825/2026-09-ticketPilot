@@ -4,7 +4,8 @@ import { PurchaseStop } from "./purchaseStop.js";
 
 export type AttemptResult<T> =
     | { status: "matched"; value: T }
-    | { status: "unavailable"; reason: "sold-out" | "assignment-failed" };
+    // disabled 表示尚未送出，且 adapter 已確認仍可在選票頁繼續。
+    | { status: "unavailable"; reason: "sold-out" | "assignment-failed" | "disabled" };
 
 export interface TargetAttempt<T> {
     // matched 僅代表配位核對完成，尚未確認座位。
@@ -28,14 +29,17 @@ export class PriorityStrategy {
             const target = structuredClone(this.config.targets[this.index]!);
             const result = await adapter.attempt(target);
             if (result.status === "matched") return { target, value: result.value };
+            // 送出前停用可直接換順位；送出後失敗則必須先安全返回。
             // 返回失敗不得交給外層 recovery，亦不得先前進順位。
-            try {
-                await adapter.returnAfterFailure();
-            } catch {
-                throw new PurchaseStop("失敗後未能安全返回選票，已停止；不換區、不重按或轉用恢復額度。");
+            if (result.reason !== "disabled") {
+                try {
+                    await adapter.returnAfterFailure();
+                } catch {
+                    throw new PurchaseStop("失敗後未能安全返回選票，已停止；不換區、不重按或轉用恢復額度。");
+                }
             }
             this.index++;
         }
-        throw new PurchaseStop("NO_TARGET_AVAILABLE：所有設定目標皆明確失敗。");
+        throw new PurchaseStop("NO_TARGET_AVAILABLE：所有設定目標皆明確失敗或目前停用。");
     }
 }
