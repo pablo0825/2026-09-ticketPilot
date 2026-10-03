@@ -4,7 +4,7 @@ import { PurchaseStop } from "./purchaseStop.js";
 
 export type AttemptResult<T> =
     | { status: "matched"; value: T }
-    // disabled 表示尚未送出，且 adapter 已確認仍可在選票頁繼續。
+    // disabled 表示日期、時間或票種在送出前不可選，且 adapter 已確認仍可在選票頁繼續。
     | { status: "unavailable"; reason: "sold-out" | "assignment-failed" | "disabled" };
 
 export interface TargetAttempt<T> {

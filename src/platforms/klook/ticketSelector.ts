@@ -35,16 +35,19 @@ export class KlookTicketSelector {
     // 儲存票卷選擇區的定位器
     // Locator Playwright 用來定位網頁元素的物件
     private readonly root: Locator;
+    // 尚未觀察到跨場次下游更新完成的實站訊號；切換後不能沿用停用判斷。
+    private sessionChanged = false;
 
     // page, timeout 作為物件的私有屬性
     constructor(private readonly page: Page, private readonly timeout = 10_000,
-        private readonly observeDateNotice: () => Promise<void> = async () => {}) {
+        private readonly observeSelectionNotice: () => Promise<void> = async () => {}) {
         // 建立定位器
         // .locator 指定檢查哪個元素
         this.root = page.locator(selectors.root);
     }
 
     async selectAndVerify(target: TicketTarget, expectedUnitPrice: number): Promise<"selected" | "disabled"> {
+        this.sessionChanged = false;
         // 檢查票券格式是否符合
         validateTicketTarget(target);
         if (!Number.isSafeInteger(expectedUnitPrice) || expectedUnitPrice <= 0) {
@@ -53,9 +56,16 @@ export class KlookTicketSelector {
         // 確認票券選擇區只有一個元素
         await this.waitForUniqueElement(this.root, "票券選擇區");
 
-        // 
-        await this.selectDate(target.date);
+        if (!await this.selectDate(target.date)) {
+            log(`日期目前不可選：${target.date}；未送出選票。`);
+            return "disabled";
+        }
         const time = await this.selectTime(target.time);
+        if (!time) {
+            await this.verifyDate(target.date);
+            log(`時間目前不可選：${target.date} ${target.time}；未送出選票。`);
+            return "disabled";
+        }
         const area = await this.selectArea(target.area, expectedUnitPrice);
         if (!area) {
             await this.verifyDate(target.date);
@@ -69,6 +79,7 @@ export class KlookTicketSelector {
         // 操作完再讀一次，確保後面的操作沒有重設前面的選擇。
         await this.verifyDate(target.date);
         await this.verifySelectedOption(time, "時間");
+        if (await this.isDisabled(area)) throw new PurchaseStop("選票操作後票種變為停用，已停止；不送出。");
         await this.verifySelectedOption(area, "票區");
         const matched = await this.findArea(target.area, expectedUnitPrice);
         await this.verifySelectedOption(matched, "票區");
@@ -84,19 +95,16 @@ export class KlookTicketSelector {
         try {
             const heading = this.page.locator(selectors.groupName).filter({ hasText: /^日期\s*$/ });
             const group = this.root.locator(selectors.group).filter({ has: heading });
-            await this.observeDateNotice();
-            await this.waitForUniqueElement(group, "日期群組", this.observeDateNotice);
+            await this.observeSelectionNotice();
+            await this.waitForUniqueElement(group, "日期群組", this.observeSelectionNotice);
             const options = group.locator(selectors.option).filter({ visible: true });
-            await this.waitUntil(async () => await options.count() > 0, "日期選項尚未載入", this.observeDateNotice);
+            await this.waitUntil(async () => await options.count() > 0, "日期選項尚未載入", this.observeSelectionNotice);
             const labels = await options.allInnerTexts();
             const matches = labels.filter(label => matchesDateOption(parseDateOption(label), expected));
             if (matches.length !== 1) throw new PurchaseStop("日期選項不符合或有多個匹配項，已停止。");
             // 依文字重新定位，不保留 nth 索引，避免 DOM 重排後指向另一日期。
             const option = options.filter({ hasText: new RegExp(`^${escapeRegex(matches[0]!)}$`) });
-            await this.waitForUniqueElement(option, "日期選項", this.observeDateNotice);
-            if (await this.isDisabled(option) || !await option.isEnabled()) {
-                throw new PurchaseStop("日期選項目前停用，已停止；不換票種。");
-            }
+            await this.waitForUniqueElement(option, "日期選項", this.observeSelectionNotice);
             if (!matchesDateOption(parseDateOption(await option.innerText()), expected)) {
                 throw new PurchaseStop("日期選項已變動，已停止。");
             }
@@ -107,15 +115,18 @@ export class KlookTicketSelector {
         }
     }
 
-    private async selectDate(expected: string): Promise<void> {
+    private async selectDate(expected: string): Promise<boolean> {
         try {
             const option = await this.findDate(expected);
+            if (await this.isUnavailableSessionOption(option, "日期")) return false;
             if (!await this.isSelected(option)) {
+                this.sessionChanged = true;
                 await option.click({ timeout: this.timeout });
-                await this.waitUntil(() => this.isSelected(option), "日期點選後沒有確認選中", this.observeDateNotice);
+                await this.waitUntil(() => this.isSelected(option), "日期點選後沒有確認選中", this.observeSelectionNotice);
             }
             await this.verifyDate(expected);
             log(`日期選項已選：${(await option.innerText()).trim()}；完整年份於配位確認前核對。`);
+            return true;
         } catch (error) {
             if (error instanceof PurchaseStop || error instanceof SelectionExpiryNotice) throw error;
             throw new PurchaseStop("日期選取結果未知，已停止；不換票種或重啟購票。");
@@ -126,8 +137,46 @@ export class KlookTicketSelector {
         await this.verifySelectedOption(await this.findDate(expected), "日期");
     }
 
-    private selectTime(time: string): Promise<Locator> {
-        return this.selectOption("時間", new RegExp(`^\\s*${escapeRegex(time)}\\s*$`));
+    // 只有初次選擇時，才可把已觀察的停用＋售罄組合回報為不可選。
+    private async isUnavailableSessionOption(option: Locator, name: string): Promise<boolean> {
+        const state = await option.evaluate(el => ({
+            disabled: el.classList.contains("disabled-ImixBj"),
+            soldout: el.classList.contains("soldout-sBHQQa"),
+            selected: el.classList.contains("active-vB3nra"),
+        }));
+        if (state.disabled || state.soldout || !await option.isEnabled()) {
+            if (state.selected || !state.disabled || !state.soldout) {
+                throw new PurchaseStop(`${name}停用狀態不明或矛盾，已停止。`);
+            }
+            if (this.sessionChanged) {
+                throw new PurchaseStop("場次已切換，但尚無法確認下游停用選項屬於新場次，已停止；不跳順位。");
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private async selectTime(time: string): Promise<Locator | null> {
+        try {
+            const heading = this.page.locator(selectors.groupName).filter({ hasText: /^時間\s*$/ });
+            const group = this.root.locator(selectors.group).filter({ has: heading });
+            await this.waitForUniqueElement(group, "時間群組", this.observeSelectionNotice);
+            const option = group.locator(selectors.option).filter({ visible: true,
+                hasText: new RegExp(`^\\s*${escapeRegex(time)}\\s*$`) });
+            await this.waitForUniqueElement(option, "時間選項", this.observeSelectionNotice);
+            if (await this.isUnavailableSessionOption(option, "時間")) return null;
+            if (!await this.isSelected(option)) {
+                this.sessionChanged = true;
+                await option.click({ timeout: this.timeout });
+                await this.waitUntil(() => this.isSelected(option), "時間點選後沒有確認選中", this.observeSelectionNotice);
+            }
+            await this.verifySelectedOption(option, "時間");
+            log(`時間已選：${(await option.innerText()).trim()}`);
+            return option;
+        } catch (error) {
+            if (error instanceof PurchaseStop || error instanceof SelectionExpiryNotice) throw error;
+            throw new PurchaseStop(`時間選項狀態未知，已停止；不換順位或重啟購票。${error instanceof Error ? error.message : ""}`);
+        }
     }
 
     private async findArea(area: string, expectedUnitPrice: number): Promise<Locator> {
@@ -160,6 +209,7 @@ export class KlookTicketSelector {
         const option = await this.findArea(area, expectedUnitPrice);
         if (await this.isDisabled(option)) {
             if (await this.isSelected(option)) throw new PurchaseStop("票種同時為已選取與停用，狀態矛盾，已停止。");
+            if (this.sessionChanged) throw new PurchaseStop("場次已切換，但尚無法確認停用票種屬於新場次，已停止；不跳順位。");
             return null;
         }
         if (!await this.isSelected(option)) {
@@ -167,36 +217,6 @@ export class KlookTicketSelector {
             await this.waitUntil(() => this.isSelected(option), "票種點選後沒有確認選中");
         }
         log(`票種已選：${(await option.innerText()).trim()}`);
-        return option;
-    }
-
-    // 找到群組中的選項，並回傳定位器
-    private async selectOption(groupName: string, label: RegExp): Promise<Locator> {
-        // 找到群組標題
-        // hasText 依照文字內容篩選
-        const heading = this.page.locator(selectors.groupName).filter({
-            hasText: new RegExp(`^${escapeRegex(groupName)}\\s*$`),
-        });
-        // 找到該標題的群組
-        // 在 root 裡，找到該標題的群組
-        // has 按照指定元素篩選
-        const group = this.root.locator(selectors.group).filter({ has: heading });
-        await this.waitForUniqueElement(group, `${groupName}群組`);
-
-        // 在群組中找到目標
-        const option = group.locator(selectors.option).filter({ hasText: label });
-        await this.waitForUniqueElement(option, `${groupName}選項`);
-
-        // 選項沒有已選中的 css，才去點它
-        if (!await this.isSelected(option)) {
-            // 點擊選項 (返回 boolean)
-            await option.click({ timeout: this.timeout });
-            // 反覆檢查選項是否被選中
-            await this.waitUntil(() => this.isSelected(option), `${groupName}點選後沒有確認選中`);
-        }
-
-        log(`${groupName}已選：${(await option.innerText()).trim()}`);
-
         return option;
     }
 
@@ -251,6 +271,10 @@ export class KlookTicketSelector {
     }
 
     private async verifySelectedOption(option: Locator, name: string): Promise<void> {
+        if (await this.isDisabled(option) || !await option.isEnabled() ||
+            await option.evaluate(el => el.classList.contains("soldout-sBHQQa"))) {
+            throw new PurchaseStop(`${name}最終驗證發現停用，已停止；不換順位。`);
+        }
         const siblings = option.locator("..");
         const selectedCount = await siblings.locator(`${selectors.option}.${selectors.selectedClass}`).count();
         if (!await this.isSelected(option) || selectedCount !== 1) {
