@@ -16,6 +16,6 @@
 <footer><button id="saveContact">下一步</button></footer></div></section>
 <section id="step3" hidden><div id="purchaseSummary" class="card"><h2>本次設定摘要</h2><pre id="summary">請先完成活動與聯絡資料設定。</pre><h2>開始時間</h2><label>執行方式<select id="mode"><option value="now">立即開始</option><option value="scheduled">指定開賣時間</option></select></label><div id="schedule" class="grid" hidden><label>開賣時間（台灣 UTC+8）<input id="saleAt" type="datetime-local" step="1"></label><label>提前刷新<select id="advance"><option value="1">1 秒</option><option value="2">2 秒</option></select></label></div>
 <p>指定的是開賣時間，不是演出時間。按開始後會先確認登入、準備活動頁，再等待開賣。</p><label class="check"><input id="confirm" type="checkbox">我已確認活動、順位與金額，並了解程式會提交聯絡資料，停在付款前。</label>
-<button id="start" disabled>開始購票</button><button id="simulate" class="secondary">模擬執行（不購票）</button><p>執行期間設定固定。請勿同時使用 CLI 啟動購票。</p></div>
+<button id="start" disabled>開始購票</button></div>
 </section><section id="step4" hidden><div class="card"><p id="runLabel"></p><h2 id="status">尚未執行</h2><p id="instruction">完成設定後，即可開始。</p><div class="metrics"><div id="target">順位：—</div><div id="budget">恢復：—</div><div id="countdown"></div></div><p id="browser"></p><div class="section-title"><h3>執行紀錄</h3><div><button id="copy" class="secondary">複製紀錄</button><button id="latest" class="secondary">回到最新</button></div></div><pre id="logs" tabindex="0" aria-label="執行紀錄">尚無紀錄。</pre></div></section>
 </main><script>const token = "__TOKEN__";</script><script src="/app.js"></script></body></html>

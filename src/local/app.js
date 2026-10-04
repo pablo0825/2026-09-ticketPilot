@@ -27,7 +27,6 @@ function showStep(step) {
 document.querySelectorAll("nav button").forEach((button) => button.onclick = () => showStep(button.dataset.step));
 function controls() {
     $("start").disabled = !editing || actionBusy || occupied || simulationRunning || requesting || activityNeedsSave() || !contactReady || !$("confirm").checked;
-    $("simulate").disabled = !editing || actionBusy || occupied || simulationRunning || requesting || activityNeedsSave() || !contactReady;
     updateHomeControls();
 }
 function updateHomeStatus() {
@@ -237,17 +236,11 @@ async function list() {
 function summary() {
     if (!savedActivity) return;
     const draft = activityInput(false);
-    let timing;
-    try {
-        const schedule = scheduleInput();
-        timing = schedule ? `開賣：${schedule.saleAt}，提前 ${schedule.advanceSeconds} 秒刷新` : "立即開始";
-    } catch { timing = "請填寫完整的開賣時間。"; }
     $("summary").textContent = `${draft.eventName}
 ${draft.eventUrl}
 
 ` + draft.targets.map((t, i) => `${i + 1}. ${t.date} ${t.time}｜${t.area}｜NT$${t.unitPrice} × ${t.quantity} = NT$${t.unitPrice * t.quantity}${t.adjacent ? "｜要求連位" : ""}`).join("\n") + `
 
-${timing}
 只接受指定順位；排除：${draft.excludeKeywords.join("、") || "無"}`;
 }
 async function saveActivity() {
@@ -378,7 +371,6 @@ async function begin(simulation) {
     controls();
 }
 $("start").onclick = () => begin(false);
-$("simulate").onclick = () => begin(true);
 function renderLogs(events, truncated) {
     $("logs").textContent = (truncated ? "較早紀錄已省略。\n" : "") + events.filter((item) => item.event.type === "log").map((item) => new Date(item.at).toLocaleTimeString("zh-TW", { timeZone: "Asia/Taipei" }) + "  " + item.event.message).join("\n");
     if (followLog) $("logs").scrollTop = $("logs").scrollHeight;

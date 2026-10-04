@@ -40,8 +40,10 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
         assert(await page.locator('#phone').isDisabled());
         assert(await page.locator('#homeButton').isDisabled());
         releaseSave();
-        await page.locator('#simulate').waitFor({state:'visible'});
-        await page.locator('#simulate').click();
+        await page.locator('#step3').waitFor({state:'visible'});
+        assert.equal(await page.getByRole('button', { name: '模擬執行（不購票）' }).count(), 0);
+        // 僅從測試呼叫模擬流程，正式介面不提供模擬按鈕。
+        await page.evaluate('begin(true)');
 
         await page.getByText('模擬完成（未購票）',{exact:true}).waitFor();
         await page.locator('#homeButton').click();
@@ -70,7 +72,8 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
         await page.locator('#activities').getByText('使用活動').click();
         await page.locator('#step1').waitFor();
         await page.getByRole('button',{name:'③ 確認與開始'}).click();
-        await page.locator('#simulate').click();
+        // 僅從測試呼叫模擬流程，正式介面不提供模擬按鈕。
+        await page.evaluate('begin(true)');
         await page.getByText('模擬完成（未購票）',{exact:true}).waitFor();
         // 模擬畫面收到舊真實快照，標題與日誌仍屬於模擬。
         await page.evaluate('render(currentRun)');

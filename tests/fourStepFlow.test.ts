@@ -35,7 +35,9 @@ test("四步：時間草稿、延遲保存鎖定、一次啟動與run隔離", as
     await page.locator("#confirm").check();
     await page.locator("#advance").selectOption("2");
     assert(!await page.locator("#confirm").isChecked());
-    assert.match(await page.locator("#summary").innerText(), /2027-01-01T10:00:00\+08:00.*2 秒/);
+    assert.doesNotMatch(await page.locator("#summary").innerText(), /立即開始|開賣：/);
+    assert.equal(await page.locator("#saleAt").inputValue(), "2027-01-01T10:00");
+    assert.equal(await page.locator("#advance").inputValue(), "2");
     assert.equal((await store.load(id)).settings.saleSchedule, undefined);
     await page.screenshot({ path: "/tmp/ticket-four-confirm.png", fullPage: true });
     let release: () => void = () => {};
