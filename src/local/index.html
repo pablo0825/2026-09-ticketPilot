@@ -4,7 +4,7 @@
 <nav hidden aria-label="設定步驟"><button data-step="1" class="active">① 活動與順位</button><button data-step="2">② 個資與時間</button><button data-step="3">③ 執行狀態</button></nav>
 <div id="message" role="alert"></div>
 <section id="home"><div class="card"><div class="section-title"><h2>已儲存活動</h2><button id="new">新增活動</button></div>
-<p id="homeRun"></p><button id="viewRun" class="secondary" hidden>上次執行紀錄</button>
+<p id="homeRun" hidden></p><button id="viewRun" class="secondary" hidden>查看目前狀態</button>
 <p id="emptyActivities">尚未儲存活動，請新增活動。</p><div class="table-scroll"><table><thead><tr><th>活動名稱</th><th>演出日期</th><th>演出時間</th><th>操作</th></tr></thead><tbody id="activities"></tbody></table></div></div></section>
 <section id="step1" hidden><div class="card"><div class="section-title"><h2 id="editorTitle">新增活動</h2></div>
 <div class="grid"><label>活動名稱<input id="eventName" required placeholder="輸入官網活動完整名稱"></label><label>活動網址<input id="eventUrl" type="url" required placeholder="https://www.klook.com/zh-TW/event-detail/…/"></label></div>

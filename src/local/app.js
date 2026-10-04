@@ -29,16 +29,24 @@ function controls() {
     updateHomeControls();
 }
 function updateHomeStatus() {
-    if (latestSimulation && !occupied && (simulationRunning || displayMode === "simulation")) {
+    // 首頁只顯示需要處理的目前狀態；紀錄仍留在第三步及本機。
+    $("homeRun").hidden = true;
+    $("homeRun").textContent = "";
+    $("viewRun").hidden = true;
+    if (occupied) {
+        $("homeRun").hidden = false;
         $("viewRun").hidden = false;
-        $("viewRun").textContent = "查看模擬紀錄";
-        $("homeRun").textContent = simulationRunning ? "模擬執行中，不會實際購票。" : "上次模擬已結束，未實際購票。";
-    } else if (currentRun) {
+        $("viewRun").textContent = "查看目前狀態";
+        $("homeRun").textContent = currentRun?.status === "payment-ready"
+            ? "自動流程已完成，瀏覽器仍占用中；請完成付款並關閉購票瀏覽器。"
+            : currentRun?.status === "running"
+                ? "購票流程執行中，不能開始另一輪或刪除活動。"
+                : "購票程序或瀏覽器仍占用中，請查看目前狀態並人工檢查。";
+    } else if (simulationRunning) {
+        $("homeRun").hidden = false;
         $("viewRun").hidden = false;
-        $("viewRun").textContent = occupied ? "查看目前狀態" : "上次執行紀錄";
-        const at = currentRun.events[0]?.at;
-        $("homeRun").textContent = occupied ? "購票程序／瀏覽器仍占用中，不能開始另一輪或刪除活動。"
-            : `上次執行：${currentRun.activityName} · ${at ? new Date(at).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" }) : "時間未記錄"}`;
+        $("viewRun").textContent = "查看模擬狀態";
+        $("homeRun").textContent = "模擬執行中，不會實際購票。";
     }
 }
 function updateHomeControls() {
@@ -319,11 +327,8 @@ function render(run) {
     if (!run) return;
     currentRun = run;
     occupied = run.occupied;
-    $("viewRun").hidden = false;
-    $("viewRun").textContent = occupied ? "查看目前狀態" : "上次執行紀錄";
     const recordedAt = run.events[0]?.at;
     const label = `${run.activityName} · ${recordedAt ? new Date(recordedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" }) : "時間未記錄"}`;
-    $("homeRun").textContent = occupied ? "購票程序／瀏覽器仍占用中，不能開始另一輪或刪除活動。" : `上次執行：${label}`;
     if (displayMode === "simulation" && !occupied) {
         controls();
         return;

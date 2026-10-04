@@ -42,8 +42,7 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
         releaseSave();
         await page.locator('#simulate').waitFor({state:'visible'});
         await page.locator('#simulate').click();
-        await page.locator('#homeButton').click();
-        await page.locator('#viewRun').filter({hasText:'查看模擬紀錄'}).click();
+
         await page.getByText('模擬完成（未購票）',{exact:true}).waitFor();
         await page.locator('#homeButton').click();
         await page.locator('#activities').getByText('使用活動').click();
@@ -59,13 +58,14 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
         await page.locator('#start').click();await page.getByText('提交結果待確認',{exact:true}).waitFor();
         await page.waitForFunction(()=>document.querySelector('#browser')!.textContent!.includes('購票程序已結束'));
         await page.locator('#homeButton').click();
-        await page.locator('#viewRun').click();
-        assert.match(await page.locator('#runLabel').innerText(), /上次執行紀錄/);
-        await page.reload();await page.locator('#home').waitFor();await page.locator('#viewRun').click();await page.getByText('提交結果待確認',{exact:true}).waitFor();
-        await page.waitForTimeout(200);assert.equal(await page.locator('#status').innerText(),'提交結果待確認');
-        assert.doesNotMatch(await page.locator('#logs').innerText(),/0999999999|demo@example.com/);
+        assert(await page.locator('#viewRun').isHidden());
+        assert(await page.locator('#homeRun').isHidden());
+        await page.reload();await page.locator('#home').waitFor();
+        await page.waitForFunction(() => document.querySelector('#status')!.textContent === '提交結果待確認');
+        assert(await page.locator('#viewRun').isHidden());
+        await page.waitForTimeout(200);assert.equal(await page.locator('#status').textContent(),'提交結果待確認');
+        assert.doesNotMatch(await page.locator('#logs').textContent() ?? '',/0999999999|demo@example.com/);
         await page.screenshot({path:'/tmp/ticketpilot-gui-phase6.png',fullPage:true});
-        await page.locator('#homeButton').click();
         await page.locator('#activities').getByText('使用活動').click();
         await page.locator('#step1').waitFor();
         await page.getByRole('button',{name:'③ 執行狀態'}).click();
@@ -75,4 +75,44 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
         await page.evaluate('render(currentRun)');
         assert.match(await page.locator('#runLabel').innerText(), /模擬執行紀錄/);
     }finally{await browser.close();await service.close();await rm(dir,{recursive:true,force:true})}
+});
+
+test("首頁只顯示占用或執行中的狀態，結束紀錄仍保留", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ticket-home-status-"));
+    const service = await startLocalServer(new ActivityStore(join(dir, "events")), { contactPath: join(dir, "contact.json"), runDirectory: join(dir, "runtime") });
+    const browser = await chromium.launch();
+    try {
+        for (const status of ["running", "payment-ready", "failed", "unknown", "interrupted"]) {
+            const page = await browser.newPage();
+            // 以攔截回應呈現真實 SSE 快照，不啟動購票。
+            const run = { id: "fixture", requestId: "fixture", activityName: "測試活動", status, occupied: true, browserOpen: true, message: "測試狀態", events: [], historyTruncated: false };
+            await page.route("**/api/purchase", route => route.fulfill({ json: run }));
+            await page.route("**/api/purchase/events?*", route => route.fulfill({ contentType: "text/event-stream", body: `data: ${JSON.stringify(run)}\n\n` }));
+            await page.goto(service.url);
+            await page.locator("#viewRun").waitFor();
+            assert.equal(await page.locator("#viewRun").textContent(), "查看目前狀態");
+            assert(await page.locator("#new").isDisabled());
+            if (status === "payment-ready") assert.match(await page.locator("#homeRun").textContent() ?? "", /自動流程已完成/);
+            await page.locator("#viewRun").click();
+            await page.locator("#step3").waitFor();
+            await page.locator("#homeButton").click();
+            // 模擬接收到解除占用的下一個快照；不改變執行結果。
+            await page.evaluate("render({...currentRun, occupied:false, browserOpen:false})");
+            assert(await page.locator("#viewRun").isHidden());
+            assert(await page.locator("#homeRun").isHidden());
+            assert.equal(await page.evaluate("currentRun.status"), status);
+            await page.waitForFunction(() => !(document.querySelector("#new") as HTMLButtonElement).disabled);
+            assert(await page.locator("#new").isEnabled());
+            await page.close();
+        }
+        const page = await browser.newPage();
+        await page.goto(service.url);
+        await page.evaluate("renderSimulation({id:'simulation',status:'running',events:[],historyTruncated:false})");
+        await page.locator("#viewRun").filter({ hasText: "查看模擬狀態" }).click();
+        await page.locator("#step3").waitFor();
+        await page.locator("#homeButton").click();
+        await page.evaluate("renderSimulation({...latestSimulation,status:'completed'})");
+        assert(await page.locator("#viewRun").isHidden());
+        assert(await page.locator("#homeRun").isHidden());
+    } finally { await browser.close(); await service.close(); await rm(dir, { recursive: true, force: true }); }
 });
