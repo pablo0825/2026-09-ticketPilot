@@ -33,11 +33,13 @@ export async function startLocalServer(store = new ActivityStore(), options: {
     const runs = new SimulationRuns();
     const streams = new Set<ServerResponse>();
     let origin = "";
+    let mutationTail = Promise.resolve();
     function json(response: ServerResponse, status: number, value: unknown) {
         response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
         response.end(JSON.stringify(value));
     }
     const server = createServer(async (request, response) => {
+        let releaseMutation: (() => void) | undefined;
         let notAccepted: (() => boolean) | undefined;
         try {
             if (request.headers.host !== new URL(origin).host || (request.headers.origin && request.headers.origin !== origin)) {
@@ -61,6 +63,12 @@ export async function startLocalServer(store = new ActivityStore(), options: {
             // EventSource 不能設定自訂 header，訂閱 token 只用於本機短期連線。
             const supplied = request.headers["x-local-token"] ?? (["/api/events", "/api/purchase/events"].includes(url.pathname) ? url.searchParams.get("token") : undefined);
             if (supplied !== token) { json(response, 403, { error: "本機工作階段無效。" }); return; }
+            // 活動儲存、刪除和啟動共用順序，避免 await 期間互相穿插。
+            if (["POST", "PUT", "DELETE"].includes(request.method ?? "")) {
+                const previous = mutationTail;
+                mutationTail = new Promise<void>(resolve => { releaseMutation = resolve; });
+                await previous;
+            }
             if (request.method === "GET" && ["/api/events", "/api/purchase/events"].includes(url.pathname)) {
                 const manager = url.pathname === "/api/events" ? runs : purchases;
                 response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-store", Connection: "keep-alive" });
@@ -97,6 +105,11 @@ export async function startLocalServer(store = new ActivityStore(), options: {
             }
             if (request.method === "GET" && url.pathname === "/api/activities") { json(response, 200, await store.list()); return; }
             const match = /^\/api\/activities\/([^/]+)$/.exec(url.pathname);
+            if (request.method === "DELETE" && match) {
+                if (purchases.busy() || runs.snapshot()?.status === "running") throw new Error("執行或瀏覽器占用中，不能刪除活動。");
+                await store.remove(match[1]!);
+                json(response, 200, { deleted: true }); return;
+            }
             if (request.method === "GET" && match) { json(response, 200, await store.load(match[1]!)); return; }
             if (request.method === "POST" && url.pathname === "/api/activities") { json(response, 201, await store.save(await body(request))); return; }
             if (request.method === "PUT" && match) { json(response, 200, await store.save(await body(request), match[1]!)); return; }
@@ -117,7 +130,7 @@ export async function startLocalServer(store = new ActivityStore(), options: {
             const message = error instanceof Error && !("code" in error) ? error.message : "本機資料處理失敗。";
             if (!response.headersSent) json(response, 400, { error: message, notAccepted: notAccepted?.() });
             else response.end();
-        }
+        } finally { releaseMutation?.(); }
     });
     await new Promise<void>((resolve, reject) => {
         server.once("error", reject);

@@ -89,6 +89,11 @@ export class ActivityStore {
         return record;
     }
 
+    async remove(id: string): Promise<void> {
+        await this.load(id);
+        await unlink(this.path(id));
+    }
+
     async list(): Promise<{ activities: ActivityRecord[]; invalidFiles: number }> {
         const files = await readdir(this.directory).catch(error => { if (error.code === "ENOENT") return []; throw error; });
         const activities: ActivityRecord[] = [];
