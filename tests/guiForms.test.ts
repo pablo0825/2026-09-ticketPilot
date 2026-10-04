@@ -18,12 +18,12 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
         await page.locator('#eventName').fill('UNKNOWN');await page.locator('#eventUrl').fill('https://www.klook.com/zh-TW/event-detail/fixture/');
         await page.locator('[name=date]').fill('2026-11-02');await page.locator('[name=time]').fill('19:30');await page.locator('[name=area]').fill('B區');await page.locator('[name=unitPrice]').fill('5280');
         await page.getByRole('button',{name:'儲存活動，下一步'}).click();await page.locator('#firstName').fill('Demo');await page.locator('#lastName').fill('Test');await page.locator('#phone').fill('0912345678');await page.locator('#email').fill('demo@example.com');
-        await page.getByRole('button',{name:'儲存設定，檢查摘要'}).click();await page.locator('#summary').filter({hasText:'B區'}).waitFor();
+        await page.getByRole('button',{name:'儲存聯絡資料，下一步'}).click();await page.locator('#summary').filter({hasText:'B區'}).waitFor();
         await page.locator('#confirm').check();assert(await page.locator('#start').isEnabled());
-        await page.getByRole('button',{name:'② 個資與時間'}).click();await page.locator('#phone').fill('0999999999');
+        await page.getByRole('button',{name:'② 聯絡資料'}).click();await page.locator('#phone').fill('0999999999');
         await page.getByRole('button',{name:'① 活動與順位'}).click();await page.getByRole('button',{name:'儲存變更，下一步'}).click();
-        await page.getByRole('button',{name:'③ 執行狀態'}).click();await page.locator('#confirm').check();assert(await page.locator('#start').isDisabled());
-        await page.getByRole('button',{name:'② 個資與時間'}).click();
+        await page.getByRole('button',{name:'③ 確認與開始'}).click();await page.locator('#confirm').check();assert(await page.locator('#start').isDisabled());
+        await page.getByRole('button',{name:'② 聯絡資料'}).click();
         let releaseSave: () => void = () => {};
         const saveGate = new Promise<void>(resolve => releaseSave = resolve);
         let receivedSave: () => void = () => {};
@@ -35,7 +35,7 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
             }
             await route.continue();
         });
-        await page.getByRole('button',{name:'儲存設定，檢查摘要'}).click();
+        await page.getByRole('button',{name:'儲存聯絡資料，下一步'}).click();
         await saveReceived;
         assert(await page.locator('#phone').isDisabled());
         assert(await page.locator('#homeButton').isDisabled());
@@ -47,7 +47,7 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
         await page.locator('#homeButton').click();
         await page.locator('#activities').getByText('使用活動').click();
         await page.locator('#step1').waitFor();
-        await page.getByRole('button',{name:'③ 執行狀態'}).click();
+        await page.getByRole('button',{name:'③ 確認與開始'}).click();
         const original = (await store.list()).activities[0]!;
         await store.save({ ...original.settings, targets: original.settings.targets.map(t => ({ ...t, area: 'C區' })) }, original.id);
         await page.locator('#confirm').check();
@@ -61,14 +61,15 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
         assert(await page.locator('#viewRun').isHidden());
         assert(await page.locator('#homeRun').isHidden());
         await page.reload();await page.locator('#home').waitFor();
-        await page.waitForFunction(() => document.querySelector('#status')!.textContent === '提交結果待確認');
+        await page.waitForFunction(() => document.querySelector('#status')!.textContent === '尚未執行');
         assert(await page.locator('#viewRun').isHidden());
-        await page.waitForTimeout(200);assert.equal(await page.locator('#status').textContent(),'提交結果待確認');
+        await page.waitForTimeout(200);assert.equal(await page.locator('#status').textContent(),'尚未執行');
+        assert.equal(await page.evaluate('currentRun.status'), 'unknown');
         assert.doesNotMatch(await page.locator('#logs').textContent() ?? '',/0999999999|demo@example.com/);
         await page.screenshot({path:'/tmp/ticketpilot-gui-phase6.png',fullPage:true});
         await page.locator('#activities').getByText('使用活動').click();
         await page.locator('#step1').waitFor();
-        await page.getByRole('button',{name:'③ 執行狀態'}).click();
+        await page.getByRole('button',{name:'③ 確認與開始'}).click();
         await page.locator('#simulate').click();
         await page.getByText('模擬完成（未購票）',{exact:true}).waitFor();
         // 模擬畫面收到舊真實快照，標題與日誌仍屬於模擬。
@@ -94,7 +95,7 @@ test("首頁只顯示占用或執行中的狀態，結束紀錄仍保留", async
             assert(await page.locator("#new").isDisabled());
             if (status === "payment-ready") assert.match(await page.locator("#homeRun").textContent() ?? "", /自動流程已完成/);
             await page.locator("#viewRun").click();
-            await page.locator("#step3").waitFor();
+            await page.locator("#step4").waitFor();
             await page.locator("#homeButton").click();
             // 模擬接收到解除占用的下一個快照；不改變執行結果。
             await page.evaluate("render({...currentRun, occupied:false, browserOpen:false})");
@@ -109,7 +110,7 @@ test("首頁只顯示占用或執行中的狀態，結束紀錄仍保留", async
         await page.goto(service.url);
         await page.evaluate("renderSimulation({id:'simulation',status:'running',events:[],historyTruncated:false})");
         await page.locator("#viewRun").filter({ hasText: "查看模擬狀態" }).click();
-        await page.locator("#step3").waitFor();
+        await page.locator("#step4").waitFor();
         await page.locator("#homeButton").click();
         await page.evaluate("renderSimulation({...latestSimulation,status:'completed'})");
         assert(await page.locator("#viewRun").isHidden());

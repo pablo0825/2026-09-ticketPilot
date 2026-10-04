@@ -1,12 +1,13 @@
 const $ = (id) => document.getElementById(id);
-let selectedId = "", savedActivity = null, contactReady = false, dirty = true;
+let selectedId = "", savedActivity = null, contactReady = false;
 let displayMode = "purchase";
+let displayedRun = null, savedRevision = "";
 let editing = false, actionBusy = false, activityBaseline = "", contactBaseline = "", savedContactReady = false;
 let startedRunId = "", latestSimulation = null;
 let occupied = false, simulationRunning = false, requesting = false, pendingRequest = null, currentRun = null, followLog = true;
 const names = { STARTING: "啟動中", LOGIN_CHECK: "確認登入", WAITING_FOR_LOGIN: "等待手動登入", WAITING_FOR_SALE: "等待開賣", SALE_REFRESH: "刷新開賣頁面", READY: "準備完成", EVENT_PAGE: "核對活動頁", TICKET_SELECTION: "依順位選票", SELECTION_VERIFIED: "選票核對完成", SEAT_ASSIGNMENT: "等待配位", SEATS_VERIFIED: "配位核對完成", SEAT_CONFIRMATION: "確認座位", PERSONAL_INFO_READY: "已到個人資料頁", BOOKING_VERIFIED: "訂單摘要核對完成", CONTACT_FILLING: "填寫聯絡資料", CONTACT_VERIFIED: "聯絡資料核對完成", CONTACT_SUBMISSION: "提交聯絡資料", PAYMENT_READY: "已到付款頁，請手動付款", RECOVERING: "處理已知逾期", MANUAL_REQUIRED: "需要人工檢查", FAILED: "流程停止" };
-async function api(path, method = "GET", value) {
-    const response = await fetch(path, { method, headers: { "X-Local-Token": token, "Content-Type": "application/json" }, body: value === undefined ? undefined : JSON.stringify(value) });
+async function api(path, method = "GET", value, revision) {
+    const response = await fetch(path, { method, headers: { "X-Local-Token": token, "Content-Type": "application/json", ...(revision ? { "X-Activity-Revision": revision } : {}) }, body: value === undefined ? undefined : JSON.stringify(value) });
     const data = await response.json();
     if (!response.ok) {
         const error = Error(data.error);
@@ -16,6 +17,7 @@ async function api(path, method = "GET", value) {
     return data;
 }
 function showStep(step) {
+    if (String(step) === "3") summary();
     document.querySelectorAll("main > section").forEach((el) => el.hidden = el.id !== `step${step}`);
     document.querySelector("nav").hidden = !editing;
     $("homeButton").hidden = false;
@@ -24,12 +26,12 @@ function showStep(step) {
 }
 document.querySelectorAll("nav button").forEach((button) => button.onclick = () => showStep(button.dataset.step));
 function controls() {
-    $("start").disabled = !editing || actionBusy || occupied || simulationRunning || requesting || dirty || !contactReady || !$("confirm").checked;
-    $("simulate").disabled = !editing || actionBusy || occupied || simulationRunning || requesting || dirty || !contactReady;
+    $("start").disabled = !editing || actionBusy || occupied || simulationRunning || requesting || activityNeedsSave() || !contactReady || !$("confirm").checked;
+    $("simulate").disabled = !editing || actionBusy || occupied || simulationRunning || requesting || activityNeedsSave() || !contactReady;
     updateHomeControls();
 }
 function updateHomeStatus() {
-    // 首頁只顯示需要處理的目前狀態；紀錄仍留在第三步及本機。
+    // 首頁只顯示需要處理的目前狀態；紀錄仍留在第四步及本機。
     $("homeRun").hidden = true;
     $("homeRun").textContent = "";
     $("viewRun").hidden = true;
@@ -72,7 +74,6 @@ async function goHome() {
     if (currentRun) render(currentRun);
     selectedId = "";
     savedActivity = null;
-    dirty = true;
     $("confirm").checked = false;
     if (contactBaseline) {
         for (const [id, value] of Object.entries(JSON.parse(contactBaseline))) $(id).value = value;
@@ -87,15 +88,16 @@ $("homeButton").onclick = goHome;
 $("viewRun").onclick = () => {
     if (latestSimulation && !occupied && (simulationRunning || displayMode === "simulation")) {
         displayMode = "simulation";
+        displayedRun = { kind: "simulation", id: latestSimulation.id };
         renderSimulation(latestSimulation);
     } else {
         displayMode = "purchase";
+        displayedRun = currentRun ? { kind: "purchase", id: currentRun.id } : null;
         render(currentRun);
     }
-    showStep(3);
+    showStep(4);
 };
 function changed() {
-    dirty = true;
     $("confirm").checked = false;
     controls();
 }
@@ -154,16 +156,38 @@ function loadForm(settings) {
     $("schedule").hidden = $("mode").value === "now";
     $("confirm").checked = false;
 }
-function activityInput() {
+function activityInput(includeSchedule = true) {
     const targets = [...$("targets").children].map((el) => Object.fromEntries([...el.querySelectorAll("[name]")].map((input) => [input.name, input.type === "checkbox" ? input.checked : input.type === "number" ? Number(input.value) : input.value])));
     const settings = { eventUrl: $("eventUrl").value.trim(), eventName: $("eventName").value.trim(), fallbackMode: "STRICT", excludeKeywords: $("exclude").value.split(/[,，]/).map((v) => v.trim()).filter(Boolean), targets };
-    if ($("mode").value === "scheduled") {
-        const raw = $("saleAt").value;
-        if (!raw) throw Error("請填寫開賣時間。");
-        settings.saleSchedule = { saleAt: (raw.length === 16 ? raw + ":00" : raw) + "+08:00", advanceSeconds: Number($("advance").value) };
+    if (includeSchedule) {
+        const schedule = scheduleInput();
+        if (schedule) settings.saleSchedule = schedule;
     }
     return settings;
 }
+function scheduleInput() {
+    if ($("mode").value !== "scheduled") return undefined;
+    const raw = $("saleAt").value;
+    if (!raw) throw Error("請填寫開賣時間。");
+    return { saleAt: (raw.length === 16 ? raw + ":00" : raw) + "+08:00", advanceSeconds: Number($("advance").value) };
+}
+function activityNeedsSave() {
+    if (!savedActivity) return true;
+    const { saleSchedule, ...savedFields } = savedActivity;
+    return JSON.stringify(activityInput(false)) !== JSON.stringify(savedFields);
+}
+function resetRunView() {
+    displayedRun = null;
+    $("runLabel").textContent = "";
+    $("status").textContent = "尚未執行";
+    $("instruction").textContent = "請在第三步確認設定並開始。";
+    $("target").textContent = "順位：—";
+    $("budget").textContent = "恢復：—";
+    $("browser").textContent = "";
+    $("countdown").textContent = "";
+    $("logs").textContent = "尚無紀錄。";
+}
+
 function contactInput() {
     return Object.fromEntries(["firstName", "lastName", "regionLabel", "phone", "email"].map((id) => [id, $(id).value.trim()]));
 }
@@ -187,10 +211,11 @@ async function list() {
             const record = await api("/api/activities/" + item.id);
             selectedId = record.id;
             savedActivity = record.settings;
+            savedRevision = record.updatedAt;
+            resetRunView();
             editing = true;
             loadForm(savedActivity);
             activityBaseline = JSON.stringify(activityInput());
-            dirty = false;
             $("editorTitle").textContent = `編輯活動：${savedActivity.eventName}`;
             $("saveActivity").textContent = "儲存變更，下一步";
             summary();
@@ -212,20 +237,28 @@ async function list() {
 }
 function summary() {
     if (!savedActivity) return;
-    $("summary").textContent = `${savedActivity.eventName}
-${savedActivity.eventUrl}
+    const draft = activityInput(false);
+    let timing;
+    try {
+        const schedule = scheduleInput();
+        timing = schedule ? `開賣：${schedule.saleAt}，提前 ${schedule.advanceSeconds} 秒刷新` : "立即開始";
+    } catch { timing = "請填寫完整的開賣時間。"; }
+    $("summary").textContent = `${draft.eventName}
+${draft.eventUrl}
 
-` + savedActivity.targets.map((t, i) => `${i + 1}. ${t.date} ${t.time}｜${t.area}｜NT$${t.unitPrice} × ${t.quantity} = NT$${t.unitPrice * t.quantity}${t.adjacent ? "｜要求連位" : ""}`).join("\n") + `
+` + draft.targets.map((t, i) => `${i + 1}. ${t.date} ${t.time}｜${t.area}｜NT$${t.unitPrice} × ${t.quantity} = NT$${t.unitPrice * t.quantity}${t.adjacent ? "｜要求連位" : ""}`).join("\n") + `
 
-${savedActivity.saleSchedule ? "開賣：" + savedActivity.saleSchedule.saleAt + "，提前 " + (savedActivity.saleSchedule.advanceSeconds ?? 1) + " 秒刷新" : "立即開始"}
-只接受指定順位；排除：${savedActivity.excludeKeywords.join("、") || "無"}`;
+${timing}
+只接受指定順位；排除：${draft.excludeKeywords.join("、") || "無"}`;
 }
 async function saveActivity() {
-    const settings = activityInput();
+    const settings = activityInput(false);
+    if (savedActivity?.saleSchedule) settings.saleSchedule = structuredClone(savedActivity.saleSchedule);
     const record = await api("/api/activities" + (selectedId ? "/" + selectedId : ""), selectedId ? "PUT" : "POST", settings);
     selectedId = record.id;
     savedActivity = record.settings;
-    activityBaseline = JSON.stringify(activityInput());
+    savedRevision = record.updatedAt;
+    activityBaseline = JSON.stringify(savedActivity);
     $("editorTitle").textContent = `編輯活動：${savedActivity.eventName}`;
     $("saveActivity").textContent = "儲存變更，下一步";
     await list();
@@ -236,7 +269,7 @@ async function action(fn) {
     actionBusy = true;
     updateHomeControls();
     // 保存期間鎖住表單，避免回應把後續尚未保存的編輯標成已保存。
-    const inputs = [...document.querySelectorAll("#step1 input, #step1 select, #step1 button, #step1 textarea, #step2 input, #step2 select, #step2 button, nav button")];
+    const inputs = [...document.querySelectorAll("#step1 input, #step1 select, #step1 button, #step1 textarea, #step2 input, #step2 select, #step2 button, #step3 input, #step3 select, #step3 button, nav button")];
     const previous = inputs.map((input) => input.disabled);
     inputs.forEach((input) => input.disabled = true);
     try {
@@ -253,6 +286,8 @@ async function action(fn) {
 $("new").onclick = () => {
     selectedId = "";
     savedActivity = null;
+    savedRevision = "";
+    resetRunView();
     loadForm({ eventName: "", eventUrl: "", excludeKeywords: ["愛心席", "身障", "視線不良"], targets: [{ date: "", time: "", area: "", unitPrice: "", quantity: 1, adjacent: false }] });
     editing = true;
     activityBaseline = JSON.stringify(activityInput());
@@ -264,41 +299,68 @@ $("new").onclick = () => {
 };
 $("mode").onchange = () => {
     $("schedule").hidden = $("mode").value === "now";
-    changed();
+    $("confirm").checked = false;
+    summary();
+    controls();
 };
 $("saveActivity").onclick = () => action(async () => {
     await saveActivity();
-    dirty = false;
     showStep(2);
 });
 $("saveContact").onclick = () => action(async () => {
-    await saveActivity();
     await api("/api/contact", "PUT", contactInput());
     contactReady = true;
     savedContactReady = true;
     contactBaseline = JSON.stringify(contactInput());
-    dirty = false;
     $("confirm").checked = false;
+    summary();
     showStep(3);
 });
 for (const id of ["step1", "step2"]) $(id).addEventListener("input", (event) => {
     if (["firstName", "lastName", "regionLabel", "phone", "email"].includes(event.target.id)) contactReady = false;
     changed();
 });
+for (const id of ["saleAt", "advance"]) $(id).addEventListener("input", () => {
+    $("confirm").checked = false;
+    summary();
+    controls();
+});
+async function fingerprint(value) {
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value)));
+    return [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
 async function begin(simulation) {
     requesting = true;
     controls();
     await action(async () => {
-        if (dirty || !contactReady || !selectedId) throw Error("請先儲存並驗證完整設定。");
+        if (activityNeedsSave() || !contactReady || !selectedId) throw Error("請先儲存並驗證完整設定。");
         if (!simulation && !$("confirm").checked) throw Error("請先確認購票摘要。");
+        // 同步取得使用者已確認的內容；後續不再讀取會改變的欄位。
+        const activity = structuredClone(activityInput());
+        const contact = structuredClone(contactInput());
+        const signature = await fingerprint({ activity, contact });
         const key = simulation ? "ticketpilot-simulation-request" : "ticketpilot-purchase-request";
-        pendingRequest = JSON.parse(sessionStorage.getItem(key) || "null") ?? { requestId: crypto.randomUUID(), activityId: selectedId };
-        if (pendingRequest.activityId !== selectedId) throw Error("上一筆開始請求結果尚待確認，請重新整理查看執行狀態。");
-        // 網路回應遺失仍保留同一 ID，重送只讀取既有結果。
-        sessionStorage.setItem(key, JSON.stringify(pendingRequest));
+        pendingRequest = JSON.parse(sessionStorage.getItem(key) || "null");
+        if (pendingRequest && (pendingRequest.activityId !== selectedId || pendingRequest.signature !== signature)) {
+            throw Error("上一筆開始請求結果尚待確認，不能更換設定或再次保存；請查看目前狀態。");
+        }
+        if (!pendingRequest) {
+            if (JSON.stringify(activity) !== JSON.stringify(savedActivity)) {
+                // 開始時間在第三步保存，版本核對避免覆蓋另一分頁的新設定。
+                const record = await api("/api/activities/" + selectedId, "PUT", activity, savedRevision);
+                savedActivity = record.settings;
+                savedRevision = record.updatedAt;
+                activityBaseline = JSON.stringify(savedActivity);
+                summary();
+            }
+            pendingRequest = { requestId: crypto.randomUUID(), activityId: selectedId, signature };
+            sessionStorage.setItem(key, JSON.stringify(pendingRequest));
+        }
+        const request = { requestId: pendingRequest.requestId, activityId: pendingRequest.activityId };
         let result;
         try {
-            result = await api(simulation ? "/api/simulation" : "/api/purchase", "POST", simulation ? { ...pendingRequest, contact: contactInput() } : { ...pendingRequest, expectedActivity: savedActivity, expectedContact: contactInput() });
+            result = await api(simulation ? "/api/simulation" : "/api/purchase", "POST", simulation ? { ...request, contact } : { ...request, expectedActivity: activity, expectedContact: contact });
         } catch (error) {
             // 只有伺服器確認未建立執行紀錄，才允許改用新的請求 ID。
             if (error.notAccepted) {
@@ -310,9 +372,10 @@ async function begin(simulation) {
         sessionStorage.removeItem(key);
         pendingRequest = null;
         displayMode = simulation ? "simulation" : "purchase";
+        displayedRun = { kind: displayMode, id: result.id };
         if (!simulation) startedRunId = result.id;
         simulation ? renderSimulation(result) : render(result);
-        showStep(3);
+        showStep(4);
     });
     requesting = false;
     controls();
@@ -329,7 +392,7 @@ function render(run) {
     occupied = run.occupied;
     const recordedAt = run.events[0]?.at;
     const label = `${run.activityName} · ${recordedAt ? new Date(recordedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" }) : "時間未記錄"}`;
-    if (displayMode === "simulation" && !occupied) {
+    if (displayedRun?.kind !== "purchase" || displayedRun.id !== run.id) {
         controls();
         return;
     }
@@ -350,7 +413,7 @@ function renderSimulation(run) {
     if (!run) return;
     latestSimulation = run;
     simulationRunning = run.status === "running";
-    if (!occupied && (displayMode === "simulation" || !currentRun)) {
+    if (displayedRun?.kind === "simulation" && displayedRun.id === run.id) {
         $("runLabel").textContent = "模擬執行紀錄（不購票）";
         $("target").textContent = "順位：—";
         $("budget").textContent = "恢復：—";
@@ -370,7 +433,7 @@ $("latest").onclick = () => {
 };
 $("copy").onclick = () => action(() => navigator.clipboard.writeText($("logs").textContent));
 setInterval(() => {
-    $("countdown").textContent = currentRun?.status === "running" && currentRun.saleAt ? `距開賣：${Math.max(0, Math.ceil((Date.parse(currentRun.saleAt) - Date.now()) / 1e3))} 秒` : "";
+    $("countdown").textContent = displayedRun?.kind === "purchase" && displayedRun.id === currentRun?.id && currentRun.status === "running" && currentRun.saleAt ? `距開賣：${Math.max(0, Math.ceil((Date.parse(currentRun.saleAt) - Date.now()) / 1e3))} 秒` : "";
 }, 1e3);
 function subscribe(path, receive) {
     const stream = new EventSource(path + "?token=" + encodeURIComponent(token));

@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TicketPilot</title><link rel="stylesheet" href="/style.css"></head><body>
 <main><header><div><small>本機購票助手</small><h1>TicketPilot</h1></div><span class="badge">付款前停下，由你完成付款</span></header>
 <button id="homeButton" class="secondary" hidden>返回活動首頁</button>
-<nav hidden aria-label="設定步驟"><button data-step="1" class="active">① 活動與順位</button><button data-step="2">② 個資與時間</button><button data-step="3">③ 執行狀態</button></nav>
+<nav hidden aria-label="設定步驟"><button data-step="1" class="active">① 活動與順位</button><button data-step="2">② 聯絡資料</button><button data-step="3">③ 確認與開始</button><button data-step="4">④ 執行狀態</button></nav>
 <div id="message" role="alert"></div>
 <section id="home"><div class="card"><div class="section-title"><h2>已儲存活動</h2><button id="new">新增活動</button></div>
 <p id="homeRun" hidden></p><button id="viewRun" class="secondary" hidden>查看目前狀態</button>
@@ -13,9 +13,9 @@
 <footer><button id="saveActivity">儲存活動，下一步</button></footer></div></section>
 <section id="step2" hidden><div class="card"><h2>聯絡資料</h2><p>與其他活動共用，儲存在本機；執行紀錄不包含個人資料。</p>
 <div class="grid"><label>姓氏<input id="lastName" autocomplete="family-name" required></label><label>名字<input id="firstName" autocomplete="given-name" required></label><label>電話區碼<select id="regionLabel"><option>台灣 (+886)</option><option>香港 (+852)</option><option>澳門 (+853)</option><option>中國 (+86)</option><option>日本 (+81)</option><option>韓國 (+82)</option><option>新加坡 (+65)</option><option>馬來西亞 (+60)</option><option>美國 (+1)</option></select><small>網站若沒有對應選項，程式會停止。</small></label><label>電話<input id="phone" type="tel" autocomplete="tel-national" required></label><label>Email<input id="email" type="email" autocomplete="email" required></label></div>
-<h2>開始時間</h2><label>執行方式<select id="mode"><option value="now">立即開始</option><option value="scheduled">指定開賣時間</option></select></label><div id="schedule" class="grid" hidden><label>開賣時間（台灣 UTC+8）<input id="saleAt" type="datetime-local" step="1"></label><label>提前刷新<select id="advance"><option value="1">1 秒</option><option value="2">2 秒</option></select></label></div>
-<p>指定的是開賣時間，不是演出時間。按開始後會先確認登入、準備活動頁，再等待開賣。</p><footer><button id="saveContact">儲存設定，檢查摘要</button></footer></div></section>
-<section id="step3" hidden><div id="purchaseSummary" class="card"><h2>本次設定摘要</h2><pre id="summary">請先完成活動與聯絡資料設定。</pre><label class="check"><input id="confirm" type="checkbox">我已確認活動、順位與金額，並了解程式會提交聯絡資料，停在付款前。</label>
+<footer><button id="saveContact">儲存聯絡資料，下一步</button></footer></div></section>
+<section id="step3" hidden><div id="purchaseSummary" class="card"><h2>本次設定摘要</h2><pre id="summary">請先完成活動與聯絡資料設定。</pre><h2>開始時間</h2><label>執行方式<select id="mode"><option value="now">立即開始</option><option value="scheduled">指定開賣時間</option></select></label><div id="schedule" class="grid" hidden><label>開賣時間（台灣 UTC+8）<input id="saleAt" type="datetime-local" step="1"></label><label>提前刷新<select id="advance"><option value="1">1 秒</option><option value="2">2 秒</option></select></label></div>
+<p>指定的是開賣時間，不是演出時間。按開始後會先確認登入、準備活動頁，再等待開賣。</p><label class="check"><input id="confirm" type="checkbox">我已確認活動、順位與金額，並了解程式會提交聯絡資料，停在付款前。</label>
 <button id="start" disabled>開始購票</button><button id="simulate" class="secondary">模擬執行（不購票）</button><p>執行期間設定固定。請勿同時使用 CLI 啟動購票。</p></div>
-<div class="card"><p id="runLabel"></p><h2 id="status">尚未執行</h2><p id="instruction">完成設定後，即可開始。</p><div class="metrics"><div id="target">順位：—</div><div id="budget">恢復：—</div><div id="countdown"></div></div><p id="browser"></p><div class="section-title"><h3>執行紀錄</h3><div><button id="copy" class="secondary">複製紀錄</button><button id="latest" class="secondary">回到最新</button></div></div><pre id="logs" tabindex="0" aria-label="執行紀錄">尚無紀錄。</pre></div></section>
+</section><section id="step4" hidden><div class="card"><p id="runLabel"></p><h2 id="status">尚未執行</h2><p id="instruction">完成設定後，即可開始。</p><div class="metrics"><div id="target">順位：—</div><div id="budget">恢復：—</div><div id="countdown"></div></div><p id="browser"></p><div class="section-title"><h3>執行紀錄</h3><div><button id="copy" class="secondary">複製紀錄</button><button id="latest" class="secondary">回到最新</button></div></div><pre id="logs" tabindex="0" aria-label="執行紀錄">尚無紀錄。</pre></div></section>
 </main><script>const token = "__TOKEN__";</script><script src="/app.js"></script></body></html>

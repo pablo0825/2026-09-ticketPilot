@@ -112,7 +112,14 @@ export async function startLocalServer(store = new ActivityStore(), options: {
             }
             if (request.method === "GET" && match) { json(response, 200, await store.load(match[1]!)); return; }
             if (request.method === "POST" && url.pathname === "/api/activities") { json(response, 201, await store.save(await body(request))); return; }
-            if (request.method === "PUT" && match) { json(response, 200, await store.save(await body(request), match[1]!)); return; }
+            if (request.method === "PUT" && match) {
+                const input = await body(request);
+                const revision = request.headers["x-activity-revision"];
+                if (revision !== undefined && revision !== (await store.load(match[1]!)).updatedAt) {
+                    throw new Error("活動設定已被其他分頁修改，請重新載入並確認。");
+                }
+                json(response, 200, await store.save(input, match[1]!)); return;
+            }
             if (request.method === "GET" && url.pathname === "/api/run") { json(response, 200, runs.snapshot()); return; }
             if (request.method === "POST" && url.pathname === "/api/simulation") {
                 const input = await body(request);
