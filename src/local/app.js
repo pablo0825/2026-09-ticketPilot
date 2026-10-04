@@ -217,7 +217,6 @@ async function list() {
             loadForm(savedActivity);
             activityBaseline = JSON.stringify(activityInput());
             $("editorTitle").textContent = `編輯活動：${savedActivity.eventName}`;
-            $("saveActivity").textContent = "儲存變更，下一步";
             summary();
             showStep(1);
         });
@@ -260,7 +259,6 @@ async function saveActivity() {
     savedRevision = record.updatedAt;
     activityBaseline = JSON.stringify(savedActivity);
     $("editorTitle").textContent = `編輯活動：${savedActivity.eventName}`;
-    $("saveActivity").textContent = "儲存變更，下一步";
     await list();
     summary();
 }
@@ -292,7 +290,6 @@ $("new").onclick = () => {
     editing = true;
     activityBaseline = JSON.stringify(activityInput());
     $("editorTitle").textContent = "新增活動";
-    $("saveActivity").textContent = "儲存活動，下一步";
     $("summary").textContent = "請先儲存活動設定。";
     changed();
     showStep(1);

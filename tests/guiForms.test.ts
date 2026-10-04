@@ -17,11 +17,11 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
         await page.locator("#new").click();
         await page.locator('#eventName').fill('UNKNOWN');await page.locator('#eventUrl').fill('https://www.klook.com/zh-TW/event-detail/fixture/');
         await page.locator('[name=date]').fill('2026-11-02');await page.locator('[name=time]').fill('19:30');await page.locator('[name=area]').fill('B區');await page.locator('[name=unitPrice]').fill('5280');
-        await page.getByRole('button',{name:'儲存活動，下一步'}).click();await page.locator('#firstName').fill('Demo');await page.locator('#lastName').fill('Test');await page.locator('#phone').fill('0912345678');await page.locator('#email').fill('demo@example.com');
-        await page.getByRole('button',{name:'儲存聯絡資料，下一步'}).click();await page.locator('#summary').filter({hasText:'B區'}).waitFor();
+        await page.getByRole('button',{name:'下一步'}).click();await page.locator('#firstName').fill('Demo');await page.locator('#lastName').fill('Test');await page.locator('#phone').fill('0912345678');await page.locator('#email').fill('demo@example.com');
+        await page.getByRole('button',{name:'下一步'}).click();await page.locator('#summary').filter({hasText:'B區'}).waitFor();
         await page.locator('#confirm').check();assert(await page.locator('#start').isEnabled());
         await page.getByRole('button',{name:'② 聯絡資料'}).click();await page.locator('#phone').fill('0999999999');
-        await page.getByRole('button',{name:'① 活動與順位'}).click();await page.getByRole('button',{name:'儲存變更，下一步'}).click();
+        await page.getByRole('button',{name:'① 活動與順位'}).click();await page.getByRole('button',{name:'下一步'}).click();
         await page.getByRole('button',{name:'③ 確認與開始'}).click();await page.locator('#confirm').check();assert(await page.locator('#start').isDisabled());
         await page.getByRole('button',{name:'② 聯絡資料'}).click();
         let releaseSave: () => void = () => {};
@@ -35,7 +35,7 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
             }
             await route.continue();
         });
-        await page.getByRole('button',{name:'儲存聯絡資料，下一步'}).click();
+        await page.getByRole('button',{name:'下一步'}).click();
         await saveReceived;
         assert(await page.locator('#phone').isDisabled());
         assert(await page.locator('#homeButton').isDisabled());
