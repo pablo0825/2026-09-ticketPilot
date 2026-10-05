@@ -252,7 +252,8 @@ function summary() {
     const field = (label, value) => {
         const line = document.createElement("div");
         line.className = "summary-field";
-        const title = document.createElement("strong");
+        const title = document.createElement("span");
+        title.className = "summary-label";
         title.textContent = label + "｜";
         const content = document.createElement("span");
         content.textContent = value || "未填寫";
