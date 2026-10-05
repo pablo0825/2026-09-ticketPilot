@@ -505,10 +505,6 @@ $("closeBrowser").onclick = async () => {
 $("logs").onscroll = () => {
     followLog = $("logs").scrollHeight - $("logs").scrollTop - $("logs").clientHeight < 30;
 };
-$("latest").onclick = () => {
-    followLog = true;
-    $("logs").scrollTop = $("logs").scrollHeight;
-};
 $("copy").onclick = () => action(() => navigator.clipboard.writeText($("logs").textContent));
 setInterval(() => {
     $("countdown").textContent = displayedRun?.kind === "purchase" && displayedRun.id === currentRun?.id && currentRun.status === "running" && currentRun.saleAt ? `距開賣：${Math.max(0, Math.ceil((Date.parse(currentRun.saleAt) - Date.now()) / 1e3))} 秒` : "";
