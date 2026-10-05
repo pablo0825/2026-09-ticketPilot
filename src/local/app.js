@@ -4,6 +4,7 @@ let displayMode = "purchase";
 let displayedRun = null, savedRevision = "";
 let editing = false, actionBusy = false, activityBaseline = "", contactBaseline = "", savedContactReady = false;
 let startedRunId = "", latestSimulation = null;
+let closingBrowser = false;
 let occupied = false, simulationRunning = false, requesting = false, pendingRequest = null, currentRun = null, followLog = true;
 const names = { STARTING: "啟動中", LOGIN_CHECK: "確認登入", WAITING_FOR_LOGIN: "等待手動登入", WAITING_FOR_SALE: "等待開賣", SALE_REFRESH: "刷新開賣頁面", READY: "準備完成", EVENT_PAGE: "核對活動頁", TICKET_SELECTION: "依順位選票", SELECTION_VERIFIED: "選票核對完成", SEAT_ASSIGNMENT: "等待配位", SEATS_VERIFIED: "配位核對完成", SEAT_CONFIRMATION: "確認座位", PERSONAL_INFO_READY: "已到個人資料頁", BOOKING_VERIFIED: "訂單摘要核對完成", CONTACT_FILLING: "填寫聯絡資料", CONTACT_VERIFIED: "聯絡資料核對完成", CONTACT_SUBMISSION: "提交聯絡資料", PAYMENT_READY: "已到付款頁，請手動付款", RECOVERING: "處理已知逾期", MANUAL_REQUIRED: "需要人工檢查", FAILED: "流程停止" };
 async function api(path, method = "GET", value, revision) {
@@ -26,6 +27,9 @@ function showStep(step) {
 }
 document.querySelectorAll("nav button").forEach((button) => button.onclick = () => showStep(button.dataset.step));
 function controls() {
+    $("closeBrowser").hidden = displayedRun?.kind !== "purchase" || displayedRun.id !== currentRun?.id || !currentRun?.canCloseBrowser;
+    $("closeBrowser").disabled = closingBrowser;
+    $("closeBrowser").textContent = closingBrowser ? "關閉中…" : "關閉購票瀏覽器";
     $("start").disabled = !editing || actionBusy || occupied || simulationRunning || requesting || activityNeedsSave() || !contactReady || !$("confirm").checked;
     updateHomeControls();
 }
@@ -481,6 +485,23 @@ function renderSimulation(run) {
     }
     controls();
 }
+$("closeBrowser").onclick = async () => {
+    if (closingBrowser || displayedRun?.kind !== "purchase" || displayedRun.id !== currentRun?.id || !currentRun?.canCloseBrowser) return;
+    const runId = currentRun.id;
+    const prompt = currentRun.status === "payment-ready"
+        ? "關閉購票瀏覽器後將離開付款頁。請確認已完成付款，或確定不再付款，再關閉。"
+        : "關閉購票瀏覽器？請先確認已檢查頁面及訂單狀態。";
+    if (!window.confirm(prompt)) return;
+    closingBrowser = true;
+    controls();
+    try {
+        $("message").textContent = "";
+        const result = await api("/api/purchase/close-browser", "POST", { runId });
+        // 等待關閉期間可能已收到新狀態，不用舊回應覆蓋另一輪。
+        if (currentRun?.id === runId) render(result);
+    } catch (error) { $("message").textContent = error.message; }
+    finally { closingBrowser = false; controls(); }
+};
 $("logs").onscroll = () => {
     followLog = $("logs").scrollHeight - $("logs").scrollTop - $("logs").clientHeight < 30;
 };

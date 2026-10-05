@@ -120,3 +120,45 @@ test("首頁只顯示占用或執行中的狀態，結束紀錄仍保留", async
         assert(await page.locator("#homeRun").isHidden());
     } finally { await browser.close(); await service.close(); await rm(dir, { recursive: true, force: true }); }
 });
+
+test("結束後關閉瀏覽器：確認取消、付款提醒、解除占用及舊紀錄拒絕", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ticket-close-ui-"));
+    const store = new ActivityStore(join(dir, "events"));
+    const service = await startLocalServer(store, { contactPath: join(dir, "contact.json"), runDirectory: join(dir, "runtime"), purchaseWorker: new URL("./fixtures/guiPurchaseWorker.ts", import.meta.url) });
+    const browser = await chromium.launch();
+    const contact = { firstName: "Demo", lastName: "Test", regionLabel: "台灣 (+886)", phone: "0912345678", email: "fixture@example.com" };
+    const html = await (await fetch(service.url)).text();
+    const headers = { "X-Local-Token": html.match(/const token = "([^"]+)"/)![1]!, "Content-Type": "application/json" };
+    let runId = "";
+    try {
+        await fetch(service.url + "/api/contact", { method: "PUT", headers, body: JSON.stringify(contact) });
+        const page = await browser.newPage();
+        await page.goto(service.url);
+        for (const eventName of ["HOLD_PAYMENT", "HOLD_FAILED", "HOLD_UNKNOWN"]) {
+            const activity = await store.save({ eventName, eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/", fallbackMode: "STRICT", excludeKeywords: [], targets: [{ date: "2026-11-02", time: "19:30", area: "B區", unitPrice: 5280, quantity: 1, adjacent: false }] });
+            const started = await fetch(service.url + "/api/purchase", { method: "POST", headers, body: JSON.stringify({ requestId: crypto.randomUUID(), activityId: activity.id, expectedActivity: activity.settings, expectedContact: contact }) });
+            runId = (await started.json()).id;
+            await page.reload();
+            await page.locator("#viewRun").click();
+            const close = page.getByRole("button", { name: "關閉購票瀏覽器", exact: true });
+            await close.waitFor();
+            let prompt = "";
+            page.once("dialog", async dialog => { prompt = dialog.message(); await dialog.dismiss(); });
+            await close.click();
+            if (eventName === "HOLD_PAYMENT") assert.match(prompt, /付款/);
+            assert.equal((await (await fetch(service.url + "/api/purchase", { headers })).json()).browserOpen, true);
+            assert.equal((await fetch(service.url + "/api/purchase/close-browser", { method: "POST", headers, body: JSON.stringify({ runId: "old" }) })).status, 400);
+            assert.equal((await fetch(service.url + "/api/purchase/close-browser", { method: "POST", body: JSON.stringify({ runId }) })).status, 403);
+            page.once("dialog", dialog => dialog.accept());
+            await close.click();
+            await page.locator("#browser").filter({ hasText: "購票程序已結束" }).waitFor();
+            assert(await page.locator("#closeBrowser").isHidden());
+            await page.locator("#homeButton").click();
+            await page.waitForFunction(() => !(document.querySelector("#new") as HTMLButtonElement).disabled);
+            assert(await page.locator("#new").isEnabled());
+        }
+    } finally {
+        if (runId) await fetch(service.url + "/api/purchase/close-browser", { method: "POST", headers, body: JSON.stringify({ runId }) });
+        await browser.close(); await service.close(); await rm(dir, { recursive: true, force: true });
+    }
+});

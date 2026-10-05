@@ -13,6 +13,18 @@ process.once("message", async (input: { activity: unknown; contact: unknown; lea
     let context: BrowserContext | undefined;
     let closed: Promise<void> = Promise.resolve();
     let submitted = false;
+    let settled = false;
+    let closing = false;
+    process.on("message", async (message: unknown) => {
+        if (!message || typeof message !== "object" || !("type" in message) || message.type !== "close-browser") return;
+        if (!settled || !context || closing) return;
+        closing = true;
+        try { await context.close(); }
+        catch {
+            closing = false;
+            process.send?.({ type: "close-error" });
+        }
+    });
     try {
         const config = toPurchaseConfig(parseActivity(input.activity));
         const contact = validateContactDetails(input.contact);
@@ -37,11 +49,13 @@ process.once("message", async (input: { activity: unknown; contact: unknown; lea
                 browser.once("close", () => process.send?.({ type: "browser", open: false }));
             },
         });
+        settled = true;
         process.send?.({ type: "result", outcome: "payment-ready", message: "已核對付款頁，請到購票瀏覽器手動付款。關閉該瀏覽器後才可開始下一場。" });
     } catch (error) {
         const message = submitted ? "已嘗試提交，結果需人工確認；請檢查原頁面及訂單，不會重送。"
             : error instanceof PurchaseStop ? "購票已停止，請檢查原瀏覽器提示；不會自動重新開始。"
             : "購票流程中斷，請檢查原瀏覽器；不會自動重跑。";
+        settled = true;
         process.send?.({ type: "result", outcome: submitted ? "unknown" : "failed", message });
     }
     if (context) await closed;

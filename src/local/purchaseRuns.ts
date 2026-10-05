@@ -13,6 +13,7 @@ import type { RunEvent } from "../core/logger.js";
 export interface PurchaseSnapshot {
     id: string; requestId: string; activityName: string; saleAt?: string;
     status: "running" | "payment-ready" | "failed" | "unknown" | "interrupted";
+    canCloseBrowser?: boolean;
     browserOpen: boolean; occupied: boolean; message: string;
     events: { sequence: number; at: string; event: RunEvent }[];
     historyTruncated: boolean;
@@ -75,7 +76,9 @@ export class PurchaseRuns {
             id: "", requestId: "", activityName: "其他購票程序", status: "interrupted", browserOpen: false,
             occupied: true, message: "CLI 或上次購票仍占用瀏覽器，請先檢查原流程。", events: [], historyTruncated: false,
         } : null;
-        return { ...structuredClone(this.current.snapshot), occupied: purchaseOccupied(this.root) || !!this.child };
+        return { ...structuredClone(this.current.snapshot), occupied: purchaseOccupied(this.root) || !!this.child,
+            canCloseBrowser: !!this.child?.connected && this.current.snapshot.browserOpen &&
+                ["payment-ready", "failed", "unknown"].includes(this.current.snapshot.status) };
     }
     hasRequest(id: string): boolean {
         // 無法確認紀錄時保守視為已接受，不能授權 UI 換 ID 重送。
@@ -92,7 +95,9 @@ export class PurchaseRuns {
         const previous = this.read(requestId);
         if (previous) {
             if (previous.fingerprint !== fingerprint) throw new Error("同一開始請求不能更換設定。");
-            return { ...previous.snapshot, occupied: this.busy() };
+            return previous.snapshot.id === this.current?.snapshot.id
+                ? this.snapshot()!
+                : { ...previous.snapshot, occupied: this.busy(), canCloseBrowser: false };
         }
         if (this.busy()) throw new Error("已有購票程序或瀏覽器占用，請先關閉原購票瀏覽器。");
         if (activity.saleSchedule && Date.now() >= validateSaleSchedule(activity.saleSchedule) + 120_000) throw new Error("開賣等待時間已過，請更新時間或選擇立即開始。");
@@ -141,6 +146,36 @@ export class PurchaseRuns {
         child.send(structuredClone({ activity, contact, lease }), error => { if (error) child.kill(); });
         this.notify();
         return this.snapshot()!;
+    }
+    async closeBrowser(runId: string): Promise<PurchaseSnapshot> {
+        const run = this.current?.snapshot;
+        if (!run || run.id !== runId) throw new Error("執行紀錄已變更，請重新查看目前狀態。");
+        if (run.status === "running") throw new Error("購票流程仍在執行，不能關閉瀏覽器。");
+        if (!run.browserOpen && !this.child && !this.busy()) return this.snapshot()!;
+        const child = this.child;
+        if (!this.snapshot()?.canCloseBrowser || !child) throw new Error("無法控制這次購票瀏覽器，請手動關閉並檢查原流程。");
+        // 只通知本服務擁有的 worker；占用仍由原流程在瀏覽器關閉後解除。
+        await new Promise<void>((resolve, reject) => {
+            const finish = (error?: Error) => {
+                clearTimeout(timer);
+                child.off("close", onClose);
+                child.off("message", onMessage);
+                error ? reject(error) : resolve();
+            };
+            const onClose = () => finish();
+            const onMessage = (value: any) => {
+                if (value?.type === "close-error") finish(new Error("瀏覽器關閉失敗，請檢查原視窗或手動關閉。"));
+            };
+            const timer = setTimeout(() => finish(new Error("尚未確認瀏覽器關閉，請檢查原視窗；占用尚未強制解除。")), 10_000);
+            child.once("close", onClose);
+            child.on("message", onMessage);
+            child.send({ type: "close-browser" }, error => {
+                if (error) finish(new Error("無法傳送關閉指令，請手動關閉購票瀏覽器。"));
+            });
+        });
+        const result = this.snapshot()!;
+        if (result.browserOpen || result.occupied) throw new Error("瀏覽器或程序尚未確認正常結束，請人工檢查；占用不會強制解除。");
+        return result;
     }
     close(): void {
         if (this.child) throw new Error("購票程序尚未結束；請先關閉購票瀏覽器，再關閉 GUI 服務。");

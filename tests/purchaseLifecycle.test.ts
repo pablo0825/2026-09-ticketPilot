@@ -66,3 +66,53 @@ test("程序異常保留占用、重啟不續購；錯設定不拿占用",async(
         assert.throws(()=>next.start(randomUUID(),activity,contact),/占用/);next.close();
     }finally{runs.close();await rm(dir,{recursive:true,force:true})}
 });
+
+
+test("關閉只接受目前已結束的自有瀏覽器，重複請求不重啟", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ticket-close-"));
+    const runs = new PurchaseRuns(dir, worker);
+    try {
+        for (const name of ["HOLD_PAYMENT", "HOLD_FAILED", "HOLD_UNKNOWN", "HOLD_ERROR"]) {
+            const requestId = randomUUID();
+            const data = { ...activity, eventName: name };
+            const first = runs.start(requestId, data, contact);
+            await assert.rejects(runs.closeBrowser(first.id), /仍在執行/);
+            await until(() => runs.snapshot()?.canCloseBrowser === true);
+            assert.equal(runs.start(requestId, data, contact).canCloseBrowser, true);
+            await assert.rejects(runs.closeBrowser("old-run"), /已變更/);
+            const restored = new PurchaseRuns(dir, worker);
+            assert.equal(restored.snapshot()?.canCloseBrowser, false);
+            await assert.rejects(restored.closeBrowser(first.id), /無法控制/);
+            restored.close();
+            const status = runs.snapshot()!.status;
+            if (name === "HOLD_ERROR") {
+                await assert.rejects(runs.closeBrowser(first.id), /關閉失敗/);
+                assert(runs.busy());
+                await until(() => !runs.busy());
+            } else {
+                const results = await Promise.all([runs.closeBrowser(first.id), runs.closeBrowser(first.id)]);
+                for (const result of results) {
+                    assert.equal(result.status, status);
+                    assert.equal(result.browserOpen, false);
+                    assert.equal(result.occupied, false);
+                }
+                assert.equal((await runs.closeBrowser(first.id)).id, first.id);
+            }
+        }
+    } finally { runs.close(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test("正式 worker：失敗後收到關閉指令，實際關閉本機瀏覽器並解除占用", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ticket-worker-close-"));
+    const runs = new PurchaseRuns(dir, new URL("./fixtures/closeBrowserWorker.ts", import.meta.url));
+    try {
+        const first = runs.start(randomUUID(), activity, contact);
+        await until(() => runs.snapshot()?.canCloseBrowser === true);
+        assert.equal(runs.snapshot()?.status, "failed");
+        const result = await runs.closeBrowser(first.id);
+        assert.equal(result.browserOpen, false);
+        assert.equal(result.occupied, false);
+        assert.equal(result.status, "failed");
+        assert(!purchaseOccupied(dir));
+    } finally { runs.close(); await rm(dir, { recursive: true, force: true }); }
+});

@@ -87,6 +87,11 @@ export async function startLocalServer(store = new ActivityStore(), options: {
                 await saveContactDetails(await body(request), contactPath); json(response, 200, { saved: true }); return;
             }
             if (request.method === "GET" && url.pathname === "/api/purchase") { json(response, 200, purchases.snapshot()); return; }
+            if (request.method === "POST" && url.pathname === "/api/purchase/close-browser") {
+                const input = await body(request);
+                if (Object.keys(input).some(key => key !== "runId") || typeof input.runId !== "string") throw new Error("關閉請求格式錯誤。");
+                json(response, 200, await purchases.closeBrowser(input.runId)); return;
+            }
             if (request.method === "POST" && url.pathname === "/api/purchase") {
                 const input = await body(request);
                 if (Object.keys(input).some(key => !["requestId", "activityId", "expectedActivity", "expectedContact"].includes(key)) || typeof input.requestId !== "string" || typeof input.activityId !== "string") throw new Error("購票請求格式錯誤。");

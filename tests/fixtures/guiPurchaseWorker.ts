@@ -5,10 +5,23 @@ process.once("message", (input: any) => {
     process.send?.({ type: "browser", open: true });
     process.send?.({ type: "event", event: { type: "state", state: "PAYMENT_READY" } });
     process.send?.({ type: "event", event: { type: "log", message: `fixture ${input.activity.targets[0].area}` } });
-    process.send?.({ type: "result", outcome: input.activity.eventName === "UNKNOWN" ? "unknown" : "payment-ready", message: "fixture：等待關閉瀏覽器" });
-    setTimeout(() => {
+    process.send?.({ type: "result", outcome: input.activity.eventName.includes("UNKNOWN") ? "unknown" : input.activity.eventName.includes("FAILED") ? "failed" : "payment-ready", message: "fixture：等待關閉瀏覽器" });
+    const finish = () => {
         releasePurchaseLease(input.lease);
         process.send?.({ type: "browser", open: false });
         process.send?.({ type: "finished" }, () => { process.disconnect?.(); });
-    }, 1200);
+    };
+    if (input.activity.eventName.startsWith("HOLD")) {
+        let closing = false;
+        process.on("message", (message: any) => {
+            if (message?.type !== "close-browser" || closing) return;
+            if (input.activity.eventName === "HOLD_ERROR") {
+                process.send?.({ type: "close-error" });
+                setTimeout(finish, 100);
+                return;
+            }
+            closing = true;
+            setTimeout(finish, 100);
+        });
+    } else setTimeout(finish, 1200);
 });
