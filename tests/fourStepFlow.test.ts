@@ -67,7 +67,7 @@ test("四步：時間草稿、延遲保存鎖定、一次啟動與run隔離", as
     await page.screenshot({ path: "/tmp/ticket-four-status.png", fullPage: true });
     assert.deepEqual(starts[0].expectedActivity, (await store.load(id)).settings);
     await page.evaluate("render({id:'old',status:'failed',occupied:false,events:[],activityName:'Old'})");
-    assert.match(await page.locator("#runLabel").innerText(), /Fixture/);
+    assert.match(await page.locator("#logs").innerText(), /Fixture/);
     await page.locator("#homeButton").click();
     await page.locator("#activities").getByText("使用活動").click();
     await page.locator("#step1").waitFor();

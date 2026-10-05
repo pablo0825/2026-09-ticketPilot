@@ -57,8 +57,8 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
         await page.locator('#message').filter({ hasText: '活動或聯絡資料已變更' }).waitFor();
         assert.equal(await page.evaluate(() => sessionStorage.getItem('ticketpilot-purchase-request')), null);
         await store.save(original.settings, original.id);
-        await page.locator('#start').click();await page.getByText('提交結果待確認',{exact:true}).waitFor();
-        await page.waitForFunction(()=>document.querySelector('#browser')!.textContent!.includes('購票程序已結束'));
+        await page.locator('#start').click();await page.getByText('購票已停止',{exact:true}).waitFor();
+        await page.waitForFunction(() => document.querySelector('#instruction')!.textContent!.includes('購票程序已結束'));
         await page.locator('#homeButton').click();
         assert(await page.locator('#viewRun').isHidden());
         assert(await page.locator('#homeRun').isHidden());
@@ -77,7 +77,7 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
         await page.getByText('模擬完成（未購票）',{exact:true}).waitFor();
         // 模擬畫面收到舊真實快照，標題與日誌仍屬於模擬。
         await page.evaluate('render(currentRun)');
-        assert.match(await page.locator('#runLabel').innerText(), /模擬執行紀錄/);
+        assert.match(await page.locator('#logs').innerText(), /模擬執行紀錄/);
     }finally{await browser.close();await service.close();await rm(dir,{recursive:true,force:true})}
 });
 
@@ -151,7 +151,10 @@ test("結束後關閉瀏覽器：確認取消、付款提醒、解除占用及�
             assert.equal((await fetch(service.url + "/api/purchase/close-browser", { method: "POST", body: JSON.stringify({ runId }) })).status, 403);
             page.once("dialog", dialog => dialog.accept());
             await close.click();
-            await page.locator("#browser").filter({ hasText: "購票程序已結束" }).waitFor();
+            await page.waitForFunction(() => {
+                const text = document.querySelector("#instruction")!.textContent!;
+                return text.includes("已關閉。本程式") || text.includes("購票程序已結束");
+            });
             assert(await page.locator("#closeBrowser").isHidden());
             await page.locator("#homeButton").click();
             await page.waitForFunction(() => !(document.querySelector("#new") as HTMLButtonElement).disabled);

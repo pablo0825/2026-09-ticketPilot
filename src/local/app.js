@@ -3,10 +3,9 @@ let selectedId = "", savedActivity = null, contactReady = false;
 let displayMode = "purchase";
 let displayedRun = null, savedRevision = "";
 let editing = false, actionBusy = false, activityBaseline = "", contactBaseline = "", savedContactReady = false;
-let startedRunId = "", latestSimulation = null;
+let latestSimulation = null;
 let closingBrowser = false;
 let occupied = false, simulationRunning = false, requesting = false, pendingRequest = null, currentRun = null, followLog = true;
-const names = { STARTING: "啟動中", LOGIN_CHECK: "確認登入", WAITING_FOR_LOGIN: "等待手動登入", WAITING_FOR_SALE: "等待開賣", SALE_REFRESH: "刷新開賣頁面", READY: "準備完成", EVENT_PAGE: "核對活動頁", TICKET_SELECTION: "依順位選票", SELECTION_VERIFIED: "選票核對完成", SEAT_ASSIGNMENT: "等待配位", SEATS_VERIFIED: "配位核對完成", SEAT_CONFIRMATION: "確認座位", PERSONAL_INFO_READY: "已到個人資料頁", BOOKING_VERIFIED: "訂單摘要核對完成", CONTACT_FILLING: "填寫聯絡資料", CONTACT_VERIFIED: "聯絡資料核對完成", CONTACT_SUBMISSION: "提交聯絡資料", PAYMENT_READY: "已到付款頁，請手動付款", RECOVERING: "處理已知逾期", MANUAL_REQUIRED: "需要人工檢查", FAILED: "流程停止" };
 async function api(path, method = "GET", value, revision) {
     const response = await fetch(path, { method, headers: { "X-Local-Token": token, "Content-Type": "application/json", ...(revision ? { "X-Activity-Revision": revision } : {}) }, body: value === undefined ? undefined : JSON.stringify(value) });
     const data = await response.json();
@@ -73,7 +72,6 @@ function allowLeave() {
 async function goHome() {
     if (!allowLeave()) return;
     editing = false;
-    startedRunId = "";
     if (currentRun) render(currentRun);
     selectedId = "";
     savedActivity = null;
@@ -192,13 +190,8 @@ function activityNeedsSave() {
 }
 function resetRunView() {
     displayedRun = null;
-    $("runLabel").textContent = "";
     $("status").textContent = "尚未執行";
     $("instruction").textContent = "請在第三步確認設定並開始。";
-    $("target").textContent = "順位：—";
-    $("budget").textContent = "恢復：—";
-    $("browser").textContent = "";
-    $("countdown").textContent = "";
     $("logs").textContent = "尚無紀錄。";
 }
 
@@ -435,7 +428,6 @@ async function begin(simulation) {
         pendingRequest = null;
         displayMode = simulation ? "simulation" : "purchase";
         displayedRun = { kind: displayMode, id: result.id };
-        if (!simulation) startedRunId = result.id;
         simulation ? renderSimulation(result) : render(result);
         showStep(4);
     });
@@ -443,31 +435,79 @@ async function begin(simulation) {
     controls();
 }
 $("start").onclick = () => begin(false);
-function renderLogs(events, truncated) {
-    $("logs").textContent = (truncated ? "較早紀錄已省略。\n" : "") + events.filter((item) => item.event.type === "log").map((item) => new Date(item.at).toLocaleTimeString("zh-TW", { timeZone: "Asia/Taipei" }) + "  " + item.event.message).join("\n");
+function renderLogs(events, truncated, introduction = "") {
+    const lines = events.flatMap(item => {
+        const event = item.event;
+        let message;
+        if (event.type === "log") message = event.message;
+        else if (event.type === "target") message = `嘗試順位 ${event.index}/${event.total}：${event.date} ${event.time}／${event.area}／${event.quantity} 張／NT$${event.totalPrice}`;
+        else if (event.type === "recovery") message = `恢復額度：排隊 ${event.queue}/1；預留 ${event.reservation}/1`;
+        else return [];
+        return [new Date(item.at).toLocaleTimeString("zh-TW", { timeZone: "Asia/Taipei" }) + "  " + message];
+    });
+    $("logs").textContent = introduction + (truncated ? "較早紀錄已省略。\n" : "") + lines.join("\n");
     if (followLog) $("logs").scrollTop = $("logs").scrollHeight;
+}
+function updateRunStatus() {
+    const run = currentRun;
+    if (!run || displayedRun?.kind !== "purchase" || displayedRun.id !== run.id) return;
+    const state = run.events.filter(item => item.event.type === "state").at(-1)?.event.state;
+    let title = "正在購票";
+    let instruction = "程式正在依照設定執行，請稍候。";
+    if (run.status === "running") {
+        if (state === "WAITING_FOR_LOGIN") {
+            title = "請手動登入";
+            instruction = "請到購票瀏覽器完成登入，完成後會自動繼續。";
+        } else if (state === "WAITING_FOR_SALE") {
+            title = "等待開賣";
+            const saleAt = Date.parse(run.saleAt);
+            if (Number.isFinite(saleAt)) {
+                const seconds = Math.max(0, Math.ceil((saleAt - Date.now()) / 1000));
+                instruction = `開賣時間：${new Date(saleAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}（台灣時間）。` +
+                    (seconds > 0 ? `距開賣 ${seconds} 秒，程式會自動繼續。` : "已到設定時間，正在等待開賣頁面。");
+            } else instruction = "正在等待設定的開賣時間，程式會自動繼續。";
+        } else if (["MANUAL_REQUIRED", "FAILED"].includes(state)) {
+            title = "購票已停止";
+            instruction = "請檢查購票瀏覽器的提示。程式正在完成停止處理，不會自動重新購票。";
+        }
+    } else {
+        const ending = run.browserOpen
+            ? "檢查完成後請關閉購票瀏覽器，才能開始下一場。"
+            : run.occupied ? "尚未確認程序正常結束，請先檢查原瀏覽器及執行紀錄。"
+                : "購票程序已結束，請先確認訂單狀態，再決定是否購買下一場。";
+        if (run.status === "payment-ready") {
+            title = "已到付款頁";
+            instruction = run.browserOpen
+                ? "請到購票瀏覽器手動完成付款。完成後請關閉該瀏覽器，才能開始下一場。"
+                : run.occupied ? "購票瀏覽器已關閉，正在等待程序結束；本程式未核對付款結果。"
+                    : "購票瀏覽器已關閉。本程式未核對付款結果，請自行確認訂單。";
+        } else {
+            title = "購票已停止";
+            instruction = (run.status === "unknown"
+                ? "提交結果尚未確認，請檢查購票頁面及訂單；程式不會重新提交。"
+                : run.status === "interrupted"
+                    ? "程序異常中斷，請檢查原購票瀏覽器及訂單；程式不會自動重跑。"
+                    : "未能完成購票流程，請檢查購票瀏覽器的提示與執行紀錄；程式不會自動重新開始。") + ending;
+        }
+        if (closingBrowser) instruction = "正在關閉購票瀏覽器，請稍候；確認程序結束後才會解除占用。";
+    }
+    $("status").textContent = title;
+    $("instruction").textContent = instruction;
 }
 function render(run) {
     if (!run) return;
     currentRun = run;
     occupied = run.occupied;
-    const recordedAt = run.events[0]?.at;
-    const label = `${run.activityName} · ${recordedAt ? new Date(recordedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" }) : "時間未記錄"}`;
     if (displayedRun?.kind !== "purchase" || displayedRun.id !== run.id) {
         controls();
         return;
     }
-    $("runLabel").textContent = `${run.id === startedRunId ? "本次執行" : occupied ? "目前占用狀態" : "上次執行紀錄"}：${label}`;
-    const states = run.events.filter((e) => e.event.type === "state");
-    const state = states.at(-1)?.event.state;
-    $("status").textContent = run.status === "running" ? names[state] || "準備啟動" : run.status === "payment-ready" ? "已到付款頁，請手動付款" : run.status === "unknown" ? "提交結果待確認" : run.status === "interrupted" ? "程序中斷" : "購票已停止";
-    $("instruction").textContent = state === "WAITING_FOR_LOGIN" && run.status === "running" ? "請在購票瀏覽器手動登入，完成後自動繼續。" : run.message;
-    $("browser").textContent = run.occupied ? "購票程序／瀏覽器仍占用中，不能開始下一場。" : "購票程序已結束。請先確認訂單狀態，再決定是否購買下一場。";
-    const target = run.events.filter((e) => e.event.type === "target").at(-1)?.event;
-    if (target) $("target").textContent = `順位 ${target.index}/${target.total}：${target.area} ${target.quantity} 張，NT$${target.totalPrice}`;
-    const budget = run.events.filter((e) => e.event.type === "recovery").at(-1)?.event;
-    $("budget").textContent = `排隊恢復 ${budget?.queue ?? 0}/1；預留恢復 ${budget?.reservation ?? 0}/1`;
-    renderLogs(run.events, run.historyTruncated);
+    updateRunStatus();
+    const recordedAt = run.events[0]?.at;
+    const introduction = `本次活動：${run.activityName}\n` +
+        (recordedAt ? `紀錄起始時間：${new Date(recordedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}\n` : "") +
+        (run.status !== "running" && run.message ? `執行結果：${run.message}\n` : "");
+    renderLogs(run.events, run.historyTruncated, introduction);
     controls();
 }
 function renderSimulation(run) {
@@ -475,13 +515,9 @@ function renderSimulation(run) {
     latestSimulation = run;
     simulationRunning = run.status === "running";
     if (displayedRun?.kind === "simulation" && displayedRun.id === run.id) {
-        $("runLabel").textContent = "模擬執行紀錄（不購票）";
-        $("target").textContent = "順位：—";
-        $("budget").textContent = "恢復：—";
-        $("browser").textContent = "";
         $("status").textContent = simulationRunning ? "模擬執行中" : run.status === "completed" ? "模擬完成（未購票）" : "模擬中斷";
         $("instruction").textContent = "模擬不連線網站、不建立訂單。";
-        renderLogs(run.events, run.historyTruncated);
+        renderLogs(run.events, run.historyTruncated, "模擬執行紀錄（不購票）\n");
     }
     controls();
 }
@@ -493,6 +529,7 @@ $("closeBrowser").onclick = async () => {
         : "關閉購票瀏覽器？請先確認已檢查頁面及訂單狀態。";
     if (!window.confirm(prompt)) return;
     closingBrowser = true;
+    updateRunStatus();
     controls();
     try {
         $("message").textContent = "";
@@ -500,15 +537,13 @@ $("closeBrowser").onclick = async () => {
         // 等待關閉期間可能已收到新狀態，不用舊回應覆蓋另一輪。
         if (currentRun?.id === runId) render(result);
     } catch (error) { $("message").textContent = error.message; }
-    finally { closingBrowser = false; controls(); }
+    finally { closingBrowser = false; updateRunStatus(); controls(); }
 };
 $("logs").onscroll = () => {
     followLog = $("logs").scrollHeight - $("logs").scrollTop - $("logs").clientHeight < 30;
 };
 $("copy").onclick = () => action(() => navigator.clipboard.writeText($("logs").textContent));
-setInterval(() => {
-    $("countdown").textContent = displayedRun?.kind === "purchase" && displayedRun.id === currentRun?.id && currentRun.status === "running" && currentRun.saleAt ? `距開賣：${Math.max(0, Math.ceil((Date.parse(currentRun.saleAt) - Date.now()) / 1e3))} 秒` : "";
-}, 1e3);
+setInterval(updateRunStatus, 1e3);
 function subscribe(path, receive) {
     const stream = new EventSource(path + "?token=" + encodeURIComponent(token));
     stream.onmessage = (e) => receive(JSON.parse(e.data));
