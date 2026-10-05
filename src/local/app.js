@@ -1,3 +1,4 @@
+let activityListRequest = 0, activityStatusSignature = "";
 const $ = (id) => document.getElementById(id);
 let selectedId = "", savedActivity = null, contactReady = false;
 let displayMode = "purchase";
@@ -199,7 +200,9 @@ function contactInput() {
     return Object.fromEntries(["firstName", "lastName", "regionLabel", "phone", "email"].map((id) => [id, $(id).value.trim()]));
 }
 async function list() {
+    const request = ++activityListRequest;
     const data = await api("/api/activities");
+    if (request !== activityListRequest) return;
     $("activities").replaceChildren();
     $("emptyActivities").hidden = data.activities.length > 0;
     for (const item of data.activities) {
@@ -211,6 +214,11 @@ async function list() {
             td.textContent = text;
             tr.append(td);
         }
+        const status = document.createElement("td");
+        status.className = "activity-status";
+        status.textContent = item.executionStatus || "尚無執行紀錄";
+        if (item.executionStatus === "已執行") status.title = "已執行不代表購票或付款成功。";
+        tr.append(status);
         const actions = document.createElement("td");
         const use = document.createElement("button");
         use.textContent = "使用活動";
@@ -498,6 +506,12 @@ function render(run) {
     if (!run) return;
     currentRun = run;
     occupied = run.occupied;
+    const lastState = run.events.filter(item => item.event.type === "state").at(-1)?.event.state;
+    const signature = JSON.stringify([run.id, run.status, lastState]);
+    if (signature !== activityStatusSignature) {
+        activityStatusSignature = signature;
+        void list().catch(error => { $("message").textContent = error.message; });
+    }
     if (displayedRun?.kind !== "purchase" || displayedRun.id !== run.id) {
         controls();
         return;

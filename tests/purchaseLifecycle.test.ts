@@ -8,6 +8,7 @@ import { EventEmitter } from "node:events";
 import { chromium } from "playwright";
 import { acquirePurchaseLease, purchaseOccupied, releasePurchaseLease } from "../src/app/purchaseLock.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
+import { ActivityStore } from "../src/config/activityStore.js";
 import { runPurchase } from "../src/app/runPurchase.js";
 import { fixtureConfig } from "./fixtures/purchaseConfig.js";
 const worker = new URL("./fixtures/guiPurchaseWorker.ts", import.meta.url);
@@ -58,11 +59,15 @@ test("程序異常保留占用、重啟不續購；錯設定不拿占用",async(
     const dir=await mkdtemp(join(tmpdir(),'ticket-crash-'));const runs=new PurchaseRuns(dir,worker);
     try{
         assert.throws(()=>runs.start(randomUUID(),{},contact));assert(!purchaseOccupied(dir));
-        const id=randomUUID();const data={...activity,eventName:'CRASH'};runs.start(id,data,contact);
+        const id=randomUUID();const data={...activity,eventName:'CRASH'};
+        const record = await new ActivityStore(join(dir, "events")).save(data);
+        runs.start(id,data,contact,record.id);
         await until(()=>runs.snapshot()?.status==='interrupted');
+        assert.equal(runs.activityStatus(record), "已執行");
         assert(purchaseOccupied(dir));runs.close();
         const next=new PurchaseRuns(dir,worker);
-        assert.equal(next.start(id,data,contact).status,'interrupted');
+        assert.equal(next.start(id,data,contact,record.id).status,'interrupted');
+        assert.equal(next.activityStatus(record), "已執行");
         assert.throws(()=>next.start(randomUUID(),activity,contact),/占用/);next.close();
     }finally{runs.close();await rm(dir,{recursive:true,force:true})}
 });
@@ -115,4 +120,56 @@ test("正式 worker：失敗後收到關閉指令，實際關閉本機瀏覽器�
         assert.equal(result.status, "failed");
         assert(!purchaseOccupied(dir));
     } finally { runs.close(); await rm(dir, { recursive: true, force: true }); }
+});
+
+
+test("活動狀態：同名分離、實際內容比較、等待切換與重新載入", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ticket-activity-status-"));
+    const store = new ActivityStore(join(dir, "events"));
+    const runs = new PurchaseRuns(dir, worker);
+    let runId = "";
+    try {
+        const a = await store.save({ ...activity, eventName: "HOLD_WAIT" });
+        const b = await store.save(a.settings);
+        assert.equal(runs.activityStatus(a), "尚無執行紀錄");
+        const requestId = randomUUID();
+        runId = runs.start(requestId, a.settings, contact, a.id).id;
+        assert.equal(runs.activityStatus(a), "執行中");
+        await until(() => runs.activityStatus(a) === "等待開賣");
+        const changed = await store.save({ ...a.settings, targets: [{ ...a.settings.targets[0]!, quantity: 2 }] }, a.id);
+        assert.equal(runs.activityStatus(changed), "等待開賣");
+        assert.equal(runs.activityStatus(b), "尚無執行紀錄");
+        assert.throws(() => runs.start(requestId, a.settings, contact, b.id), /更換活動/);
+        await until(() => runs.activityStatus(a) === "執行中");
+        await until(() => runs.snapshot()?.canCloseBrowser === true);
+        assert.equal(runs.activityStatus(a), "已執行");
+        assert(runs.busy());
+        assert.equal(runs.activityStatus(changed), "設定已更新");
+        await runs.closeBrowser(runId);
+        const same = await store.save(a.settings, a.id);
+        assert.equal(runs.activityStatus(same), "已執行");
+        const reordered = { ...same, settings: { ...same.settings, targets: same.settings.targets.map(target => ({ adjacent: target.adjacent, quantity: target.quantity, unitPrice: target.unitPrice, area: target.area, time: target.time, date: target.date })) } };
+        assert.equal(runs.activityStatus(reordered), "已執行");
+        runId = runs.start(randomUUID(), b.settings, { ...contact, phone: "0999999999" }, b.id).id;
+        await until(() => runs.snapshot()?.canCloseBrowser === true);
+        await runs.closeBrowser(runId);
+        assert.equal(runs.activityStatus(same), "已執行");
+        assert.equal(runs.activityStatus(b), "已執行");
+        const restarted = new PurchaseRuns(dir, worker);
+        assert.equal(restarted.activityStatus(same), "已執行");
+        assert.equal(restarted.activityStatus(b), "已執行");
+        assert.equal(restarted.activityStatus(changed), "設定已更新");
+        restarted.close();
+        await store.remove(a.id);
+        const newActivity = await store.save(a.settings);
+        assert.equal(runs.activityStatus(newActivity), "尚無執行紀錄");
+        // 無活動關聯的舊呼叫，即使名稱/內容相同也不能歸到新活動。
+        runId = runs.start(randomUUID(), newActivity.settings, contact).id;
+        await until(() => runs.snapshot()?.canCloseBrowser === true);
+        await runs.closeBrowser(runId);
+        assert.equal(runs.activityStatus(newActivity), "尚無執行紀錄");
+    } finally {
+        if (runs.snapshot()?.canCloseBrowser) await runs.closeBrowser(runId);
+        runs.close(); await rm(dir, { recursive: true, force: true });
+    }
 });

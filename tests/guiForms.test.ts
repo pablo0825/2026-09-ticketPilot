@@ -47,6 +47,7 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
 
         await page.getByText('模擬完成（未購票）',{exact:true}).waitFor();
         await page.locator('#homeButton').click();
+        await page.locator('#activities .activity-status').filter({ hasText: '尚無執行紀錄' }).waitFor();
         await page.locator('#activities').getByText('使用活動').click();
         await page.locator('#step1').waitFor();
         await page.getByRole('button',{name:'③ 確認與開始'}).click();
@@ -136,6 +137,8 @@ test("結束後關閉瀏覽器：確認取消、付款提醒、解除占用及�
         await page.goto(service.url);
         for (const eventName of ["HOLD_PAYMENT", "HOLD_FAILED", "HOLD_UNKNOWN"]) {
             const activity = await store.save({ eventName, eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/", fallbackMode: "STRICT", excludeKeywords: [], targets: [{ date: "2026-11-02", time: "19:30", area: "B區", unitPrice: 5280, quantity: 1, adjacent: false }] });
+            await page.reload();
+            await page.locator("#activities tr").filter({ hasText: eventName }).locator(".activity-status").filter({ hasText: "尚無執行紀錄" }).waitFor();
             const started = await fetch(service.url + "/api/purchase", { method: "POST", headers, body: JSON.stringify({ requestId: crypto.randomUUID(), activityId: activity.id, expectedActivity: activity.settings, expectedContact: contact }) });
             runId = (await started.json()).id;
             await page.reload();
@@ -159,6 +162,7 @@ test("結束後關閉瀏覽器：確認取消、付款提醒、解除占用及�
             await page.locator("#homeButton").click();
             await page.waitForFunction(() => !(document.querySelector("#new") as HTMLButtonElement).disabled);
             assert(await page.locator("#new").isEnabled());
+            await page.locator("#activities tr").filter({ hasText: eventName }).locator(".activity-status").filter({ hasText: "已執行" }).waitFor();
         }
     } finally {
         if (runId) await fetch(service.url + "/api/purchase/close-browser", { method: "POST", headers, body: JSON.stringify({ runId }) });

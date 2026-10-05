@@ -5,7 +5,12 @@ process.once("message", (input: any) => {
     process.send?.({ type: "browser", open: true });
     process.send?.({ type: "event", event: { type: "state", state: "PAYMENT_READY" } });
     process.send?.({ type: "event", event: { type: "log", message: `fixture ${input.activity.targets[0].area}` } });
-    process.send?.({ type: "result", outcome: input.activity.eventName.includes("UNKNOWN") ? "unknown" : input.activity.eventName.includes("FAILED") ? "failed" : "payment-ready", message: "fixture：等待關閉瀏覽器" });
+    const result = () => process.send?.({ type: "result", outcome: input.activity.eventName.includes("UNKNOWN") ? "unknown" : input.activity.eventName.includes("FAILED") ? "failed" : "payment-ready", message: "fixture：等待關閉瀏覽器" });
+    if (input.activity.eventName === "HOLD_WAIT") {
+        process.send?.({ type: "event", event: { type: "state", state: "WAITING_FOR_SALE" } });
+        setTimeout(() => process.send?.({ type: "event", event: { type: "state", state: "TICKET_SELECTION" } }), 300);
+        setTimeout(result, 600);
+    } else result();
     const finish = () => {
         releasePurchaseLease(input.lease);
         process.send?.({ type: "browser", open: false });

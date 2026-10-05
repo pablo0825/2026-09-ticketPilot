@@ -4,7 +4,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { parseActivity, projectRoot } from "../config/activityStore.js";
+import { parseActivity, projectRoot, type ActivityRecord, type ActivitySettings } from "../config/activityStore.js";
 import { validateContactDetails } from "../config/contact.config.js";
 import { validateSaleSchedule } from "../core/purchaseValidation.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
@@ -18,10 +18,20 @@ export interface PurchaseSnapshot {
     events: { sequence: number; at: string; event: RunEvent }[];
     historyTruncated: boolean;
 }
-interface Record { snapshot: PurchaseSnapshot; fingerprint: string; }
+interface Record {
+    snapshot: PurchaseSnapshot;
+    fingerprint: string;
+    activity?: { id: string; settingsHash: string };
+}
+export type ActivityExecutionStatus = "尚無執行紀錄" | "等待開賣" | "執行中" | "已執行" | "設定已更新";
+
+function settingsHash(settings: ActivitySettings): string {
+    return createHash("sha256").update(JSON.stringify(parseActivity(settings))).digest("hex");
+}
 
 export class PurchaseRuns {
     private current?: Record;
+    private latestByActivity = new Map<string, Record>();
     private child?: ChildProcess;
     private listeners = new Set<() => void>();
     private directory: string;
@@ -31,7 +41,11 @@ export class PurchaseRuns {
         mkdirSync(this.directory, { recursive: true, mode: 0o700 });
         const files = readdirSync(this.directory).filter(name => /^[0-9a-f-]{36}\.json$/.test(name));
         const records = files.map(name => this.read(name.slice(0, -5))).filter(record => record !== undefined);
-        this.current = records.sort((a, b) => b.snapshot.id.localeCompare(a.snapshot.id))[0];
+        records.sort((a, b) => b.snapshot.id.localeCompare(a.snapshot.id));
+        this.current = records[0];
+        for (const record of records) {
+            if (record.activity && !this.latestByActivity.has(record.activity.id)) this.latestByActivity.set(record.activity.id, record);
+        }
         if (this.current && ["running"].includes(this.current.snapshot.status)) {
             this.current.snapshot.status = "interrupted";
             this.current.snapshot.message = "上次服務中斷，請檢查瀏覽器與訂單；不會自動續跑。";
@@ -47,6 +61,7 @@ export class PurchaseRuns {
             const record = JSON.parse(readFileSync(this.file(id), "utf8")) as Record;
             const valid = z.object({
                 fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
+                activity: z.object({ id: z.string().uuid(), settingsHash: z.string().regex(/^[0-9a-f]{64}$/) }).strict().optional(),
                 snapshot: z.object({
                     id: z.string(), requestId: z.literal(id), activityName: z.string(), saleAt: z.string().optional(),
                     status: z.enum(["running", "payment-ready", "failed", "unknown", "interrupted"]),
@@ -88,12 +103,25 @@ export class PurchaseRuns {
     subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
     private notify(): void { for (const listener of this.listeners) { try { listener(); } catch {} } }
 
-    start(requestId: string, activityInput: unknown, contactInput: unknown): PurchaseSnapshot {
+    activityStatus(activity: ActivityRecord): ActivityExecutionStatus {
+        const record = this.latestByActivity.get(activity.id);
+        if (!record?.activity) return "尚無執行紀錄";
+        // 只有本服務持有的現行 worker 能代表仍在執行，舊紀錄不推測續跑。
+        if (record === this.current && this.child && record.snapshot.status === "running") {
+            const state = record.snapshot.events.filter(item => item.event.type === "state").at(-1)?.event;
+            return state?.type === "state" && state.state === "WAITING_FOR_SALE" ? "等待開賣" : "執行中";
+        }
+        return record.activity.settingsHash === settingsHash(activity.settings) ? "已執行" : "設定已更新";
+    }
+
+    start(requestId: string, activityInput: unknown, contactInput: unknown, activityId?: string): PurchaseSnapshot {
+        if (activityId !== undefined && !z.string().uuid().safeParse(activityId).success) throw new Error("活動識別碼無效。");
         const activity = parseActivity(activityInput);
         const contact = validateContactDetails(contactInput);
         const fingerprint = createHash("sha256").update(JSON.stringify({ activity, contact })).digest("hex");
         const previous = this.read(requestId);
         if (previous) {
+            if (previous.activity && previous.activity.id !== activityId) throw new Error("同一開始請求不能更換活動。");
             if (previous.fingerprint !== fingerprint) throw new Error("同一開始請求不能更換設定。");
             return previous.snapshot.id === this.current?.snapshot.id
                 ? this.snapshot()!
@@ -102,7 +130,8 @@ export class PurchaseRuns {
         if (this.busy()) throw new Error("已有購票程序或瀏覽器占用，請先關閉原購票瀏覽器。");
         if (activity.saleSchedule && Date.now() >= validateSaleSchedule(activity.saleSchedule) + 120_000) throw new Error("開賣等待時間已過，請更新時間或選擇立即開始。");
         const lease = acquirePurchaseLease(this.root);
-        const record: Record = { fingerprint, snapshot: {
+        const record: Record = { fingerprint,
+            ...(activityId ? { activity: { id: activityId, settingsHash: settingsHash(activity) } } : {}), snapshot: {
             id: `${Date.now()}-${randomUUID()}`, requestId, activityName: activity.eventName,
             saleAt: activity.saleSchedule?.saleAt, status: "running", browserOpen: false, occupied: true,
             message: "正在啟動購票，請勿重複開始。", events: [], historyTruncated: false,
@@ -110,6 +139,7 @@ export class PurchaseRuns {
         // 必須先留下去重紀錄才啟動；寫入或啟動異常保留占用，不猜測可重跑。
         this.save(record, true);
         this.current = record;
+        if (record.activity) this.latestByActivity.set(record.activity.id, record);
         const child = fork(fileURLToPath(this.worker), [], { cwd: projectRoot, detached: true, execArgv: ["--import", "tsx"],
             env: { ...process.env, FLOW_PAUSE: "" }, stdio: ["ignore", "ignore", "ignore", "ipc"] });
         this.child = child;

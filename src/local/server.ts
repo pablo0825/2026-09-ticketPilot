@@ -106,9 +106,13 @@ export async function startLocalServer(store = new ActivityStore(), options: {
                     throw new Error("活動或聯絡資料已變更，請重新載入、儲存並確認摘要。");
                 }
                 if (runs.snapshot()?.status === "running") throw new Error("請先等待模擬結束。");
-                json(response, 200, purchases.start(input.requestId, activity.settings, contact)); return;
+                json(response, 200, purchases.start(input.requestId, activity.settings, contact, activity.id)); return;
             }
-            if (request.method === "GET" && url.pathname === "/api/activities") { json(response, 200, await store.list()); return; }
+            if (request.method === "GET" && url.pathname === "/api/activities") {
+                const result = await store.list();
+                json(response, 200, { ...result, activities: result.activities.map(activity => ({ ...activity, executionStatus: purchases.activityStatus(activity) })) });
+                return;
+            }
             const match = /^\/api\/activities\/([^/]+)$/.exec(url.pathname);
             if (request.method === "DELETE" && match) {
                 if (purchases.busy() || runs.snapshot()?.status === "running") throw new Error("執行或瀏覽器占用中，不能刪除活動。");
