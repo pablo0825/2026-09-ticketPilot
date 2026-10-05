@@ -129,15 +129,26 @@ function row(data = { date: "", time: "", area: "", unitPrice: "", quantity: 1, 
     container.querySelector(".remove").onclick = () => {
         if ($("targets").children.length > 1) {
             container.remove();
-            renumber();
-            changed();
+        } else {
+            for (const name of ["date", "time", "area", "unitPrice"]) {
+                container.querySelector(`[name="${name}"]`).value = "";
+            }
+            quantity.value = "1";
+            adjacent.checked = false;
+            sync();
         }
+        renumber();
+        changed();
     };
     $("targets").append(container);
     renumber();
 }
 function renumber() {
-    [...$("targets").children].forEach((el, i) => el.querySelector(".position").textContent = `順位 ${i + 1}`);
+    const rows = [...$("targets").children];
+    rows.forEach((el, i) => {
+        el.querySelector(".position").textContent = `順位 ${i + 1}`;
+        el.querySelector(".remove").textContent = rows.length === 1 ? "清空" : "移除";
+    });
 }
 $("add").onclick = () => {
     row();

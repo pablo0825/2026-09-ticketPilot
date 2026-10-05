@@ -137,3 +137,62 @@ test("四步：聯絡資料不依賴未完成時間，跨分頁版本不同不�
     assert.equal((await store.load(id)).settings.eventName, "Updated elsewhere");
     assert(await page.locator("#step3").isVisible());
 }));
+
+test("順位清空：保留空列、阻擋舊設定啟動，重新填寫才能保存", async () => fixture(async (page, store, id) => {
+    await page.locator("#confirm").check();
+    assert(await page.locator("#start").isEnabled());
+    await page.getByRole("button", { name: "① 活動與順位" }).click();
+    await page.locator("#add").click();
+    assert.equal(await page.getByRole("button", { name: "移除", exact: true }).count(), 2);
+    await page.locator(".target-row").last().getByRole("button", { name: "移除", exact: true }).click();
+    assert.equal(await page.locator("[name=area]").inputValue(), "B區");
+    assert.equal(await page.locator(".position").innerText(), "順位 1");
+    await page.locator("[name=quantity]").fill("2");
+    await page.locator("[name=adjacent]").check();
+    await page.getByRole("button", { name: "③ 確認與開始" }).click();
+    await page.locator("#confirm").check();
+    await page.getByRole("button", { name: "① 活動與順位" }).click();
+    await page.getByRole("button", { name: "清空", exact: true }).click();
+    assert.equal(await page.locator(".target-row").count(), 1);
+    for (const name of ["date", "time", "area", "unitPrice"]) {
+        assert.equal(await page.locator(`[name=${name}]`).inputValue(), "");
+    }
+    assert.equal(await page.locator("[name=quantity]").inputValue(), "1");
+    assert(!await page.locator("[name=adjacent]").isChecked());
+    assert(await page.locator("[name=adjacent]").isDisabled());
+    assert(!await page.locator("#confirm").isChecked());
+    await page.getByRole("button", { name: "③ 確認與開始" }).click();
+    await page.locator("#confirm").check();
+    assert(await page.locator("#start").isDisabled());
+    await page.getByRole("button", { name: "① 活動與順位" }).click();
+    await page.locator("#saveActivity").click();
+    await page.locator("#message").filter({ hasText: "活動設定格式錯誤" }).waitFor();
+    assert(await page.locator("#step1").isVisible());
+    assert.deepEqual((await store.load(id)).settings.targets, settings.targets);
+    page.once("dialog", dialog => dialog.dismiss());
+    await page.locator("#homeButton").click();
+    assert(await page.locator("#step1").isVisible());
+    assert.equal(await page.locator("[name=area]").inputValue(), "");
+    await page.locator("[name=date]").fill("2026-11-03");
+    await page.locator("[name=time]").fill("18:00");
+    await page.locator("[name=area]").fill("C區");
+    await page.locator("[name=unitPrice]").fill("4880");
+    await page.locator("[name=quantity]").fill("2");
+    await page.locator("[name=adjacent]").check();
+    let release: () => void = () => {};
+    let received: () => void = () => {};
+    const gate = new Promise<void>(resolve => release = resolve);
+    const saving = new Promise<void>(resolve => received = resolve);
+    await page.route("**/api/activities/*", async route => {
+        if (route.request().method() === "PUT") { received(); await gate; }
+        await route.continue();
+    });
+    await page.locator("#saveActivity").click();
+    await saving;
+    try {
+        assert(await page.getByRole("button", { name: "清空", exact: true }).isDisabled());
+        assert(await page.locator("#add").isDisabled());
+    } finally { release(); }
+    await page.locator("#step2").waitFor();
+    assert.deepEqual((await store.load(id)).settings.targets, [{ date: "2026-11-03", time: "18:00", area: "C區", unitPrice: 4880, quantity: 2, adjacent: true }]);
+}));
