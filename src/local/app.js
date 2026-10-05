@@ -247,12 +247,68 @@ async function list() {
 function summary() {
     if (!savedActivity) return;
     const draft = activityInput(false);
-    $("summary").textContent = `${draft.eventName}
-${draft.eventUrl}
-
-` + draft.targets.map((t, i) => `${i + 1}. ${t.date} ${t.time}｜${t.area}｜NT$${t.unitPrice} × ${t.quantity} = NT$${t.unitPrice * t.quantity}${t.adjacent ? "｜要求連位" : ""}`).join("\n") + `
-
-只接受指定順位；排除：${draft.excludeKeywords.join("、") || "無"}`;
+    const root = $("summary");
+    root.replaceChildren();
+    const field = (label, value) => {
+        const line = document.createElement("div");
+        line.className = "summary-field";
+        const title = document.createElement("strong");
+        title.textContent = label + "｜";
+        const content = document.createElement("span");
+        content.textContent = value || "未填寫";
+        line.append(title, content);
+        root.append(line);
+        return content;
+    };
+    field("活動名稱", draft.eventName);
+    const address = field("活動網址", draft.eventUrl);
+    // 摘要可能讀到尚未儲存的草稿，不能假設網址已通過後端驗證。
+    try {
+        const url = new URL(draft.eventUrl);
+        if (url.protocol === "https:" && url.hostname === "www.klook.com" &&
+            /^\/zh-TW\/event-detail\/[^/]+\/$/.test(url.pathname) && !url.username && !url.password) {
+            const link = document.createElement("a");
+            link.href = draft.eventUrl;
+            link.textContent = draft.eventUrl;
+            link.title = draft.eventUrl;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            address.replaceChildren(link);
+        }
+    } catch { /* 不完整網址只顯示文字。 */ }
+    const heading = document.createElement("h3");
+    heading.textContent = "購票順位";
+    const scroll = document.createElement("div");
+    scroll.className = "summary-table-scroll";
+    scroll.tabIndex = 0;
+    scroll.setAttribute("role", "region");
+    scroll.setAttribute("aria-label", "購票順位");
+    const table = document.createElement("table");
+    const header = table.createTHead().insertRow();
+    for (const title of ["順位", "演出日期", "時間", "票區／票種", "單張價格", "張數", "合計", "要求連位"]) {
+        const cell = document.createElement("th");
+        cell.scope = "col";
+        cell.textContent = title;
+        header.append(cell);
+    }
+    const body = table.createTBody();
+    const money = value => `NT$${value.toLocaleString("zh-TW")}`;
+    draft.targets.forEach((target, index) => {
+        const priceValid = Number.isSafeInteger(target.unitPrice) && target.unitPrice > 0;
+        const quantityValid = Number.isSafeInteger(target.quantity) && target.quantity > 0;
+        const total = target.unitPrice * target.quantity;
+        const values = [index + 1, target.date || "未填寫", target.time || "未填寫", target.area.trim() || "未填寫",
+            priceValid ? money(target.unitPrice) : "未填寫或無效",
+            quantityValid ? target.quantity : "未填寫或無效",
+            priceValid && quantityValid && Number.isSafeInteger(total) ? money(total) : "—",
+            target.quantity === 1 ? "不適用（單張）" : target.adjacent ? "是" : "否"];
+        const row = body.insertRow();
+        for (const value of values) row.insertCell().textContent = String(value);
+    });
+    scroll.append(table);
+    root.append(heading, scroll);
+    field("購買規則", "依順位嘗試，只購買其中一個符合條件的目標");
+    field("排除關鍵字", draft.excludeKeywords.join("、") || "無");
 }
 async function saveActivity() {
     const settings = activityInput(false);
