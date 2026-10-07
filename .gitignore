@@ -1,0 +1,26 @@
+# 安裝的套件
+node_modules/
+
+# 瀏覽器登入資料
+browser-profile/
+
+# 編譯與測試產物
+dist/
+playwright-report/
+test-results/
+
+# 環境變數與本機檔案
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# 個人聯絡資料，禁止納入版本控制
+contact.local.json
+
+# 本機購票診斷，不提交
+diagnostics/
+
+# GUI 本機活動設定
+local-data/
