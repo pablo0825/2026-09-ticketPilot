@@ -64,14 +64,18 @@ async function submitAndVerifyPayment(
     contactForm: KlookContactForm,
     expectedTotal: number,
 ): Promise<void> {
+    // 提交聯絡資料，只送出一次
     reportState("CONTACT_SUBMISSION");
     await contactForm.submit();
+
+    // 確認到達付款頁且金額正確
     try {
         await waitForPaymentPage(page, eventUrl, expectedTotal);
     } catch (error) {
         const reason = error instanceof PaymentPageError ? error.message : "付款頁核對發生未知錯誤。";
         throw new Error(`已嘗試提交，但未能核對付款頁：${reason} 請人工檢查頁面及訂單；不會重新提交或重跑購票。`);
     }
+
     reportState("PAYMENT_READY");
     log("已核對付款頁與金額，停在付款前；不會按確認付款。");
 }
@@ -92,6 +96,8 @@ export async function runPurchase(
     const details = validateContactDetails(contact);
     // 前置資料驗證失敗時不取得瀏覽器占用。
     validatePurchaseConfig(snapshot);
+
+    // 取得或沿用購票占用；流程結束且瀏覽器關閉後才釋放
     const lease = options.lease ?? acquirePurchaseLease();
     verifyPurchaseLease(lease);
     let settled = false;
@@ -103,6 +109,8 @@ export async function runPurchase(
             released = true;
         }
     };
+
+    // 執行購票流程，並記錄瀏覽器何時關閉
     try {
         await withRunEvents(options.onEvent ?? (() => {}), () =>
             executePurchase(snapshot, details, {
@@ -134,9 +142,12 @@ async function executePurchase(
     const strategy = new PriorityStrategy(eventConfig);
     const pause = new FlowPause(options.pause);
 
+    // 列出各順位目標
     for (const [index, target] of eventConfig.targets.entries()) {
         log(`順位 ${index + 1}：${target.date} ${target.time} / ${target.area} / ${target.quantity} 張`);
     }
+
+    // 開啟瀏覽器，確認登入並準備活動頁
     const page = await openEventPage(eventConfig, options.onBrowser);
 
     // 啟動檢查完成；已知排隊過期仍由下方既有恢復流程處理。
@@ -158,10 +169,13 @@ async function executePurchase(
                 reportState("PERSONAL_INFO_READY");
             },
             prepareContact: async ({ target, value: { allocation } }) => {
+                // 核對訂單摘要
                 const bookingExpectation = target.expectation;
                 const summary = await readBookingSummary(page, eventConfig.eventUrl);
                 verifyBookingSummary(summary, target, allocation, bookingExpectation);
                 reportState("BOOKING_VERIFIED");
+
+                // 填寫聯絡資料，再核對一次摘要與欄位
                 reportState("CONTACT_FILLING");
                 await contactForm.fillAndVerify(contactDetails);
                 verifyBookingSummary(
@@ -172,6 +186,7 @@ async function executePurchase(
                 );
                 await contactForm.verify(contactDetails);
                 reportState("CONTACT_VERIFIED");
+
                 if (await pause.waitAt("contact")) {
                     // 暫停期間可能過期或被修改，返回前重新核對；仍在恢復範圍內。
                     verifyBookingSummary(
