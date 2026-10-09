@@ -25,10 +25,12 @@ async function requireRecoveryButton(
     ) {
         throw new Error(dialogError);
     }
+
     const button = dialog.getByRole("button", { name: buttonName, exact: true });
     if ((await button.count()) !== 1 || !(await button.isVisible()) || !(await button.isEnabled())) {
         throw new Error(buttonError);
     }
+
     return button;
 }
 
@@ -63,6 +65,7 @@ export class KlookQueueRecovery implements FlowRecovery {
     }
 
     async recover(): Promise<void> {
+        // 確認仍在原頁面，彈窗與 OK 按鈕都唯一
         if (!isEventPage(this.page.url(), this.eventUrl)) throw new Error("無法確認唯一的排隊逾時彈窗，已停止恢復。");
         const button = await requireRecoveryButton(
             this.page,
@@ -71,6 +74,8 @@ export class KlookQueueRecovery implements FlowRecovery {
             "無法確認唯一的排隊逾時彈窗，已停止恢復。",
             "排隊逾時彈窗的 OK 按鈕不唯一或無法操作。",
         );
+
+        // 按一次 OK，等待回到活動頁
         log("排隊逾時：按一次 OK，等待原活動頁恢復。");
         await clickAndWaitForReturn(
             button,
@@ -79,6 +84,7 @@ export class KlookQueueRecovery implements FlowRecovery {
             this.timeout,
             "按 OK 後未能確認活動頁恢復，已停止；不再次點擊或重整。",
         );
+
         log("原活動頁已恢復，重新核對並設定票券；不沿用舊座位。");
     }
 }
@@ -100,6 +106,7 @@ export class KlookSeatRecovery implements FlowRecovery {
     }
 
     async recover(returnQueueRecovery?: FlowRecovery): Promise<void> {
+        // 確認仍在原頁面，彈窗與 OK 按鈕都唯一
         if (!(await this.isRequired())) throw new Error("無法確認唯一的選位逾期彈窗，已停止恢復。");
         const button = await requireRecoveryButton(
             this.page,
@@ -108,6 +115,8 @@ export class KlookSeatRecovery implements FlowRecovery {
             "無法確認唯一的選位逾期彈窗，已停止恢復。",
             "選位逾期彈窗的 OK 按鈕不唯一或無法操作。",
         );
+
+        // 按一次 OK，等待回到選票區
         log("選位預留已過期：按一次 OK，等待原活動選票區恢復。");
         await clickAndWaitForReturn(
             button,
@@ -117,6 +126,7 @@ export class KlookSeatRecovery implements FlowRecovery {
             "選位逾期按 OK 後未能恢復選票入口，已停止；不再次點擊或重整。",
             returnQueueRecovery,
         );
+
         log("選票入口已恢復，重新核對選票條件並取得新座位。");
     }
 }
@@ -138,8 +148,10 @@ export class KlookContactRecovery implements FlowRecovery {
     }
 
     async recover(returnQueueRecovery?: FlowRecovery): Promise<void> {
-        if (!isPersonalInfoPage(this.page.url(), this.eventUrl))
+        // 確認仍在原頁面，彈窗與確認按鈕都唯一
+        if (!isPersonalInfoPage(this.page.url(), this.eventUrl)) {
             throw new Error("無法確認唯一的個人資料逾期彈窗，已停止恢復。");
+        }
         const button = await requireRecoveryButton(
             this.page,
             this.expiredDialog(),
@@ -147,6 +159,8 @@ export class KlookContactRecovery implements FlowRecovery {
             "無法確認唯一的個人資料逾期彈窗，已停止恢復。",
             "個人資料逾期彈窗的確認按鈕不唯一或無法操作。",
         );
+
+        // 按一次確認，等待回到活動頁
         log("個人資料預留已過期：按一次彈窗確認，等待原活動頁恢復。");
         await clickAndWaitForReturn(
             button,
@@ -156,6 +170,7 @@ export class KlookContactRecovery implements FlowRecovery {
             "確認逾期後未能恢復原活動選票區，已停止；不再次點擊或重整。",
             returnQueueRecovery,
         );
+
         log("已返回原活動頁，重新選票與配位；不沿用舊預留資料。");
     }
 }
@@ -180,5 +195,6 @@ async function waitForRecoveryReturn(
         }
         await page.waitForTimeout(200);
     }
+
     throw new Error(failureMessage);
 }

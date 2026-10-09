@@ -39,10 +39,16 @@ export async function getSelectionNotices(page: Page): Promise<Locator[]> {
         .locator('.klk-modal-alert, [role="dialog"], dialog')
         .filter({ visible: true })
         .all()) {
-        if (await notice.evaluate((el, selector) => el.matches(selector), `${seatShellSelector}, ${seatPanelSelector}`))
+        // 選位畫面本身不算提示
+        if (
+            await notice.evaluate((el, selector) => el.matches(selector), `${seatShellSelector}, ${seatPanelSelector}`)
+        ) {
             continue;
+        }
         if (await notice.locator(seatPanelSelector).count()) continue;
+
         result.push(notice);
     }
+
     return result;
 }

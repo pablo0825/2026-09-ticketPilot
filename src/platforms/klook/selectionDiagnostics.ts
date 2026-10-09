@@ -10,9 +10,12 @@ export async function captureSelectionDiagnostics(
     directory: string,
     label: "failure" | "returned",
 ): Promise<void> {
+    // 只在原活動頁採集
     if (!isEventPage(page.url(), eventUrl)) {
         throw new Error("不在原活動頁，略過選票診斷。");
     }
+
+    // 讀取頁面上的提示與選票區結構
     const snapshot = await page.evaluate(() => {
         const phrases = [
             "已經沒有票了",
@@ -44,6 +47,8 @@ export async function captureSelectionDiagnostics(
                 })),
         }));
     });
+
+    // 寫入只有自己能讀的檔案
     await mkdir(directory, { recursive: true, mode: 0o700 });
     await writeFile(
         join(directory, `${label}.json`),

@@ -26,11 +26,14 @@ export class KlookTargetAttempt implements TargetAttempt<KlookAssignment> {
     }
 
     async attempt(target: PurchaseTarget): Promise<AttemptResult<KlookAssignment>> {
+        // 選擇日期、時間、票種與張數
         await this.failure.assertNoExistingNotice();
         reportState("TICKET_SELECTION");
         const selection = await new KlookTicketSelector(this.page, this.timeout, () =>
             this.failure.assertNoExistingNotice(),
         ).selectAndVerify(target, target.expectation.unitPrice);
+
+        // 目標目前不可選：確認頁面安全後回報不可選
         if (selection === "disabled") {
             // 跳過前再次確認頁面；有過期或未知提示時，不將本次觀察當成可換順位。
             await this.failure.assertNoExistingNotice();
@@ -39,6 +42,8 @@ export class KlookTargetAttempt implements TargetAttempt<KlookAssignment> {
             }
             return { status: "unavailable", reason: "disabled" };
         }
+
+        // 進入選位，核對分配到的座位
         reportState("SELECTION_VERIFIED");
         reportState("SEAT_ASSIGNMENT");
         const seatSelector = new KlookSeatSelector(this.page, target.expectation.unitPrice, this.timeout);
