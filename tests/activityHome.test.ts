@@ -7,14 +7,29 @@ import { chromium } from "playwright";
 import { ActivityStore } from "../src/config/activityStore.js";
 import { startLocalServer } from "../src/local/server.js";
 import { acquirePurchaseLease, releasePurchaseLease } from "../src/app/purchaseLock.js";
-const settings = { eventName: "同名活動", eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/", fallbackMode: "STRICT", excludeKeywords: [], targets: [{ date: "2026-11-02", time: "19:30", area: "B區", unitPrice: 5280, quantity: 1, adjacent: false }] };
+const settings = {
+    eventName: "同名活動",
+    eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
+    fallbackMode: "STRICT",
+    excludeKeywords: [],
+    targets: [{ date: "2026-11-02", time: "19:30", area: "B區", unitPrice: 5280, quantity: 1, adjacent: false }],
+};
 
 test("首頁場次摘要、未存離開、同名刪除及API占用與並發保護", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-home-"));
     const store = new ActivityStore(join(dir, "events"));
-    const a = await store.save({ ...settings, targets: [...settings.targets, { ...settings.targets[0], area: "C區" }] });
-    const b = await store.save({ ...settings, targets: [...settings.targets, { ...settings.targets[0], date: "2026-11-03" }] });
-    const service = await startLocalServer(store, { contactPath: join(dir, "contact.json"), runDirectory: join(dir, "runtime") });
+    const a = await store.save({
+        ...settings,
+        targets: [...settings.targets, { ...settings.targets[0], area: "C區" }],
+    });
+    const b = await store.save({
+        ...settings,
+        targets: [...settings.targets, { ...settings.targets[0], date: "2026-11-03" }],
+    });
+    const service = await startLocalServer(store, {
+        contactPath: join(dir, "contact.json"),
+        runDirectory: join(dir, "runtime"),
+    });
     const browser = await chromium.launch();
     try {
         const page = await browser.newPage();
@@ -48,9 +63,14 @@ test("首頁場次摘要、未存離開、同名刪除及API占用與並發保�
         const headers = { "X-Local-Token": token, "Content-Type": "application/json" };
         const lease = acquirePurchaseLease(join(dir, "runtime"));
         try {
-            assert.equal((await fetch(`${service.url}/api/activities/${a.id}`, { method: "DELETE", headers })).status, 400);
+            assert.equal(
+                (await fetch(`${service.url}/api/activities/${a.id}`, { method: "DELETE", headers })).status,
+                400,
+            );
             assert.equal((await store.load(a.id)).id, a.id);
-        } finally { releasePurchaseLease(lease); }
+        } finally {
+            releasePurchaseLease(lease);
+        }
         // 無論哪個請求先取得序列，刪除成功後不能由舊 PUT 復活。
         const results = await Promise.all([
             fetch(`${service.url}/api/activities/${a.id}`, { method: "DELETE", headers }),
@@ -59,25 +79,49 @@ test("首頁場次摘要、未存離開、同名刪除及API占用與並發保�
         assert.equal(results[0]!.status, 200);
         await assert.rejects(store.load(a.id));
         assert.equal((await fetch(`${service.url}/api/activities/${a.id}`, { method: "DELETE" })).status, 403);
-        await page.reload();await page.locator("#emptyActivities").waitFor();
+        await page.reload();
+        await page.locator("#emptyActivities").waitFor();
         await page.locator("#new").click();
         assert.equal(await page.locator("#eventName").inputValue(), "");
         await page.screenshot({ path: "/tmp/activity-home-editor.png", fullPage: true });
-    } finally { await browser.close(); await service.close(); await rm(dir, { recursive: true, force: true }); }
+    } finally {
+        await browser.close();
+        await service.close();
+        await rm(dir, { recursive: true, force: true });
+    }
 });
 
 test("啟動與刪除並發只有一方成功，不刪個資或執行紀錄", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-home-start-"));
     const store = new ActivityStore(join(dir, "events"));
     const activity = await store.save(settings);
-    const service = await startLocalServer(store, { contactPath: join(dir, "contact.json"), runDirectory: join(dir, "runtime"), purchaseWorker: new URL("./fixtures/guiPurchaseWorker.ts", import.meta.url) });
+    const service = await startLocalServer(store, {
+        contactPath: join(dir, "contact.json"),
+        runDirectory: join(dir, "runtime"),
+        purchaseWorker: new URL("./fixtures/guiPurchaseWorker.ts", import.meta.url),
+    });
     const html = await (await fetch(service.url)).text();
     const headers = { "X-Local-Token": html.match(/const token = "([^"]+)"/)![1]!, "Content-Type": "application/json" };
-    const contact = { firstName: "Demo", lastName: "Test", regionLabel: "台灣 (+886)", phone: "0912345678", email: "fixture@example.com" };
+    const contact = {
+        firstName: "Demo",
+        lastName: "Test",
+        regionLabel: "台灣 (+886)",
+        phone: "0912345678",
+        email: "fixture@example.com",
+    };
     try {
         await fetch(service.url + "/api/contact", { method: "PUT", headers, body: JSON.stringify(contact) });
         const [started, deleted] = await Promise.all([
-            fetch(service.url + "/api/purchase", { method: "POST", headers, body: JSON.stringify({ requestId: crypto.randomUUID(), activityId: activity.id, expectedActivity: settings, expectedContact: contact }) }),
+            fetch(service.url + "/api/purchase", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                    requestId: crypto.randomUUID(),
+                    activityId: activity.id,
+                    expectedActivity: settings,
+                    expectedContact: contact,
+                }),
+            }),
             fetch(`${service.url}/api/activities/${activity.id}`, { method: "DELETE", headers }),
         ]);
         assert.notEqual(started.status === 200, deleted.status === 200);
@@ -89,8 +133,14 @@ test("啟動與刪除並發只有一方成功，不刪個資或執行紀錄", as
                 await new Promise(resolve => setTimeout(resolve, 30));
             }
             const previous = await (await fetch(service.url + "/api/purchase", { headers })).json();
-            assert.equal((await fetch(`${service.url}/api/activities/${activity.id}`, { method: "DELETE", headers })).status, 200);
+            assert.equal(
+                (await fetch(`${service.url}/api/activities/${activity.id}`, { method: "DELETE", headers })).status,
+                200,
+            );
             assert.equal((await (await fetch(service.url + "/api/purchase", { headers })).json()).id, previous.id);
         }
-    } finally { await service.close(); await rm(dir, { recursive: true, force: true }); }
+    } finally {
+        await service.close();
+        await rm(dir, { recursive: true, force: true });
+    }
 });

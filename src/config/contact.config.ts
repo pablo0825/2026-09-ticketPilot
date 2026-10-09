@@ -6,10 +6,19 @@ import { writeJsonAtomic } from "./activityStore.js";
 const contactSchema = z.object({
     firstName: z.string().trim().min(1),
     lastName: z.string().trim().min(1),
-    regionLabel: z.string().trim().regex(/^.+\(\+\d+\)$/),
-    phone: z.string().trim().regex(/^\d{6,15}$/),
+    regionLabel: z
+        .string()
+        .trim()
+        .regex(/^.+\(\+\d+\)$/),
+    phone: z
+        .string()
+        .trim()
+        .regex(/^\d{6,15}$/),
     // 保留既有格式規則，這次只替換驗證工具。
-    email: z.string().trim().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/),
+    email: z
+        .string()
+        .trim()
+        .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/),
 });
 
 export type ContactDetails = z.infer<typeof contactSchema>;
@@ -32,15 +41,18 @@ export function validateContactDetails(value: unknown): ContactDetails {
     const field = result.error.issues[0]?.path[0];
     // Object.hasOwn() 檢查物件是否有某個屬性
     // 大意上是，field 是字串，而且 fieldMessages 有 field, 就取出對應的提示
-    const message = typeof field === "string" && Object.hasOwn(fieldMessages, field)
-        ? fieldMessages[field as keyof ContactDetails]
-        : "聯絡資料設定格式錯誤。";
-        
+    const message =
+        typeof field === "string" && Object.hasOwn(fieldMessages, field)
+            ? fieldMessages[field as keyof ContactDetails]
+            : "聯絡資料設定格式錯誤。";
+
     throw new Error(message);
 }
 
 // 個人資料是啟動前的必要設定；缺少資料時不開啟瀏覽器或選票。
-export async function loadContactDetails(path: URL | string = new URL("../../contact.local.json", import.meta.url)): Promise<ContactDetails> {
+export async function loadContactDetails(
+    path: URL | string = new URL("../../contact.local.json", import.meta.url),
+): Promise<ContactDetails> {
     let source: string;
 
     try {
@@ -59,9 +71,9 @@ export async function loadContactDetails(path: URL | string = new URL("../../con
     let data: unknown;
 
     try {
-        // 把資料轉成 JSON 
-        data = JSON.parse(source); 
-    } catch { 
+        // 把資料轉成 JSON
+        data = JSON.parse(source);
+    } catch {
         throw new Error("contact.local.json 不是有效的 JSON，請檢查格式。");
     }
 
@@ -69,6 +81,9 @@ export async function loadContactDetails(path: URL | string = new URL("../../con
 }
 
 // GUI 與 CLI 共用欄位規則。預設仍寫現有本機個資檔，不改範本。
-export async function saveContactDetails(value: unknown, path = fileURLToPath(new URL("../../contact.local.json", import.meta.url))): Promise<void> {
+export async function saveContactDetails(
+    value: unknown,
+    path = fileURLToPath(new URL("../../contact.local.json", import.meta.url)),
+): Promise<void> {
     await writeJsonAtomic(path, validateContactDetails(value));
 }

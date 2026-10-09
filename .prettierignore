@@ -1,0 +1,15 @@
+# 不需排版的套件與產物
+node_modules/
+dist/
+playwright-report/
+test-results/
+package-lock.json
+
+# 本機或個人資料
+browser-profile/
+diagnostics/
+local-data/
+contact.local.json
+
+# 文件維持手寫格式
+*.md

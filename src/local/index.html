@@ -1,21 +1,150 @@
-<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TicketPilot</title><link rel="stylesheet" href="/style.css"></head><body>
-<main><header><div><small>本機購票助手</small><h1>TicketPilot</h1></div></header>
-<button id="homeButton" class="secondary" hidden>返回活動首頁</button>
-<nav hidden aria-label="設定步驟"><button data-step="1" class="active">① 活動與順位</button><button data-step="2">② 聯絡資料</button><button data-step="3">③ 確認與開始</button><button data-step="4">④ 執行狀態</button></nav>
-<div id="message" role="alert"></div>
-<section id="home"><div class="card"><div class="section-title"><h2>活動列表</h2><button id="new">新增活動</button></div>
-<p id="homeRun" hidden></p><button id="viewRun" class="secondary" hidden>查看目前狀態</button>
-<p id="emptyActivities">尚未儲存活動，請新增活動。</p><div class="table-scroll"><table><thead><tr><th>活動名稱</th><th>演出日期</th><th>演出時間</th><th>執行狀態</th><th>操作</th></tr></thead><tbody id="activities"></tbody></table></div></div></section>
-<section id="step1" hidden><div class="card"><div class="section-title"><h2 id="editorTitle">新增活動</h2></div>
-<div><label>活動名稱<input id="eventName" required placeholder="輸入官網活動完整名稱"></label><label>活動網址<input id="eventUrl" type="url" required placeholder="https://www.klook.com/zh-TW/event-detail/…/"></label></div>
-<div class="section-title"><div><h2>購票順位</h2><p>由上往下嘗試，只接受你指定的目標。</p></div><button id="add" class="secondary">新增順位</button></div><div id="targets"></div>
-<details><summary>進階設定 · 嚴格順位</summary><p>STRICT：不購買清單以外的票種。</p><label>排除關鍵字（以逗號分隔）<input id="exclude" value="愛心席,身障,視線不良"></label></details>
-<footer><button id="saveActivity">下一步</button></footer></div></section>
-<section id="step2" hidden><div class="card"><h2>聯絡資料</h2><p>與其他活動共用，儲存在本機；執行紀錄不包含個人資料。</p>
-<div class="grid"><label>姓氏<input id="lastName" autocomplete="family-name" required></label><label>名字<input id="firstName" autocomplete="given-name" required></label><label>電話區碼<select id="regionLabel"><option>台灣 (+886)</option><option>香港 (+852)</option><option>澳門 (+853)</option><option>中國 (+86)</option><option>日本 (+81)</option><option>韓國 (+82)</option><option>新加坡 (+65)</option><option>馬來西亞 (+60)</option><option>美國 (+1)</option></select><small>網站若沒有對應選項，程式會停止。</small></label><label>電話<input id="phone" type="tel" autocomplete="tel-national" required></label><label>Email<input id="email" type="email" autocomplete="email" required></label></div>
-<footer><button id="saveContact">下一步</button></footer></div></section>
-<section id="step3" hidden><div id="purchaseSummary" class="card"><h2>本次設定摘要</h2><div id="summary">請先完成活動與聯絡資料設定。</div><h2>開始時間</h2><label>執行方式<select id="mode"><option value="now">立即開始</option><option value="scheduled">指定開賣時間</option></select></label><div id="schedule" class="grid" hidden><label>開賣時間（台灣 UTC+8）<input id="saleAt" type="datetime-local" step="1"></label><label>提前刷新<select id="advance"><option value="1">1 秒</option><option value="2">2 秒</option></select></label></div>
-<p>指定的是開賣時間，不是演出時間。按開始後會先確認登入、準備活動頁，再等待開賣。</p><label class="check"><input id="confirm" type="checkbox">我已確認活動、順位與金額，並了解程式會提交聯絡資料，停在付款前。</label>
-<button id="start" disabled>開始購票</button></div>
-</section><section id="step4" hidden><div class="card"><h2 id="status">尚未執行</h2><p id="instruction">完成設定後，即可開始。</p><button id="closeBrowser" class="secondary" hidden>關閉購票瀏覽器</button><div class="section-title"><h3>執行紀錄</h3><div><button id="copy" class="secondary">複製紀錄</button></div></div><pre id="logs" tabindex="0" aria-label="執行紀錄">尚無紀錄。</pre></div></section>
-</main><script>const token = "__TOKEN__";</script><script src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="zh-Hant">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>TicketPilot</title>
+        <link rel="stylesheet" href="/style.css" />
+    </head>
+    <body>
+        <main>
+            <header>
+                <div>
+                    <small>本機購票助手</small>
+                    <h1>TicketPilot</h1>
+                </div>
+            </header>
+            <button id="homeButton" class="secondary" hidden>返回活動首頁</button>
+            <nav hidden aria-label="設定步驟">
+                <button data-step="1" class="active">① 活動與順位</button><button data-step="2">② 聯絡資料</button
+                ><button data-step="3">③ 確認與開始</button><button data-step="4">④ 執行狀態</button>
+            </nav>
+            <div id="message" role="alert"></div>
+            <section id="home">
+                <div class="card">
+                    <div class="section-title">
+                        <h2>活動列表</h2>
+                        <button id="new">新增活動</button>
+                    </div>
+                    <p id="homeRun" hidden></p>
+                    <button id="viewRun" class="secondary" hidden>查看目前狀態</button>
+                    <p id="emptyActivities">尚未儲存活動，請新增活動。</p>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>活動名稱</th>
+                                    <th>演出日期</th>
+                                    <th>演出時間</th>
+                                    <th>執行狀態</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="activities"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+            <section id="step1" hidden>
+                <div class="card">
+                    <div class="section-title"><h2 id="editorTitle">新增活動</h2></div>
+                    <div>
+                        <label>活動名稱<input id="eventName" required placeholder="輸入官網活動完整名稱" /></label
+                        ><label
+                            >活動網址<input
+                                id="eventUrl"
+                                type="url"
+                                required
+                                placeholder="https://www.klook.com/zh-TW/event-detail/…/"
+                        /></label>
+                    </div>
+                    <div class="section-title">
+                        <div>
+                            <h2>購票順位</h2>
+                            <p>由上往下嘗試，只接受你指定的目標。</p>
+                        </div>
+                        <button id="add" class="secondary">新增順位</button>
+                    </div>
+                    <div id="targets"></div>
+                    <details>
+                        <summary>進階設定 · 嚴格順位</summary>
+                        <p>STRICT：不購買清單以外的票種。</p>
+                        <label>排除關鍵字（以逗號分隔）<input id="exclude" value="愛心席,身障,視線不良" /></label>
+                    </details>
+                    <footer><button id="saveActivity">下一步</button></footer>
+                </div>
+            </section>
+            <section id="step2" hidden>
+                <div class="card">
+                    <h2>聯絡資料</h2>
+                    <p>與其他活動共用，儲存在本機；執行紀錄不包含個人資料。</p>
+                    <div class="grid">
+                        <label>姓氏<input id="lastName" autocomplete="family-name" required /></label
+                        ><label>名字<input id="firstName" autocomplete="given-name" required /></label
+                        ><label
+                            >電話區碼<select id="regionLabel">
+                                <option>台灣 (+886)</option>
+                                <option>香港 (+852)</option>
+                                <option>澳門 (+853)</option>
+                                <option>中國 (+86)</option>
+                                <option>日本 (+81)</option>
+                                <option>韓國 (+82)</option>
+                                <option>新加坡 (+65)</option>
+                                <option>馬來西亞 (+60)</option>
+                                <option>美國 (+1)</option></select
+                            ><small>網站若沒有對應選項，程式會停止。</small></label
+                        ><label>電話<input id="phone" type="tel" autocomplete="tel-national" required /></label
+                        ><label>Email<input id="email" type="email" autocomplete="email" required /></label>
+                    </div>
+                    <footer><button id="saveContact">下一步</button></footer>
+                </div>
+            </section>
+            <section id="step3" hidden>
+                <div id="purchaseSummary" class="card">
+                    <h2>本次設定摘要</h2>
+                    <div id="summary">請先完成活動與聯絡資料設定。</div>
+                    <h2>開始時間</h2>
+                    <label
+                        >執行方式<select id="mode">
+                            <option value="now">立即開始</option>
+                            <option value="scheduled">指定開賣時間</option>
+                        </select></label
+                    >
+                    <div id="schedule" class="grid" hidden>
+                        <label>開賣時間（台灣 UTC+8）<input id="saleAt" type="datetime-local" step="1" /></label
+                        ><label
+                            >提前刷新<select id="advance">
+                                <option value="1">1 秒</option>
+                                <option value="2">2 秒</option>
+                            </select></label
+                        >
+                    </div>
+                    <p>指定的是開賣時間，不是演出時間。按開始後會先確認登入、準備活動頁，再等待開賣。</p>
+                    <label class="check"
+                        ><input
+                            id="confirm"
+                            type="checkbox"
+                        />我已確認活動、順位與金額，並了解程式會提交聯絡資料，停在付款前。</label
+                    >
+                    <button id="start" disabled>開始購票</button>
+                </div>
+            </section>
+            <section id="step4" hidden>
+                <div class="card">
+                    <h2 id="status">尚未執行</h2>
+                    <p id="instruction">完成設定後，即可開始。</p>
+                    <button id="closeBrowser" class="secondary" hidden>關閉購票瀏覽器</button>
+                    <div class="section-title">
+                        <h3>執行紀錄</h3>
+                        <div><button id="copy" class="secondary">複製紀錄</button></div>
+                    </div>
+                    <pre id="logs" tabindex="0" aria-label="執行紀錄">尚無紀錄。</pre>
+                </div>
+            </section>
+        </main>
+        <script>
+            const token = "__TOKEN__";
+        </script>
+        <script src="/app.js"></script>
+    </body>
+</html>

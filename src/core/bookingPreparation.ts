@@ -8,19 +8,28 @@ interface BookingSteps<T> {
 }
 
 // 只重跑提交前的準備流程。每次 attempt 都取得新座位，不沿用上一次結果。
-export async function prepareBooking<T>(steps: BookingSteps<T>, queueRecovery: FlowRecovery,
-    contactRecovery: FlowRecovery, seatRecovery?: FlowRecovery): Promise<T> {
+export async function prepareBooking<T>(
+    steps: BookingSteps<T>,
+    queueRecovery: FlowRecovery,
+    contactRecovery: FlowRecovery,
+    seatRecovery?: FlowRecovery,
+): Promise<T> {
     let stage: "selection" | "seats" | "contact" | null = "selection";
 
     async function findActiveRecovery(): Promise<FlowRecovery | null> {
+        // 依目前階段，挑出可能用到的恢復方式
         let candidates: (FlowRecovery | undefined)[] = [];
         if (stage === "selection") candidates = [queueRecovery, seatRecovery];
         if (stage === "seats") candidates = [seatRecovery];
         if (stage === "contact") candidates = [contactRecovery];
+
+        // 找出現在真的需要處理的恢復方式
         const matches: FlowRecovery[] = [];
         for (const candidate of candidates) {
-            if (candidate && await candidate.isRequired()) matches.push(candidate);
+            if (candidate && (await candidate.isRequired())) matches.push(candidate);
         }
+
+        // 同時出現多種就停止，避免選錯
         if (matches.length > 1) throw new Error("同時出現多種例外，已停止恢復。");
         return matches[0] ?? null;
     }
@@ -28,14 +37,16 @@ export async function prepareBooking<T>(steps: BookingSteps<T>, queueRecovery: F
     async function findRecovery(): Promise<RecoveryAction | null> {
         const selected = await findActiveRecovery();
         if (!selected) return null;
+
         const kind = selected === queueRecovery ? "queue" : "reservation";
         return {
             kind,
             recover: async () => {
                 // 扣額度後重新核對，但不可無聲切換恢復種類或對象。
-                if (await findActiveRecovery() !== selected) {
+                if ((await findActiveRecovery()) !== selected) {
                     throw new Error("例外狀態已變動，已停止恢復。");
                 }
+
                 await selected.recover(kind === "reservation" ? queueRecovery : undefined);
                 stage = "selection";
             },
@@ -44,6 +55,7 @@ export async function prepareBooking<T>(steps: BookingSteps<T>, queueRecovery: F
 
     // 獨立排隊一次；選位與個資共用預留額度一次，重跑不重設。
     return runWithRecovery(async () => {
+        // 選票並取得座位
         stage = "selection";
         const seats = await steps.selectSeats();
 
@@ -63,6 +75,7 @@ export async function prepareBooking<T>(steps: BookingSteps<T>, queueRecovery: F
         if (await contactRecovery.isRequired()) throw new Error("個人資料預留已過期。");
         await steps.prepareContact(seats);
         if (await contactRecovery.isRequired()) throw new Error("個人資料預留已過期。");
+
         stage = null;
         return seats;
     }, findRecovery);

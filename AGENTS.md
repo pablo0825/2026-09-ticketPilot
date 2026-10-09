@@ -13,6 +13,7 @@ From the repository root:
 - `npx playwright install chromium`: install test Chromium.
 - `npm run typecheck`: check types.
 - `npm test`: run tests.
+- `npm run format`: format files with Prettier; run before committing.
 - `npm start`: run the live flow in installed Chrome.
 
 Review `src/config/event.config.ts` before live runs.
@@ -34,6 +35,15 @@ Review `src/config/event.config.ts` before live runs.
 Use four-space indentation, semicolons, existing quote style,
 camelCase for functions/files, and PascalCase for classes/types.
 Use strict TypeScript, `.js` relative imports, and `import type`.
+
+Separate logical steps with blank lines; keep a lookup and its check together.
+Within a step, start a new uncommented group when statements switch to a
+different subject (e.g. date, area, quantity); each group should be nameable in
+a few words and span 2–4 statements. Do not split a multi-line statement or
+leave a one-line group. Apply this when touching code; avoid style-only sweeps.
+Use braces when an `if` condition or body spans lines. In functions longer than
+about 15 lines or with three or more steps, start each step with a short, plain
+Chinese comment saying what it does; skip step numbers and implementation details.
 
 ## Browser Flow & Recovery
 

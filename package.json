@@ -6,8 +6,13 @@
   "scripts": {
     "test": "node --import tsx --test tests/*.test.ts",
     "start": "tsx src/main.ts",
-    "typecheck": "tsc --noEmit",
-    "gui": "tsx src/local/main.ts"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.browser.json --noEmit",
+    "gui": "tsx src/local/main.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build:gui": "tsc -p tsconfig.browser.json",
+    "pretest": "npm run build:gui",
+    "pregui": "npm run build:gui"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +25,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.3",
+    "prettier": "3.9.9",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

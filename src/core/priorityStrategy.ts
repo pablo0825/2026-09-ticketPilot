@@ -27,11 +27,23 @@ export class PriorityStrategy {
 
     async select<T>(adapter: TargetAttempt<T>): Promise<{ target: PurchaseTarget; value: T }> {
         while (this.index < this.config.targets.length) {
+            // 取出這個順位，並通知畫面目前的目標
             const target = structuredClone(this.config.targets[this.index]!);
-            emitRunEvent({ type: "target", index: this.index + 1, total: this.config.targets.length,
-                area: target.area, quantity: target.quantity, date: target.date, time: target.time, totalPrice: target.expectation.totalPrice });
+            emitRunEvent({
+                type: "target",
+                index: this.index + 1,
+                total: this.config.targets.length,
+                area: target.area,
+                quantity: target.quantity,
+                date: target.date,
+                time: target.time,
+                totalPrice: target.expectation.totalPrice,
+            });
+
+            // 嘗試這個順位，成功就直接回傳
             const result = await adapter.attempt(target);
             if (result.status === "matched") return { target, value: result.value };
+
             // 送出前停用可直接換順位；送出後失敗則必須先安全返回。
             // 返回失敗不得交給外層 recovery，亦不得先前進順位。
             if (result.reason !== "disabled") {
@@ -41,8 +53,10 @@ export class PriorityStrategy {
                     throw new PurchaseStop("失敗後未能安全返回選票，已停止；不換區、不重按或轉用恢復額度。");
                 }
             }
+
             this.index++;
         }
+
         throw new PurchaseStop("NO_TARGET_AVAILABLE：所有設定目標皆明確失敗或目前停用。");
     }
 }

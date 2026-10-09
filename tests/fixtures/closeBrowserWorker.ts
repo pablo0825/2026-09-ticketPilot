@@ -9,7 +9,9 @@ chromium.launchPersistentContext = async () => {
     const directory = await mkdtemp(join(tmpdir(), "ticket-worker-browser-"));
     const context = await launch(directory, { headless: true });
     await context.route("**/*", route => route.fulfill({ status: 403, body: "fixture denied" }));
-    context.once("close", () => { void rm(directory, { recursive: true, force: true }); });
+    context.once("close", () => {
+        void rm(directory, { recursive: true, force: true });
+    });
     return context;
 };
 await import("../../src/local/purchaseWorker.js");

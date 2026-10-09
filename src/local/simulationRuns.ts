@@ -12,6 +12,7 @@ export interface SimulationSnapshot {
     events: { sequence: number; at: string; event: RunEvent }[];
     historyTruncated: boolean;
 }
+
 interface SimulationRun {
     snapshot: SimulationSnapshot;
     fingerprint: string;
@@ -25,7 +26,9 @@ export class SimulationRuns {
     private current?: SimulationRun;
     private listeners = new Set<() => void>();
 
-    hasRequest(id: string): boolean { return this.requests.has(id); }
+    hasRequest(id: string): boolean {
+        return this.requests.has(id);
+    }
 
     snapshot(): SimulationSnapshot | null {
         return this.current ? structuredClone(this.current.snapshot) : null;
@@ -38,49 +41,85 @@ export class SimulationRuns {
 
     private notify(): void {
         for (const listener of this.listeners) {
-            try { listener(); } catch { /* 顯示中斷不影響子程序。 */ }
+            try {
+                listener();
+            } catch {
+                /* 顯示中斷不影響子程序。 */
+            }
         }
     }
 
     start(requestId: string, activity: unknown, contact: unknown): SimulationSnapshot {
+        // 檢查請求與設定
         if (!z.string().uuid().safeParse(requestId).success) throw new Error("開始請求識別碼無效。");
         const input = structuredClone({ activity: parseActivity(activity), contact: validateContactDetails(contact) });
         const fingerprint = createHash("sha256").update(JSON.stringify(input)).digest("hex");
+
+        // 同一個請求重送時，回傳原本的結果
         const existing = this.requests.get(requestId);
         if (existing) {
             if (existing.fingerprint !== fingerprint) throw new Error("同一開始請求不能更換設定。");
             return structuredClone(existing.snapshot);
         }
+
+        // 確認沒有其他模擬正在執行
         if (this.current?.snapshot.status === "running") throw new Error("已有模擬正在執行。");
         // 不丟棄去重紀錄；到上限明確要求重開模擬服務，不讓舊請求變成新購票。
         if (this.requests.size >= 100) throw new Error("本機模擬已達 100 次，請重新啟動服務。");
+
+        // 啟動模擬子程序並建立紀錄
         const child = fork(fileURLToPath(new URL("./simulationWorker.ts", import.meta.url)), [], {
-            cwd: projectRoot, execArgv: ["--import", "tsx"],
-            env: { ...process.env, FLOW_PAUSE: "" }, stdio: ["ignore", "ignore", "ignore", "ipc"],
+            cwd: projectRoot,
+            execArgv: ["--import", "tsx"],
+            env: { ...process.env, FLOW_PAUSE: "" },
+            stdio: ["ignore", "ignore", "ignore", "ipc"],
         });
+
         const run: SimulationRun = {
             snapshot: { id: randomUUID(), status: "running", events: [], historyTruncated: false },
-            fingerprint, child, done: false,
+            fingerprint,
+            child,
+            done: false,
         };
+
         this.current = run;
         this.requests.set(requestId, run);
+
+        // 接收子程序的事件與完成通知，最多保留 300 筆事件
         let sequence = 0;
         child.on("message", (value: unknown) => {
             if (!value || typeof value !== "object" || !("type" in value)) return;
-            if (value.type === "done") { run.done = true; return; }
+            if (value.type === "done") {
+                run.done = true;
+                return;
+            }
+
             if (value.type !== "event" || !("event" in value)) return;
             const event = value.event as RunEvent;
             if (!event || (event.type !== "state" && event.type !== "log")) return;
+
             run.snapshot.events.push({ sequence: ++sequence, at: new Date().toISOString(), event });
-            if (run.snapshot.events.length > 300) { run.snapshot.events.shift(); run.snapshot.historyTruncated = true; }
+            if (run.snapshot.events.length > 300) {
+                run.snapshot.events.shift();
+                run.snapshot.historyTruncated = true;
+            }
             this.notify();
         });
-        child.on("error", () => { run.done = false; });
+
+        // 子程序結束時更新狀態
+        child.on("error", () => {
+            run.done = false;
+        });
         child.on("close", code => {
             run.snapshot.status = code === 0 && run.done ? "completed" : "interrupted";
             this.notify();
         });
-        child.send(input, error => { if (error) child.kill(); });
+
+        // 傳送設定給子程序
+        child.send(input, error => {
+            if (error) child.kill();
+        });
+
         this.notify();
         return structuredClone(run.snapshot);
     }
@@ -88,8 +127,12 @@ export class SimulationRuns {
     async close(): Promise<void> {
         const child = this.current?.child;
         if (child && child.exitCode === null && child.signalCode === null) {
-            await new Promise<void>(resolve => { child.once("close", () => resolve()); child.kill(); });
+            await new Promise<void>(resolve => {
+                child.once("close", () => resolve());
+                child.kill();
+            });
         }
+
         this.listeners.clear();
     }
 }
