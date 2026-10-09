@@ -187,12 +187,14 @@ async function waitForRecoveryReturn(
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
         if (await isEventPageReady(page, eventUrl)) return;
+
         if (returnQueueRecovery && (await returnQueueRecovery.isRequired())) {
             log("本次恢復途中出現排隊逾期：接續處理一次，仍屬同一次購票恢復。");
             await returnQueueRecovery.recover();
             if (!(await isEventPageReady(page, eventUrl))) throw new Error(failureMessage);
             return;
         }
+
         await page.waitForTimeout(200);
     }
 

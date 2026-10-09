@@ -25,11 +25,13 @@ export async function captureSelectionDiagnostics(
             "請返回並重新排隊",
         ];
         const buttonNames = ["OK", "確認", "確定", "下一步", "重新整理"];
+
         const roots = Array.from(
             document.querySelectorAll('.klk-modal-alert, [role="dialog"], dialog, #ticket-options'),
         )
             .filter(el => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden")
             .slice(0, 10);
+
         return roots.map(root => ({
             kind: root.id === "ticket-options" ? "tickets" : "dialog",
             // 未知文字只保留是否存在，不輸出內容。

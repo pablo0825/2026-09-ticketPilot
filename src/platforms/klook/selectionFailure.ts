@@ -27,6 +27,7 @@ export class KlookSelectionFailure {
         if (!isEventPage(this.page.url(), this.eventUrl)) return null;
         const notices = await getSelectionNotices(this.page);
         if (notices.length !== 1) return null;
+
         const dialog = notices[0]!;
         if (!(await dialog.evaluate(el => el.matches(".klk-modal-alert")))) return null;
 
@@ -77,12 +78,14 @@ export class KlookSelectionFailure {
         const expected = this.pending;
         this.pending = undefined; // 行動前消耗本次關閉機會；失敗也不可再次點擊。
         if (!expected) throw new PurchaseStop("沒有本次已辨識的選位失敗，不操作彈窗。");
+
         const failure = await this.readFailure();
         if (!failure || failure.reason !== expected) throw new PurchaseStop("失敗提示已變動或不唯一，停止返回。");
 
         // 確認彈窗只有一個可按的按鈕，按一次
         const buttons = failure.dialog.getByRole("button").filter({ visible: true });
         if ((await buttons.count()) !== 1) throw new PurchaseStop("失敗彈窗按鈕不唯一，停止返回。");
+
         const button = buttons.first();
         if (!/^(OK|確認|確定)$/.test((await button.innerText()).trim()) || !(await button.isEnabled())) {
             throw new PurchaseStop("失敗彈窗按鈕無法核對，停止返回。");
@@ -101,6 +104,7 @@ export class KlookSelectionFailure {
             ) {
                 return;
             }
+
             await this.page.waitForTimeout(100);
         }
 

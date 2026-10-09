@@ -46,8 +46,10 @@ export class KlookTargetAttempt implements TargetAttempt<KlookAssignment> {
         // 進入選位，核對分配到的座位
         reportState("SELECTION_VERIFIED");
         reportState("SEAT_ASSIGNMENT");
+
         const seatSelector = new KlookSeatSelector(this.page, target.expectation.unitPrice, this.timeout);
         await this.failure.assertNoExistingNotice();
+
         try {
             const allocation = await seatSelector.openAndVerify(target, () => this.failure.observe());
             return { status: "matched", value: { seatSelector, allocation } };

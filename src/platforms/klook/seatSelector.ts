@@ -61,6 +61,7 @@ function checkSession(text: string, target: TicketTarget): string | undefined {
     const displayedHour = Number(match[5]);
     const actualMinute = Number(match[6]);
     if (displayedHour < 1 || displayedHour > 12 || actualMinute > 59) return "場次時間格式無法辨識";
+
     const actualHour = (displayedHour % 12) + (match[4] === "下午" ? 12 : 0);
     if (actualHour !== hour || actualMinute !== minute) {
         const actualTime = `${String(actualHour).padStart(2, "0")}:${String(actualMinute).padStart(2, "0")}`;
@@ -155,8 +156,10 @@ export class KlookSeatSelector {
         // 點擊前重讀，避免送出已改變的配位結果。
         const result = await this.readSeatResult();
         this.throwIfSeatError(result.text);
+
         const mismatch = getSeatResultMismatch(result, target);
         if (mismatch) throw new Error(`確認前核對失敗：${mismatch}`);
+
         this.verifyPrices(result, target.quantity);
         if (allocationKey(allocationFrom(result, target.quantity)) !== allocationKey(expectedAllocation)) {
             throw new PurchaseStop("確認前配位結果已改變，已停止。");
@@ -255,6 +258,7 @@ export class KlookSeatSelector {
                 const matches = element.querySelectorAll(selector);
                 return matches.length === 1 ? matches[0]! : null;
             });
+
             // 已選張數與「自行選位」按鈕同在 top；只讀唯一的張數子欄位。
             const selectedCounts = selected?.querySelectorAll(":scope > div > div");
             const selectedCount = selectedCounts?.length === 1 ? selectedCounts[0]! : null;
@@ -286,6 +290,7 @@ export class KlookSeatSelector {
                     structureValid = false;
                     continue;
                 }
+
                 // opacity 不會繼承到子元素的 computed style，需沿祖先檢查。
                 for (let ancestor: Element | null = node; ancestor; ancestor = ancestor.parentElement) {
                     const style = getComputedStyle(ancestor);
@@ -312,6 +317,7 @@ export class KlookSeatSelector {
                         .trim(),
                 );
                 const values = fields.map(field => field.querySelector("ins")?.textContent?.trim() ?? "");
+
                 // 拒絕每欄多個值、欄外多餘值，以及列內額外文字。
                 const exactFields =
                     fields.every(field => field.querySelectorAll("ins").length === 1 && field.children.length === 1) &&
@@ -321,6 +327,7 @@ export class KlookSeatSelector {
                             .map(field => field.textContent ?? "")
                             .join("")
                             .replace(/\s/g, "");
+
                 if (exactFields && labels.join("/") === "區/排/座位") {
                     seats.push({ section: values[0]!, row: values[1]!, number: values[2]! });
                 } else if (

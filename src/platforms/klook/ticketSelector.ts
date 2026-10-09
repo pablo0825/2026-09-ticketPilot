@@ -88,11 +88,14 @@ export class KlookTicketSelector {
         // 操作完再讀一次，確保後面的操作沒有重設前面的選擇。
         await this.verifyDate(target.date);
         await this.verifySelectedOption(time, "時間");
+
         if (await this.isDisabled(area)) throw new PurchaseStop("選票操作後票種變為停用，已停止；不送出。");
         await this.verifySelectedOption(area, "票區");
+
         const matched = await this.findArea(target.area, expectedUnitPrice);
         await this.verifySelectedOption(matched, "票區");
         if (await this.isDisabled(matched)) throw new PurchaseStop("選票操作後票種變為停用，已停止；不送出。");
+
         await this.verifyQuantity(target.quantity);
         await this.verifyAdjacentPreference(target);
 
@@ -107,6 +110,7 @@ export class KlookTicketSelector {
             const group = this.root.locator(selectors.group).filter({ has: heading });
             await this.observeSelectionNotice();
             await this.waitForUniqueElement(group, "日期群組", this.observeSelectionNotice);
+
             const options = group.locator(selectors.option).filter({ visible: true });
             await this.waitUntil(
                 async () => (await options.count()) > 0,
@@ -187,6 +191,7 @@ export class KlookTicketSelector {
             const heading = this.page.locator(selectors.groupName).filter({ hasText: /^時間\s*$/ });
             const group = this.root.locator(selectors.group).filter({ has: heading });
             await this.waitForUniqueElement(group, "時間群組", this.observeSelectionNotice);
+
             const option = group
                 .locator(selectors.option)
                 .filter({ visible: true, hasText: new RegExp(`^\\s*${escapeRegex(time)}\\s*$`) });
@@ -318,6 +323,7 @@ export class KlookTicketSelector {
         const checkbox = this.root.locator(selectors.adjacent);
         await this.waitForUniqueElement(checkbox, "相連座位設定");
         await this.readAdjacentPreference();
+
         await checkbox.setChecked(target.adjacent, { timeout: this.timeout });
         await this.waitUntil(
             async () => (await this.readAdjacentPreference()) === target.adjacent,

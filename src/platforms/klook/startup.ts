@@ -48,6 +48,7 @@ export async function readLoginState(page: Page): Promise<LoginState> {
         ) {
             return "logged-in";
         }
+
         if (logged.length === 0 && signin.length === 1) return "logged-out";
         return "unknown";
     });
@@ -199,6 +200,7 @@ async function waitForSale(
     const refreshAt = saleAt - (options.saleSchedule!.advanceSeconds ?? 1) * 1000;
     const loadTimeout = options.pageTimeout ?? 60_000;
     let loadDeadline = Math.min(Date.now() + loadTimeout, cutoff);
+
     let lastRefresh: number | undefined;
     let prepared = false;
     let unknownSince: number | undefined;
@@ -249,6 +251,7 @@ async function waitForSale(
             // 人工登入有獨立等待期限；完成後重新核對 DOM，但不延長整體截止。
             loadDeadline = Math.min(Date.now() + loadTimeout, cutoff);
             unknownSince = undefined;
+
             // 登入可能導頁，也可能留在活動頁；留在原頁先重新分類，不能蓋掉新提示。
             if (isEventPage(page.url(), eventUrl)) continue;
             const returned = new URL(page.url());
@@ -260,6 +263,7 @@ async function waitForSale(
             ) {
                 throw new PurchaseStop("手動登入後未到達已知返回頁，未重新導覽活動。");
             }
+
             await refresh(true);
             continue;
         }
@@ -267,11 +271,13 @@ async function waitForSale(
         // 讀取選票區狀態：即將開賣，或已有選項
         const tickets = page.locator("#ticket-options");
         const uniqueTickets = (await tickets.count()) === 1 && (await tickets.isVisible());
+
         const states = tickets.locator(".package-wrapper.stateText").filter({ visible: true });
         const stateCount = uniqueTickets ? await states.count() : 0;
         const comingSoon = stateCount === 1 && (await states.innerText()).trim() === "即將開賣";
         const hasOptions =
             uniqueTickets && (await tickets.locator(".spec-LwNjSh").filter({ visible: true }).count()) > 0;
+
         if ((comingSoon && hasOptions) || stateCount > 1) throw new PurchaseStop("開賣頁面狀態互相矛盾，已停止。");
         if (Date.now() >= cutoff || Date.now() >= loadDeadline) {
             throw new PurchaseStop("開賣頁面等待已逾時，未開始購票。");
@@ -287,10 +293,12 @@ async function waitForSale(
         } else {
             unknownSince = undefined;
             loadDeadline = cutoff;
+
             if (!prepared) {
                 prepared = true;
                 log("登入與活動頁檢查完成，等待開賣；尚未開始選票。");
             }
+
             if (queue) {
                 // 已知彈窗優先；不以刷新蓋掉它，也不在開賣前消耗恢復額度。
                 if (Date.now() >= saleAt) return "queue-expired";
