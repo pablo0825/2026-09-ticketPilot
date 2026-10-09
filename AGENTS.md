@@ -37,9 +37,10 @@ camelCase for functions/files, and PascalCase for classes/types.
 Use strict TypeScript, `.js` relative imports, and `import type`.
 
 Separate logical steps with blank lines; keep a lookup and its check together.
-Within a step, also separate small groups of related statements (for example,
-creating an element and setting its properties); these groups need no comments.
-Do not split a single multi-line statement, and avoid one-line groups.
+Within a step, start a new uncommented group when statements switch to a
+different subject (e.g. date, area, quantity); each group should be nameable in
+a few words and span 2–4 statements. Do not split a multi-line statement or
+leave a one-line group. Apply this when touching code; avoid style-only sweeps.
 Use braces when an `if` condition or body spans lines. In functions longer than
 about 15 lines or with three or more steps, start each step with a short, plain
 Chinese comment saying what it does; skip step numbers and implementation details.
