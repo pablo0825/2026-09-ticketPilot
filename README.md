@@ -58,9 +58,18 @@ npm ci
 
 ## 3. 開啟 GUI
 
-在專案資料夾執行：
+在專案資料夾執行以下指令，啟用自動化識別參數測試並開啟 GUI。
+
+**macOS／Linux：**
 
 ```bash
+WEBDRIVER_EXPERIMENT=1 npm run gui
+```
+
+**Windows PowerShell：**
+
+```powershell
+$env:WEBDRIVER_EXPERIMENT = "1"
 npm run gui
 ```
 
