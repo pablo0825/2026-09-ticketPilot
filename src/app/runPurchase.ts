@@ -100,9 +100,11 @@ export async function runPurchase(
     // 取得或沿用購票占用；流程結束且瀏覽器關閉後才釋放
     const lease = options.lease ?? acquirePurchaseLease();
     verifyPurchaseLease(lease);
+
     let settled = false;
     let browserClosed = true;
     let released = false;
+
     const release = () => {
         if (settled && browserClosed && !released) {
             releasePurchaseLease(lease);
@@ -138,6 +140,7 @@ async function executePurchase(
 ) {
     // 顯示 status 為正在啟動
     reportState("STARTING");
+
     // 驗證活動資料是否符合規定
     const strategy = new PriorityStrategy(eventConfig);
     const pause = new FlowPause(options.pause);
@@ -153,6 +156,7 @@ async function executePurchase(
     // 啟動檢查完成；已知排隊過期仍由下方既有恢復流程處理。
     const contactForm = new KlookContactForm(page, eventConfig.eventUrl);
     let selecting = false;
+
     const prepared = await prepareBooking(
         {
             selectSeats: async () => {
@@ -163,6 +167,7 @@ async function executePurchase(
                 selecting = false;
                 reportState("SEATS_VERIFIED");
                 await pause.waitAt("seats");
+
                 reportState("SEAT_CONFIRMATION");
                 await seatSelector.confirmVerifiedSeats(target, allocation);
                 await waitForPersonalInfoPage(page, eventConfig.eventUrl);
@@ -178,6 +183,7 @@ async function executePurchase(
                 // 填寫聯絡資料，再核對一次摘要與欄位
                 reportState("CONTACT_FILLING");
                 await contactForm.fillAndVerify(contactDetails);
+
                 verifyBookingSummary(
                     await readBookingSummary(page, eventConfig.eventUrl),
                     target,
