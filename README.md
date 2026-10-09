@@ -10,11 +10,40 @@
 
 ### 1. 準備執行環境
 
-- 安裝 Node.js 與隨附的 npm。本專案目前本機使用 Node.js `24.4.1`、npm `11.4.2`；`package.json` 尚未宣告完整支援版本範圍。
+- 安裝 **Node.js 24 LTS** 與隨附的 npm，依下方方式操作。已安裝 24.x 的使用者可略過安裝。
 - 安裝 Google Chrome。實際購票會啟動電腦上安裝的 Chrome。
 - 準備可手動登入的 Klook 帳號。
 
-安裝完成後，開啟終端機（macOS Terminal 或 Windows PowerShell），確認指令可用：
+#### 安裝 Node.js
+
+可以直接點選官方安裝檔，或複製下方對應系統的指令到終端機。兩種方式擇一即可。
+
+| 系統 | 官方安裝檔 |
+| --- | --- |
+| macOS（Apple Silicon／Intel） | [下載 .pkg](https://nodejs.org/download/release/v24.21.0/node-v24.21.0.pkg) |
+| Windows（Intel／AMD 64 位元） | [下載 x64 .msi](https://nodejs.org/download/release/v24.21.0/node-v24.21.0-x64.msi) |
+| Windows（ARM64，例如 Snapdragon） | [下載 ARM64 .msi](https://nodejs.org/download/release/v24.21.0/node-v24.21.0-arm64.msi) |
+
+以下固定使用 `24.21.0`，是 2026-10-09 查核時官方提供的 Node.js 24 LTS 版本。之後可在 [Node.js 官方下載頁](https://nodejs.org/en/download) 選擇 24.x 的更新版本。本專案目前本機使用 `24.4.1`，尚未完成 `24.21.0` 或其他主版本的相容性驗證。
+
+**macOS：** 開啟「終端機」，貼上整段指令：
+
+```bash
+ticketpilot_node_pkg="$(mktemp -d)/node-v24.21.0.pkg"
+curl --fail --location "https://nodejs.org/download/release/v24.21.0/node-v24.21.0.pkg" --output "$ticketpilot_node_pkg" && open "$ticketpilot_node_pkg"
+```
+
+**Windows：** 開啟 PowerShell，貼上整段指令。以下適用 Intel／AMD 64 位元電腦；ARM64 電腦請改用表格中的 ARM64 安裝檔。
+
+```powershell
+$ticketpilotNodeMsi = Join-Path ([System.IO.Path]::GetTempPath()) ("node-v24.21.0-" + [guid]::NewGuid().ToString() + ".msi")
+Invoke-WebRequest -Uri "https://nodejs.org/download/release/v24.21.0/node-v24.21.0-x64.msi" -OutFile $ticketpilotNodeMsi -ErrorAction Stop
+Start-Process -FilePath "msiexec.exe" -ArgumentList @("/i", "`"$ticketpilotNodeMsi`"") -Wait
+```
+
+指令會從 Node.js 官方網站下載並開啟安裝程式，**仍需依安裝視窗完成操作**，可能要求管理員權限。保留預設的 npm 與 PATH 選項即可。
+
+安裝完成後，關閉並重新開啟終端機，確認指令可用：
 
 ```bash
 node --version
@@ -22,6 +51,8 @@ npm --version
 ```
 
 若找不到指令，先關閉並重新開啟終端機，再確認 Node.js 已完成安裝。
+
+Windows PowerShell 若顯示 `npm.ps1` 無法執行，本文的 `npm` 指令可改用 `npm.cmd`，例如 `npm.cmd --version`、`npm.cmd ci` 與 `npm.cmd run gui`。
 
 ### 2. 下載並解壓縮專案
 
