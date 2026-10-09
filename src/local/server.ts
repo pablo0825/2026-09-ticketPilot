@@ -41,6 +41,7 @@ export async function startLocalServer(
     const purchases = new PurchaseRuns(options.runDirectory, options.purchaseWorker);
     const token = randomBytes(32).toString("hex");
     const runs = new SimulationRuns();
+
     const streams = new Set<ServerResponse>();
     let origin = "";
     let mutationTail = Promise.resolve();
@@ -71,10 +72,12 @@ export async function startLocalServer(
                     json(response, 403, {});
                     return;
                 }
+
                 const html = (await readFile(new URL("./index.html", import.meta.url), "utf8")).replace(
                     "__TOKEN__",
                     token,
                 );
+
                 response.writeHead(200, {
                     "Content-Type": "text/html; charset=utf-8",
                     "Cache-Control": "no-store",
@@ -85,6 +88,7 @@ export async function startLocalServer(
                 response.end(html);
                 return;
             }
+
             if (request.method === "GET" && ["/app.js", "/style.css"].includes(url.pathname)) {
                 response.writeHead(200, {
                     "Content-Type": url.pathname.endsWith(".js")
@@ -125,9 +129,11 @@ export async function startLocalServer(
                     "Cache-Control": "no-store",
                     Connection: "keep-alive",
                 });
+
                 streams.add(response);
                 const send = () => response.write(`data: ${JSON.stringify(manager.snapshot())}\n\n`);
                 send();
+
                 const unsubscribe = manager.subscribe(send);
                 const heartbeat = setInterval(() => response.write(": keepalive\n\n"), 15_000);
                 response.on("close", () => {
@@ -211,6 +217,7 @@ export async function startLocalServer(
             }
 
             const match = /^\/api\/activities\/([^/]+)$/.exec(url.pathname);
+
             if (request.method === "DELETE" && match) {
                 if (purchases.busy() || runs.snapshot()?.status === "running") {
                     throw new Error("執行或瀏覽器占用中，不能刪除活動。");

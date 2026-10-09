@@ -9,6 +9,7 @@ import { PurchaseStop } from "../core/purchaseStop.js";
 // 父服務失聯即停止程序，保留占用標記供人工檢查；不能偷偷續購。
 let finished = false;
 process.once("disconnect", () => process.exit(finished ? 0 : 1));
+
 process.once("message", async (input: { activity: unknown; contact: unknown; lease: PurchaseLease }) => {
     let context: BrowserContext | undefined;
     let closed: Promise<void> = Promise.resolve();
@@ -20,6 +21,7 @@ process.once("message", async (input: { activity: unknown; contact: unknown; lea
     process.on("message", async (message: unknown) => {
         if (!message || typeof message !== "object" || !("type" in message) || message.type !== "close-browser") return;
         if (!settled || !context || closing) return;
+
         closing = true;
         try {
             await context.close();

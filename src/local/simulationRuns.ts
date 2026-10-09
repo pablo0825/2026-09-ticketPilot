@@ -74,12 +74,14 @@ export class SimulationRuns {
             env: { ...process.env, FLOW_PAUSE: "" },
             stdio: ["ignore", "ignore", "ignore", "ipc"],
         });
+
         const run: SimulationRun = {
             snapshot: { id: randomUUID(), status: "running", events: [], historyTruncated: false },
             fingerprint,
             child,
             done: false,
         };
+
         this.current = run;
         this.requests.set(requestId, run);
 
@@ -91,9 +93,11 @@ export class SimulationRuns {
                 run.done = true;
                 return;
             }
+
             if (value.type !== "event" || !("event" in value)) return;
             const event = value.event as RunEvent;
             if (!event || (event.type !== "state" && event.type !== "log")) return;
+
             run.snapshot.events.push({ sequence: ++sequence, at: new Date().toISOString(), event });
             if (run.snapshot.events.length > 300) {
                 run.snapshot.events.shift();

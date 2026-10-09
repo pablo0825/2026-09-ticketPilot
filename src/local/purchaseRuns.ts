@@ -52,6 +52,7 @@ export class PurchaseRuns {
         // 讀取過去的執行紀錄，最新的當作目前紀錄
         this.directory = join(root, "runs");
         mkdirSync(this.directory, { recursive: true, mode: 0o700 });
+
         const files = readdirSync(this.directory).filter(name => /^[0-9a-f-]{36}\.json$/.test(name));
         const records = files.map(name => this.read(name.slice(0, -5))).filter(record => record !== undefined);
         records.sort((a, b) => b.snapshot.id.localeCompare(a.snapshot.id));
@@ -123,6 +124,7 @@ export class PurchaseRuns {
     private save(record: Record, fresh = false): void {
         const path = this.file(record.snapshot.requestId);
         const data = JSON.stringify(record);
+
         if (fresh) writeFileSync(path, data, { flag: "wx", mode: 0o600 });
         else {
             const temporary = `${path}.${randomUUID()}.tmp`;
@@ -203,6 +205,7 @@ export class PurchaseRuns {
         if (activityId !== undefined && !z.string().uuid().safeParse(activityId).success) {
             throw new Error("活動識別碼無效。");
         }
+
         const activity = parseActivity(activityInput);
         const contact = validateContactDetails(contactInput);
         const fingerprint = createHash("sha256").update(JSON.stringify({ activity, contact })).digest("hex");
@@ -241,6 +244,7 @@ export class PurchaseRuns {
                 historyTruncated: false,
             },
         };
+
         // 必須先留下去重紀錄才啟動；寫入或啟動異常保留占用，不猜測可重跑。
         this.save(record, true);
         this.current = record;
@@ -295,6 +299,7 @@ export class PurchaseRuns {
                 record.snapshot.status = "interrupted";
                 record.snapshot.message = "購票程序異常中斷，提交結果可能未知；請檢查訂單，不會自動重跑。";
             }
+
             record.snapshot.occupied = purchaseOccupied(this.root);
             try {
                 this.save(record);
@@ -305,6 +310,7 @@ export class PurchaseRuns {
                 this.notify();
             }
         };
+
         child.once("error", () => {
             clean = false;
         });
@@ -325,6 +331,7 @@ export class PurchaseRuns {
         if (!run || run.id !== runId) throw new Error("執行紀錄已變更，請重新查看目前狀態。");
         if (run.status === "running") throw new Error("購票流程仍在執行，不能關閉瀏覽器。");
         if (!run.browserOpen && !this.child && !this.busy()) return this.snapshot()!;
+
         const child = this.child;
         if (!this.snapshot()?.canCloseBrowser || !child) {
             throw new Error("無法控制這次購票瀏覽器，請手動關閉並檢查原流程。");
@@ -338,14 +345,17 @@ export class PurchaseRuns {
                 child.off("message", onMessage);
                 error ? reject(error) : resolve();
             };
+
             const onClose = () => finish();
             const onMessage = (value: any) => {
                 if (value?.type === "close-error") finish(new Error("瀏覽器關閉失敗，請檢查原視窗或手動關閉。"));
             };
+
             const timer = setTimeout(
                 () => finish(new Error("尚未確認瀏覽器關閉，請檢查原視窗；占用尚未強制解除。")),
                 10_000,
             );
+
             child.once("close", onClose);
             child.on("message", onMessage);
             child.send({ type: "close-browser" }, error => {

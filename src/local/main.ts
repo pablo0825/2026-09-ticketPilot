@@ -20,6 +20,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, async () => {
         if (closing) return;
         closing = true;
+
         try {
             await service.close();
             process.exitCode = 0;
