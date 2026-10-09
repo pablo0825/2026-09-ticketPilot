@@ -34,6 +34,7 @@ export async function collectStoppedDiagnostics(
         input.once("error", fail);
         reader.once("close", () => input.removeListener("error", fail));
     });
+
     reader.close();
     input.pause();
 
