@@ -15,8 +15,10 @@ export interface RecoveryAction {
 }
 
 // 整次執行各一份額度；恢復失敗直接停止，不轉用其他額度。
-export async function runWithRecovery<T>(attempt: () => Promise<T>,
-    findRecovery: () => Promise<RecoveryAction | null>): Promise<T> {
+export async function runWithRecovery<T>(
+    attempt: () => Promise<T>,
+    findRecovery: () => Promise<RecoveryAction | null>,
+): Promise<T> {
     const used = { queue: false, reservation: false };
 
     async function recoverOnce(action: RecoveryAction): Promise<void> {

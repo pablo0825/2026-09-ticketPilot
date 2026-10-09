@@ -25,7 +25,9 @@ export class SimulationRuns {
     private current?: SimulationRun;
     private listeners = new Set<() => void>();
 
-    hasRequest(id: string): boolean { return this.requests.has(id); }
+    hasRequest(id: string): boolean {
+        return this.requests.has(id);
+    }
 
     snapshot(): SimulationSnapshot | null {
         return this.current ? structuredClone(this.current.snapshot) : null;
@@ -38,7 +40,11 @@ export class SimulationRuns {
 
     private notify(): void {
         for (const listener of this.listeners) {
-            try { listener(); } catch { /* 顯示中斷不影響子程序。 */ }
+            try {
+                listener();
+            } catch {
+                /* 顯示中斷不影響子程序。 */
+            }
         }
     }
 
@@ -55,32 +61,46 @@ export class SimulationRuns {
         // 不丟棄去重紀錄；到上限明確要求重開模擬服務，不讓舊請求變成新購票。
         if (this.requests.size >= 100) throw new Error("本機模擬已達 100 次，請重新啟動服務。");
         const child = fork(fileURLToPath(new URL("./simulationWorker.ts", import.meta.url)), [], {
-            cwd: projectRoot, execArgv: ["--import", "tsx"],
-            env: { ...process.env, FLOW_PAUSE: "" }, stdio: ["ignore", "ignore", "ignore", "ipc"],
+            cwd: projectRoot,
+            execArgv: ["--import", "tsx"],
+            env: { ...process.env, FLOW_PAUSE: "" },
+            stdio: ["ignore", "ignore", "ignore", "ipc"],
         });
         const run: SimulationRun = {
             snapshot: { id: randomUUID(), status: "running", events: [], historyTruncated: false },
-            fingerprint, child, done: false,
+            fingerprint,
+            child,
+            done: false,
         };
         this.current = run;
         this.requests.set(requestId, run);
         let sequence = 0;
         child.on("message", (value: unknown) => {
             if (!value || typeof value !== "object" || !("type" in value)) return;
-            if (value.type === "done") { run.done = true; return; }
+            if (value.type === "done") {
+                run.done = true;
+                return;
+            }
             if (value.type !== "event" || !("event" in value)) return;
             const event = value.event as RunEvent;
             if (!event || (event.type !== "state" && event.type !== "log")) return;
             run.snapshot.events.push({ sequence: ++sequence, at: new Date().toISOString(), event });
-            if (run.snapshot.events.length > 300) { run.snapshot.events.shift(); run.snapshot.historyTruncated = true; }
+            if (run.snapshot.events.length > 300) {
+                run.snapshot.events.shift();
+                run.snapshot.historyTruncated = true;
+            }
             this.notify();
         });
-        child.on("error", () => { run.done = false; });
+        child.on("error", () => {
+            run.done = false;
+        });
         child.on("close", code => {
             run.snapshot.status = code === 0 && run.done ? "completed" : "interrupted";
             this.notify();
         });
-        child.send(input, error => { if (error) child.kill(); });
+        child.send(input, error => {
+            if (error) child.kill();
+        });
         this.notify();
         return structuredClone(run.snapshot);
     }
@@ -88,7 +108,10 @@ export class SimulationRuns {
     async close(): Promise<void> {
         const child = this.current?.child;
         if (child && child.exitCode === null && child.signalCode === null) {
-            await new Promise<void>(resolve => { child.once("close", () => resolve()); child.kill(); });
+            await new Promise<void>(resolve => {
+                child.once("close", () => resolve());
+                child.kill();
+            });
         }
         this.listeners.clear();
     }

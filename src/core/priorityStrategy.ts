@@ -28,8 +28,16 @@ export class PriorityStrategy {
     async select<T>(adapter: TargetAttempt<T>): Promise<{ target: PurchaseTarget; value: T }> {
         while (this.index < this.config.targets.length) {
             const target = structuredClone(this.config.targets[this.index]!);
-            emitRunEvent({ type: "target", index: this.index + 1, total: this.config.targets.length,
-                area: target.area, quantity: target.quantity, date: target.date, time: target.time, totalPrice: target.expectation.totalPrice });
+            emitRunEvent({
+                type: "target",
+                index: this.index + 1,
+                total: this.config.targets.length,
+                area: target.area,
+                quantity: target.quantity,
+                date: target.date,
+                time: target.time,
+                totalPrice: target.expectation.totalPrice,
+            });
             const result = await adapter.attempt(target);
             if (result.status === "matched") return { target, value: result.value };
             // 送出前停用可直接換順位；送出後失敗則必須先安全返回。

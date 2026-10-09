@@ -17,15 +17,20 @@ export interface KlookAssignment {
 export class KlookTargetAttempt implements TargetAttempt<KlookAssignment> {
     private readonly failure: KlookSelectionFailure;
 
-    constructor(private readonly page: Page, eventUrl: string, private readonly timeout = 30_000) {
+    constructor(
+        private readonly page: Page,
+        eventUrl: string,
+        private readonly timeout = 30_000,
+    ) {
         this.failure = new KlookSelectionFailure(page, eventUrl, timeout);
     }
 
     async attempt(target: PurchaseTarget): Promise<AttemptResult<KlookAssignment>> {
         await this.failure.assertNoExistingNotice();
         reportState("TICKET_SELECTION");
-        const selection = await new KlookTicketSelector(this.page, this.timeout,
-            () => this.failure.assertNoExistingNotice()).selectAndVerify(target, target.expectation.unitPrice);
+        const selection = await new KlookTicketSelector(this.page, this.timeout, () =>
+            this.failure.assertNoExistingNotice(),
+        ).selectAndVerify(target, target.expectation.unitPrice);
         if (selection === "disabled") {
             // 跳過前再次確認頁面；有過期或未知提示時，不將本次觀察當成可換順位。
             await this.failure.assertNoExistingNotice();

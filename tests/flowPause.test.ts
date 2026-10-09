@@ -9,9 +9,16 @@ function terminal() {
     return { input: Object.assign(new PassThrough(), { isTTY: true }), output: new PassThrough() };
 }
 function recovery() {
-    return { expired: false, count: 0,
-        async isRequired() { return this.expired; },
-        async recover() { this.expired = false; this.count++; },
+    return {
+        expired: false,
+        count: 0,
+        async isRequired() {
+            return this.expired;
+        },
+        async recover() {
+            this.expired = false;
+            this.count++;
+        },
     };
 }
 
@@ -28,7 +35,10 @@ test("只在指定位置等待 Enter，而且整次執行只停一次", async ()
     const pause = new FlowPause("contact", input, output);
     assert.equal(await pause.waitAt("seats"), false);
     let completed = false;
-    const waiting = pause.waitAt("contact").then(result => { completed = true; return result; });
+    const waiting = pause.waitAt("contact").then(result => {
+        completed = true;
+        return result;
+    });
     input.write("hello\n");
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(completed, false);
@@ -44,8 +54,12 @@ test("選位與個資暫停後過期走既有恢復，新的一輪不再次暫�
     for (const point of ["seats", "contact"] as const) {
         const { input, output } = terminal();
         const pause = new FlowPause(point, input, output);
-        const queue = recovery(), seats = recovery(), contact = recovery();
-        let attempts = 0, confirmations = 0, pauses = 0;
+        const queue = recovery(),
+            seats = recovery(),
+            contact = recovery();
+        let attempts = 0,
+            confirmations = 0,
+            pauses = 0;
         const selected = point === "seats" ? seats : contact;
         async function checkpoint(at: "seats" | "contact") {
             const waiting = pause.waitAt(at);
@@ -55,15 +69,22 @@ test("選位與個資暫停後過期走既有恢復，新的一輪不再次暫�
             }
             if (await waiting) pauses++;
         }
-        await prepareBooking({
-            selectSeats: async () => ++attempts,
-            confirmSeats: async () => {
-                await checkpoint("seats");
-                if (seats.expired) throw new SeatExpiredBeforeConfirmationError();
-                confirmations++;
+        await prepareBooking(
+            {
+                selectSeats: async () => ++attempts,
+                confirmSeats: async () => {
+                    await checkpoint("seats");
+                    if (seats.expired) throw new SeatExpiredBeforeConfirmationError();
+                    confirmations++;
+                },
+                prepareContact: async () => {
+                    await checkpoint("contact");
+                },
             },
-            prepareContact: async () => { await checkpoint("contact"); },
-        }, queue, contact, seats);
+            queue,
+            contact,
+            seats,
+        );
         assert.equal(attempts, 2);
         assert.equal(pauses, 1);
         assert.equal(selected.count, 1);
@@ -76,15 +97,20 @@ test("未過期就繼續，不強制恢復", async () => {
     const pause = new FlowPause("contact", input, output);
     const contact = recovery();
     let attempts = 0;
-    await prepareBooking({
-        selectSeats: async () => ++attempts,
-        confirmSeats: async () => {},
-        prepareContact: async () => {
-            const waiting = pause.waitAt("contact");
-            input.write("\n");
-            await waiting;
+    await prepareBooking(
+        {
+            selectSeats: async () => ++attempts,
+            confirmSeats: async () => {},
+            prepareContact: async () => {
+                const waiting = pause.waitAt("contact");
+                input.write("\n");
+                await waiting;
+            },
         },
-    }, recovery(), contact, recovery());
+        recovery(),
+        contact,
+        recovery(),
+    );
     assert.equal(attempts, 1);
     assert.equal(contact.count, 0);
 });
@@ -95,17 +121,24 @@ test("Ctrl+C 或輸入關閉立即取消，即使個資已過期也不重跑", a
         const pause = new FlowPause("contact", input, output);
         const contact = recovery();
         let attempts = 0;
-        await assert.rejects(prepareBooking({
-            selectSeats: async () => ++attempts,
-            confirmSeats: async () => {},
-            prepareContact: async () => {
-                const waiting = pause.waitAt("contact");
-                contact.expired = true;
-                if (action === "interrupt") input.write("\u0003");
-                else input.end();
-                await waiting;
-            },
-        }, recovery(), contact), { name: "AbortError" });
+        await assert.rejects(
+            prepareBooking(
+                {
+                    selectSeats: async () => ++attempts,
+                    confirmSeats: async () => {},
+                    prepareContact: async () => {
+                        const waiting = pause.waitAt("contact");
+                        contact.expired = true;
+                        if (action === "interrupt") input.write("\u0003");
+                        else input.end();
+                        await waiting;
+                    },
+                },
+                recovery(),
+                contact,
+            ),
+            { name: "AbortError" },
+        );
         assert.equal(attempts, 1);
         assert.equal(contact.count, 0);
         assert.equal(input.listenerCount("error"), 0);

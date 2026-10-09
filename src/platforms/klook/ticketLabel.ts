@@ -13,8 +13,7 @@ export function parseTicketAmount(text: string): number {
 export function parseTicketLabel(text: string): { name: string; unitPrice: number } {
     const label = text.normalize("NFKC").trim();
     // 僅接受已觀察的三種後綴；不移除名稱裡其他括號或數字。
-    const match = label.match(/^(.+?)\s*\(NT\$\s*([\d,]+)\)$/)
-        ?? label.match(/^(.+?)\s+(?:NT\$|\$)\s*([\d,]+)$/);
+    const match = label.match(/^(.+?)\s*\(NT\$\s*([\d,]+)\)$/) ?? label.match(/^(.+?)\s+(?:NT\$|\$)\s*([\d,]+)$/);
     if (!match || !normalizeTicketName(match[1]!)) throw new Error("票種名稱或價格格式無法辨識。");
     return { name: normalizeTicketName(match[1]!), unitPrice: parseTicketAmount(match[2]!) };
 }

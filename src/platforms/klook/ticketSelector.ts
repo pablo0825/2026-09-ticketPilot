@@ -38,8 +38,11 @@ export class KlookTicketSelector {
     private readonly root: Locator;
 
     // page, timeout 作為物件的私有屬性
-    constructor(private readonly page: Page, private readonly timeout = 10_000,
-        private readonly observeSelectionNotice: () => Promise<void> = async () => {}) {
+    constructor(
+        private readonly page: Page,
+        private readonly timeout = 10_000,
+        private readonly observeSelectionNotice: () => Promise<void> = async () => {},
+    ) {
         // 建立定位器
         // .locator 指定檢查哪個元素
         this.root = page.locator(selectors.root);
@@ -54,7 +57,7 @@ export class KlookTicketSelector {
         // 確認票券選擇區只有一個元素
         await this.waitForUniqueElement(this.root, "票券選擇區");
 
-        if (!await this.selectDate(target.date)) {
+        if (!(await this.selectDate(target.date))) {
             log(`日期目前不可選：${target.date}；未送出選票。`);
             return "disabled";
         }
@@ -96,7 +99,11 @@ export class KlookTicketSelector {
             await this.observeSelectionNotice();
             await this.waitForUniqueElement(group, "日期群組", this.observeSelectionNotice);
             const options = group.locator(selectors.option).filter({ visible: true });
-            await this.waitUntil(async () => await options.count() > 0, "日期選項尚未載入", this.observeSelectionNotice);
+            await this.waitUntil(
+                async () => (await options.count()) > 0,
+                "日期選項尚未載入",
+                this.observeSelectionNotice,
+            );
             const labels = await options.allInnerTexts();
             const matches = labels.filter(label => matchesDateOption(parseDateOption(label), expected));
             if (matches.length !== 1) throw new PurchaseStop("日期選項不符合或有多個匹配項，已停止。");
@@ -117,9 +124,13 @@ export class KlookTicketSelector {
         try {
             const option = await this.findDate(expected);
             if (await this.isUnavailableSessionOption(option, "日期")) return false;
-            if (!await this.isSelected(option)) {
+            if (!(await this.isSelected(option))) {
                 await option.click({ timeout: this.timeout });
-                await this.waitUntil(() => this.isSelected(option), "日期點選後沒有確認選中", this.observeSelectionNotice);
+                await this.waitUntil(
+                    () => this.isSelected(option),
+                    "日期點選後沒有確認選中",
+                    this.observeSelectionNotice,
+                );
             }
             await this.verifyDate(expected);
             log(`日期選項已選：${(await option.innerText()).trim()}；完整年份於配位確認前核對。`);
@@ -136,12 +147,15 @@ export class KlookTicketSelector {
 
     // 只有初次選擇時才回報不可選；BOYFRIEND 時間停用僅有 disabled class。
     private async isUnavailableSessionOption(option: Locator, name: string): Promise<boolean> {
-        const state = await option.evaluate((el, s) => ({
-            disabled: el.classList.contains(s.disabledOptionClass),
-            soldout: el.classList.contains(s.soldoutClass),
-            selected: el.classList.contains(s.selectedClass),
-        }), selectors);
-        if (state.disabled || state.soldout || !await option.isEnabled()) {
+        const state = await option.evaluate(
+            (el, s) => ({
+                disabled: el.classList.contains(s.disabledOptionClass),
+                soldout: el.classList.contains(s.soldoutClass),
+                selected: el.classList.contains(s.selectedClass),
+            }),
+            selectors,
+        );
+        if (state.disabled || state.soldout || !(await option.isEnabled())) {
             if (state.selected || !state.disabled) {
                 throw new PurchaseStop(`${name}停用狀態不明或矛盾，已停止。`);
             }
@@ -155,20 +169,27 @@ export class KlookTicketSelector {
             const heading = this.page.locator(selectors.groupName).filter({ hasText: /^時間\s*$/ });
             const group = this.root.locator(selectors.group).filter({ has: heading });
             await this.waitForUniqueElement(group, "時間群組", this.observeSelectionNotice);
-            const option = group.locator(selectors.option).filter({ visible: true,
-                hasText: new RegExp(`^\\s*${escapeRegex(time)}\\s*$`) });
+            const option = group
+                .locator(selectors.option)
+                .filter({ visible: true, hasText: new RegExp(`^\\s*${escapeRegex(time)}\\s*$`) });
             await this.waitForUniqueElement(option, "時間選項", this.observeSelectionNotice);
             if (await this.isUnavailableSessionOption(option, "時間")) return null;
-            if (!await this.isSelected(option)) {
+            if (!(await this.isSelected(option))) {
                 await option.click({ timeout: this.timeout });
-                await this.waitUntil(() => this.isSelected(option), "時間點選後沒有確認選中", this.observeSelectionNotice);
+                await this.waitUntil(
+                    () => this.isSelected(option),
+                    "時間點選後沒有確認選中",
+                    this.observeSelectionNotice,
+                );
             }
             await this.verifySelectedOption(option, "時間");
             log(`時間已選：${(await option.innerText()).trim()}`);
             return option;
         } catch (error) {
             if (error instanceof PurchaseStop || error instanceof SelectionExpiryNotice) throw error;
-            throw new PurchaseStop(`時間選項狀態未知，已停止；不換順位或重啟購票。${error instanceof Error ? error.message : ""}`);
+            throw new PurchaseStop(
+                `時間選項狀態未知，已停止；不換順位或重啟購票。${error instanceof Error ? error.message : ""}`,
+            );
         }
     }
 
@@ -179,7 +200,7 @@ export class KlookTicketSelector {
         try {
             await this.waitForUniqueElement(group, "票種群組");
             const options = group.locator(selectors.option).filter({ visible: true });
-            await this.waitUntil(async () => await options.count() > 0, "票種尚未載入");
+            await this.waitUntil(async () => (await options.count()) > 0, "票種尚未載入");
             const matches: Locator[] = [];
             let sameName = false;
             for (const option of await options.all()) {
@@ -190,7 +211,9 @@ export class KlookTicketSelector {
             }
             if (matches.length > 1) throw new Error("票種有多個匹配項，已停止。");
             if (matches.length === 0) {
-                throw new Error(sameName ? "票種單價不符，已停止。" : "找不到符合完整名稱與單價的票種，狀態未知，未判定售罄。");
+                throw new Error(
+                    sameName ? "票種單價不符，已停止。" : "找不到符合完整名稱與單價的票種，狀態未知，未判定售罄。",
+                );
             }
             return matches[0]!;
         } catch (error) {
@@ -204,7 +227,7 @@ export class KlookTicketSelector {
             if (await this.isSelected(option)) throw new PurchaseStop("票種同時為已選取與停用，狀態矛盾，已停止。");
             return null;
         }
-        if (!await this.isSelected(option)) {
+        if (!(await this.isSelected(option))) {
             await option.click({ timeout: this.timeout });
             await this.waitUntil(() => this.isSelected(option), "票種點選後沒有確認選中");
         }
@@ -225,18 +248,22 @@ export class KlookTicketSelector {
         while (current !== wanted) {
             const increase = current < wanted;
             const icon = increase ? selectors.plusIcon : selectors.minusIcon;
-            const button = row.locator(selectors.counter).locator(selectors.quantityButton)
+            const button = row
+                .locator(selectors.counter)
+                .locator(selectors.quantityButton)
                 .filter({ has: this.page.locator(icon) });
             await this.waitForUniqueElement(button, "數量按鈕");
 
-            const disabled = await button.evaluate((element, className) =>
-                element.classList.contains(className) || element.getAttribute("aria-disabled") === "true",
-                selectors.disabledClass);
+            const disabled = await button.evaluate(
+                (element, className) =>
+                    element.classList.contains(className) || element.getAttribute("aria-disabled") === "true",
+                selectors.disabledClass,
+            );
             if (disabled) throw new Error("數量按鈕目前停用，無法設定目標票數。");
 
             const expected = current + (increase ? 1 : -1);
             await button.click({ timeout: this.timeout });
-            await this.waitUntil(async () => await this.readQuantity() === expected, "數量點選後未更新");
+            await this.waitUntil(async () => (await this.readQuantity()) === expected, "數量點選後未更新");
             current = expected;
         }
         log(`票數已設為 ${current}`);
@@ -257,25 +284,29 @@ export class KlookTicketSelector {
         await this.waitForUniqueElement(checkbox, "相連座位設定");
         await this.readAdjacentPreference();
         await checkbox.setChecked(target.adjacent, { timeout: this.timeout });
-        await this.waitUntil(async () =>
-            await this.readAdjacentPreference() === target.adjacent,
-            "相連座位設定未更新");
+        await this.waitUntil(
+            async () => (await this.readAdjacentPreference()) === target.adjacent,
+            "相連座位設定未更新",
+        );
     }
 
     private async verifySelectedOption(option: Locator, name: string): Promise<void> {
-        if (await this.isDisabled(option) || !await option.isEnabled() ||
-            await option.evaluate((el, className) => el.classList.contains(className), selectors.soldoutClass)) {
+        if (
+            (await this.isDisabled(option)) ||
+            !(await option.isEnabled()) ||
+            (await option.evaluate((el, className) => el.classList.contains(className), selectors.soldoutClass))
+        ) {
             throw new PurchaseStop(`${name}最終驗證發現停用，已停止；不換順位。`);
         }
         const siblings = option.locator("..");
         const selectedCount = await siblings.locator(`${selectors.option}.${selectors.selectedClass}`).count();
-        if (!await this.isSelected(option) || selectedCount !== 1) {
+        if (!(await this.isSelected(option)) || selectedCount !== 1) {
             throw new PurchaseStop(`${name}最終驗證不一致。`);
         }
     }
 
     private async verifyQuantity(wanted: number): Promise<void> {
-        if (await this.readQuantity() !== wanted) throw new PurchaseStop("最終票數不一致。");
+        if ((await this.readQuantity()) !== wanted) throw new PurchaseStop("最終票數不一致。");
     }
 
     private async verifyAdjacentPreference(target: TicketTarget): Promise<void> {
@@ -286,14 +317,19 @@ export class KlookTicketSelector {
 
     private async readAdjacentPreference(): Promise<boolean> {
         const checkbox = this.root.locator(selectors.adjacent);
-        if (await checkbox.count() !== 1 || !await checkbox.isVisible()) {
+        if ((await checkbox.count()) !== 1 || !(await checkbox.isVisible())) {
             throw new PurchaseStop("找不到唯一可見的相連座位設定，已停止。");
         }
         const checked = await checkbox.evaluate(element => {
             const inputs = element.querySelectorAll("input");
             const input = inputs[0];
-            if (inputs.length !== 1 || !(input instanceof HTMLInputElement)
-                || input.type !== "checkbox" || input.indeterminate) return null;
+            if (
+                inputs.length !== 1 ||
+                !(input instanceof HTMLInputElement) ||
+                input.type !== "checkbox" ||
+                input.indeterminate
+            )
+                return null;
             // 客製控制項的 input 可以隱藏；取消勾選時 Klook 會移除外層 ARIA 屬性。
             const aria = element.getAttribute("aria-checked");
             const consistent = input.checked ? aria === "true" : aria === null || aria === "false";
@@ -304,33 +340,47 @@ export class KlookTicketSelector {
     }
 
     private isDisabled(option: Locator): Promise<boolean> {
-        return option.evaluate((element, className) => element.classList.contains(className), selectors.disabledOptionClass);
+        return option.evaluate(
+            (element, className) => element.classList.contains(className),
+            selectors.disabledOptionClass,
+        );
     }
 
     private isSelected(option: Locator): Promise<boolean> {
         // .evaluate 在瀏覽器中執行函式
-        return option.evaluate((element, className) =>
-            // 檢查 css 清單有沒有包含 className
-            element.classList.contains(className), selectors.selectedClass);
+        return option.evaluate(
+            (element, className) =>
+                // 檢查 css 清單有沒有包含 className
+                element.classList.contains(className),
+            selectors.selectedClass,
+        );
     }
 
     // 等待唯一的可見元素(就是定義要找網頁中的哪一個區塊)
     private async waitForUniqueElement(locator: Locator, name: string, observe?: () => Promise<void>): Promise<void> {
-        await this.waitUntil(async () => {
-            // 取得符合條件的元素數量
-            const count = await locator.count();
+        await this.waitUntil(
+            async () => {
+                // 取得符合條件的元素數量
+                const count = await locator.count();
 
-            if (count > 1) throw new Error(`${name} 有多個匹配項，為避免誤選已停止。`);
+                if (count > 1) throw new Error(`${name} 有多個匹配項，為避免誤選已停止。`);
 
-            // 剛好一個元素，而且可見，才回傳 true
-            // .isVisible() 檢查已定位的元素是否可見
-            return count === 1 && await locator.isVisible();
-        }, `找不到唯一可見的${name}`, observe);
+                // 剛好一個元素，而且可見，才回傳 true
+                // .isVisible() 檢查已定位的元素是否可見
+                return count === 1 && (await locator.isVisible());
+            },
+            `找不到唯一可見的${name}`,
+            observe,
+        );
     }
 
     // 期限內反覆檢查
     // check 回傳 true, false
-    private async waitUntil(check: () => Promise<boolean>, message: string, observe?: () => Promise<void>): Promise<void> {
+    private async waitUntil(
+        check: () => Promise<boolean>,
+        message: string,
+        observe?: () => Promise<void>,
+    ): Promise<void> {
         // 從現在起約 10 秒
         const deadline = Date.now() + this.timeout;
 

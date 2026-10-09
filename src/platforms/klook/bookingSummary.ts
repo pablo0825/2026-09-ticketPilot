@@ -18,11 +18,17 @@ export interface BookingSummary {
 const normalizeText = (text: string): string => text.normalize("NFKC").replace(/\s+/g, "").trim();
 
 // 純核對函式：不讀 DOM、不點按鈕，任何不符均拋錯。
-export function verifyBookingSummary(summary: BookingSummary, target: TicketTarget,
-    allocation: Allocation, expected: BookingExpectation): void {
+export function verifyBookingSummary(
+    summary: BookingSummary,
+    target: TicketTarget,
+    allocation: Allocation,
+    expected: BookingExpectation,
+): void {
     validateBookingExpectation(expected);
-    if (normalizeText(summary.eventName) !== normalizeText(expected.eventName)) throw new Error("預訂摘要活動名稱不符。");
-    if (normalizeText(summary.dateTime) !== `${target.date}${target.time}:00`) throw new Error("預訂摘要日期或時間不符。");
+    if (normalizeText(summary.eventName) !== normalizeText(expected.eventName))
+        throw new Error("預訂摘要活動名稱不符。");
+    if (normalizeText(summary.dateTime) !== `${target.date}${target.time}:00`)
+        throw new Error("預訂摘要日期或時間不符。");
     verifyPrices(summary, target.area, expected);
     if (normalizeText(summary.quantity) !== String(target.quantity)) throw new Error("預訂摘要張數不符。");
     if (allocation.kind === "reserved") {
@@ -32,12 +38,18 @@ export function verifyBookingSummary(summary: BookingSummary, target: TicketTarg
     }
 }
 
-function verifyGeneralAdmission(labels: string[], allocation: Extract<Allocation, { kind: "general" }>,
-    target: TicketTarget): void {
+function verifyGeneralAdmission(
+    labels: string[],
+    allocation: Extract<Allocation, { kind: "general" }>,
+    target: TicketTarget,
+): void {
     if (target.quantity > 1 && target.adjacent) throw new Error("一般票無法驗證連位要求。");
     if (allocation.quantity !== target.quantity) throw new Error("預訂摘要張數與已確認一般票不符。");
-    if (normalizeText(allocation.group) !== "一般票" || labels.length !== 1 ||
-        normalizeText(labels[0]!) !== normalizeText(allocation.group)) {
+    if (
+        normalizeText(allocation.group) !== "一般票" ||
+        labels.length !== 1 ||
+        normalizeText(labels[0]!) !== normalizeText(allocation.group)
+    ) {
         throw new Error("預訂摘要票區與已確認一般票不符。");
     }
 }
@@ -60,9 +72,13 @@ function verifySeats(labels: string[], expectedSeats: AssignedSeat[], quantity: 
     // 排序後比對，使 DOM 的排列順序不影響結果；重複座位仍視為錯誤。
     const actual = labels.map(parseSeat).map(seatKey).sort();
     const wanted = expectedSeats.map(seatKey).sort();
-    if (actual.length !== quantity || wanted.length !== quantity ||
-        new Set(actual).size !== actual.length || new Set(wanted).size !== wanted.length ||
-        JSON.stringify(actual) !== JSON.stringify(wanted)) {
+    if (
+        actual.length !== quantity ||
+        wanted.length !== quantity ||
+        new Set(actual).size !== actual.length ||
+        new Set(wanted).size !== wanted.length ||
+        JSON.stringify(actual) !== JSON.stringify(wanted)
+    ) {
         throw new Error("預訂摘要座位與已確認配位不符。");
     }
 }
@@ -71,7 +87,7 @@ async function assertPageAvailable(page: Page, eventUrl: string): Promise<void> 
     if (!isPersonalInfoPage(page.url(), eventUrl)) {
         throw new Error("目前不在預期的個人資料頁。");
     }
-    if (await page.locator(".klk-modal").filter({ visible: true }).count() > 0) {
+    if ((await page.locator(".klk-modal").filter({ visible: true }).count()) > 0) {
         throw new Error("個人資料頁有彈窗，請先人工檢查；不判定摘要有效。");
     }
 }
@@ -81,10 +97,12 @@ export async function readBookingSummary(page: Page, eventUrl: string): Promise<
     await assertPageAvailable(page, eventUrl);
     const product = page.locator(".product").filter({ has: page.locator("h2.product_name"), visible: true });
     await product.waitFor({ state: "visible", timeout: 10_000 });
-    if (await product.count() !== 1) throw new Error("預訂摘要不唯一。");
+    if ((await product.count()) !== 1) throw new Error("預訂摘要不唯一。");
     const fields = await product.evaluate(element => ({
         names: Array.from(element.querySelectorAll("h2.product_name"), el => (el as HTMLElement).innerText.trim()),
-        packages: Array.from(element.querySelectorAll(".product_package_name"), el => (el as HTMLElement).innerText.trim()),
+        packages: Array.from(element.querySelectorAll(".product_package_name"), el =>
+            (el as HTMLElement).innerText.trim(),
+        ),
         rows: Array.from(element.querySelectorAll(".main .item"), row => ({
             labels: Array.from(row.querySelectorAll(".item_label"), el => (el as HTMLElement).innerText.trim()),
             values: Array.from(row.querySelectorAll(".item_value"), el => (el as HTMLElement).innerText.trim()),
@@ -119,7 +137,9 @@ function parseSummaryFields(fields: SummaryFields): BookingSummary {
         packageName: requireSingleValue(fields.packages, "票種"),
         dateTime: labeledValue(fields, /^日期$/),
         quantity: labeledValue(fields, /^門票(?:[（(]不含全家取票手續費NT\$30\/每筆[）)])?$/),
-        seatLabels: fields.rows.filter(row => row.labels.length === 0).map(row => requireSingleValue(row.values, "座位")),
+        seatLabels: fields.rows
+            .filter(row => row.labels.length === 0)
+            .map(row => requireSingleValue(row.values, "座位")),
         total: requireSingleValue(fields.totals, "總價"),
     };
 }

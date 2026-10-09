@@ -8,137 +8,202 @@ import { KlookTicketSelector } from "../src/platforms/klook/ticketSelector.js";
 
 const eventUrl = "https://www.klook.com/zh-TW/event-detail/test/";
 const target = { date: "2026-10-03", time: "12:00", area: "A區", quantity: 1, adjacent: false };
-const expiry = '未於時限內確認，票券預留失敗';
+const expiry = "未於時限內確認，票券預留失敗";
 const modal = (action = "document.body.dataset.ok=String(Number(document.body.dataset.ok || 0)+1)") =>
     `<div class="klk-modal-alert"><p>${expiry}</p><button onclick="${action}">OK</button></div>`;
-const panel = (number = '17') => `<div class="main_right-ZMnX67"><div class="pc_header_center-mSlDdM"><span>2026年10月3日 週六 下午12:00</span></div>
+const panel = (
+    number = "17",
+) => `<div class="main_right-ZMnX67"><div class="pc_header_center-mSlDdM"><span>2026年10月3日 週六 下午12:00</span></div>
 <div>00:00</div><div class="seat_list-BhwLqz"><div class="seat_list_top-Bk0UC9"><div><div>已選1個座位</div></div></div>
 <div class="seat_list_cat-vMvUjF">A區（NT$4,880）</div>
 <div class="seat_footer_list-TWhU8V"><div class="list_item-jYRAN7"><span>區 <ins>A1</ins></span><span>排 <ins>10</ins></span><span>座位 <ins>${number}</ins></span></div></div>
 <div class="con_seats-a3N26U">共計1個座位</div><div class="con_price-YYYONb">NT$4880</div></div>
 <button onclick="document.body.dataset.confirm=String(Number(document.body.dataset.confirm || 0)+1)">確認</button></div>`;
-const tickets = '<div id="ticket-options"><div class="spec-LwNjSh active-vB3nra">10月3日(週六)</div><button>重新整理</button><button>下一步</button></div>';
+const tickets =
+    '<div id="ticket-options"><div class="spec-LwNjSh active-vB3nra">10月3日(週六)</div><button>重新整理</button><button>下一步</button></div>';
 function fakeRecovery() {
-    return { expired: false, count: 0,
-        async isRequired() { return this.expired; },
-        async recover() { this.count++; this.expired = false; },
+    return {
+        expired: false,
+        count: 0,
+        async isRequired() {
+            return this.expired;
+        },
+        async recover() {
+            this.count++;
+            this.expired = false;
+        },
     };
 }
 
 test("選位恢復限定原活動與唯一過期彈窗；錯頁、歧義、其他失敗或0座位不恢復", async () => {
-    const browser = await chromium.launch(); const page = await browser.newPage();
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
     try {
-        await page.route('**/*', route => route.fulfill({ body: tickets + panel() + modal(), contentType: 'text/html; charset=utf-8' }));
+        await page.route("**/*", route =>
+            route.fulfill({ body: tickets + panel() + modal(), contentType: "text/html; charset=utf-8" }),
+        );
         const recovery = new KlookSeatRecovery(page, eventUrl, 250);
-        for (const url of ['https://www.klook.com/zh-TW/event/payment/', 'https://example.test/zh-TW/event-detail/test/', eventUrl + 'other/']) {
+        for (const url of [
+            "https://www.klook.com/zh-TW/event/payment/",
+            "https://example.test/zh-TW/event-detail/test/",
+            eventUrl + "other/",
+        ]) {
             await page.goto(url);
             assert.equal(await recovery.isRequired(), false);
             await assert.rejects(recovery.recover(), /無法確認/);
         }
         await page.goto(eventUrl);
-        for (const html of [tickets + modal(), tickets + panel().replace('已選1個', '已選0個'), tickets + panel() + modal().replace(expiry, '選位失敗，請重試')]) {
+        for (const html of [
+            tickets + modal(),
+            tickets + panel().replace("已選1個", "已選0個"),
+            tickets + panel() + modal().replace(expiry, "選位失敗，請重試"),
+        ]) {
             await page.setContent(html);
             assert.equal(await recovery.isRequired(), false);
         }
-        for (const html of [tickets + panel() + modal() + modal(), tickets + panel() + modal().replace('<button ', '<button disabled ')]) {
+        for (const html of [
+            tickets + panel() + modal() + modal(),
+            tickets + panel() + modal().replace("<button ", "<button disabled "),
+        ]) {
             await page.setContent(html);
             await assert.rejects(recovery.recover());
-            assert.equal(await page.locator('body').getAttribute('data-ok'), null);
+            assert.equal(await page.locator("body").getAttribute("data-ok"), null);
         }
         await page.setContent(tickets + panel() + modal());
         await assert.rejects(recovery.recover(), /未能恢復/);
-        assert.equal(await page.locator('body').getAttribute('data-ok'), '1');
-        assert.equal(await page.locator('body').getAttribute('data-confirm'), null);
+        assert.equal(await page.locator("body").getAttribute("data-ok"), "1");
+        assert.equal(await page.locator("body").getAttribute("data-confirm"), null);
         await page.setContent(panel() + modal().replace('class="klk-modal-alert"', 'class="klk-modal-alert" hidden'));
-        await new KlookSeatSelector(page, 4880, 1000).confirmVerifiedSeats(target, { kind: "reserved", seats: [
-            { section: "A1", row: "10", number: "17" },
-        ] });
-        assert.equal(await page.locator('body').getAttribute('data-confirm'), '1');
-        assert.equal(await page.locator('body').getAttribute('data-ok'), null);
-    } finally { await browser.close(); }
+        await new KlookSeatSelector(page, 4880, 1000).confirmVerifiedSeats(target, {
+            kind: "reserved",
+            seats: [{ section: "A1", row: "10", number: "17" }],
+        });
+        assert.equal(await page.locator("body").getAttribute("data-confirm"), "1");
+        assert.equal(await page.locator("body").getAttribute("data-ok"), null);
+    } finally {
+        await browser.close();
+    }
 });
 
 test("確認前過期：OK 返回保留選項，重新核對票券並取得新座位，才確認一次", async () => {
-    const browser = await chromium.launch(); const page = await browser.newPage();
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
     try {
-        const group = (name: string, value: string) => `<div class="skuGroup-hk2pfU"><div class="name-Cu4gxk">${name}</div><div class="spec-LwNjSh active-vB3nra">${value}</div></div>`;
+        const group = (name: string, value: string) =>
+            `<div class="skuGroup-hk2pfU"><div class="name-Cu4gxk">${name}</div><div class="spec-LwNjSh active-vB3nra">${value}</div></div>`;
         const html = `<div id="ticket-info"><p>活動日期｜2026年10月3日</p></div><div id="ticket-options">
-${group('日期', '10月3日(週六)')}${group('時間', '12:00')}${group('票種', 'A區（NT$4,880）')}
+${group("日期", "10月3日(週六)")}${group("時間", "12:00")}${group("票種", "A區（NT$4,880）")}
 <div class="eventUnit-kxDycC"><div class="counter-vVrWZ9"><div class="value-xWKzpL">1</div></div><div>最多4張</div></div>
 <button>重新整理</button><button id="next">下一步</button></div>
-<script>document.querySelector('#next').onclick=()=>{const n=Number(document.body.dataset.assignments||0)+1;document.body.dataset.assignments=String(n);document.body.insertAdjacentHTML('beforeend', ${JSON.stringify(panel('__NUMBER__'))}.replace('__NUMBER__',String(16+n)));};</script>`;
-        await page.route('**/*', route => route.fulfill({ body: html, contentType: 'text/html; charset=utf-8' }));
+<script>document.querySelector('#next').onclick=()=>{const n=Number(document.body.dataset.assignments||0)+1;document.body.dataset.assignments=String(n);document.body.insertAdjacentHTML('beforeend', ${JSON.stringify(panel("__NUMBER__"))}.replace('__NUMBER__',String(16+n)));};</script>`;
+        await page.route("**/*", route => route.fulfill({ body: html, contentType: "text/html; charset=utf-8" }));
         await page.goto(eventUrl);
         const selector = new KlookSeatSelector(page, 4880, 1000);
         let confirmations = 0;
         const checked: string[] = [];
-        await prepareBooking({
-            selectSeats: async () => {
-                await new KlookTicketSelector(page, 1000).selectAndVerify(target, 4880);
-                return selector.openAndVerify(target);
+        await prepareBooking(
+            {
+                selectSeats: async () => {
+                    await new KlookTicketSelector(page, 1000).selectAndVerify(target, 4880);
+                    return selector.openAndVerify(target);
+                },
+                confirmSeats: async allocation => {
+                    if (++confirmations === 1) {
+                        await page
+                            .locator("body")
+                            .evaluate(
+                                (el, html) => el.insertAdjacentHTML("beforeend", html),
+                                modal(
+                                    "document.body.dataset.ok=String(Number(document.body.dataset.ok||0)+1);document.querySelector('.main_right-ZMnX67').remove();this.parentElement.remove()",
+                                ),
+                            );
+                    }
+                    await selector.confirmVerifiedSeats(target, allocation);
+                },
+                prepareContact: async allocation => {
+                    assert.equal(allocation.kind, "reserved");
+                    if (allocation.kind === "reserved") checked.push(allocation.seats[0]!.number);
+                },
             },
-            confirmSeats: async allocation => {
-                if (++confirmations === 1) {
-                    await page.locator('body').evaluate((el, html) => el.insertAdjacentHTML('beforeend', html),
-                        modal("document.body.dataset.ok=String(Number(document.body.dataset.ok||0)+1);document.querySelector('.main_right-ZMnX67').remove();this.parentElement.remove()"));
-                }
-                await selector.confirmVerifiedSeats(target, allocation);
-            },
-            prepareContact: async allocation => {
-                assert.equal(allocation.kind, "reserved");
-                if (allocation.kind === "reserved") checked.push(allocation.seats[0]!.number);
-            },
-        }, fakeRecovery(), fakeRecovery(), new KlookSeatRecovery(page, eventUrl, 1000));
-        assert.deepEqual(checked, ['18']);
-        assert.equal(await page.locator('body').getAttribute('data-assignments'), '2');
-        assert.equal(await page.locator('body').getAttribute('data-confirm'), '1');
-        assert.equal(await page.locator('body').getAttribute('data-ok'), '1');
-        assert.equal(await page.locator('.value-xWKzpL').innerText(), '1');
-    } finally { await browser.close(); }
+            fakeRecovery(),
+            fakeRecovery(),
+            new KlookSeatRecovery(page, eventUrl, 1000),
+        );
+        assert.deepEqual(checked, ["18"]);
+        assert.equal(await page.locator("body").getAttribute("data-assignments"), "2");
+        assert.equal(await page.locator("body").getAttribute("data-confirm"), "1");
+        assert.equal(await page.locator("body").getAttribute("data-ok"), "1");
+        assert.equal(await page.locator(".value-xWKzpL").innerText(), "1");
+    } finally {
+        await browser.close();
+    }
 });
 
 test("確認已按下但導頁失敗時，即使出現過期提示也不重選或按OK", async () => {
-    const browser = await chromium.launch(); const page = await browser.newPage();
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
     try {
-        await page.route('**/*', route => route.fulfill({ body: panel(), contentType: 'text/html; charset=utf-8' }));
+        await page.route("**/*", route => route.fulfill({ body: panel(), contentType: "text/html; charset=utf-8" }));
         await page.goto(eventUrl);
         let selections = 0;
-        await assert.rejects(prepareBooking({
-            selectSeats: async () => { selections++; return { kind: 'reserved' as const, seats: [{ section: 'A1', row: '10', number: '17' }] }; },
-            confirmSeats: async allocation => {
-                await new KlookSeatSelector(page, 4880, 500).confirmVerifiedSeats(target, allocation);
-                await page.locator('body').evaluate((el, html) => el.insertAdjacentHTML('beforeend', html), modal());
-                throw new Error('確認已送出，導頁結果未知');
-            },
-            prepareContact: async () => assert.fail('不應進入個資階段'),
-        }, fakeRecovery(), fakeRecovery(), new KlookSeatRecovery(page, eventUrl, 500)), /導頁結果未知/);
+        await assert.rejects(
+            prepareBooking(
+                {
+                    selectSeats: async () => {
+                        selections++;
+                        return { kind: "reserved" as const, seats: [{ section: "A1", row: "10", number: "17" }] };
+                    },
+                    confirmSeats: async allocation => {
+                        await new KlookSeatSelector(page, 4880, 500).confirmVerifiedSeats(target, allocation);
+                        await page
+                            .locator("body")
+                            .evaluate((el, html) => el.insertAdjacentHTML("beforeend", html), modal());
+                        throw new Error("確認已送出，導頁結果未知");
+                    },
+                    prepareContact: async () => assert.fail("不應進入個資階段"),
+                },
+                fakeRecovery(),
+                fakeRecovery(),
+                new KlookSeatRecovery(page, eventUrl, 500),
+            ),
+            /導頁結果未知/,
+        );
         assert.equal(selections, 1);
-        assert.equal(await page.locator('body').getAttribute('data-confirm'), '1');
-        assert.equal(await page.locator('body').getAttribute('data-ok'), null);
-    } finally { await browser.close(); }
+        assert.equal(await page.locator("body").getAttribute("data-confirm"), "1");
+        assert.equal(await page.locator("body").getAttribute("data-ok"), null);
+    } finally {
+        await browser.close();
+    }
 });
 
 test("排隊與預留各一次；選位和個資共用額度，所有先後組合皆不超限", async () => {
-    for (const first of ['queue', 'seat', 'contact'] as const) {
-        for (const second of ['queue', 'seat', 'contact'] as const) {
-            const queue = fakeRecovery(), seat = fakeRecovery(), contact = fakeRecovery();
+    for (const first of ["queue", "seat", "contact"] as const) {
+        for (const second of ["queue", "seat", "contact"] as const) {
+            const queue = fakeRecovery(),
+                seat = fakeRecovery(),
+                contact = fakeRecovery();
             const recoveries = { queue, seat, contact };
             const sequence = [first, second];
             let attempts = 0;
-            const run = prepareBooking({
-                selectSeats: async () => {
-                    const current = sequence[attempts++];
-                    if (current && current !== 'contact') {
-                        recoveries[current].expired = true;
-                        throw new Error('選票／選位階段過期');
-                    }
+            const run = prepareBooking(
+                {
+                    selectSeats: async () => {
+                        const current = sequence[attempts++];
+                        if (current && current !== "contact") {
+                            recoveries[current].expired = true;
+                            throw new Error("選票／選位階段過期");
+                        }
+                    },
+                    confirmSeats: async () => {},
+                    prepareContact: async () => {
+                        if (sequence[attempts - 1] === "contact") contact.expired = true;
+                    },
                 },
-                confirmSeats: async () => {},
-                prepareContact: async () => {
-                    if (sequence[attempts - 1] === 'contact') contact.expired = true;
-                },
-            }, queue, contact, seat);
-            const differentBudgets = (first === 'queue') !== (second === 'queue');
+                queue,
+                contact,
+                seat,
+            );
+            const differentBudgets = (first === "queue") !== (second === "queue");
             if (differentBudgets) {
                 await run;
                 assert.equal(attempts, 3);
@@ -158,16 +223,28 @@ test("辨識與動作間由排隊變成選位過期時停止，不切換恢復�
     let clicks = 0;
     const queue = {
         isRequired: async () => ++queueChecks === 1,
-        recover: async () => { clicks++; },
+        recover: async () => {
+            clicks++;
+        },
     };
     const seat = {
         isRequired: async () => queueChecks > 1,
-        recover: async () => { clicks++; },
+        recover: async () => {
+            clicks++;
+        },
     };
-    await assert.rejects(prepareBooking({
-        selectSeats: async () => assert.fail('不應開始選票'),
-        confirmSeats: async () => {},
-        prepareContact: async () => {},
-    }, queue, fakeRecovery(), seat), /例外狀態已變動/);
+    await assert.rejects(
+        prepareBooking(
+            {
+                selectSeats: async () => assert.fail("不應開始選票"),
+                confirmSeats: async () => {},
+                prepareContact: async () => {},
+            },
+            queue,
+            fakeRecovery(),
+            seat,
+        ),
+        /例外狀態已變動/,
+    );
     assert.equal(clicks, 0);
 });

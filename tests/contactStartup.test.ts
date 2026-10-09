@@ -4,7 +4,13 @@ import { test } from "node:test";
 
 // 子程序攔截設定讀取與瀏覽器啟動，驗證真實 main 的先後順序。
 // 不讀取使用者 contact.local.json，也不啟動瀏覽器或連線網站。
-const valid = { firstName: "Fixture", lastName: "Test", regionLabel: "台灣 (+886)", phone: "0912345678", email: "fixture@example.com" };
+const valid = {
+    firstName: "Fixture",
+    lastName: "Test",
+    regionLabel: "台灣 (+886)",
+    phone: "0912345678",
+    email: "fixture@example.com",
+};
 
 function startWithContact(source: string | null, code = "ENOENT", pause = "") {
     const script = `

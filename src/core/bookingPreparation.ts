@@ -8,8 +8,12 @@ interface BookingSteps<T> {
 }
 
 // 只重跑提交前的準備流程。每次 attempt 都取得新座位，不沿用上一次結果。
-export async function prepareBooking<T>(steps: BookingSteps<T>, queueRecovery: FlowRecovery,
-    contactRecovery: FlowRecovery, seatRecovery?: FlowRecovery): Promise<T> {
+export async function prepareBooking<T>(
+    steps: BookingSteps<T>,
+    queueRecovery: FlowRecovery,
+    contactRecovery: FlowRecovery,
+    seatRecovery?: FlowRecovery,
+): Promise<T> {
     let stage: "selection" | "seats" | "contact" | null = "selection";
 
     async function findActiveRecovery(): Promise<FlowRecovery | null> {
@@ -19,7 +23,7 @@ export async function prepareBooking<T>(steps: BookingSteps<T>, queueRecovery: F
         if (stage === "contact") candidates = [contactRecovery];
         const matches: FlowRecovery[] = [];
         for (const candidate of candidates) {
-            if (candidate && await candidate.isRequired()) matches.push(candidate);
+            if (candidate && (await candidate.isRequired())) matches.push(candidate);
         }
         if (matches.length > 1) throw new Error("同時出現多種例外，已停止恢復。");
         return matches[0] ?? null;
@@ -33,7 +37,7 @@ export async function prepareBooking<T>(steps: BookingSteps<T>, queueRecovery: F
             kind,
             recover: async () => {
                 // 扣額度後重新核對，但不可無聲切換恢復種類或對象。
-                if (await findActiveRecovery() !== selected) {
+                if ((await findActiveRecovery()) !== selected) {
                     throw new Error("例外狀態已變動，已停止恢復。");
                 }
                 await selected.recover(kind === "reservation" ? queueRecovery : undefined);

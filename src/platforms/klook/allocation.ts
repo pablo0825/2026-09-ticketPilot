@@ -6,10 +6,8 @@ export interface AssignedSeat {
 }
 
 export type Allocation =
-    | { kind: "reserved"; seats: AssignedSeat[] }
-    | { kind: "general"; group: string; quantity: number };
+    { kind: "reserved"; seats: AssignedSeat[] } | { kind: "general"; group: string; quantity: number };
 
 export function seatKey(seat: AssignedSeat): string {
-    return JSON.stringify([seat.section, seat.row, seat.number]
-        .map(text => text.normalize("NFKC").replace(/\s/g, "")));
+    return JSON.stringify([seat.section, seat.row, seat.number].map(text => text.normalize("NFKC").replace(/\s/g, "")));
 }

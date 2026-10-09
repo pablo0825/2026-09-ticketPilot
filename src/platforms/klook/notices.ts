@@ -22,19 +22,25 @@ export function expiredDialog(page: Page, message: RegExp): Locator {
 
 // 每次辨識都先核對目前網址；恢復流程另行檢查唯一彈窗、按鈕與額度。
 export async function isQueueExpiryShown(page: Page, eventUrl: string): Promise<boolean> {
-    return isEventPage(page.url(), eventUrl) && await expiredDialog(page, queueExpiredMessage).count() > 0;
+    return isEventPage(page.url(), eventUrl) && (await expiredDialog(page, queueExpiredMessage).count()) > 0;
 }
 
 export async function isSeatExpiryShown(page: Page, eventUrl: string): Promise<boolean> {
-    return isEventPage(page.url(), eventUrl) &&
-        await page.locator(seatPanelSelector).filter({ visible: true }).count() === 1 &&
-        await expiredDialog(page, reservationExpiredMessage).count() > 0;
+    return (
+        isEventPage(page.url(), eventUrl) &&
+        (await page.locator(seatPanelSelector).filter({ visible: true }).count()) === 1 &&
+        (await expiredDialog(page, reservationExpiredMessage).count()) > 0
+    );
 }
 
 export async function getSelectionNotices(page: Page): Promise<Locator[]> {
     const result: Locator[] = [];
-    for (const notice of await page.locator('.klk-modal-alert, [role="dialog"], dialog').filter({ visible: true }).all()) {
-        if (await notice.evaluate((el, selector) => el.matches(selector), `${seatShellSelector}, ${seatPanelSelector}`)) continue;
+    for (const notice of await page
+        .locator('.klk-modal-alert, [role="dialog"], dialog')
+        .filter({ visible: true })
+        .all()) {
+        if (await notice.evaluate((el, selector) => el.matches(selector), `${seatShellSelector}, ${seatPanelSelector}`))
+            continue;
         if (await notice.locator(seatPanelSelector).count()) continue;
         result.push(notice);
     }
