@@ -96,7 +96,11 @@ export async function startLocalServer(
                         : "text/css; charset=utf-8",
                     "Cache-Control": "no-store",
                 });
-                response.end(await readFile(new URL(`.${url.pathname}`, import.meta.url), "utf8"));
+                const asset =
+                    url.pathname === "/app.js"
+                        ? new URL("../../dist/gui/local/app.js", import.meta.url)
+                        : new URL("./style.css", import.meta.url);
+                response.end(await readFile(asset, "utf8"));
                 return;
             }
 

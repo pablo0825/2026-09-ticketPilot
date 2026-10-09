@@ -21,6 +21,8 @@
 
 ## 檔案與既有 CLI
 
+GUI 的前端來源是 `src/local/app.ts`。`npm run gui` 和 `npm test` 會先執行 `npm run build:gui`，將來源編譯到已忽略的 `dist/gui/`；瀏覽器仍以傳統 script 載入 `/app.js`，不改變載入順序或操作流程。`npm run typecheck` 同時檢查 Node 與前端程式。修改前端後，若直接使用 `node --import tsx --test ...` 執行個別測試，請先執行 `npm run build:gui`；開發中的 GUI 也需要重新編譯並重新整理頁面。請修改來源檔，不要直接編輯生成檔。
+
 - `local-data/events/<UUID>.json`：每場活動、順位與開賣時間，格式沿用第一批 schemaVersion 1。
 - `contact.local.json`：所有活動共用的聯絡資訊，格式沿用 `contact.example.json`。
 - `local-data/runs/<requestId>.json`：本次執行狀態與最多 300 筆事件，用於重連及避免重複執行；不保存聯絡資料原文。

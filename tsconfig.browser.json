@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "noEmit": false,
+    "noEmitOnError": true,
+    "rootDir": "src",
+    "outDir": "dist/gui"
+  },
+  "include": ["src/local/app.ts"],
+  "exclude": []
+}
