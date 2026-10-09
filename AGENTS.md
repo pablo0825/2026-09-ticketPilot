@@ -36,6 +36,11 @@ Use four-space indentation, semicolons, existing quote style,
 camelCase for functions/files, and PascalCase for classes/types.
 Use strict TypeScript, `.js` relative imports, and `import type`.
 
+Separate logical steps with blank lines; keep a lookup and its check together.
+Use braces when an `if` condition or body spans lines. In functions longer than
+about 15 lines or with three or more steps, start each step with a short, plain
+Chinese comment saying what it does; skip step numbers and implementation details.
+
 ## Browser Flow & Recovery
 
 Use observed DOM and behavior; verify results against target data, not button
