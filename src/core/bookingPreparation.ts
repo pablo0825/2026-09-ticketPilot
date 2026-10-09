@@ -17,14 +17,19 @@ export async function prepareBooking<T>(
     let stage: "selection" | "seats" | "contact" | null = "selection";
 
     async function findActiveRecovery(): Promise<FlowRecovery | null> {
+        // 依目前階段，挑出可能用到的恢復方式
         let candidates: (FlowRecovery | undefined)[] = [];
         if (stage === "selection") candidates = [queueRecovery, seatRecovery];
         if (stage === "seats") candidates = [seatRecovery];
         if (stage === "contact") candidates = [contactRecovery];
+
+        // 找出現在真的需要處理的恢復方式
         const matches: FlowRecovery[] = [];
         for (const candidate of candidates) {
             if (candidate && (await candidate.isRequired())) matches.push(candidate);
         }
+
+        // 同時出現多種就停止，避免選錯
         if (matches.length > 1) throw new Error("同時出現多種例外，已停止恢復。");
         return matches[0] ?? null;
     }
@@ -32,6 +37,7 @@ export async function prepareBooking<T>(
     async function findRecovery(): Promise<RecoveryAction | null> {
         const selected = await findActiveRecovery();
         if (!selected) return null;
+
         const kind = selected === queueRecovery ? "queue" : "reservation";
         return {
             kind,
@@ -40,6 +46,7 @@ export async function prepareBooking<T>(
                 if ((await findActiveRecovery()) !== selected) {
                     throw new Error("例外狀態已變動，已停止恢復。");
                 }
+
                 await selected.recover(kind === "reservation" ? queueRecovery : undefined);
                 stage = "selection";
             },
@@ -48,6 +55,7 @@ export async function prepareBooking<T>(
 
     // 獨立排隊一次；選位與個資共用預留額度一次，重跑不重設。
     return runWithRecovery(async () => {
+        // 選票並取得座位
         stage = "selection";
         const seats = await steps.selectSeats();
 
@@ -67,6 +75,7 @@ export async function prepareBooking<T>(
         if (await contactRecovery.isRequired()) throw new Error("個人資料預留已過期。");
         await steps.prepareContact(seats);
         if (await contactRecovery.isRequired()) throw new Error("個人資料預留已過期。");
+
         stage = null;
         return seats;
     }, findRecovery);

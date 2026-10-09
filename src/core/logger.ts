@@ -15,6 +15,7 @@ export type RunEvent =
     | { type: "recovery"; queue: number; reservation: number }
     | { type: "state"; state: PurchaseState }
     | { type: "log"; message: string };
+
 const output = new AsyncLocalStorage<(event: RunEvent) => void>();
 
 // 每次執行有自己的出口；UI 斷線或 listener 出錯不能觸發購票恢復。
