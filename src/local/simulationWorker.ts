@@ -12,6 +12,7 @@ process.once("message", async (input: unknown) => {
         const value = input as { activity?: unknown; contact?: unknown };
         const config = toPurchaseConfig(parseActivity(value.activity));
         validateContactDetails(value.contact);
+
         await withRunEvents(
             event => process.send?.({ type: "event", event }),
             async () => {
@@ -31,6 +32,7 @@ process.once("message", async (input: unknown) => {
                 log("模擬完成。尚未執行登入、配位、個資提交或付款頁核對。");
             },
         );
+
         process.send?.({ type: "done" }, error => {
             finished = !error;
             process.disconnect?.();

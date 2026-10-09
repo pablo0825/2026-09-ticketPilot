@@ -12,6 +12,7 @@ export interface SimulationSnapshot {
     events: { sequence: number; at: string; event: RunEvent }[];
     historyTruncated: boolean;
 }
+
 interface SimulationRun {
     snapshot: SimulationSnapshot;
     fingerprint: string;
@@ -49,17 +50,24 @@ export class SimulationRuns {
     }
 
     start(requestId: string, activity: unknown, contact: unknown): SimulationSnapshot {
+        // 檢查請求與設定
         if (!z.string().uuid().safeParse(requestId).success) throw new Error("開始請求識別碼無效。");
         const input = structuredClone({ activity: parseActivity(activity), contact: validateContactDetails(contact) });
         const fingerprint = createHash("sha256").update(JSON.stringify(input)).digest("hex");
+
+        // 同一個請求重送時，回傳原本的結果
         const existing = this.requests.get(requestId);
         if (existing) {
             if (existing.fingerprint !== fingerprint) throw new Error("同一開始請求不能更換設定。");
             return structuredClone(existing.snapshot);
         }
+
+        // 確認沒有其他模擬正在執行
         if (this.current?.snapshot.status === "running") throw new Error("已有模擬正在執行。");
         // 不丟棄去重紀錄；到上限明確要求重開模擬服務，不讓舊請求變成新購票。
         if (this.requests.size >= 100) throw new Error("本機模擬已達 100 次，請重新啟動服務。");
+
+        // 啟動模擬子程序並建立紀錄
         const child = fork(fileURLToPath(new URL("./simulationWorker.ts", import.meta.url)), [], {
             cwd: projectRoot,
             execArgv: ["--import", "tsx"],
@@ -74,6 +82,8 @@ export class SimulationRuns {
         };
         this.current = run;
         this.requests.set(requestId, run);
+
+        // 接收子程序的事件與完成通知，最多保留 300 筆事件
         let sequence = 0;
         child.on("message", (value: unknown) => {
             if (!value || typeof value !== "object" || !("type" in value)) return;
@@ -91,6 +101,8 @@ export class SimulationRuns {
             }
             this.notify();
         });
+
+        // 子程序結束時更新狀態
         child.on("error", () => {
             run.done = false;
         });
@@ -98,9 +110,12 @@ export class SimulationRuns {
             run.snapshot.status = code === 0 && run.done ? "completed" : "interrupted";
             this.notify();
         });
+
+        // 傳送設定給子程序
         child.send(input, error => {
             if (error) child.kill();
         });
+
         this.notify();
         return structuredClone(run.snapshot);
     }
@@ -113,6 +128,7 @@ export class SimulationRuns {
                 child.kill();
             });
         }
+
         this.listeners.clear();
     }
 }

@@ -10,6 +10,7 @@ import { ActivityStore } from "../config/activityStore.js";
 import { SimulationRuns } from "./simulationRuns.js";
 
 async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
+    // 讀取請求內容，限制大小
     const chunks: Buffer[] = [];
     let bytes = 0;
     for await (const chunk of request) {
@@ -17,6 +18,8 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown>> 
         if (bytes > 64 * 1024) throw new Error("設定內容過大。");
         chunks.push(chunk);
     }
+
+    // 轉成 JSON 物件
     try {
         const value: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
         if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
@@ -41,14 +44,18 @@ export async function startLocalServer(
     const streams = new Set<ServerResponse>();
     let origin = "";
     let mutationTail = Promise.resolve();
+
     function json(response: ServerResponse, status: number, value: unknown) {
         response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
         response.end(JSON.stringify(value));
     }
+
     const server = createServer(async (request, response) => {
         let releaseMutation: (() => void) | undefined;
         let notAccepted: (() => boolean) | undefined;
+
         try {
+            // 只接受本機介面的請求
             if (
                 request.headers.host !== new URL(origin).host ||
                 (request.headers.origin && request.headers.origin !== origin)
@@ -56,6 +63,8 @@ export async function startLocalServer(
                 json(response, 403, { error: "僅接受本機介面請求。" });
                 return;
             }
+
+            // 提供網頁與靜態檔案
             const url = new URL(request.url ?? "/", origin);
             if (request.method === "GET" && url.pathname === "/") {
                 if (request.headers["sec-fetch-site"] === "cross-site") {
@@ -86,6 +95,8 @@ export async function startLocalServer(
                 response.end(await readFile(new URL(`.${url.pathname}`, import.meta.url), "utf8"));
                 return;
             }
+
+            // 以下的 API 都要先確認本機 token
             // EventSource 不能設定自訂 header，訂閱 token 只用於本機短期連線。
             const supplied =
                 request.headers["x-local-token"] ??
@@ -96,6 +107,7 @@ export async function startLocalServer(
                 json(response, 403, { error: "本機工作階段無效。" });
                 return;
             }
+
             // 活動儲存、刪除和啟動共用順序，避免 await 期間互相穿插。
             if (["POST", "PUT", "DELETE"].includes(request.method ?? "")) {
                 const previous = mutationTail;
@@ -104,6 +116,8 @@ export async function startLocalServer(
                 });
                 await previous;
             }
+
+            // 以下依網址處理各個 API
             if (request.method === "GET" && ["/api/events", "/api/purchase/events"].includes(url.pathname)) {
                 const manager = url.pathname === "/api/events" ? runs : purchases;
                 response.writeHead(200, {
@@ -123,29 +137,36 @@ export async function startLocalServer(
                 });
                 return;
             }
+
             if (request.method === "GET" && url.pathname === "/api/contact") {
                 json(response, 200, {
                     contact: existsSync(contactPath) ? await loadContactDetails(contactPath) : null,
                 });
                 return;
             }
+
             if (request.method === "PUT" && url.pathname === "/api/contact") {
                 await saveContactDetails(await body(request), contactPath);
                 json(response, 200, { saved: true });
                 return;
             }
+
             if (request.method === "GET" && url.pathname === "/api/purchase") {
                 json(response, 200, purchases.snapshot());
                 return;
             }
+
             if (request.method === "POST" && url.pathname === "/api/purchase/close-browser") {
                 const input = await body(request);
-                if (Object.keys(input).some(key => key !== "runId") || typeof input.runId !== "string")
+                if (Object.keys(input).some(key => key !== "runId") || typeof input.runId !== "string") {
                     throw new Error("關閉請求格式錯誤。");
+                }
                 json(response, 200, await purchases.closeBrowser(input.runId));
                 return;
             }
+
             if (request.method === "POST" && url.pathname === "/api/purchase") {
+                // 檢查請求格式
                 const input = await body(request);
                 if (
                     Object.keys(input).some(
@@ -153,10 +174,13 @@ export async function startLocalServer(
                     ) ||
                     typeof input.requestId !== "string" ||
                     typeof input.activityId !== "string"
-                )
+                ) {
                     throw new Error("購票請求格式錯誤。");
+                }
                 const requestId = input.requestId;
                 notAccepted = () => !purchases.hasRequest(requestId);
+
+                // 確認使用者看過的設定，和存檔內容一致
                 const expectedActivity = parseActivity(input.expectedActivity);
                 const expectedContact = validateContactDetails(input.expectedContact);
                 const activity = await store.load(input.activityId);
@@ -167,10 +191,13 @@ export async function startLocalServer(
                 ) {
                     throw new Error("活動或聯絡資料已變更，請重新載入、儲存並確認摘要。");
                 }
+
+                // 沒有模擬在執行，才開始購票
                 if (runs.snapshot()?.status === "running") throw new Error("請先等待模擬結束。");
                 json(response, 200, purchases.start(input.requestId, activity.settings, contact, activity.id));
                 return;
             }
+
             if (request.method === "GET" && url.pathname === "/api/activities") {
                 const result = await store.list();
                 json(response, 200, {
@@ -182,22 +209,27 @@ export async function startLocalServer(
                 });
                 return;
             }
+
             const match = /^\/api\/activities\/([^/]+)$/.exec(url.pathname);
             if (request.method === "DELETE" && match) {
-                if (purchases.busy() || runs.snapshot()?.status === "running")
+                if (purchases.busy() || runs.snapshot()?.status === "running") {
                     throw new Error("執行或瀏覽器占用中，不能刪除活動。");
+                }
                 await store.remove(match[1]!);
                 json(response, 200, { deleted: true });
                 return;
             }
+
             if (request.method === "GET" && match) {
                 json(response, 200, await store.load(match[1]!));
                 return;
             }
+
             if (request.method === "POST" && url.pathname === "/api/activities") {
                 json(response, 201, await store.save(await body(request)));
                 return;
             }
+
             if (request.method === "PUT" && match) {
                 const input = await body(request);
                 const revision = request.headers["x-activity-revision"];
@@ -207,25 +239,30 @@ export async function startLocalServer(
                 json(response, 200, await store.save(input, match[1]!));
                 return;
             }
+
             if (request.method === "GET" && url.pathname === "/api/run") {
                 json(response, 200, runs.snapshot());
                 return;
             }
+
             if (request.method === "POST" && url.pathname === "/api/simulation") {
                 const input = await body(request);
                 if (
                     Object.keys(input).some(key => !["requestId", "activityId", "contact"].includes(key)) ||
                     typeof input.requestId !== "string" ||
                     typeof input.activityId !== "string"
-                )
+                ) {
                     throw new Error("模擬請求格式錯誤。");
+                }
                 const requestId = input.requestId;
                 notAccepted = () => !runs.hasRequest(requestId);
+
                 const activity = await store.load(input.activityId);
                 if (purchases.busy()) throw new Error("購票流程仍占用瀏覽器。");
                 json(response, 200, runs.start(input.requestId, activity.settings, input.contact));
                 return;
             }
+
             json(response, 404, { error: "找不到此功能。" });
         } catch (error) {
             // 設定/模擬只回傳固定驗證訊息；檔案系統細節不輸出。
@@ -236,6 +273,8 @@ export async function startLocalServer(
             releaseMutation?.();
         }
     });
+
+    // 啟動伺服器，只接受本機連線
     await new Promise<void>((resolve, reject) => {
         server.once("error", reject);
         server.listen(0, "127.0.0.1", () => {
@@ -243,9 +282,12 @@ export async function startLocalServer(
             resolve();
         });
     });
+
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("無法啟動本機服務。");
     origin = `http://127.0.0.1:${address.port}`;
+
+    // 回傳網址，以及關閉服務的方法
     return {
         url: origin,
         async close() {

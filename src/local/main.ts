@@ -3,6 +3,8 @@ import { startLocalServer } from "./server.js";
 
 const service = await startLocalServer();
 console.log(`TicketPilot 本機介面：${service.url}`);
+
+// 自動用瀏覽器開啟介面
 if (!process.argv.includes("--no-open")) {
     const command = process.platform === "darwin" ? "open" : process.platform === "win32" ? "explorer.exe" : "xdg-open";
     const opener = spawn(command, [service.url], { stdio: "ignore" });
@@ -11,8 +13,10 @@ if (!process.argv.includes("--no-open")) {
         if (code) console.log("請手動開啟上方網址。");
     });
 }
+
+// 按 Ctrl+C 時關閉服務；購票程序還沒結束就不關
 let closing = false;
-for (const signal of ["SIGINT", "SIGTERM"] as const)
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, async () => {
         if (closing) return;
         closing = true;
@@ -24,3 +28,4 @@ for (const signal of ["SIGINT", "SIGTERM"] as const)
             closing = false;
         }
     });
+}
