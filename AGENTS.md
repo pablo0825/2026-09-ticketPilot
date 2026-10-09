@@ -13,6 +13,7 @@ From the repository root:
 - `npx playwright install chromium`: install test Chromium.
 - `npm run typecheck`: check types.
 - `npm test`: run tests.
+- `npm run format`: format files with Prettier; run before committing.
 - `npm start`: run the live flow in installed Chrome.
 
 Review `src/config/event.config.ts` before live runs.
