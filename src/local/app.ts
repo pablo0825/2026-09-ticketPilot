@@ -1,3 +1,4 @@
+import type { Currency, currencies } from "../core/currency.js";
 import type { ActivityRecord, ActivitySettings } from "../config/activityStore.js";
 import type { ContactDetails } from "../config/contact.config.js";
 import type { PurchaseSnapshot, ActivityExecutionStatus } from "./purchaseRuns.js";
@@ -5,6 +6,7 @@ import type { SimulationSnapshot } from "./simulationRuns.js";
 
 // token 由 index.html 在載入此腳本前提供。
 declare const token: string;
+declare const currencyDefinitions: typeof currencies;
 
 type DisplayMode = "purchase" | "simulation";
 
@@ -53,6 +55,7 @@ interface PageElements {
     editorTitle: HTMLElement;
     eventName: HTMLInputElement;
     eventUrl: HTMLInputElement;
+    currency: HTMLSelectElement;
     add: HTMLButtonElement;
     targets: HTMLElement;
     exclude: HTMLInputElement;
@@ -85,6 +88,26 @@ interface PageElements {
 let activityListRequest = 0;
 let activityStatusSignature = "";
 const $ = <Id extends keyof PageElements>(id: Id): PageElements[Id] => document.getElementById(id) as PageElements[Id];
+
+for (const [code, definition] of Object.entries(currencyDefinitions)) {
+    $("currency").add(new Option(`${definition.label} ${code}（${definition.symbol}）`, code));
+}
+
+function currencySymbol(currency: Currency): string {
+    return currencyDefinitions[currency].symbol;
+}
+
+function updatePriceLabels(): void {
+    const symbol = currencySymbol($("currency").value as Currency);
+    document.querySelectorAll(".price-label").forEach(label => {
+        label.textContent = `單張價格（${symbol}）`;
+    });
+}
+
+$("currency").addEventListener("change", () => {
+    updatePriceLabels();
+    changed();
+});
 let selectedId = "";
 let savedActivity: ActivitySettings | null = null;
 let contactReady = false;
@@ -289,7 +312,7 @@ function row(data: TargetFields = { date: "", time: "", area: "", unitPrice: "",
     const container = document.createElement("div");
     container.className = "target-row";
     container.innerHTML =
-        '<div class="target-fields"><label>演出日期<input name="date" type="date" required></label><label>演出時間<input name="time" type="time" required></label><label>票區／票種<input name="area" required></label><label>單張價格（NT$）<input name="unitPrice" type="number" min="1" step="1" required></label><label>張數<input name="quantity" type="number" min="1" step="1" required></label></div><div class="target-tools"><strong class="position"></strong><label class="check"><input name="adjacent" type="checkbox">要求連位</label><button type="button" class="secondary up">上移</button><button type="button" class="secondary down">下移</button><button type="button" class="secondary remove">移除</button></div>';
+        '<div class="target-fields"><label>演出日期<input name="date" type="date" required></label><label>演出時間<input name="time" type="time" required></label><label>票區／票種<input name="area" required></label><label><span class="price-label">單張價格</span><input name="unitPrice" type="number" min="1" step="1" required></label><label>張數<input name="quantity" type="number" min="1" step="1" required></label></div><div class="target-tools"><strong class="position"></strong><label class="check"><input name="adjacent" type="checkbox">要求連位</label><button type="button" class="secondary up">上移</button><button type="button" class="secondary down">下移</button><button type="button" class="secondary remove">移除</button></div>';
 
     for (const [key, value] of Object.entries(data)) {
         const input = container.querySelector<HTMLInputElement>(`[name="${key}"]`);
@@ -362,6 +385,7 @@ function renumber() {
 
 $("add").onclick = () => {
     row();
+    updatePriceLabels();
     changed();
 };
 
@@ -373,7 +397,9 @@ function loadForm(settings: ActivityFields): void {
 
     // 依儲存順序重建購票順位
     $("targets").replaceChildren();
+    $("currency").value = settings.currency;
     settings.targets.forEach(row);
+    updatePriceLabels();
 
     // 還原開賣設定，並要求重新確認
     $("mode").value = settings.saleSchedule ? "scheduled" : "now";
@@ -407,6 +433,7 @@ function activityInput(includeSchedule = true): ActivityDraft {
     const settings: ActivityDraft = {
         eventUrl: $("eventUrl").value.trim(),
         eventName: $("eventName").value.trim(),
+        currency: $("currency").value as Currency,
         fallbackMode: "STRICT",
         excludeKeywords: $("exclude")
             .value.split(/[,，]/)
@@ -611,7 +638,7 @@ function summary() {
     }
 
     const body = table.createTBody();
-    const money = (value: number) => `NT$${value.toLocaleString("zh-TW")}`;
+    const money = (value: number) => `${currencySymbol(draft.currency)}${value.toLocaleString("zh-TW")}`;
 
     draft.targets.forEach((target, index) => {
         const priceValid = Number.isSafeInteger(target.unitPrice) && target.unitPrice > 0;
@@ -708,6 +735,7 @@ $("new").onclick = () => {
 
     loadForm({
         eventName: "",
+        currency: "TWD",
         eventUrl: "",
         excludeKeywords: ["愛心席", "身障", "視線不良"],
         targets: [{ date: "", time: "", area: "", unitPrice: "", quantity: 1, adjacent: false }],
@@ -786,7 +814,8 @@ async function begin(simulation: boolean): Promise<void> {
         // 同步取得使用者已確認的內容；後續不再讀取會改變的欄位。
         const activity = structuredClone(activityInput());
         const contact = structuredClone(contactInput());
-        const signature = await fingerprint({ activity, contact });
+        const { currency, ...legacyActivity } = activity;
+        const signature = await fingerprint({ activity: currency === "TWD" ? legacyActivity : activity, contact });
 
         // 沿用尚未確認結果的請求（設定不同就停止）；沒有的話，設定有變更先儲存，再建立新請求
         const key = simulation ? "ticketpilot-simulation-request" : "ticketpilot-purchase-request";
@@ -862,7 +891,7 @@ function renderLogs(events: PurchaseSnapshot["events"], truncated: boolean, intr
         if (event.type === "log") {
             message = event.message;
         } else if (event.type === "target") {
-            message = `嘗試順位 ${event.index}/${event.total}：${event.date} ${event.time}／${event.area}／${event.quantity} 張／NT$${event.totalPrice}`;
+            message = `嘗試順位 ${event.index}/${event.total}：${event.date} ${event.time}／${event.area}／${event.quantity} 張／${currencySymbol(event.currency ?? "TWD")}${event.totalPrice}`;
         } else if (event.type === "recovery") {
             message = `恢復額度：排隊 ${event.queue}/1；預留 ${event.reservation}/1`;
         } else {

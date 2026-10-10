@@ -38,6 +38,7 @@ export class PriorityStrategy {
                 date: target.date,
                 time: target.time,
                 totalPrice: target.expectation.totalPrice,
+                currency: target.expectation.currency,
             });
 
             // 嘗試這個順位，成功就直接回傳

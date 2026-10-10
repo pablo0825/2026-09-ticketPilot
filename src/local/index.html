@@ -58,6 +58,8 @@
                                 placeholder="https://www.klook.com/zh-TW/event-detail/…/"
                         /></label>
                     </div>
+                    <label>預期幣別<select id="currency" required></select></label>
+                    <p>核對網站顯示的幣別，不會自動切換網站幣別或換算金額。</p>
                     <div class="section-title">
                         <div>
                             <h2>購票順位</h2>
@@ -142,6 +144,9 @@
                 </div>
             </section>
         </main>
+        <script>
+            const currencyDefinitions = __CURRENCIES__;
+        </script>
         <script>
             const token = "__TOKEN__";
         </script>

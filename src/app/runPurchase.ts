@@ -1,5 +1,6 @@
+import type { Money } from "../core/currency.js";
 import { acquirePurchaseLease, verifyPurchaseLease, releasePurchaseLease, type PurchaseLease } from "./purchaseLock.js";
-import { validatePurchaseConfig } from "../core/purchaseValidation.js";
+import { normalizePurchaseConfig } from "../core/purchaseValidation.js";
 import { FlowPause } from "../core/flowPause.js";
 import { KlookSeatRecovery, KlookContactRecovery, KlookQueueRecovery } from "../platforms/klook/expiryRecovery.js";
 import { PaymentPageError, waitForPaymentPage } from "../platforms/klook/paymentPage.js";
@@ -10,7 +11,7 @@ import { prepareBooking } from "../core/bookingPreparation.js";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
 import { isKlookUrl, prepareStartup } from "../platforms/klook/startup.js";
-import type { PurchaseConfig } from "../core/types.js";
+import type { PurchaseConfig, PurchaseConfigInput } from "../core/types.js";
 import { log, withRunEvents, type RunEvent } from "../core/logger.js";
 import { projectRoot } from "../config/activityStore.js";
 import { PriorityStrategy } from "../core/priorityStrategy.js";
@@ -62,7 +63,7 @@ async function submitAndVerifyPayment(
     page: Page,
     eventUrl: string,
     contactForm: KlookContactForm,
-    expectedTotal: number,
+    expectedTotal: Money,
 ): Promise<void> {
     // 提交聯絡資料，只送出一次
     reportState("CONTACT_SUBMISSION");
@@ -88,14 +89,13 @@ export interface PurchaseRunOptions {
 }
 
 export async function runPurchase(
-    config: PurchaseConfig,
+    config: PurchaseConfigInput,
     contact: ContactDetails,
     options: PurchaseRunOptions = {},
 ): Promise<void> {
-    const snapshot = structuredClone(config);
+    const snapshot = normalizePurchaseConfig(config);
     const details = validateContactDetails(contact);
     // 前置資料驗證失敗時不取得瀏覽器占用。
-    validatePurchaseConfig(snapshot);
 
     // 取得或沿用購票占用；流程結束且瀏覽器關閉後才釋放
     const lease = options.lease ?? acquirePurchaseLease();
@@ -222,6 +222,9 @@ async function executePurchase(
     });
 
     // 提交永遠在恢復範圍外；即使此刻才到期，也停止而不冒險重送。
-    await submitAndVerifyPayment(page, eventConfig.eventUrl, contactForm, prepared.target.expectation.totalPrice);
+    await submitAndVerifyPayment(page, eventConfig.eventUrl, contactForm, {
+        currency: prepared.target.expectation.currency,
+        amount: prepared.target.expectation.totalPrice,
+    });
     log("操作結束後，請關閉瀏覽器視窗。");
 }

@@ -1,3 +1,4 @@
+import { currencies } from "../core/currency.js";
 import { PurchaseRuns } from "./purchaseRuns.js";
 import { loadContactDetails, saveContactDetails, validateContactDetails } from "../config/contact.config.js";
 import { parseActivity, projectRoot } from "../config/activityStore.js";
@@ -73,10 +74,9 @@ export async function startLocalServer(
                     return;
                 }
 
-                const html = (await readFile(new URL("./index.html", import.meta.url), "utf8")).replace(
-                    "__TOKEN__",
-                    token,
-                );
+                const html = (await readFile(new URL("./index.html", import.meta.url), "utf8"))
+                    .replace("__TOKEN__", token)
+                    .replace("__CURRENCIES__", JSON.stringify(currencies));
 
                 response.writeHead(200, {
                     "Content-Type": "text/html; charset=utf-8",

@@ -74,7 +74,7 @@ test("選位恢復限定原活動與唯一過期彈窗；錯頁、歧義、其�
         assert.equal(await page.locator("body").getAttribute("data-ok"), "1");
         assert.equal(await page.locator("body").getAttribute("data-confirm"), null);
         await page.setContent(panel() + modal().replace('class="klk-modal-alert"', 'class="klk-modal-alert" hidden'));
-        await new KlookSeatSelector(page, 4880, 1000).confirmVerifiedSeats(target, {
+        await new KlookSeatSelector(page, { currency: "TWD", amount: 4880 }, 1000).confirmVerifiedSeats(target, {
             kind: "reserved",
             seats: [{ section: "A1", row: "10", number: "17" }],
         });
@@ -85,59 +85,85 @@ test("選位恢復限定原活動與唯一過期彈窗；錯頁、歧義、其�
     }
 });
 
-test("確認前過期：OK 返回保留選項，重新核對票券並取得新座位，才確認一次", async () => {
-    const browser = await chromium.launch();
-    const page = await browser.newPage();
-    try {
-        const group = (name: string, value: string) =>
-            `<div class="skuGroup-hk2pfU"><div class="name-Cu4gxk">${name}</div><div class="spec-LwNjSh active-vB3nra">${value}</div></div>`;
-        const html = `<div id="ticket-info"><p>活動日期｜2026年10月3日</p></div><div id="ticket-options">
+for (const { currency, changeCurrency } of [
+    { currency: "TWD", changeCurrency: false },
+    { currency: "HKD", changeCurrency: false },
+    { currency: "HKD", changeCurrency: true },
+] as const) {
+    test(`${currency} 確認前過期：返回後${changeCurrency ? "錯幣停止" : "重驗新座位只確認一次"}`, async () => {
+        const browser = await chromium.launch();
+        const page = await browser.newPage();
+        try {
+            const group = (name: string, value: string) =>
+                `<div class="skuGroup-hk2pfU"><div class="name-Cu4gxk">${name}</div><div class="spec-LwNjSh active-vB3nra">${value}</div></div>`;
+            const html = `<div id="ticket-info"><p>活動日期｜2026年10月3日</p></div><div id="ticket-options">
 ${group("日期", "10月3日(週六)")}${group("時間", "12:00")}${group("票種", "A區（NT$4,880）")}
 <div class="eventUnit-kxDycC"><div class="counter-vVrWZ9"><div class="value-xWKzpL">1</div></div><div>最多4張</div></div>
 <button>重新整理</button><button id="next">下一步</button></div>
 <script>document.querySelector('#next').onclick=()=>{const n=Number(document.body.dataset.assignments||0)+1;document.body.dataset.assignments=String(n);document.body.insertAdjacentHTML('beforeend', ${JSON.stringify(panel("__NUMBER__"))}.replace('__NUMBER__',String(16+n)));};</script>`;
-        await page.route("**/*", route => route.fulfill({ body: html, contentType: "text/html; charset=utf-8" }));
-        await page.goto(eventUrl);
-        const selector = new KlookSeatSelector(page, 4880, 1000);
-        let confirmations = 0;
-        const checked: string[] = [];
-        await prepareBooking(
-            {
-                selectSeats: async () => {
-                    await new KlookTicketSelector(page, 1000).selectAndVerify(target, 4880);
-                    return selector.openAndVerify(target);
+            await page.route("**/*", route =>
+                route.fulfill({
+                    body: html.replaceAll("NT$", currency === "HKD" ? "HK$" : "NT$"),
+                    contentType: "text/html; charset=utf-8",
+                }),
+            );
+            await page.goto(eventUrl);
+            const selector = new KlookSeatSelector(page, { currency, amount: 4880 }, 1000);
+            let confirmations = 0;
+            const checked: string[] = [];
+            const preparation = prepareBooking(
+                {
+                    selectSeats: async () => {
+                        await new KlookTicketSelector(page, 1000).selectAndVerify(target, {
+                            currency,
+                            amount: 4880,
+                        });
+                        return selector.openAndVerify(target);
+                    },
+                    confirmSeats: async allocation => {
+                        if (++confirmations === 1) {
+                            await page
+                                .locator("body")
+                                .evaluate(
+                                    (el, html) => el.insertAdjacentHTML("beforeend", html),
+                                    modal(
+                                        "document.body.dataset.ok=String(Number(document.body.dataset.ok||0)+1);document.querySelector('.main_right-ZMnX67').remove();this.parentElement.remove()" +
+                                            (changeCurrency
+                                                ? ";document.querySelectorAll('#ticket-options .spec-LwNjSh').forEach(el=>el.textContent=el.textContent.replace('HK$','NT$'))"
+                                                : ""),
+                                    ),
+                                );
+                        }
+                        await selector.confirmVerifiedSeats(target, allocation);
+                    },
+                    prepareContact: async allocation => {
+                        assert.equal(allocation.kind, "reserved");
+                        if (allocation.kind === "reserved") checked.push(allocation.seats[0]!.number);
+                    },
                 },
-                confirmSeats: async allocation => {
-                    if (++confirmations === 1) {
-                        await page
-                            .locator("body")
-                            .evaluate(
-                                (el, html) => el.insertAdjacentHTML("beforeend", html),
-                                modal(
-                                    "document.body.dataset.ok=String(Number(document.body.dataset.ok||0)+1);document.querySelector('.main_right-ZMnX67').remove();this.parentElement.remove()",
-                                ),
-                            );
-                    }
-                    await selector.confirmVerifiedSeats(target, allocation);
-                },
-                prepareContact: async allocation => {
-                    assert.equal(allocation.kind, "reserved");
-                    if (allocation.kind === "reserved") checked.push(allocation.seats[0]!.number);
-                },
-            },
-            fakeRecovery(),
-            fakeRecovery(),
-            new KlookSeatRecovery(page, eventUrl, 1000),
-        );
-        assert.deepEqual(checked, ["18"]);
-        assert.equal(await page.locator("body").getAttribute("data-assignments"), "2");
-        assert.equal(await page.locator("body").getAttribute("data-confirm"), "1");
-        assert.equal(await page.locator("body").getAttribute("data-ok"), "1");
-        assert.equal(await page.locator(".value-xWKzpL").innerText(), "1");
-    } finally {
-        await browser.close();
-    }
-});
+                fakeRecovery(),
+                fakeRecovery(),
+                new KlookSeatRecovery(page, eventUrl, 1000),
+            );
+            if (changeCurrency) {
+                await assert.rejects(preparation, /幣別/);
+                assert.deepEqual(checked, []);
+                assert.equal(await page.locator("body").getAttribute("data-assignments"), "1");
+                assert.equal(await page.locator("body").getAttribute("data-confirm"), null);
+                assert.equal(await page.locator("body").getAttribute("data-ok"), "1");
+                return;
+            }
+            await preparation;
+            assert.deepEqual(checked, ["18"]);
+            assert.equal(await page.locator("body").getAttribute("data-assignments"), "2");
+            assert.equal(await page.locator("body").getAttribute("data-confirm"), "1");
+            assert.equal(await page.locator("body").getAttribute("data-ok"), "1");
+            assert.equal(await page.locator(".value-xWKzpL").innerText(), "1");
+        } finally {
+            await browser.close();
+        }
+    });
+}
 
 test("確認已按下但導頁失敗時，即使出現過期提示也不重選或按OK", async () => {
     const browser = await chromium.launch();
@@ -154,7 +180,10 @@ test("確認已按下但導頁失敗時，即使出現過期提示也不重選�
                         return { kind: "reserved" as const, seats: [{ section: "A1", row: "10", number: "17" }] };
                     },
                     confirmSeats: async allocation => {
-                        await new KlookSeatSelector(page, 4880, 500).confirmVerifiedSeats(target, allocation);
+                        await new KlookSeatSelector(page, { currency: "TWD", amount: 4880 }, 500).confirmVerifiedSeats(
+                            target,
+                            allocation,
+                        );
                         await page
                             .locator("body")
                             .evaluate((el, html) => el.insertAdjacentHTML("beforeend", html), modal());

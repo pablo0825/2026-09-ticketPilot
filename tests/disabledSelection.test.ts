@@ -13,7 +13,12 @@ const config = {
     targets: ["A區", "B區"].map((area, i) => ({
         ...eventConfig.targets[0]!,
         area,
-        expectation: { eventName: "fixture", unitPrice: 4880 - i * 1000, totalPrice: 4880 - i * 1000 },
+        expectation: {
+            currency: "TWD" as const,
+            eventName: "fixture",
+            unitPrice: 4880 - i * 1000,
+            totalPrice: 4880 - i * 1000,
+        },
     })),
 };
 // 停用 class 取自斑恩活動實際 DOM；配位與事件以本機 fixture 模擬。

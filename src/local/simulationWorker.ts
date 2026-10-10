@@ -1,3 +1,4 @@
+import { currencies } from "../core/currency.js";
 import { parseActivity, toPurchaseConfig } from "../config/activityStore.js";
 import { validateContactDetails } from "../config/contact.config.js";
 import { withRunEvents, log } from "../core/logger.js";
@@ -29,7 +30,9 @@ process.once("message", async (input: unknown) => {
                     },
                 });
 
-                log(`模擬目標：${selected.target.area} / ${selected.target.quantity} 張 / NT$${selected.value}`);
+                log(
+                    `模擬目標：${selected.target.area} / ${selected.target.quantity} 張 / ${currencies[selected.target.expectation.currency].symbol}${selected.value}`,
+                );
                 await new Promise(resolve => setTimeout(resolve, 200));
                 log("模擬完成。尚未執行登入、配位、個資提交或付款頁核對。");
             },

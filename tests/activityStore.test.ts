@@ -83,3 +83,22 @@ test("個資保存共用驗證，錯誤輸入不覆蓋原檔", async () => {
         await rm(dir, { recursive: true, force: true });
     }
 });
+
+test("活動預期幣別：舊檔補台幣、港幣保存載入與順位一致、未知值拒絕", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ticket-currency-"));
+    try {
+        const store = new ActivityStore(dir);
+        const old = await store.save(activity);
+        await writeFile(join(dir, `${old.id}.json`), JSON.stringify({ ...old, settings: activity }));
+        assert.equal((await store.load(old.id)).settings.currency, "TWD");
+        const hk = await store.save({ ...activity, currency: "HKD" }, old.id);
+        assert.equal((await store.load(hk.id)).settings.currency, "HKD");
+        assert(toPurchaseConfig(hk.settings).targets.every(target => target.expectation.currency === "HKD"));
+        for (const currency of [null, "USD", "", "__proto__"]) {
+            await assert.rejects(store.save({ ...activity, currency }, old.id));
+        }
+        assert.equal((await store.load(hk.id)).settings.currency, "HKD");
+    } finally {
+        await rm(dir, { recursive: true, force: true });
+    }
+});

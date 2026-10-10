@@ -1,9 +1,9 @@
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { chromium } from "playwright";
 import { acquirePurchaseLease, purchaseOccupied, releasePurchaseLease } from "../src/app/purchaseLock.js";
@@ -245,6 +245,68 @@ test("活動狀態：同名分離、實際內容比較、等待切換與重新�
     } finally {
         if (runs.snapshot()?.canCloseBrowser) await runs.closeBrowser(runId);
         runs.close();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test("舊台幣紀錄指紋與請求可重讀；改港幣必須視為不同設定", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ticket-legacy-currency-"));
+    const store = new ActivityStore(join(dir, "events"));
+    try {
+        // 建立更新前的持久化格式，不能用新雜湊函式製作測試資料
+        const record = await store.save(activity);
+        const requestId = randomUUID();
+        const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+        const legacy = {
+            fingerprint: hash({ activity, contact }),
+            activity: { id: record.id, settingsHash: hash(activity) },
+            snapshot: {
+                id: `1-${requestId}`,
+                requestId,
+                activityName: activity.eventName,
+                status: "failed",
+                browserOpen: false,
+                occupied: false,
+                message: "已停止",
+                historyTruncated: false,
+                events: [
+                    {
+                        sequence: 1,
+                        at: new Date().toISOString(),
+                        event: {
+                            type: "target",
+                            index: 1,
+                            total: 1,
+                            area: "B區",
+                            quantity: 1,
+                            date: "2026-11-02",
+                            time: "19:30",
+                            totalPrice: 5280,
+                        },
+                    },
+                ],
+            },
+        };
+        await mkdir(join(dir, "runs"));
+        await writeFile(join(dir, "runs", `${requestId}.json`), JSON.stringify(legacy));
+
+        // 缺省與明確台幣都沿用舊結果，絕不啟動 worker
+        const runs = new PurchaseRuns(dir, worker);
+        assert.equal(runs.activityStatus(record), "已執行");
+        assert.equal(runs.start(requestId, activity, contact, record.id).id, legacy.snapshot.id);
+        assert.equal(
+            runs.start(requestId, { ...activity, currency: "TWD" }, contact, record.id).id,
+            legacy.snapshot.id,
+        );
+        const event = runs.snapshot()!.events[0]!.event;
+        assert.equal(event.type === "target" && event.currency, "TWD");
+
+        // 同請求改港幣會被拒絕，不得拿舊台幣結果冒充港幣執行
+        const hk = await store.save({ ...activity, currency: "HKD" }, record.id);
+        assert.equal(runs.activityStatus(hk), "設定已更新");
+        assert.throws(() => runs.start(requestId, hk.settings, contact, record.id), /更換設定/);
+        assert.equal(runs.busy(), false);
+    } finally {
         await rm(dir, { recursive: true, force: true });
     }
 });

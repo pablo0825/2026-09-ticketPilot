@@ -57,13 +57,13 @@ test("提交一次抵達付款頁，忽略隱藏按鈕且不確認付款；未�
         );
         await page.goto(contactUrl);
         await new KlookContactForm(page, eventUrl, 1000).submit();
-        await waitForPaymentPage(page, eventUrl, 4880, 1000);
+        await waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 1000);
         assert.equal(contactClicks, 1);
         assert.equal(await page.locator("body").getAttribute("data-paid"), null);
         await page.goto(contactUrl);
         await page.setContent(submitButton);
         await new KlookContactForm(page, eventUrl, 500).submit();
-        await assert.rejects(waitForPaymentPage(page, eventUrl, 4880, 200));
+        await assert.rejects(waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 200));
         assert.equal(await page.locator("body").getAttribute("data-clicks"), "1");
     } finally {
         await browser.close();
@@ -80,7 +80,7 @@ test("付款頁拒絕錯金額、缺少訂單編號、錯來源、彈窗及未�
             paymentUrl.replace("www.klook.com", "example.test"),
         ]) {
             await page.goto(url);
-            await assert.rejects(waitForPaymentPage(page, eventUrl, 4880, 200));
+            await assert.rejects(waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 200));
         }
         await page.goto(paymentUrl);
         for (const html of [
@@ -90,7 +90,7 @@ test("付款頁拒絕錯金額、缺少訂單編號、錯來源、彈窗及未�
             payment + "<button>確認付款</button>",
         ]) {
             await page.setContent(html);
-            await assert.rejects(waitForPaymentPage(page, eventUrl, 4880, 200));
+            await assert.rejects(waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 200));
             assert.equal(await page.locator("body").getAttribute("data-paid"), null);
         }
     } finally {
@@ -135,7 +135,7 @@ test("付款頁診斷區分檢查階段，錯誤不含訂單編號或原始頁�
             [payment + '<div class="klk_c_dialog">private-dialog</div>', /有可見彈窗/],
         ] as const) {
             await page.setContent(html);
-            await assert.rejects(waitForPaymentPage(page, eventUrl, 4880, 200), error => {
+            await assert.rejects(waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 200), error => {
                 assert.ok(error instanceof Error);
                 assert.match(error.message, expected);
                 assert.doesNotMatch(error.message, /private-order|private-dialog/);
@@ -157,7 +157,7 @@ test("確認付款按鈕停用仍可核對到達付款頁；不付款且不忽�
             route.fulfill({ body: disabledPayment, contentType: "text/html; charset=utf-8" }),
         );
         await page.goto(paymentUrl);
-        await waitForPaymentPage(page, eventUrl, 4880, 500);
+        await waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 500);
         assert.equal(await page.getByRole("button", { name: "確認付款", exact: true }).isEnabled(), false);
         assert.equal(await page.locator("body").getAttribute("data-paid"), null);
         for (const html of [
@@ -166,9 +166,44 @@ test("確認付款按鈕停用仍可核對到達付款頁；不付款且不忽�
             disabledPayment + "<button disabled>確認付款</button>",
         ]) {
             await page.setContent(html);
-            await assert.rejects(waitForPaymentPage(page, eventUrl, 4880, 200));
+            await assert.rejects(waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 200));
             assert.equal(await page.locator("body").getAttribute("data-paid"), null);
         }
+    } finally {
+        await browser.close();
+    }
+});
+
+test("港幣付款頁：一次提交後核對金額，錯幣回報固定錯誤且不點付款", async () => {
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
+    let submits = 0;
+    try {
+        await page.exposeFunction("recordCurrencySubmit", () => {
+            submits++;
+        });
+        for (const symbol of ["HK$", "NT$", "$"]) {
+            await page.unrouteAll();
+            await page.route("**/*", route =>
+                route.fulfill({
+                    contentType: "text/html; charset=utf-8",
+                    body:
+                        route.request().url() === contactUrl
+                            ? `<button onclick="recordCurrencySubmit();location.href='${paymentUrl}'">前往付款</button>`
+                            : payment.replace("NT$", symbol),
+                }),
+            );
+            await page.goto(contactUrl);
+            const before = submits;
+            await new KlookContactForm(page, eventUrl, 1000).submit();
+            const checking = waitForPaymentPage(page, eventUrl, { currency: "HKD", amount: 4880 }, 1000);
+            if (symbol === "HK$") await checking;
+            else await assert.rejects(checking, /付款頁金額不符、幣別不符或格式未知/);
+            assert.equal(submits - before, 1);
+            assert.equal(await page.locator("body").getAttribute("data-paid"), null);
+        }
+        await page.setContent(payment.replace("NT$", "$"));
+        await assert.rejects(waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 1000));
     } finally {
         await browser.close();
     }

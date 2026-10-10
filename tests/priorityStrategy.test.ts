@@ -11,7 +11,12 @@ const config = {
     targets: ["A區", "B區"].map((area, index) => ({
         ...eventConfig.targets[0]!,
         area,
-        expectation: { eventName: "fixture", unitPrice: 4880 - index * 1000, totalPrice: 4880 - index * 1000 },
+        expectation: {
+            currency: "TWD" as const,
+            eventName: "fixture",
+            unitPrice: 4880 - index * 1000,
+            totalPrice: 4880 - index * 1000,
+        },
     })),
 };
 const recovery = () => ({

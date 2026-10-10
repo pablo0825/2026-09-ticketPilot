@@ -1,3 +1,5 @@
+import { validateMoney } from "../../core/currency.js";
+import type { Money } from "../../core/currency.js";
 import { SelectionExpiryNotice } from "./notices.js";
 import { parseDateOption, matchesDateOption } from "./eventDate.js";
 import { PurchaseStop } from "../../core/purchaseStop.js";
@@ -48,12 +50,14 @@ export class KlookTicketSelector {
         this.root = page.locator(selectors.root);
     }
 
-    async selectAndVerify(target: TicketTarget, expectedUnitPrice: number): Promise<"selected" | "disabled"> {
+    async selectAndVerify(target: TicketTarget, expectedUnitPrice: Money): Promise<"selected" | "disabled"> {
         // 檢查票券格式是否符合
         validateTicketTarget(target);
-        if (!Number.isSafeInteger(expectedUnitPrice) || expectedUnitPrice <= 0) {
+        if (!Number.isSafeInteger(expectedUnitPrice.amount) || expectedUnitPrice.amount <= 0) {
             throw new PurchaseStop("預期單價必須是正整數。");
         }
+
+        validateMoney(expectedUnitPrice);
 
         // 確認票券選擇區只有一個元素
         await this.waitForUniqueElement(this.root, "票券選擇區");
@@ -77,7 +81,9 @@ export class KlookTicketSelector {
         if (!area) {
             await this.verifyDate(target.date);
             await this.verifySelectedOption(time, "時間");
-            log(`票種目前停用：${target.area} / ${expectedUnitPrice}；未送出選票。`);
+            log(
+                `票種目前停用：${target.area} / ${expectedUnitPrice.currency} ${expectedUnitPrice.amount}；未送出選票。`,
+            );
             return "disabled";
         }
 
@@ -219,7 +225,7 @@ export class KlookTicketSelector {
         }
     }
 
-    private async findArea(area: string, expectedUnitPrice: number): Promise<Locator> {
+    private async findArea(area: string, expectedUnitPrice: Money): Promise<Locator> {
         const heading = this.page.locator(selectors.groupName).filter({ hasText: /^票種\s*$/ });
         const group = this.root.locator(selectors.group).filter({ has: heading });
         // 此處失敗是無法確認購買目標，不可被解讀為售罄或啟用恢復。
@@ -236,14 +242,18 @@ export class KlookTicketSelector {
                 const parsed = parseTicketLabel(await option.innerText());
                 if (parsed.name !== normalizeTicketName(area)) continue;
                 sameName = true;
-                if (parsed.unitPrice === expectedUnitPrice) matches.push(option);
+                if (parsed.unitPrice === expectedUnitPrice.amount && parsed.currency === expectedUnitPrice.currency) {
+                    matches.push(option);
+                }
             }
 
             // 必須剛好一個
             if (matches.length > 1) throw new Error("票種有多個匹配項，已停止。");
             if (matches.length === 0) {
                 throw new Error(
-                    sameName ? "票種單價不符，已停止。" : "找不到符合完整名稱與單價的票種，狀態未知，未判定售罄。",
+                    sameName
+                        ? "票種單價或幣別不符，已停止。"
+                        : "找不到符合完整名稱與單價的票種，狀態未知，未判定售罄。",
                 );
             }
 
@@ -253,7 +263,7 @@ export class KlookTicketSelector {
         }
     }
 
-    private async selectArea(area: string, expectedUnitPrice: number): Promise<Locator | null> {
+    private async selectArea(area: string, expectedUnitPrice: Money): Promise<Locator | null> {
         const option = await this.findArea(area, expectedUnitPrice);
         if (await this.isDisabled(option)) {
             if (await this.isSelected(option)) throw new PurchaseStop("票種同時為已選取與停用，狀態矛盾，已停止。");

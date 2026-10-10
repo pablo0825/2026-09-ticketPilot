@@ -1,4 +1,7 @@
-import { parseTicketLabel, normalizeTicketName, parseTicketAmount } from "./ticketLabel.js";
+import { validateMoney, verifyMoney } from "../../core/currency.js";
+import type { Money } from "../../core/currency.js";
+import { parseMoney } from "./money.js";
+import { parseTicketLabel, normalizeTicketName } from "./ticketLabel.js";
 import { getSelectionNotices, isExpiryNotice, reservationExpiredNotice } from "./notices.js";
 import { seatPanelSelector } from "./eventPage.js";
 import { PurchaseStop } from "../../core/purchaseStop.js";
@@ -130,12 +133,10 @@ export class KlookSeatSelector {
 
     constructor(
         private readonly page: Page,
-        private readonly expectedUnitPrice: number,
+        private readonly expectedUnitPrice: Money,
         private readonly timeout = 30_000,
     ) {
-        if (!Number.isSafeInteger(expectedUnitPrice) || expectedUnitPrice <= 0) {
-            throw new PurchaseStop("預期單價必須是正整數。");
-        }
+        validateMoney(expectedUnitPrice);
 
         this.panel = page.locator(selectors.panel);
     }
@@ -173,13 +174,20 @@ export class KlookSeatSelector {
     }
 
     private verifyPrices(result: SeatResult, quantity: number): void {
-        if (parseTicketLabel(result.area).unitPrice !== this.expectedUnitPrice) {
-            throw new PurchaseStop("配位票種單價不符，已停止。");
+        const ticket = parseTicketLabel(result.area);
+        try {
+            verifyMoney({ currency: ticket.currency, amount: ticket.unitPrice }, this.expectedUnitPrice);
+        } catch {
+            throw new PurchaseStop("配位票種單價不符或幣別不符，已停止。");
         }
 
-        const match = normalize(result.price).match(/^NT\$([\d,]+)$/);
-        if (!match || parseTicketAmount(match[1]!) !== this.expectedUnitPrice * quantity) {
-            throw new PurchaseStop("配位總額不符，已停止。");
+        try {
+            verifyMoney(parseMoney(normalize(result.price)), {
+                currency: this.expectedUnitPrice.currency,
+                amount: this.expectedUnitPrice.amount * quantity,
+            });
+        } catch {
+            throw new PurchaseStop("配位總額或幣別不符，已停止。");
         }
     }
 

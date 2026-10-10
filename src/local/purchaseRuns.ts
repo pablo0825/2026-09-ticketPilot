@@ -1,3 +1,4 @@
+import { isCurrency } from "../core/currency.js";
 import { fork, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
@@ -32,9 +33,15 @@ interface Record {
 
 export type ActivityExecutionStatus = "尚無執行紀錄" | "等待開賣" | "執行中" | "已執行" | "設定已更新";
 
+// 台幣省略幣別後雜湊，讓舊設定和既有請求保持相同識別。
+function fingerprintSettings(settings: ActivitySettings) {
+    const { currency, ...legacy } = parseActivity(settings);
+    return currency === "TWD" ? legacy : { ...legacy, currency };
+}
+
 function settingsHash(settings: ActivitySettings): string {
     return createHash("sha256")
-        .update(JSON.stringify(parseActivity(settings)))
+        .update(JSON.stringify(fingerprintSettings(settings)))
         .digest("hex");
 }
 
@@ -114,6 +121,11 @@ export class PurchaseRuns {
                 .safeParse(record);
             if (!valid.success) throw new Error("Invalid run record");
 
+            for (const item of record.snapshot.events) {
+                if (item.event.type !== "target") continue;
+                if (item.event.currency === undefined) item.event.currency = "TWD";
+                if (!isCurrency(item.event.currency)) throw new Error("Invalid currency");
+            }
             return record;
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
@@ -208,7 +220,9 @@ export class PurchaseRuns {
 
         const activity = parseActivity(activityInput);
         const contact = validateContactDetails(contactInput);
-        const fingerprint = createHash("sha256").update(JSON.stringify({ activity, contact })).digest("hex");
+        const fingerprint = createHash("sha256")
+            .update(JSON.stringify({ activity: fingerprintSettings(activity), contact }))
+            .digest("hex");
 
         // 同一個請求重送時，回傳原本的結果
         const previous = this.read(requestId);

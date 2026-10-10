@@ -284,3 +284,59 @@ test("結束後關閉瀏覽器：確認取消、付款提醒、解除占用及�
         await rm(dir, { recursive: true, force: true });
     }
 });
+
+test("港幣選單、保存重載、摘要及模擬紀錄沿用同一幣別", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ticket-gui-currency-"));
+    const store = new ActivityStore(join(dir, "events"));
+    const record = await store.save({
+        eventName: "港幣測試",
+        eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
+        fallbackMode: "STRICT",
+        excludeKeywords: [],
+        targets: [{ date: "2026-11-20", time: "19:00", area: "VIP", unitPrice: 1699, quantity: 1, adjacent: false }],
+    });
+    const service = await startLocalServer(store, {
+        contactPath: join(dir, "contact.json"),
+        runDirectory: join(dir, "runtime"),
+    });
+    const browser = await chromium.launch();
+    try {
+        // 舊活動讀入台幣，切換港幣只改預期幣別與顯示
+        const page = await browser.newPage();
+        const errors: string[] = [];
+        page.on("pageerror", error => errors.push(error.message));
+        await page.goto(service.url);
+        await page.getByText("使用活動", { exact: true }).click();
+        await page.locator("#step1").waitFor({ state: "visible" });
+        assert.equal(await page.locator("#currency").inputValue(), "TWD");
+        await page.locator("#currency").selectOption("HKD");
+        assert.match(await page.locator(".price-label").innerText(), /HK\$/);
+        assert.equal(await page.locator("[name=unitPrice]").inputValue(), "1699");
+        await page.getByRole("button", { name: "下一步" }).click();
+        await page.locator("#step2").waitFor({ state: "visible" });
+        assert.equal((await store.load(record.id)).settings.currency, "HKD");
+
+        // 完成設定後，摘要和模擬輸出都必須顯示港幣
+        await page.locator("#firstName").fill("Demo");
+        await page.locator("#lastName").fill("Test");
+        await page.locator("#phone").fill("0912345678");
+        await page.locator("#email").fill("demo@example.com");
+        await page.getByRole("button", { name: "下一步" }).click();
+        await page.locator("#summary").filter({ hasText: "HK$1,699" }).waitFor();
+        await page.evaluate("begin(true)");
+        await page.getByText("模擬完成（未購票）", { exact: true }).waitFor();
+        assert.match(await page.locator("#logs").innerText(), /HK\$1699/);
+        assert.doesNotMatch(await page.locator("#logs").innerText(), /NT\$1699/);
+
+        // 重載活動仍保持港幣，沒有模組載入錯誤
+        await page.reload();
+        await page.getByText("使用活動", { exact: true }).click();
+        await page.locator("#step1").waitFor({ state: "visible" });
+        assert.equal(await page.locator("#currency").inputValue(), "HKD");
+        assert.deepEqual(errors, []);
+    } finally {
+        await browser.close();
+        await service.close();
+        await rm(dir, { recursive: true, force: true });
+    }
+});

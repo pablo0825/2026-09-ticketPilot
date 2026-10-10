@@ -1,3 +1,5 @@
+import { isCurrency } from "../core/currency.js";
+import type { Currency } from "../core/currency.js";
 import { z } from "zod";
 import { mkdir, readFile, readdir, rename, writeFile, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -24,6 +26,7 @@ const activitySchema = z
                 );
             }),
         eventName: z.string().trim().min(1),
+        currency: z.custom<Currency>(isCurrency).default("TWD"),
         fallbackMode: z.literal("STRICT"),
         excludeKeywords: z.array(z.string().trim().min(1)),
         targets: z
@@ -74,7 +77,12 @@ export function toPurchaseConfig(settings: ActivitySettings): PurchaseConfig {
         ...(settings.saleSchedule ? { saleSchedule: { ...settings.saleSchedule } } : {}),
         targets: settings.targets.map(({ unitPrice, ...target }) => ({
             ...target,
-            expectation: { eventName: settings.eventName, unitPrice, totalPrice: unitPrice * target.quantity },
+            expectation: {
+                currency: settings.currency,
+                eventName: settings.eventName,
+                unitPrice,
+                totalPrice: unitPrice * target.quantity,
+            },
         })),
     };
 }

@@ -1,3 +1,4 @@
+import type { Currency } from "./currency.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { PurchaseState } from "./state.js";
 
@@ -11,6 +12,7 @@ export type RunEvent =
           date: string;
           time: string;
           totalPrice: number;
+          currency: Currency;
       }
     | { type: "recovery"; queue: number; reservation: number }
     | { type: "state"; state: PurchaseState }

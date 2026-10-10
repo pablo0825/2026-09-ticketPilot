@@ -1,4 +1,6 @@
-import { normalizeTicketName, parseTicketLabel, parseTicketAmount } from "./ticketLabel.js";
+import { verifyMoney } from "../../core/currency.js";
+import { parseMoney } from "./money.js";
+import { normalizeTicketName, parseTicketLabel } from "./ticketLabel.js";
 import { isPersonalInfoPage } from "./personalInfoPage.js";
 import { validateBookingExpectation } from "../../core/purchaseValidation.js";
 import type { Page } from "playwright";
@@ -66,10 +68,11 @@ function verifyGeneralAdmission(
 function verifyPrices(summary: BookingSummary, area: string, expected: BookingExpectation): void {
     const ticket = parseTicketLabel(summary.packageName);
     if (ticket.name !== normalizeTicketName(area)) throw new Error("預訂摘要票種不符。");
-    if (ticket.unitPrice !== expected.unitPrice) throw new Error("預訂摘要單價不符。");
-
-    const totalMatch = normalizeText(summary.total).match(/^NT\$([\d,]+)$/);
-    if (!totalMatch || parseTicketAmount(totalMatch[1]!) !== expected.totalPrice) throw new Error("預訂摘要總價不符。");
+    verifyMoney(
+        { currency: ticket.currency, amount: ticket.unitPrice },
+        { currency: expected.currency, amount: expected.unitPrice },
+    );
+    verifyMoney(parseMoney(normalizeText(summary.total)), { currency: expected.currency, amount: expected.totalPrice });
 }
 
 function parseSeat(label: string): AssignedSeat {

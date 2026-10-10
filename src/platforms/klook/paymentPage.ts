@@ -1,3 +1,6 @@
+import { verifyMoney } from "../../core/currency.js";
+import type { Money } from "../../core/currency.js";
+import { parseMoney } from "./money.js";
 import type { Page } from "playwright";
 
 export class PaymentPageError extends Error {}
@@ -6,7 +9,7 @@ export class PaymentPageError extends Error {}
 export async function waitForPaymentPage(
     page: Page,
     eventUrl: string,
-    expectedTotal: number,
+    expectedTotal: Money,
     timeout = 30_000,
 ): Promise<void> {
     // stage 記錄目前做到哪一步；失敗時只回報這個步驟
@@ -33,9 +36,10 @@ export async function waitForPaymentPage(
         const amount = page.locator(".oc_submit_price").filter({ visible: true });
         await amount.waitFor({ state: "visible", timeout });
         const text = (await amount.innerText()).normalize("NFKC").replace(/\s/g, "");
-        const match = text.match(/^NT\$(\d+|\d{1,3}(?:,\d{3})+)$/);
-        if (!match || Number(match[1]!.replace(/,/g, "")) !== expectedTotal) {
-            throw new PaymentPageError("付款頁金額不符或格式未知。");
+        try {
+            verifyMoney(parseMoney(text), expectedTotal);
+        } catch {
+            throw new PaymentPageError("付款頁金額不符、幣別不符或格式未知。");
         }
 
         stage = "提交後的最終付款頁核對";

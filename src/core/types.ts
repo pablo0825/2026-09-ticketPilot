@@ -1,3 +1,5 @@
+import type { Currency } from "./currency.js";
+
 export interface TicketTarget {
     date: string;
     time: string;
@@ -20,6 +22,7 @@ export interface EventConfig {
 }
 
 export interface BookingExpectation {
+    currency: Currency;
     eventName: string;
     unitPrice: number;
     totalPrice: number;
@@ -32,3 +35,10 @@ export interface PurchaseTarget extends TicketTarget {
 export interface PurchaseConfig extends EventConfig {
     targets: PurchaseTarget[];
 }
+
+// 舊 CLI 設定只在啟動入口補台幣，內部 expectation 一律有幣別。
+export type PurchaseConfigInput = Omit<PurchaseConfig, "targets"> & {
+    targets: (Omit<PurchaseTarget, "expectation"> & {
+        expectation: Omit<BookingExpectation, "currency"> & { currency?: Currency };
+    })[];
+};

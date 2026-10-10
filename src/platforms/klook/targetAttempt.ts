@@ -31,7 +31,7 @@ export class KlookTargetAttempt implements TargetAttempt<KlookAssignment> {
         reportState("TICKET_SELECTION");
         const selection = await new KlookTicketSelector(this.page, this.timeout, () =>
             this.failure.assertNoExistingNotice(),
-        ).selectAndVerify(target, target.expectation.unitPrice);
+        ).selectAndVerify(target, { currency: target.expectation.currency, amount: target.expectation.unitPrice });
 
         // 目標目前不可選：確認頁面安全後回報不可選
         if (selection === "disabled") {
@@ -47,7 +47,11 @@ export class KlookTargetAttempt implements TargetAttempt<KlookAssignment> {
         reportState("SELECTION_VERIFIED");
         reportState("SEAT_ASSIGNMENT");
 
-        const seatSelector = new KlookSeatSelector(this.page, target.expectation.unitPrice, this.timeout);
+        const seatSelector = new KlookSeatSelector(
+            this.page,
+            { currency: target.expectation.currency, amount: target.expectation.unitPrice },
+            this.timeout,
+        );
         await this.failure.assertNoExistingNotice();
 
         try {

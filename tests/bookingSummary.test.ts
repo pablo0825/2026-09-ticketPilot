@@ -43,7 +43,7 @@ test("摘要逐項核對，錯誤場次／票種／價格／張數／座位均�
 });
 
 const generalTarget = { date: "2026-11-15", time: "17:00", area: "獨立靠近(單人票)", quantity: 2, adjacent: false };
-const generalExpected = { eventName: "斑恩演唱會", unitPrice: 1280, totalPrice: 2560 };
+const generalExpected = { currency: "TWD" as const, eventName: "斑恩演唱會", unitPrice: 1280, totalPrice: 2560 };
 const generalAllocation = { kind: "general" as const, group: "一般 票", quantity: 2 };
 const generalSummary: BookingSummary = {
     eventName: generalExpected.eventName,
@@ -203,5 +203,25 @@ test("非對號摘要接受自訂區域，但必須與已確認配位一致且�
                 generalExpected,
             ),
         /票區/,
+    );
+});
+
+test("港幣摘要核對單價與總額；兩者任何一處台幣或裸符號均拒絕", () => {
+    const hkExpected = { ...generalExpected, currency: "HKD" as const };
+    const hkSummary = { ...generalSummary, packageName: "獨立靠近(單人票) HK$1280", total: "HK$2,560" };
+    verifyBookingSummary(hkSummary, generalTarget, generalAllocation, hkExpected);
+    for (const change of [
+        { packageName: "獨立靠近(單人票) NT$1280" },
+        { packageName: "獨立靠近(單人票) $1280" },
+        { total: "NT$2,560" },
+        { total: "$2,560" },
+    ]) {
+        assert.throws(
+            () => verifyBookingSummary({ ...hkSummary, ...change }, generalTarget, generalAllocation, hkExpected),
+            /幣別/,
+        );
+    }
+    assert.throws(() =>
+        verifyBookingSummary({ ...generalSummary, total: "$2,560" }, generalTarget, generalAllocation, generalExpected),
     );
 });
