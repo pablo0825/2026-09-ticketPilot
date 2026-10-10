@@ -55,7 +55,7 @@ function verifyGeneralAdmission(
     if (allocation.quantity !== target.quantity) throw new Error("預訂摘要張數與已確認一般票不符。");
 
     if (
-        normalizeText(allocation.group) !== "一般票" ||
+        !normalizeText(allocation.group) ||
         labels.length !== 1 ||
         normalizeText(labels[0]!) !== normalizeText(allocation.group)
     ) {

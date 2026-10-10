@@ -219,9 +219,13 @@ test("一般票不接受缺漏、混合、重複、錯價、錯張數與連位�
     const page = await browser.newPage();
     try {
         const generalRow = '<div class="list_item-jYRAN7"><span>區 <ins>一般票</ins></span></div>';
-        const unknownRow = '<div class="list_item-jYRAN7"><span>區 <ins>A2</ins></span></div>';
+        const unknownRow =
+            '<div class="list_item-jYRAN7"><span>區 <ins>A2</ins></span><span>排 <ins>3</ins></span><span>座位 <ins></ins></span></div>';
         for (const options of [
             { rows: unknownRow },
+            { rows: generalRow.replace("一般票", "　 ") },
+            { rows: generalRow.replace("<ins>一般票</ins>", "") },
+            { rows: generalRow.replace("</span>", "</span><span>排 <ins>3</ins></span>") },
             { rows: generalRow + unknownRow },
             { rows: generalRow + generalRow },
             { rows: generalRow.replace("</span>", "</span><ins>額外資料</ins>") },
@@ -357,6 +361,50 @@ test("配位缺少完整年份或年份不符時停止；不採用面板其他�
             );
             assert.equal(await page.locator("body").getAttribute("data-next"), "1");
             assert.equal(await page.locator("body").getAttribute("data-confirm"), null);
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
+test("非對號區域不限名稱；保留配位內容並在確認前拒絕區域改變", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    try {
+        // 票種與區域可不同，單張與多張都以兩處張數核對
+        for (const [group, quantity] of [
+            ["PGA", 1],
+            ["一般 票", 2],
+            ["自由入場", 2],
+        ] as const) {
+            const wanted = { ...generalTarget, quantity };
+            await page.setContent(
+                allocationFixture({
+                    rows: `<div class="list_item-jYRAN7"><span>區 <ins>${group}</ins></span></div>`,
+                    selected: `已選${quantity}個座位`,
+                    total: `共計${quantity}個座位`,
+                    price: `NT$${1280 * quantity}`,
+                }),
+            );
+            const selector = new KlookSeatSelector(page, 1280, 1000);
+            const allocation = await selector.openAndVerify(wanted);
+            assert.deepEqual(allocation, { kind: "general", group, quantity });
+            assert.equal(await page.locator("body").getAttribute("data-next"), "1");
+            assert.equal(await page.locator("body").getAttribute("data-confirm"), null);
+
+            // 同樣合法的另一個區域仍不能取代已核對結果
+            await page.locator(".list_item-jYRAN7 ins").evaluate(el => {
+                el.textContent = "另一區";
+            });
+            await assert.rejects(selector.confirmVerifiedSeats(wanted, allocation), /配位結果已改變/);
+            assert.equal(await page.locator("body").getAttribute("data-confirm"), null);
+
+            // 恢復原資料後，只執行一次確認
+            await page.locator(".list_item-jYRAN7 ins").evaluate((el, value) => {
+                el.textContent = value;
+            }, group);
+            await selector.confirmVerifiedSeats(wanted, allocation);
+            assert.equal(await page.locator("body").getAttribute("data-confirm"), "1");
         }
     } finally {
         await browser.close();

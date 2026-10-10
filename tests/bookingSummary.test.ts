@@ -140,6 +140,14 @@ test("一般票摘要接受精確門票標籤；長短標籤重複、近似標�
         const actual = await readBookingSummary(page, eventUrl);
         assert.deepEqual(actual, generalSummary);
         verifyBookingSummary(actual, generalTarget, generalAllocation, generalExpected);
+
+        // 自訂區域也經過摘要 DOM 讀取，再核對已確認配位
+        await page.setContent(generalProduct.replace("一般 票", "PGA"));
+        const customSummary = await readBookingSummary(page, eventUrl);
+        assert.deepEqual(customSummary, { ...generalSummary, seatLabels: ["PGA"] });
+        verifyBookingSummary(customSummary, generalTarget, { ...generalAllocation, group: "PGA" }, generalExpected);
+
+        // 欄位缺漏或重複仍拒絕
         for (const html of [
             generalProduct.replace(">門票<", ">門票張數<"),
             generalProduct.replace(
@@ -161,4 +169,39 @@ test("一般票摘要接受精確門票標籤；長短標籤重複、近似標�
     } finally {
         await browser.close();
     }
+});
+
+test("非對號摘要接受自訂區域，但必須與已確認配位一致且維持購買目標核對", () => {
+    // 區域名稱可以與票種名稱不同
+    const customAllocation = { ...generalAllocation, group: "PGA" };
+    const customSummary = { ...generalSummary, seatLabels: ["ＰＧＡ"] };
+    verifyBookingSummary(customSummary, generalTarget, customAllocation, generalExpected);
+
+    // 放寬名稱不放寬張數、價格、場次或明細唯一性
+    for (const change of [
+        { seatLabels: [] },
+        { seatLabels: [" "] },
+        { seatLabels: ["GA"] },
+        { seatLabels: ["PGA", "PGA"] },
+        { packageName: "另一票種 NT$1280" },
+        { dateTime: "2026-11-15 19:00:00" },
+        { quantity: "1" },
+        { total: "NT$1,280" },
+    ]) {
+        assert.throws(() =>
+            verifyBookingSummary({ ...customSummary, ...change }, generalTarget, customAllocation, generalExpected),
+        );
+    }
+
+    // 空白配位與空白摘要即使相同也不接受
+    assert.throws(
+        () =>
+            verifyBookingSummary(
+                { ...customSummary, seatLabels: [" "] },
+                generalTarget,
+                { ...customAllocation, group: " " },
+                generalExpected,
+            ),
+        /票區/,
+    );
 });

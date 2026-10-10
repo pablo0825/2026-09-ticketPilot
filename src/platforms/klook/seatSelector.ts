@@ -305,7 +305,7 @@ export class KlookSeatSelector {
                 }
             }
 
-            // 逐列讀出座位（區／排／座位），或一般票的區域
+            // 逐列讀出座位，或只有區欄位的非對號配位
             for (const item of items) {
                 if (!rows?.contains(item)) structureValid = false;
                 const fields = Array.from(item.querySelectorAll("span"));
@@ -334,7 +334,8 @@ export class KlookSeatSelector {
                     exactFields &&
                     items.length === 1 &&
                     labels.join("/") === "區" &&
-                    values[0]?.normalize("NFKC").replace(/\s/g, "") === "一般票"
+                    values[0] !== undefined &&
+                    values[0].normalize("NFKC").replace(/\s/g, "") !== ""
                 ) {
                     group = values[0];
                 } else structureValid = false;
