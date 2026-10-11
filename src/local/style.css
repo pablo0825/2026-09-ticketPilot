@@ -132,6 +132,10 @@ footer {
 .target-row label {
     font-size: 13px;
 }
+.target-fields input {
+    height: 2.8rem;
+    line-height: 1.4;
+}
 .target-tools {
     display: flex;
     gap: 6px;
