@@ -1,4 +1,3 @@
-import type { Money } from "../core/currency.js";
 import { acquirePurchaseLease, verifyPurchaseLease, releasePurchaseLease, type PurchaseLease } from "./purchaseLock.js";
 import { normalizePurchaseConfig } from "../core/purchaseValidation.js";
 import { FlowPause } from "../core/flowPause.js";
@@ -59,26 +58,21 @@ async function openEventPage(
     return page;
 }
 
-async function submitAndVerifyPayment(
-    page: Page,
-    eventUrl: string,
-    contactForm: KlookContactForm,
-    expectedTotal: Money,
-): Promise<void> {
+async function submitAndVerifyPayment(page: Page, eventUrl: string, contactForm: KlookContactForm): Promise<void> {
     // 提交聯絡資料，只送出一次
     reportState("CONTACT_SUBMISSION");
     await contactForm.submit();
 
-    // 確認到達付款頁且金額正確
+    // 確認到達付款頁
     try {
-        await waitForPaymentPage(page, eventUrl, expectedTotal);
+        await waitForPaymentPage(page, eventUrl);
     } catch (error) {
         const reason = error instanceof PaymentPageError ? error.message : "付款頁核對發生未知錯誤。";
         throw new Error(`已嘗試提交，但未能核對付款頁：${reason} 請人工檢查頁面及訂單；不會重新提交或重跑購票。`);
     }
 
     reportState("PAYMENT_READY");
-    log("已核對付款頁與金額，停在付款前；不會按確認付款。");
+    log("已到付款頁，請人工核對金額；不會按確認付款。");
 }
 
 export interface PurchaseRunOptions {
@@ -157,7 +151,7 @@ async function executePurchase(
     const contactForm = new KlookContactForm(page, eventConfig.eventUrl);
     let selecting = false;
 
-    const prepared = await prepareBooking(
+    await prepareBooking(
         {
             selectSeats: async () => {
                 selecting = true;
@@ -222,9 +216,6 @@ async function executePurchase(
     });
 
     // 提交永遠在恢復範圍外；即使此刻才到期，也停止而不冒險重送。
-    await submitAndVerifyPayment(page, eventConfig.eventUrl, contactForm, {
-        currency: prepared.target.expectation.currency,
-        amount: prepared.target.expectation.totalPrice,
-    });
+    await submitAndVerifyPayment(page, eventConfig.eventUrl, contactForm);
     log("操作結束後，請關閉瀏覽器視窗。");
 }

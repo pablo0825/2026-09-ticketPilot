@@ -1,5 +1,3 @@
-import { verifyMoney } from "../../core/currency.js";
-import { parseMoney } from "./money.js";
 import { normalizeTicketName, parseTicketLabel } from "./ticketLabel.js";
 import { isPersonalInfoPage } from "./personalInfoPage.js";
 import { validateBookingExpectation } from "../../core/purchaseValidation.js";
@@ -14,7 +12,6 @@ export interface BookingSummary {
     dateTime: string;
     quantity: string;
     seatLabels: string[];
-    total: string;
 }
 
 const normalizeText = (text: string): string => text.normalize("NFKC").replace(/\s+/g, "").trim();
@@ -36,8 +33,9 @@ export function verifyBookingSummary(
         throw new Error("預訂摘要日期或時間不符。");
     }
 
-    // 核對票種、價格與張數
-    verifyPrices(summary, target.area, expected);
+    // 核對完整票種名稱與張數
+    const ticket = parseTicketLabel(summary.packageName);
+    if (ticket.name !== normalizeTicketName(target.area)) throw new Error("預訂摘要票種不符。");
     if (normalizeText(summary.quantity) !== String(target.quantity)) throw new Error("預訂摘要張數不符。");
 
     // 核對座位
@@ -63,16 +61,6 @@ function verifyGeneralAdmission(
     ) {
         throw new Error("預訂摘要票區與已確認一般票不符。");
     }
-}
-
-function verifyPrices(summary: BookingSummary, area: string, expected: BookingExpectation): void {
-    const ticket = parseTicketLabel(summary.packageName);
-    if (ticket.name !== normalizeTicketName(area)) throw new Error("預訂摘要票種不符。");
-    verifyMoney(
-        { currency: ticket.currency, amount: ticket.unitPrice },
-        { currency: expected.currency, amount: expected.unitPrice },
-    );
-    verifyMoney(parseMoney(normalizeText(summary.total)), { currency: expected.currency, amount: expected.totalPrice });
 }
 
 function parseSeat(label: string): AssignedSeat {
@@ -126,7 +114,6 @@ export async function readBookingSummary(page: Page, eventUrl: string): Promise<
             labels: Array.from(row.querySelectorAll(".item_label"), el => (el as HTMLElement).innerText.trim()),
             values: Array.from(row.querySelectorAll(".item_value"), el => (el as HTMLElement).innerText.trim()),
         })),
-        totals: Array.from(element.querySelectorAll("footer .item_value"), el => (el as HTMLElement).innerText.trim()),
     }));
 
     // 整理成摘要資料，並再次確認仍在個人資料頁且沒有彈窗
@@ -139,7 +126,6 @@ interface SummaryFields {
     names: string[];
     packages: string[];
     rows: { labels: string[]; values: string[] }[];
-    totals: string[];
 }
 
 function requireSingleValue(values: string[], label: string): string {
@@ -158,10 +144,9 @@ function parseSummaryFields(fields: SummaryFields): BookingSummary {
         eventName: requireSingleValue(fields.names, "活動名稱"),
         packageName: requireSingleValue(fields.packages, "票種"),
         dateTime: labeledValue(fields, /^日期$/),
-        quantity: labeledValue(fields, /^門票(?:[（(]不含全家取票手續費NT\$30\/每筆[）)])?$/),
+        quantity: labeledValue(fields, /^門票(?:[（(]不含全家取票手續費[^（）()]+\/每筆[）)])?$/),
         seatLabels: fields.rows
             .filter(row => row.labels.length === 0)
             .map(row => requireSingleValue(row.values, "座位")),
-        total: requireSingleValue(fields.totals, "總價"),
     };
 }

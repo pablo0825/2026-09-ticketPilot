@@ -25,25 +25,16 @@ test("確認前重新核對：座位改變、場次不符、按鈕停用時不�
         for (const [html, error] of [
             [fixture() + "<div>未於時限內確認，票券預留失敗</div>", /預留已到期/],
             [fixture("18"), /配位結果已改變/],
-            [fixture().replace("NT$4,880", "NT$5,000"), /單價不符/],
+            [fixture().replace("A區（NT$4,880）", "A區 VIP（NT$5,000）"), /票種不符/],
             [fixture("17", "06:00"), /時間不符/],
             [fixture("17", "12:00", true), /無法操作/],
         ] as const) {
             await page.setContent(html);
-            await assert.rejects(
-                new KlookSeatSelector(page, { currency: "TWD", amount: 4880 }, 800).confirmVerifiedSeats(
-                    target,
-                    allocation,
-                ),
-                error,
-            );
+            await assert.rejects(new KlookSeatSelector(page, 800).confirmVerifiedSeats(target, allocation), error);
             assert.equal(await page.locator("body").getAttribute("data-clicks"), null);
         }
         await page.setContent(fixture());
-        await new KlookSeatSelector(page, { currency: "TWD", amount: 4880 }, 800).confirmVerifiedSeats(
-            target,
-            allocation,
-        );
+        await new KlookSeatSelector(page, 800).confirmVerifiedSeats(target, allocation);
         assert.equal(await page.locator("body").getAttribute("data-clicks"), "1");
     } finally {
         await browser.close();
@@ -68,10 +59,7 @@ test("確認後等待填寫資料頁：網址與表單都要符合，且不點�
             }),
         );
         await page.goto(eventUrl);
-        await new KlookSeatSelector(page, { currency: "TWD", amount: 4880 }, 800).confirmVerifiedSeats(
-            target,
-            allocation,
-        );
+        await new KlookSeatSelector(page, 800).confirmVerifiedSeats(target, allocation);
         await waitForPersonalInfoPage(page, eventUrl, 800);
         assert.equal(await page.getByRole("textbox").inputValue(), "");
         assert.equal(await page.locator("body").getAttribute("data-paid"), null);
@@ -100,12 +88,7 @@ test("場次只讀唯一可見欄位：錯年、缺年、隱藏或重複時不�
             fixture().replace("下午12:00", "下午12:00 附加日期"),
         ]) {
             await page.setContent(html);
-            await assert.rejects(
-                new KlookSeatSelector(page, { currency: "TWD", amount: 4880 }, 500).confirmVerifiedSeats(
-                    target,
-                    allocation,
-                ),
-            );
+            await assert.rejects(new KlookSeatSelector(page, 500).confirmVerifiedSeats(target, allocation));
             assert.equal(await page.locator("body").getAttribute("data-clicks"), null);
         }
     } finally {
@@ -120,7 +103,7 @@ test("配位核對後年份改變，確認前重驗並停止", async () => {
         await page.setContent(
             `<div id="ticket-options"><button onclick="document.querySelector('.main_right-ZMnX67').hidden=false">下一步</button></div>${fixture().replace('class="main_right-ZMnX67"', 'class="main_right-ZMnX67" hidden')}`,
         );
-        const selector = new KlookSeatSelector(page, { currency: "TWD", amount: 4880 }, 1000);
+        const selector = new KlookSeatSelector(page, 1000);
         const verified = await selector.openAndVerify(target);
         await page.locator(".pc_header_center-mSlDdM > span").evaluate(element => {
             element.textContent = "2027年10月3日 週六 下午12:00";

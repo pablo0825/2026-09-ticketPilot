@@ -129,13 +129,12 @@ test("真實 adapter 接線：沿用 Klook 結構的本機 fixture，A 失敗延
                 {
                     ...eventConfig.targets[0]!,
                     area: "B區",
-                    expectation: { ...eventConfig.targets[0]!.expectation, unitPrice: 3880, totalPrice: 3880 },
+                    expectation: { ...eventConfig.targets[0]!.expectation },
                 },
             ],
         };
         const result = await new PriorityStrategy(config).select(new KlookTargetAttempt(page, url, 1000));
         assert.equal(result.target.area, "B區");
-        assert.equal(result.target.expectation.totalPrice, 3880);
         assert.deepEqual(result.value.allocation, {
             kind: "reserved",
             seats: [{ section: "B1", row: "4", number: "15" }],

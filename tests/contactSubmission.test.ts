@@ -57,20 +57,20 @@ test("提交一次抵達付款頁，忽略隱藏按鈕且不確認付款；未�
         );
         await page.goto(contactUrl);
         await new KlookContactForm(page, eventUrl, 1000).submit();
-        await waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 1000);
+        await waitForPaymentPage(page, eventUrl, 1000);
         assert.equal(contactClicks, 1);
         assert.equal(await page.locator("body").getAttribute("data-paid"), null);
         await page.goto(contactUrl);
         await page.setContent(submitButton);
         await new KlookContactForm(page, eventUrl, 500).submit();
-        await assert.rejects(waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 200));
+        await assert.rejects(waitForPaymentPage(page, eventUrl, 200));
         assert.equal(await page.locator("body").getAttribute("data-clicks"), "1");
     } finally {
         await browser.close();
     }
 });
 
-test("付款頁拒絕錯金額、缺少訂單編號、錯來源、彈窗及未完整載入", async () => {
+test("付款頁拒絕缺少訂單編號、錯來源、彈窗及未完整載入", async () => {
     const browser = await chromium.launch();
     const page = await browser.newPage();
     try {
@@ -80,17 +80,16 @@ test("付款頁拒絕錯金額、缺少訂單編號、錯來源、彈窗及未�
             paymentUrl.replace("www.klook.com", "example.test"),
         ]) {
             await page.goto(url);
-            await assert.rejects(waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 200));
+            await assert.rejects(waitForPaymentPage(page, eventUrl, 200));
         }
         await page.goto(paymentUrl);
         for (const html of [
-            payment.replace("4,880", "3,880"),
             payment + '<div class="klk_c_dialog">已過期</div>',
             payment.replace('class="payment_type-name"', 'class="missing"'),
             payment + "<button>確認付款</button>",
         ]) {
             await page.setContent(html);
-            await assert.rejects(waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 200));
+            await assert.rejects(waitForPaymentPage(page, eventUrl, 200));
             assert.equal(await page.locator("body").getAttribute("data-paid"), null);
         }
     } finally {
@@ -130,12 +129,10 @@ test("付款頁診斷區分檢查階段，錯誤不含訂單編號或原始頁�
         for (const [html, expected] of [
             [payment.replace(">確認付款<", ">其他<"), /確認付款按鈕.*失敗/],
             [payment.replace("payment_type-name", "missing"), /付款方式.*失敗/],
-            [payment.replace("oc_submit_price", "missing"), /付款金額.*失敗/],
-            [payment.replace("4,880", "3,880"), /金額不符/],
             [payment + '<div class="klk_c_dialog">private-dialog</div>', /有可見彈窗/],
         ] as const) {
             await page.setContent(html);
-            await assert.rejects(waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 200), error => {
+            await assert.rejects(waitForPaymentPage(page, eventUrl, 200), error => {
                 assert.ok(error instanceof Error);
                 assert.match(error.message, expected);
                 assert.doesNotMatch(error.message, /private-order|private-dialog/);
@@ -157,16 +154,15 @@ test("確認付款按鈕停用仍可核對到達付款頁；不付款且不忽�
             route.fulfill({ body: disabledPayment, contentType: "text/html; charset=utf-8" }),
         );
         await page.goto(paymentUrl);
-        await waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 500);
+        await waitForPaymentPage(page, eventUrl, 500);
         assert.equal(await page.getByRole("button", { name: "確認付款", exact: true }).isEnabled(), false);
         assert.equal(await page.locator("body").getAttribute("data-paid"), null);
         for (const html of [
-            disabledPayment.replace("4,880", "3,880"),
             disabledPayment + '<div class="klk_c_dialog">已過期</div>',
             disabledPayment + "<button disabled>確認付款</button>",
         ]) {
             await page.setContent(html);
-            await assert.rejects(waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 200));
+            await assert.rejects(waitForPaymentPage(page, eventUrl, 200));
             assert.equal(await page.locator("body").getAttribute("data-paid"), null);
         }
     } finally {
@@ -174,7 +170,7 @@ test("確認付款按鈕停用仍可核對到達付款頁；不付款且不忽�
     }
 });
 
-test("港幣付款頁：一次提交後核對金額，錯幣回報固定錯誤且不點付款", async () => {
+test("不同幣種的付款頁均只提交一次，不點付款", async () => {
     const browser = await chromium.launch();
     const page = await browser.newPage();
     let submits = 0;
@@ -196,14 +192,40 @@ test("港幣付款頁：一次提交後核對金額，錯幣回報固定錯誤�
             await page.goto(contactUrl);
             const before = submits;
             await new KlookContactForm(page, eventUrl, 1000).submit();
-            const checking = waitForPaymentPage(page, eventUrl, { currency: "HKD", amount: 4880 }, 1000);
-            if (symbol === "HK$") await checking;
-            else await assert.rejects(checking, /付款頁金額不符、幣別不符或格式未知/);
+            const checking = waitForPaymentPage(page, eventUrl, 1000);
+            await checking;
             assert.equal(submits - before, 1);
             assert.equal(await page.locator("body").getAttribute("data-paid"), null);
         }
         await page.setContent(payment.replace("NT$", "$"));
-        await assert.rejects(waitForPaymentPage(page, eventUrl, { currency: "TWD", amount: 4880 }, 1000));
+        await waitForPaymentPage(page, eventUrl, 1000);
+    } finally {
+        await browser.close();
+    }
+});
+
+test("付款頁金額缺少或變動不阻擋；仍等待付款介面且不點付款", async () => {
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
+    try {
+        await page.route("**/*", route => route.fulfill({ body: payment, contentType: "text/html; charset=utf-8" }));
+        await page.goto(paymentUrl);
+        for (const amount of [
+            "",
+            '<span class="oc_submit_price" hidden>???</span>',
+            '<span class="oc_submit_price">USD1.50</span><span class="oc_submit_price">€100</span>',
+        ]) {
+            await page.setContent(payment.replace(/<span class="oc_submit_price">.*?<\/span>/, amount));
+            await waitForPaymentPage(page, eventUrl, 500);
+            assert.equal(await page.locator("body").getAttribute("data-paid"), null);
+        }
+        await page.setContent("<button>確認付款</button>");
+        const checking = waitForPaymentPage(page, eventUrl, 1000);
+        await page.waitForTimeout(100);
+        await page
+            .locator("body")
+            .evaluate(el => el.insertAdjacentHTML("beforeend", '<span class="payment_type-name">信用卡</span>'));
+        await checking;
     } finally {
         await browser.close();
     }

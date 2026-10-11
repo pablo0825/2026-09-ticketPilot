@@ -1,5 +1,3 @@
-import { isCurrency } from "../core/currency.js";
-import type { Currency } from "../core/currency.js";
 import { z } from "zod";
 import { mkdir, readFile, readdir, rename, writeFile, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -26,7 +24,7 @@ const activitySchema = z
                 );
             }),
         eventName: z.string().trim().min(1),
-        currency: z.custom<Currency>(isCurrency).default("TWD"),
+        currency: z.unknown().optional(), // 相容舊活動，解析後移除。
         fallbackMode: z.literal("STRICT"),
         excludeKeywords: z.array(z.string().trim().min(1)),
         targets: z
@@ -36,11 +34,12 @@ const activitySchema = z
                         date: z.string(),
                         time: z.string(),
                         area: z.string().trim().min(1),
-                        unitPrice: z.number().int().positive().safe(),
+                        unitPrice: z.unknown().optional(), // 相容舊活動，解析後移除。
                         quantity: z.number().int().positive().safe(),
                         adjacent: z.boolean(),
                     })
-                    .strict(),
+                    .strict()
+                    .transform(({ unitPrice: _unitPrice, ...target }) => target),
             )
             .min(1),
         saleSchedule: z
@@ -48,7 +47,8 @@ const activitySchema = z
             .strict()
             .optional(),
     })
-    .strict();
+    .strict()
+    .transform(({ currency: _currency, ...settings }) => settings);
 
 export type ActivitySettings = z.infer<typeof activitySchema>;
 
@@ -68,20 +68,17 @@ export function parseActivity(value: unknown): ActivitySettings {
     return settings;
 }
 
-// 僅適用目前支援的票價合計；頁面若有額外費用，仍由既有摘要核對拒絕。
+// 活動設定只轉換購票目標，金額由使用者在付款前確認。
 export function toPurchaseConfig(settings: ActivitySettings): PurchaseConfig {
     return {
         eventUrl: settings.eventUrl,
         fallbackMode: settings.fallbackMode,
         excludeKeywords: [...settings.excludeKeywords],
         ...(settings.saleSchedule ? { saleSchedule: { ...settings.saleSchedule } } : {}),
-        targets: settings.targets.map(({ unitPrice, ...target }) => ({
+        targets: settings.targets.map(target => ({
             ...target,
             expectation: {
-                currency: settings.currency,
                 eventName: settings.eventName,
-                unitPrice,
-                totalPrice: unitPrice * target.quantity,
             },
         })),
     };

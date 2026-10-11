@@ -12,7 +12,7 @@ const settings = {
     eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
     fallbackMode: "STRICT",
     excludeKeywords: [],
-    targets: [{ date: "2026-11-02", time: "19:30", area: "B區", unitPrice: 5280, quantity: 1, adjacent: false }],
+    targets: [{ date: "2026-11-02", time: "19:30", area: "B區", quantity: 1, adjacent: false }],
 };
 const contact = {
     firstName: "Demo",
@@ -191,7 +191,7 @@ test("順位清空：保留空列、阻擋舊設定啟動，重新填寫才能�
         await page.getByRole("button", { name: "① 活動與順位" }).click();
         await page.getByRole("button", { name: "清空", exact: true }).click();
         assert.equal(await page.locator(".target-row").count(), 1);
-        for (const name of ["date", "time", "area", "unitPrice"]) {
+        for (const name of ["date", "time", "area"]) {
             assert.equal(await page.locator(`[name=${name}]`).inputValue(), "");
         }
         assert.equal(await page.locator("[name=quantity]").inputValue(), "1");
@@ -213,7 +213,6 @@ test("順位清空：保留空列、阻擋舊設定啟動，重新填寫才能�
         await page.locator("[name=date]").fill("2026-11-03");
         await page.locator("[name=time]").fill("18:00");
         await page.locator("[name=area]").fill("C區");
-        await page.locator("[name=unitPrice]").fill("4880");
         await page.locator("[name=quantity]").fill("2");
         await page.locator("[name=adjacent]").check();
         let release: () => void = () => {};
@@ -237,7 +236,7 @@ test("順位清空：保留空列、阻擋舊設定啟動，重新填寫才能�
         }
         await page.locator("#step2").waitFor();
         assert.deepEqual((await store.load(id)).settings.targets, [
-            { date: "2026-11-03", time: "18:00", area: "C區", unitPrice: 4880, quantity: 2, adjacent: true },
+            { date: "2026-11-03", time: "18:00", area: "C區", quantity: 2, adjacent: true },
         ]);
     }));
 
@@ -248,12 +247,11 @@ test("摘要：欄位表格、完整連結、空白草稿及窄螢幕", async ()
             "演出日期",
             "時間",
             "票區／票種",
-            "單張價格",
             "張數",
-            "合計",
             "要求連位",
         ]);
-        assert.match(await page.locator("#summary tbody").innerText(), /NT\$5,280/);
+        assert.match(await page.locator("#summary tbody").innerText(), /B區/);
+        assert.doesNotMatch(await page.locator("#summary").innerText(), /單張價格|合計|NT\$/);
         await page.getByRole("button", { name: "① 活動與順位" }).click();
         const url = settings.eventUrl + "?spm=" + "long-tracking-value".repeat(30);
         const name = '<img src=x onerror="alert(1)">長活動名稱'.repeat(5);
@@ -270,7 +268,7 @@ test("摘要：欄位表格、完整連結、空白草稿及窄螢幕", async ()
         assert.equal(await page.locator("#summary tbody tr").count(), 2);
         const empty = page.locator("#summary tbody tr").last();
         assert.match(await empty.innerText(), /未填寫/);
-        assert.equal(await empty.locator("td").nth(6).innerText(), "—");
+        assert.equal(await empty.locator("td").nth(4).innerText(), "1");
         assert(await page.locator("#start").isDisabled());
         await page.setViewportSize({ width: 390, height: 844 });
         assert(
@@ -292,4 +290,25 @@ test("摘要：欄位表格、完整連結、空白草稿及窄螢幕", async ()
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
         assert.equal(await page.locator("#summary a").count(), 0);
         assert.match(await page.locator("#summary").innerText(), /javascript:alert\(1\)/);
+    }));
+
+test("舊版未決請求不因移除價格而清除或產生新購票", async () =>
+    fixture(async (page, _store, id) => {
+        let starts = 0;
+        page.on("request", request => {
+            if (request.method() === "POST" && new URL(request.url()).pathname === "/api/purchase") starts++;
+        });
+        const pending = JSON.stringify({
+            requestId: "11111111-1111-4111-8111-111111111111",
+            activityId: id,
+            signature: "old-price-hash",
+        });
+        await page.evaluate(value => sessionStorage.setItem("ticketpilot-purchase-request", value), pending);
+        await page.locator("#confirm").check();
+        await page.locator("#start").click();
+        await page.locator("#message").filter({ hasText: "舊版開始請求結果尚待確認" }).waitFor();
+        assert.equal(starts, 0);
+        assert.equal(await page.evaluate(() => sessionStorage.getItem("ticketpilot-purchase-request")), pending);
+        await page.reload();
+        assert.equal(await page.evaluate(() => sessionStorage.getItem("ticketpilot-purchase-request")), pending);
     }));

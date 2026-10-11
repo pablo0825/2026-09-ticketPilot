@@ -17,13 +17,13 @@ export const activity = {
     ],
 };
 
-test("活動格式驗證、順位轉換與計算總價保留核心條件", () => {
+test("活動格式驗證、順位轉換保留核心條件", () => {
     const config = toPurchaseConfig(parseActivity(activity));
     assert.deepEqual(
-        config.targets.map(t => [t.date, t.area, t.expectation.totalPrice]),
+        config.targets.map(t => [t.date, t.area, t.quantity]),
         [
-            ["2026-11-02", "B區", 10560],
-            ["2026-11-03", "C區", 4880],
+            ["2026-11-02", "B區", 2],
+            ["2026-11-03", "C區", 1],
         ],
     );
     assert.equal(config.targets[0]!.expectation.eventName, activity.eventName);
@@ -35,7 +35,7 @@ test("活動格式驗證、順位轉換與計算總價保留核心條件", () =>
         { ...activity, targets: [{ ...activity.targets[0], quantity: "2" }] },
         { ...activity, targets: [{ ...activity.targets[0], date: "2026-02-30" }] },
         { ...activity, targets: [{ ...activity.targets[0], area: "身障" }] },
-        { ...activity, targets: [{ ...activity.targets[0], unitPrice: Number.MAX_SAFE_INTEGER }] },
+        { ...activity, targets: [{ ...activity.targets[0], quantity: Number.MAX_SAFE_INTEGER + 1 }] },
         { ...activity, eventUrl: "https://www.klook.com.evil.example/zh-TW/event-detail/a/" },
         { ...activity, saleSchedule: { saleAt: "2026-11-01T10:00:00" } },
     ])
@@ -84,20 +84,27 @@ test("個資保存共用驗證，錯誤輸入不覆蓋原檔", async () => {
     }
 });
 
-test("活動預期幣別：舊檔補台幣、港幣保存載入與順位一致、未知值拒絕", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "ticket-currency-"));
+test("舊活動金額欄位可讀取並移除，新格式不再保存價格；其他未知欄位仍拒絕", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ticket-price-migration-"));
     try {
         const store = new ActivityStore(dir);
-        const old = await store.save(activity);
-        await writeFile(join(dir, `${old.id}.json`), JSON.stringify({ ...old, settings: activity }));
-        assert.equal((await store.load(old.id)).settings.currency, "TWD");
-        const hk = await store.save({ ...activity, currency: "HKD" }, old.id);
-        assert.equal((await store.load(hk.id)).settings.currency, "HKD");
-        assert(toPurchaseConfig(hk.settings).targets.every(target => target.expectation.currency === "HKD"));
-        for (const currency of [null, "USD", "", "__proto__"]) {
-            await assert.rejects(store.save({ ...activity, currency }, old.id));
+        const record = await store.save(activity);
+        for (const currency of [undefined, "HKD", "USD", null]) {
+            const legacy = { ...activity, currency, targets: activity.targets.map(t => ({ ...t, unitPrice: null })) };
+            await writeFile(join(dir, `${record.id}.json`), JSON.stringify({ ...record, settings: legacy }));
+            const loaded = await store.load(record.id);
+            assert.equal("currency" in loaded.settings, false);
+            assert(loaded.settings.targets.every(t => !("unitPrice" in t)));
+            assert.deepEqual(toPurchaseConfig(loaded.settings).targets[0]!.expectation, {
+                eventName: activity.eventName,
+            });
+            await store.save(loaded.settings, record.id);
+            const saved = JSON.parse(await readFile(join(dir, `${record.id}.json`), "utf8"));
+            assert.equal("currency" in saved.settings, false);
+            assert.equal("unitPrice" in saved.settings.targets[0], false);
         }
-        assert.equal((await store.load(hk.id)).settings.currency, "HKD");
+        assert.throws(() => parseActivity({ ...activity, unknown: true }));
+        assert.throws(() => parseActivity({ ...activity, targets: [{ ...activity.targets[0], unknown: true }] }));
     } finally {
         await rm(dir, { recursive: true, force: true });
     }

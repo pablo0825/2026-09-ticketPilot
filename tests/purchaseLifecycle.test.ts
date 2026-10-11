@@ -216,7 +216,6 @@ test("活動狀態：同名分離、實際內容比較、等待切換與重新�
                 targets: same.settings.targets.map(target => ({
                     adjacent: target.adjacent,
                     quantity: target.quantity,
-                    unitPrice: target.unitPrice,
                     area: target.area,
                     time: target.time,
                     date: target.date,
@@ -249,7 +248,7 @@ test("活動狀態：同名分離、實際內容比較、等待切換與重新�
     }
 });
 
-test("舊台幣紀錄指紋與請求可重讀；改港幣必須視為不同設定", async () => {
+test("舊價格指紋與事件可讀；同一舊請求不得重新啟動", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-legacy-currency-"));
     const store = new ActivityStore(join(dir, "events"));
     try {
@@ -290,21 +289,21 @@ test("舊台幣紀錄指紋與請求可重讀；改港幣必須視為不同設�
         await mkdir(join(dir, "runs"));
         await writeFile(join(dir, "runs", `${requestId}.json`), JSON.stringify(legacy));
 
-        // 缺省與明確台幣都沿用舊結果，絕不啟動 worker
+        // 舊指紋不能安全轉換，保留紀錄並拒絕重新啟動
         const runs = new PurchaseRuns(dir, worker);
-        assert.equal(runs.activityStatus(record), "已執行");
-        assert.equal(runs.start(requestId, activity, contact, record.id).id, legacy.snapshot.id);
-        assert.equal(
-            runs.start(requestId, { ...activity, currency: "TWD" }, contact, record.id).id,
-            legacy.snapshot.id,
+        assert.equal(runs.activityStatus(record), "舊版執行紀錄");
+        assert.throws(() => runs.start(requestId, activity, contact, record.id), /舊版開始請求/);
+        assert.throws(
+            () => runs.start(requestId, { ...activity, currency: "TWD" }, contact, record.id),
+            /舊版開始請求/,
         );
         const event = runs.snapshot()!.events[0]!.event;
-        assert.equal(event.type === "target" && event.currency, "TWD");
+        assert.equal(event.type === "target" && event.quantity, 1);
 
-        // 同請求改港幣會被拒絕，不得拿舊台幣結果冒充港幣執行
+        // 舊金額值改變也不能重啟舊請求
         const hk = await store.save({ ...activity, currency: "HKD" }, record.id);
-        assert.equal(runs.activityStatus(hk), "設定已更新");
-        assert.throws(() => runs.start(requestId, hk.settings, contact, record.id), /更換設定/);
+        assert.equal(runs.activityStatus(hk), "舊版執行紀錄");
+        assert.throws(() => runs.start(requestId, hk.settings, contact, record.id), /舊版開始請求/);
         assert.equal(runs.busy(), false);
     } finally {
         await rm(dir, { recursive: true, force: true });

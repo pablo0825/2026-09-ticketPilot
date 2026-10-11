@@ -1,22 +1,18 @@
-import { currencies } from "../../core/currency.js";
-import type { Currency } from "../../core/currency.js";
-import { parseMoney } from "./money.js";
-
-// 網站文字格式由 Klook 層解析；保留名稱中的 VIP、單人票等限定內容。
+// 保留票種名稱中的括號、VIP 與數字，只正規化全形及空白。
 export function normalizeTicketName(text: string): string {
     return text.normalize("NFKC").replace(/\s/g, "");
 }
 
-export { parseTicketAmount } from "./money.js";
-
-export function parseTicketLabel(text: string): { name: string; unitPrice: number; currency: Currency } {
+// 只分離明確的尾端價格展示，不解析或核對幣種、數值。
+// 不明後綴保留為名稱的一部分，避免把票種限定誤刪後匹配。
+export function parseTicketLabel(text: string): { name: string } {
     const label = text.normalize("NFKC").trim();
-    const match = label.match(/^(.+?)\s*\(([^()]*)\)$/) ?? label.match(/^(.+?)\s+(\S+?\s*[\d,]+)$/);
-    if (!match || !normalizeTicketName(match[1]!)) throw new Error("票種名稱或價格格式無法辨識。");
-
-    // 只保留既有無括號票種後綴的裸 $ 台幣相容範圍。
-    const price = match[2]!;
-    const legacy = !label.endsWith(")") && /^\$\s*[\d,]+$/.test(price);
-    const money = parseMoney(legacy ? `${currencies.TWD.symbol}${price.slice(1)}` : price);
-    return { name: normalizeTicketName(match[1]!), unitPrice: money.amount, currency: money.currency };
+    const money =
+        /^(?:NT\$|HK\$|US\$|(?:TWD|HKD|USD|EUR|GBP|JPY|CNY|RMB|KRW|SGD|AUD|CAD|MOP)\s*|\p{Sc})\s*[-+]?\d[\d,.]*(?:\s*起)?$/u;
+    const suffix =
+        label.match(/^(.+?)\s*\(([^()]*)\)$/) ??
+        label.match(/^(.+?)\s+((?:NT\$|HK\$|US\$|TWD|HKD|USD|EUR|GBP|JPY|CNY|RMB|KRW|SGD|AUD|CAD|MOP|\p{Sc}).*)$/u);
+    const name = normalizeTicketName(suffix && money.test(suffix[2]!.trim()) ? suffix[1]! : label);
+    if (!name || money.test(label)) throw new Error("票種名稱缺少或無法辨識。");
+    return { name };
 }

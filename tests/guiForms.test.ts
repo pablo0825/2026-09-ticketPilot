@@ -25,7 +25,6 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
         await page.locator("[name=date]").fill("2026-11-02");
         await page.locator("[name=time]").fill("19:30");
         await page.locator("[name=area]").fill("B區");
-        await page.locator("[name=unitPrice]").fill("5280");
         await page.getByRole("button", { name: "下一步" }).click();
         await page.locator("#firstName").fill("Demo");
         await page.locator("#lastName").fill("Test");
@@ -285,7 +284,7 @@ test("結束後關閉瀏覽器：確認取消、付款提醒、解除占用及�
     }
 });
 
-test("港幣選單、保存重載、摘要及模擬紀錄沿用同一幣別", async () => {
+test("舊價格活動可載入，無金額表單仍可保存、模擬及重載", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-gui-currency-"));
     const store = new ActivityStore(join(dir, "events"));
     const record = await store.save({
@@ -301,38 +300,35 @@ test("港幣選單、保存重載、摘要及模擬紀錄沿用同一幣別", as
     });
     const browser = await chromium.launch();
     try {
-        // 舊活動讀入台幣，切換港幣只改預期幣別與顯示
+        // 表單不再要求幣別或價格
         const page = await browser.newPage();
         const errors: string[] = [];
         page.on("pageerror", error => errors.push(error.message));
         await page.goto(service.url);
         await page.getByText("使用活動", { exact: true }).click();
         await page.locator("#step1").waitFor({ state: "visible" });
-        assert.equal(await page.locator("#currency").inputValue(), "TWD");
-        await page.locator("#currency").selectOption("HKD");
-        assert.match(await page.locator(".price-label").innerText(), /HK\$/);
-        assert.equal(await page.locator("[name=unitPrice]").inputValue(), "1699");
+        assert.equal(await page.locator("#currency, [name=unitPrice]").count(), 0);
         await page.getByRole("button", { name: "下一步" }).click();
         await page.locator("#step2").waitFor({ state: "visible" });
-        assert.equal((await store.load(record.id)).settings.currency, "HKD");
+        assert.equal("currency" in (await store.load(record.id)).settings, false);
 
-        // 完成設定後，摘要和模擬輸出都必須顯示港幣
+        // 無價格也能完成摘要與模擬
         await page.locator("#firstName").fill("Demo");
         await page.locator("#lastName").fill("Test");
         await page.locator("#phone").fill("0912345678");
         await page.locator("#email").fill("demo@example.com");
         await page.getByRole("button", { name: "下一步" }).click();
-        await page.locator("#summary").filter({ hasText: "HK$1,699" }).waitFor();
+        await page.locator("#summary").filter({ hasText: "VIP" }).waitFor();
         await page.evaluate("begin(true)");
         await page.getByText("模擬完成（未購票）", { exact: true }).waitFor();
-        assert.match(await page.locator("#logs").innerText(), /HK\$1699/);
+        assert.match(await page.locator("#logs").innerText(), /VIP/);
         assert.doesNotMatch(await page.locator("#logs").innerText(), /NT\$1699/);
 
-        // 重載活動仍保持港幣，沒有模組載入錯誤
+        // 重載活動無價格欄位，也沒有模組載入錯誤
         await page.reload();
         await page.getByText("使用活動", { exact: true }).click();
         await page.locator("#step1").waitFor({ state: "visible" });
-        assert.equal(await page.locator("#currency").inputValue(), "HKD");
+        assert.equal(await page.locator("#currency, [name=unitPrice]").count(), 0);
         assert.deepEqual(errors, []);
     } finally {
         await browser.close();

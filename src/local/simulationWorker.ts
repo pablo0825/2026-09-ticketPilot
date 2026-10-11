@@ -1,4 +1,3 @@
-import { currencies } from "../core/currency.js";
 import { parseActivity, toPurchaseConfig } from "../config/activityStore.js";
 import { validateContactDetails } from "../config/contact.config.js";
 import { withRunEvents, log } from "../core/logger.js";
@@ -24,15 +23,13 @@ process.once("message", async (input: unknown) => {
                 await new Promise(resolve => setTimeout(resolve, 200));
                 reportState("TICKET_SELECTION");
                 const selected = await strategy.select({
-                    attempt: async target => ({ status: "matched", value: target.expectation.totalPrice }),
+                    attempt: async target => ({ status: "matched", value: target.quantity }),
                     returnAfterFailure: async () => {
                         throw new Error("模擬不應返回網站");
                     },
                 });
 
-                log(
-                    `模擬目標：${selected.target.area} / ${selected.target.quantity} 張 / ${currencies[selected.target.expectation.currency].symbol}${selected.value}`,
-                );
+                log(`模擬目標：${selected.target.area} / ${selected.target.quantity} 張`);
                 await new Promise(resolve => setTimeout(resolve, 200));
                 log("模擬完成。尚未執行登入、配位、個資提交或付款頁核對。");
             },

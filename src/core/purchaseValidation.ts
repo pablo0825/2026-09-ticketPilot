@@ -1,4 +1,3 @@
-import { isCurrency } from "./currency.js";
 import type { BookingExpectation, PurchaseConfig, PurchaseConfigInput, SaleSchedule, TicketTarget } from "./types.js";
 
 // 設定的純規則集中於此；操作前與摘要核對前仍各自呼叫，不讀取 DOM。
@@ -19,10 +18,8 @@ export function validateTicketTarget(target: TicketTarget): void {
 }
 
 export function validateBookingExpectation(expected: BookingExpectation): void {
-    if (!expected || !isCurrency(expected.currency)) throw new Error("預期幣別不支援。");
-    if (!expected.eventName.trim()) throw new Error("請設定預期活動名稱。");
-    if (![expected.unitPrice, expected.totalPrice].every(value => Number.isSafeInteger(value) && value > 0)) {
-        throw new Error("預期單價與總價必須是安全範圍內的正整數金額。");
+    if (!expected || typeof expected.eventName !== "string" || !expected.eventName.trim()) {
+        throw new Error("請設定預期活動名稱。");
     }
 }
 
@@ -42,11 +39,6 @@ export function validatePurchaseConfig(config: PurchaseConfig): void {
         }
 
         validateBookingExpectation(target.expectation);
-    }
-
-    // 同一活動不混用幣別
-    if (new Set(config.targets.map(target => target.expectation.currency)).size !== 1) {
-        throw new Error("同一活動的各順位必須使用相同幣別。");
     }
 }
 
@@ -75,20 +67,19 @@ export function validateSaleSchedule(schedule: SaleSchedule): number {
 }
 
 export function normalizePurchaseConfig(input: PurchaseConfigInput): PurchaseConfig {
-    // 複製舊設定並補上缺省幣別
+    // 複製設定，移除舊版金額欄位
     const snapshot = structuredClone(input);
     const config: PurchaseConfig = {
         ...snapshot,
         targets: snapshot.targets.map(target => ({
             ...target,
             expectation: {
-                ...target.expectation,
-                currency: target.expectation.currency === undefined ? "TWD" : target.expectation.currency,
+                eventName: target.expectation?.eventName,
             },
         })),
     };
 
-    // 啟動前拒絕未知幣別或不一致設定
+    // 啟動前檢查購票目標
     validatePurchaseConfig(config);
     return config;
 }

@@ -14,10 +14,7 @@ const config = {
         ...eventConfig.targets[0]!,
         area,
         expectation: {
-            currency: "TWD" as const,
             eventName: "fixture",
-            unitPrice: 4880 - i * 1000,
-            totalPrice: 4880 - i * 1000,
         },
     })),
 };
@@ -61,7 +58,7 @@ test("實際 adapter／本機 fixture：A 停用直接配 B，不點 A、不返�
             recovery,
         );
         assert.equal(selected.target.area, "B區");
-        assert.equal(selected.target.expectation.unitPrice, 3880);
+        assert.equal(selected.target.area, "B區");
         assert.equal(await page.locator("body").getAttribute("data-option-clicks"), "票種:1;");
         assert.equal(await page.locator("body").getAttribute("data-next"), "1");
         assert.equal(await page.locator("body").getAttribute("data-confirmed"), null);
@@ -72,7 +69,7 @@ test("實際 adapter／本機 fixture：A 停用直接配 B，不點 A、不返�
     }
 });
 
-test("全部停用即停止且不重啟順位；錯價、缺少、歧義與矛盾狀態不跳過", async () => {
+test("全部停用即停止且不重啟順位；錯票種、缺少、歧義與矛盾狀態不跳過", async () => {
     const browser = await chromium.launch();
     const page = await browser.newPage();
     try {
@@ -87,7 +84,7 @@ test("全部停用即停止且不重啟順位；錯價、缺少、歧義與矛�
         await page.setContent(fixture());
         await assert.rejects(strategy.select(adapter), /NO_TARGET_AVAILABLE/);
         for (const html of [
-            fixture().replace("A區 NT$4880", "A區 NT$5000"),
+            fixture().replace("A區 NT$4880", "A區 VIP NT$5000"),
             fixture().replace("A區 NT$4880", "C區 NT$4880"),
             fixture().replace("A區 NT$4880", 'A區 NT$4880</div><div class="spec-LwNjSh disabled-ImixBj">A區 NT$4880'),
             fixture().replace("disabled-ImixBj", "disabled-ImixBj active-vB3nra"),

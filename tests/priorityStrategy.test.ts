@@ -12,10 +12,7 @@ const config = {
         ...eventConfig.targets[0]!,
         area,
         expectation: {
-            currency: "TWD" as const,
             eventName: "fixture",
-            unitPrice: 4880 - index * 1000,
-            totalPrice: 4880 - index * 1000,
         },
     })),
 };
@@ -31,7 +28,7 @@ const recovery = () => ({
     },
 });
 
-test("A 失敗不扣恢復額度；B 個資過期後仍試 B，回傳新座位與 B 價格", async () => {
+test("A 失敗不扣恢復額度；B 個資過期後仍試 B，回傳新座位與 B 目標", async () => {
     const strategy = new PriorityStrategy(config);
     const queue = recovery();
     const contact = recovery();
@@ -61,7 +58,7 @@ test("A 失敗不扣恢復額度；B 個資過期後仍試 B，回傳新座位�
     );
     assert.deepEqual(attempts, ["A區", "B區", "B區"]);
     assert.equal(result.value, 3);
-    assert.equal(result.target.expectation.totalPrice, 3880);
+    assert.equal(result.target.area, "B區");
     assert.equal(returns, 1);
     assert.equal(queue.count, 0);
     assert.equal(contact.count, 1);
@@ -109,9 +106,9 @@ test("返回失敗即終止，即使排隊過期也不接手；全部失敗不�
     assert.equal(count, 2);
 });
 
-test("啟動驗證所有順位，拒絕後續目標的錯價格、日期、排除詞", () => {
+test("啟動驗證所有順位，拒絕後續目標的錯活動名稱、日期、排除詞", () => {
     for (const target of [
-        { ...config.targets[1]!, expectation: { ...config.targets[1]!.expectation, totalPrice: 0 } },
+        { ...config.targets[1]!, expectation: { ...config.targets[1]!.expectation, eventName: "" } },
         { ...config.targets[1]!, date: "2026-02-30" },
         { ...config.targets[1]!, area: "愛心席" },
     ])

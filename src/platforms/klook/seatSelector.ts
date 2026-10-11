@@ -1,6 +1,3 @@
-import { validateMoney, verifyMoney } from "../../core/currency.js";
-import type { Money } from "../../core/currency.js";
-import { parseMoney } from "./money.js";
 import { parseTicketLabel, normalizeTicketName } from "./ticketLabel.js";
 import { getSelectionNotices, isExpiryNotice, reservationExpiredNotice } from "./notices.js";
 import { seatPanelSelector } from "./eventPage.js";
@@ -19,7 +16,6 @@ export interface SeatResult {
     total: string;
     seats: AssignedSeat[];
     selected: string;
-    price: string;
     group: string | null;
     structureValid: boolean;
     loading: boolean;
@@ -34,7 +30,6 @@ const selectors = {
     seat: ".list_item-jYRAN7",
     total: ".con_seats-a3N26U",
     selected: ".seat_list_top-Bk0UC9",
-    price: ".con_price-YYYONb",
     rows: ".seat_footer_list-TWhU8V",
 };
 
@@ -79,7 +74,7 @@ function checkArea(area: string, wanted: string): string | undefined {
     try {
         actual = parseTicketLabel(area).name;
     } catch {
-        return "票種名稱或價格格式尚未能辨識";
+        return "票種名稱尚未能辨識";
     }
 
     if (actual !== normalizeTicketName(wanted)) return `票種不符：預期 ${wanted}，實際 ${area.trim() || "尚未出現"}`;
@@ -133,11 +128,8 @@ export class KlookSeatSelector {
 
     constructor(
         private readonly page: Page,
-        private readonly expectedUnitPrice: Money,
         private readonly timeout = 30_000,
     ) {
-        validateMoney(expectedUnitPrice);
-
         this.panel = page.locator(selectors.panel);
     }
 
@@ -161,7 +153,6 @@ export class KlookSeatSelector {
         const mismatch = getSeatResultMismatch(result, target);
         if (mismatch) throw new Error(`確認前核對失敗：${mismatch}`);
 
-        this.verifyPrices(result, target.quantity);
         if (allocationKey(allocationFrom(result, target.quantity)) !== allocationKey(expectedAllocation)) {
             throw new PurchaseStop("確認前配位結果已改變，已停止。");
         }
@@ -171,24 +162,6 @@ export class KlookSeatSelector {
         await this.throwIfSeatReservationExpired();
         await this.panel.getByRole("button", { name: "確認", exact: true }).click({ timeout: this.timeout });
         log("已按選位確認，等待填寫資料頁；不會重複點擊。");
-    }
-
-    private verifyPrices(result: SeatResult, quantity: number): void {
-        const ticket = parseTicketLabel(result.area);
-        try {
-            verifyMoney({ currency: ticket.currency, amount: ticket.unitPrice }, this.expectedUnitPrice);
-        } catch {
-            throw new PurchaseStop("配位票種單價不符或幣別不符，已停止。");
-        }
-
-        try {
-            verifyMoney(parseMoney(normalize(result.price)), {
-                currency: this.expectedUnitPrice.currency,
-                amount: this.expectedUnitPrice.amount * quantity,
-            });
-        } catch {
-            throw new PurchaseStop("配位總額或幣別不符，已停止。");
-        }
     }
 
     private async openSeatDialog(): Promise<void> {
@@ -210,14 +183,13 @@ export class KlookSeatSelector {
             await this.checkObservationDialog();
             await this.throwIfSeatReservationExpired();
 
-            // 讀取配位結果；符合目標、價格正確且確認按鈕可用才回傳
+            // 讀取配位結果；符合目標且確認按鈕可用才回傳
             if (await this.isPanelVisible()) {
                 const result = await this.readSeatResult();
                 this.throwIfSeatError(result.text);
                 const mismatch = getSeatResultMismatch(result, target);
                 if (mismatch) lastReason = mismatch;
                 else if (await this.isConfirmReady()) {
-                    this.verifyPrices(result, target.quantity);
                     return result;
                 } else lastReason = "確認按鈕尚未可操作或不唯一";
             } else {
@@ -254,12 +226,11 @@ export class KlookSeatSelector {
         // 一次讀取同一份 DOM，避免各欄位取到不同時間的配位狀態。
         return this.panel.evaluate((element, s): SeatResult => {
             // 找出各欄位；每個欄位都必須剛好一個
-            const [list, area, total, selected, price, rows, session] = [
+            const [list, area, total, selected, rows, session] = [
                 s.list,
                 s.area,
                 s.total,
                 s.selected,
-                s.price,
                 s.rows,
                 s.session,
             ].map(selector => {
@@ -271,8 +242,7 @@ export class KlookSeatSelector {
             const selectedCounts = selected?.querySelectorAll(":scope > div > div");
             const selectedCount = selectedCounts?.length === 1 ? selectedCounts[0]! : null;
             let structureValid = Boolean(
-                list &&
-                [area, total, selected, selectedCount, price, rows].every(field => field && list.contains(field)),
+                list && [area, total, selected, selectedCount, rows].every(field => field && list.contains(field)),
             );
 
             const seats: AssignedSeat[] = [];
@@ -288,7 +258,6 @@ export class KlookSeatSelector {
                 total,
                 selected,
                 selectedCount,
-                price,
                 rows,
                 session,
                 ...items.flatMap(item => [item, ...item.querySelectorAll("span, ins")]),
@@ -370,7 +339,6 @@ export class KlookSeatSelector {
                 area: area?.textContent ?? "",
                 total: total?.textContent ?? "",
                 selected: selectedCount?.textContent ?? "",
-                price: price?.textContent ?? "",
                 seats,
                 group,
                 structureValid,
@@ -405,9 +373,7 @@ export class KlookSeatSelector {
     private logResult(result: SeatResult): void {
         const seats = result.seats.map(seat => `${seat.section}區 / ${seat.row}排 / ${seat.number}號`).join("、");
 
-        log(
-            `配位核對完成：${result.group === null ? seats : `${result.group}／${result.total.trim()}／${result.price.trim()}`}`,
-        );
+        log(`配位核對完成：${result.group === null ? seats : `${result.group}／${result.total.trim()}`}`);
         log("配位結果已核對，目前尚未按確認。");
     }
 }

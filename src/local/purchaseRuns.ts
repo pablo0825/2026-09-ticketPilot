@@ -1,4 +1,3 @@
-import { isCurrency } from "../core/currency.js";
 import { fork, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
@@ -28,15 +27,15 @@ export interface PurchaseSnapshot {
 interface Record {
     snapshot: PurchaseSnapshot;
     fingerprint: string;
+    fingerprintVersion?: 2;
     activity?: { id: string; settingsHash: string };
 }
 
-export type ActivityExecutionStatus = "尚無執行紀錄" | "等待開賣" | "執行中" | "已執行" | "設定已更新";
+export type ActivityExecutionStatus = "尚無執行紀錄" | "等待開賣" | "執行中" | "已執行" | "設定已更新" | "舊版執行紀錄";
 
-// 台幣省略幣別後雜湊，讓舊設定和既有請求保持相同識別。
+// 以正規化後的購票條件識別新版請求。
 function fingerprintSettings(settings: ActivitySettings) {
-    const { currency, ...legacy } = parseActivity(settings);
-    return currency === "TWD" ? legacy : { ...legacy, currency };
+    return parseActivity(settings);
 }
 
 function settingsHash(settings: ActivitySettings): string {
@@ -90,6 +89,7 @@ export class PurchaseRuns {
             const record = JSON.parse(readFileSync(this.file(id), "utf8")) as Record;
             const valid = z
                 .object({
+                    fingerprintVersion: z.literal(2).optional(),
                     fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
                     activity: z
                         .object({ id: z.string().uuid(), settingsHash: z.string().regex(/^[0-9a-f]{64}$/) })
@@ -121,11 +121,6 @@ export class PurchaseRuns {
                 .safeParse(record);
             if (!valid.success) throw new Error("Invalid run record");
 
-            for (const item of record.snapshot.events) {
-                if (item.event.type !== "target") continue;
-                if (item.event.currency === undefined) item.event.currency = "TWD";
-                if (!isCurrency(item.event.currency)) throw new Error("Invalid currency");
-            }
             return record;
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
@@ -209,6 +204,7 @@ export class PurchaseRuns {
             return state?.type === "state" && state.state === "WAITING_FOR_SALE" ? "等待開賣" : "執行中";
         }
 
+        if (record.fingerprintVersion !== 2) return "舊版執行紀錄";
         return record.activity.settingsHash === settingsHash(activity.settings) ? "已執行" : "設定已更新";
     }
 
@@ -227,6 +223,9 @@ export class PurchaseRuns {
         // 同一個請求重送時，回傳原本的結果
         const previous = this.read(requestId);
         if (previous) {
+            if (previous.fingerprintVersion !== 2) {
+                throw new Error("舊版開始請求結果需人工確認，請檢查原流程與訂單；不會重新啟動。");
+            }
             if (previous.activity && previous.activity.id !== activityId) throw new Error("同一開始請求不能更換活動。");
             if (previous.fingerprint !== fingerprint) throw new Error("同一開始請求不能更換設定。");
             return previous.snapshot.id === this.current?.snapshot.id
@@ -243,6 +242,7 @@ export class PurchaseRuns {
         // 取得占用並建立執行紀錄
         const lease = acquirePurchaseLease(this.root);
         const record: Record = {
+            fingerprintVersion: 2,
             fingerprint,
             ...(activityId ? { activity: { id: activityId, settingsHash: settingsHash(activity) } } : {}),
             snapshot: {

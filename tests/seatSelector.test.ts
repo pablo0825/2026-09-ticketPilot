@@ -11,7 +11,6 @@ const result: SeatResult = {
     area: " A區（NT$4,880） ",
     total: " 共計1個座位 ",
     selected: "已選1個座位",
-    price: "NT$4,880",
     group: null,
     structureValid: true,
     loading: false,
@@ -66,9 +65,8 @@ test("等待彈窗內延遲配位；只按一次下一步且不按確認；不�
                     setTimeout(() => { panel.innerHTML = '<div class="pc_header_center-mSlDdM"><span>2026年10月3日 週六 下午12:00</span></div><div class="seat_list-BhwLqz"><div class="seat_list_top-Bk0UC9"><div><div>已選1個座位</div></div></div><div class="seat_list_cat-vMvUjF">A區（NT$${price}）</div><div class="seat_footer_list-TWhU8V"><div class="list_item-jYRAN7"><span>區 <ins>A2</ins></span><span>排 <ins>4</ins></span><span>座位 <ins>17</ins></span></div></div><div class="con_price-YYYONb">NT$4,880</div><div class="con_seats-a3N26U">共計1個座位</div><button ${ready ? "" : "disabled"} onclick="document.body.dataset.confirmed=1">確認</button></div>'; }, 300);
                 }
                 </script>`);
-            const selector = new KlookSeatSelector(page, { currency: "TWD", amount: 4880 }, ready ? 2000 : 800);
-            if (price !== 4880) await assert.rejects(selector.openAndVerify(target), PurchaseStop);
-            else if (ready)
+            const selector = new KlookSeatSelector(page, ready ? 2000 : 800);
+            if (ready)
                 assert.deepEqual(await selector.openAndVerify(target), { kind: "reserved", seats: result.seats });
             else await assert.rejects(selector.openAndVerify(target), /逾時/);
             assert.equal(await page.locator("body").getAttribute("data-clicks"), "1");
@@ -107,10 +105,7 @@ test("錯誤提示立即停止；不符保留原因；已有或重複彈窗不�
             await page.setContent(
                 `<div id="ticket-options"><button onclick="document.body.dataset.clicked=1">下一步</button></div>${existing}`,
             );
-            await assert.rejects(
-                new KlookSeatSelector(page, { currency: "TWD", amount: 4880 }, 500).openAndVerify(target),
-                /已有選位|不唯一/,
-            );
+            await assert.rejects(new KlookSeatSelector(page, 500).openAndVerify(target), /已有選位|不唯一/);
             assert.equal(await page.locator("body").getAttribute("data-clicked"), null);
         }
         for (const text of ["選位失敗，請重試", "2026年10月3日 週六 下午06:00"]) {
@@ -120,10 +115,7 @@ test("錯誤提示立即停止；不符保留原因；已有或重複彈窗不�
             const expected = text.includes("失敗")
                 ? /選位畫面顯示失敗或逾時/
                 : /等待配位結果逾時：時間不符：預期 12:00，實際 18:00/;
-            await assert.rejects(
-                new KlookSeatSelector(page, { currency: "TWD", amount: 4880 }, 500).openAndVerify(target),
-                expected,
-            );
+            await assert.rejects(new KlookSeatSelector(page, 500).openAndVerify(target), expected);
             assert.equal(await page.locator("body").getAttribute("data-clicked"), "1");
         }
     } finally {
@@ -168,7 +160,7 @@ test("一般票兩張一列：等待 loader 退出及票種完整，只確認一
                 loading: '<div class="seatsio-loading-screen" style="height:20px">loading</div>',
             }),
         );
-        const selector = new KlookSeatSelector(page, { currency: "TWD", amount: 1280 }, 2500);
+        const selector = new KlookSeatSelector(page, 2500);
         const pending = selector.openAndVerify(generalTarget);
         await page.locator(".main_right-ZMnX67").waitFor({ state: "visible" });
         await page.waitForTimeout(250);
@@ -204,7 +196,7 @@ test("完整兩張劃位仍逐座驗證；不以座號數字差判斷連位", as
         await page
             .locator(".seat_list_top-Bk0UC9")
             .evaluate(el => el.insertAdjacentHTML("beforeend", "<button>自行選位</button>"));
-        const selector = new KlookSeatSelector(page, { currency: "TWD", amount: 1280 }, 800);
+        const selector = new KlookSeatSelector(page, 800);
         const allocation = await selector.openAndVerify(generalTarget);
         assert.deepEqual(allocation, {
             kind: "reserved",
@@ -220,7 +212,7 @@ test("完整兩張劃位仍逐座驗證；不以座號數字差判斷連位", as
     }
 });
 
-test("一般票不接受缺漏、混合、重複、錯價、錯張數與連位要求", async () => {
+test("一般票不接受缺漏、混合、重複、錯張數與連位要求", async () => {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
     try {
@@ -237,36 +229,28 @@ test("一般票不接受缺漏、混合、重複、錯價、錯張數與連位�
             { rows: generalRow.replace("</span>", "</span><ins>額外資料</ins>") },
             { selected: "已選12個座位" },
             { total: "共計1個座位" },
-            { price: "NT$1,280" },
-            { area: "獨立靠近(單人票) NT$1680" },
+            { area: "獨立靠近(雙人票) NT$1680" },
             { loading: '<div class="seatsio-loading-screen hide" style="height:20px;opacity:1">loading</div>' },
         ]) {
             await page.setContent(allocationFixture(options));
-            await assert.rejects(
-                new KlookSeatSelector(page, { currency: "TWD", amount: 1280 }, 450).openAndVerify(generalTarget),
-                PurchaseStop,
-            );
+            await assert.rejects(new KlookSeatSelector(page, 450).openAndVerify(generalTarget), PurchaseStop);
             assert.equal(await page.locator("body").getAttribute("data-confirm"), null);
         }
         for (const selector of [
             ".seat_list-BhwLqz",
             ".seat_list_top-Bk0UC9",
             ".seat_list_cat-vMvUjF",
-            ".con_price-YYYONb",
             ".con_seats-a3N26U",
             ".seat_footer_list-TWhU8V",
         ]) {
             await page.setContent(allocationFixture());
             await page.locator(selector).evaluate(el => el.after(el.cloneNode(true)));
-            await assert.rejects(
-                new KlookSeatSelector(page, { currency: "TWD", amount: 1280 }, 450).openAndVerify(generalTarget),
-                PurchaseStop,
-            );
+            await assert.rejects(new KlookSeatSelector(page, 450).openAndVerify(generalTarget), PurchaseStop);
             assert.equal(await page.locator("body").getAttribute("data-confirm"), null);
         }
         await page.setContent(allocationFixture());
         await assert.rejects(
-            new KlookSeatSelector(page, { currency: "TWD", amount: 1280 }, 450).openAndVerify({
+            new KlookSeatSelector(page, 450).openAndVerify({
                 ...generalTarget,
                 adjacent: true,
             }),
@@ -277,13 +261,13 @@ test("一般票不接受缺漏、混合、重複、錯價、錯張數與連位�
     }
 });
 
-test("確認前格式、張數、金額、loader或提示改變時不點確認", async () => {
+test("確認前格式、張數、loader或提示改變時不點確認", async () => {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
     try {
-        for (const change of ["format", "quantity", "price", "loading", "notice"]) {
+        for (const change of ["format", "quantity", "loading", "notice"]) {
             await page.setContent(allocationFixture());
-            const selector = new KlookSeatSelector(page, { currency: "TWD", amount: 1280 }, 800);
+            const selector = new KlookSeatSelector(page, 800);
             const allocation = await selector.openAndVerify(generalTarget);
             await page.evaluate(change => {
                 if (change === "format")
@@ -294,7 +278,6 @@ test("確認前格式、張數、金額、loader或提示改變時不點確認",
                         )
                         .join("");
                 if (change === "quantity") document.querySelector(".con_seats-a3N26U")!.textContent = "共計1個座位";
-                if (change === "price") document.querySelector(".con_price-YYYONb")!.textContent = "NT$1,280";
                 if (change === "loading")
                     document
                         .querySelector(".seatModal_main-Dpti0D")!
@@ -322,10 +305,7 @@ test("隱藏一般票明細不能通過；確認前隱藏列、欄位、值或�
     try {
         await page.setContent(allocationFixture());
         await page.locator(".list_item-jYRAN7").evaluate(el => ((el as HTMLElement).style.visibility = "hidden"));
-        await assert.rejects(
-            new KlookSeatSelector(page, { currency: "TWD", amount: 1280 }, 450).openAndVerify(generalTarget),
-            /結構未知/,
-        );
+        await assert.rejects(new KlookSeatSelector(page, 450).openAndVerify(generalTarget), /結構未知/);
         assert.equal(await page.locator("body").getAttribute("data-confirm"), null);
         const reservedRows = [22, 24]
             .map(
@@ -341,7 +321,7 @@ test("隱藏一般票明細不能通過；確認前隱藏列、欄位、值或�
                 [".seat_list-BhwLqz", "opacity", "0"],
             ]) {
                 await page.setContent(allocationFixture(rows === undefined ? {} : { rows }));
-                const seatSelector = new KlookSeatSelector(page, { currency: "TWD", amount: 1280 }, 800);
+                const seatSelector = new KlookSeatSelector(page, 800);
                 const allocation = await seatSelector.openAndVerify(generalTarget);
                 await page
                     .locator(selector!)
@@ -374,7 +354,7 @@ test("配位缺少完整年份或年份不符時停止；不採用面板其他�
                 );
             await page.setContent(html);
             await assert.rejects(
-                new KlookSeatSelector(page, { currency: "TWD", amount: 1280 }, 450).openAndVerify(generalTarget),
+                new KlookSeatSelector(page, 450).openAndVerify(generalTarget),
                 /日期不符|完整場次資料/,
             );
             assert.equal(await page.locator("body").getAttribute("data-next"), "1");
@@ -404,7 +384,7 @@ test("非對號區域不限名稱；保留配位內容並在確認前拒絕區�
                     price: `NT$${1280 * quantity}`,
                 }),
             );
-            const selector = new KlookSeatSelector(page, { currency: "TWD", amount: 1280 }, 1000);
+            const selector = new KlookSeatSelector(page, 1000);
             const allocation = await selector.openAndVerify(wanted);
             assert.deepEqual(allocation, { kind: "general", group, quantity });
             assert.equal(await page.locator("body").getAttribute("data-next"), "1");
@@ -429,33 +409,33 @@ test("非對號區域不限名稱；保留配位內容並在確認前拒絕區�
     }
 });
 
-test("港幣配位單價與總額各自核對；確認前變幣別不點擊", async () => {
-    const browser = await chromium.launch({ headless: true });
+test("配位與確認不依賴價格 DOM，仍保留兩張配位並只確認一次", async () => {
+    const browser = await chromium.launch();
     const page = await browser.newPage();
     try {
-        // 各金額欄位單獨變幣別，都必須停止
-        for (const [area, price] of [
-            ["獨立靠近(單人票) NT$1280", "HK$2,560"],
-            ["獨立靠近(單人票) HK$1280", "NT$2,560"],
-            ["獨立靠近(單人票) $1280", "HK$2,560"],
-            ["獨立靠近(單人票) HK$1280", "$2,560"],
-        ]) {
-            await page.setContent(allocationFixture({ area, price }));
-            await assert.rejects(
-                new KlookSeatSelector(page, { currency: "HKD", amount: 1280 }, 800).openAndVerify(generalTarget),
-            );
-            assert.equal(await page.locator("body").getAttribute("data-confirm"), null);
-        }
+        for (const mode of ["missing", "hidden", "duplicate", "changed"]) {
+            await page.setContent(allocationFixture({ area: "獨立靠近(單人票) HK$0.50", price: "USD???" }));
+            await page.locator(".con_price-YYYONb").evaluate((el, mode) => {
+                if (mode === "missing") el.remove();
+                if (mode === "hidden") (el as HTMLElement).hidden = true;
+                if (mode === "duplicate") el.after(el.cloneNode(true));
+            }, mode);
+            const selector = new KlookSeatSelector(page, 800);
+            const allocation = await selector.openAndVerify(generalTarget);
+            assert.deepEqual(allocation, { kind: "general", group: "一般 票", quantity: 2 });
+            // 確認前改變總額，仍只能確認原本核對的配位。
+            if (mode === "changed") {
+                await page.locator(".con_price-YYYONb").evaluate(el => {
+                    el.textContent = "HK$9,999";
+                });
+            }
 
-        // 正確港幣配位可讀取，確認前幣別改變則停止
-        await page.setContent(allocationFixture({ area: "獨立靠近(單人票) HK$1280", price: "HK$2,560" }));
-        const selector = new KlookSeatSelector(page, { currency: "HKD", amount: 1280 }, 800);
-        const allocation = await selector.openAndVerify(generalTarget);
-        await page.locator(".con_price-YYYONb").evaluate(el => {
-            el.textContent = "NT$2,560";
-        });
-        await assert.rejects(selector.confirmVerifiedSeats(generalTarget, allocation), /幣別/);
-        assert.equal(await page.locator("body").getAttribute("data-confirm"), null);
+            await page.locator(".seat_list_cat-vMvUjF").evaluate(el => {
+                el.textContent = "獨立靠近(單人票) €100";
+            });
+            await selector.confirmVerifiedSeats(generalTarget, allocation);
+            assert.equal(await page.locator("body").getAttribute("data-confirm"), "1");
+        }
     } finally {
         await browser.close();
     }

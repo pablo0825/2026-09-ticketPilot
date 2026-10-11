@@ -1,17 +1,9 @@
-import { verifyMoney } from "../../core/currency.js";
-import type { Money } from "../../core/currency.js";
-import { parseMoney } from "./money.js";
 import type { Page } from "playwright";
 
 export class PaymentPageError extends Error {}
 
-// 只辨識付款頁與金額，不選付款方式，也不按「確認付款」。
-export async function waitForPaymentPage(
-    page: Page,
-    eventUrl: string,
-    expectedTotal: Money,
-    timeout = 30_000,
-): Promise<void> {
+// 只辨識付款頁，不選付款方式，也不按「確認付款」。
+export async function waitForPaymentPage(page: Page, eventUrl: string, timeout = 30_000): Promise<void> {
     // stage 記錄目前做到哪一步；失敗時只回報這個步驟
     let stage = "等待同站付款頁網址與訂單編號";
     try {
@@ -31,16 +23,6 @@ export async function waitForPaymentPage(
         stage = "等待可見的付款方式";
         const methods = page.locator(".payment_type-name").filter({ visible: true });
         await methods.first().waitFor({ state: "visible", timeout });
-
-        stage = "等待唯一可見的付款金額";
-        const amount = page.locator(".oc_submit_price").filter({ visible: true });
-        await amount.waitFor({ state: "visible", timeout });
-        const text = (await amount.innerText()).normalize("NFKC").replace(/\s/g, "");
-        try {
-            verifyMoney(parseMoney(text), expectedTotal);
-        } catch {
-            throw new PaymentPageError("付款頁金額不符、幣別不符或格式未知。");
-        }
 
         stage = "提交後的最終付款頁核對";
         const current = new URL(page.url());

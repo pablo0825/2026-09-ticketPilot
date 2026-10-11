@@ -62,7 +62,7 @@ rather than falling back to another budget. Revalidate afterward and reject
 expired seat/order data.
 Preserve strict ticket matching. Never automatically retry seat confirmation.
 After verifying the booking summary and configured contact details, submit once
-and verify arrival at checkout and the expected amount. Stop before confirming
+and verify arrival at checkout. Currency and prices are checked manually by the user. Stop before confirming
 payment. Never retry contact submission or restart purchasing after an uncertain
 submission result. Require valid contact configuration before opening the browser; missing or invalid
 contact data stops startup before ticket selection.

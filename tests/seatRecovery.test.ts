@@ -74,7 +74,7 @@ test("選位恢復限定原活動與唯一過期彈窗；錯頁、歧義、其�
         assert.equal(await page.locator("body").getAttribute("data-ok"), "1");
         assert.equal(await page.locator("body").getAttribute("data-confirm"), null);
         await page.setContent(panel() + modal().replace('class="klk-modal-alert"', 'class="klk-modal-alert" hidden'));
-        await new KlookSeatSelector(page, { currency: "TWD", amount: 4880 }, 1000).confirmVerifiedSeats(target, {
+        await new KlookSeatSelector(page, 1000).confirmVerifiedSeats(target, {
             kind: "reserved",
             seats: [{ section: "A1", row: "10", number: "17" }],
         });
@@ -90,7 +90,7 @@ for (const { currency, changeCurrency } of [
     { currency: "HKD", changeCurrency: false },
     { currency: "HKD", changeCurrency: true },
 ] as const) {
-    test(`${currency} 確認前過期：返回後${changeCurrency ? "錯幣停止" : "重驗新座位只確認一次"}`, async () => {
+    test(`${currency} 確認前過期：返回後${changeCurrency ? "幣種變更仍重驗新座位" : "重驗新座位只確認一次"}`, async () => {
         const browser = await chromium.launch();
         const page = await browser.newPage();
         try {
@@ -108,16 +108,13 @@ ${group("日期", "10月3日(週六)")}${group("時間", "12:00")}${group("票�
                 }),
             );
             await page.goto(eventUrl);
-            const selector = new KlookSeatSelector(page, { currency, amount: 4880 }, 1000);
+            const selector = new KlookSeatSelector(page, 1000);
             let confirmations = 0;
             const checked: string[] = [];
             const preparation = prepareBooking(
                 {
                     selectSeats: async () => {
-                        await new KlookTicketSelector(page, 1000).selectAndVerify(target, {
-                            currency,
-                            amount: 4880,
-                        });
+                        await new KlookTicketSelector(page, 1000).selectAndVerify(target);
                         return selector.openAndVerify(target);
                     },
                     confirmSeats: async allocation => {
@@ -145,14 +142,6 @@ ${group("日期", "10月3日(週六)")}${group("時間", "12:00")}${group("票�
                 fakeRecovery(),
                 new KlookSeatRecovery(page, eventUrl, 1000),
             );
-            if (changeCurrency) {
-                await assert.rejects(preparation, /幣別/);
-                assert.deepEqual(checked, []);
-                assert.equal(await page.locator("body").getAttribute("data-assignments"), "1");
-                assert.equal(await page.locator("body").getAttribute("data-confirm"), null);
-                assert.equal(await page.locator("body").getAttribute("data-ok"), "1");
-                return;
-            }
             await preparation;
             assert.deepEqual(checked, ["18"]);
             assert.equal(await page.locator("body").getAttribute("data-assignments"), "2");
@@ -180,10 +169,7 @@ test("確認已按下但導頁失敗時，即使出現過期提示也不重選�
                         return { kind: "reserved" as const, seats: [{ section: "A1", row: "10", number: "17" }] };
                     },
                     confirmSeats: async allocation => {
-                        await new KlookSeatSelector(page, { currency: "TWD", amount: 4880 }, 500).confirmVerifiedSeats(
-                            target,
-                            allocation,
-                        );
+                        await new KlookSeatSelector(page, 500).confirmVerifiedSeats(target, allocation);
                         await page
                             .locator("body")
                             .evaluate((el, html) => el.insertAdjacentHTML("beforeend", html), modal());

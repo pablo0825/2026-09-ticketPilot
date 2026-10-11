@@ -1,5 +1,3 @@
-import { validateMoney } from "../../core/currency.js";
-import type { Money } from "../../core/currency.js";
 import { SelectionExpiryNotice } from "./notices.js";
 import { parseDateOption, matchesDateOption } from "./eventDate.js";
 import { PurchaseStop } from "../../core/purchaseStop.js";
@@ -50,14 +48,9 @@ export class KlookTicketSelector {
         this.root = page.locator(selectors.root);
     }
 
-    async selectAndVerify(target: TicketTarget, expectedUnitPrice: Money): Promise<"selected" | "disabled"> {
+    async selectAndVerify(target: TicketTarget): Promise<"selected" | "disabled"> {
         // 檢查票券格式是否符合
         validateTicketTarget(target);
-        if (!Number.isSafeInteger(expectedUnitPrice.amount) || expectedUnitPrice.amount <= 0) {
-            throw new PurchaseStop("預期單價必須是正整數。");
-        }
-
-        validateMoney(expectedUnitPrice);
 
         // 確認票券選擇區只有一個元素
         await this.waitForUniqueElement(this.root, "票券選擇區");
@@ -77,13 +70,11 @@ export class KlookTicketSelector {
         }
 
         // 選擇票種
-        const area = await this.selectArea(target.area, expectedUnitPrice);
+        const area = await this.selectArea(target.area);
         if (!area) {
             await this.verifyDate(target.date);
             await this.verifySelectedOption(time, "時間");
-            log(
-                `票種目前停用：${target.area} / ${expectedUnitPrice.currency} ${expectedUnitPrice.amount}；未送出選票。`,
-            );
+            log(`票種目前停用：${target.area}；未送出選票。`);
             return "disabled";
         }
 
@@ -98,7 +89,7 @@ export class KlookTicketSelector {
         if (await this.isDisabled(area)) throw new PurchaseStop("選票操作後票種變為停用，已停止；不送出。");
         await this.verifySelectedOption(area, "票區");
 
-        const matched = await this.findArea(target.area, expectedUnitPrice);
+        const matched = await this.findArea(target.area);
         await this.verifySelectedOption(matched, "票區");
         if (await this.isDisabled(matched)) throw new PurchaseStop("選票操作後票種變為停用，已停止；不送出。");
 
@@ -225,7 +216,7 @@ export class KlookTicketSelector {
         }
     }
 
-    private async findArea(area: string, expectedUnitPrice: Money): Promise<Locator> {
+    private async findArea(area: string): Promise<Locator> {
         const heading = this.page.locator(selectors.groupName).filter({ hasText: /^票種\s*$/ });
         const group = this.root.locator(selectors.group).filter({ has: heading });
         // 此處失敗是無法確認購買目標，不可被解讀為售罄或啟用恢復。
@@ -235,36 +226,28 @@ export class KlookTicketSelector {
             const options = group.locator(selectors.option).filter({ visible: true });
             await this.waitUntil(async () => (await options.count()) > 0, "票種尚未載入");
 
-            // 找出名稱和單價都符合的票種
+            // 找出完整名稱符合的票種，包含停用選項以免誤選同名票
             const matches: Locator[] = [];
-            let sameName = false;
             for (const option of await options.all()) {
                 const parsed = parseTicketLabel(await option.innerText());
                 if (parsed.name !== normalizeTicketName(area)) continue;
-                sameName = true;
-                if (parsed.unitPrice === expectedUnitPrice.amount && parsed.currency === expectedUnitPrice.currency) {
-                    matches.push(option);
-                }
+                matches.push(option);
             }
 
             // 必須剛好一個
             if (matches.length > 1) throw new Error("票種有多個匹配項，已停止。");
             if (matches.length === 0) {
-                throw new Error(
-                    sameName
-                        ? "票種單價或幣別不符，已停止。"
-                        : "找不到符合完整名稱與單價的票種，狀態未知，未判定售罄。",
-                );
+                throw new Error("找不到符合完整名稱的票種，狀態未知，未判定售罄。");
             }
 
             return matches[0]!;
         } catch (error) {
-            throw new PurchaseStop(error instanceof Error ? error.message : "無法核對票種與單價。");
+            throw new PurchaseStop(error instanceof Error ? error.message : "無法核對票種。");
         }
     }
 
-    private async selectArea(area: string, expectedUnitPrice: Money): Promise<Locator | null> {
-        const option = await this.findArea(area, expectedUnitPrice);
+    private async selectArea(area: string): Promise<Locator | null> {
+        const option = await this.findArea(area);
         if (await this.isDisabled(option)) {
             if (await this.isSelected(option)) throw new PurchaseStop("票種同時為已選取與停用，狀態矛盾，已停止。");
             return null;

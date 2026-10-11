@@ -23,10 +23,7 @@ test("實站 adapter 路徑遇未支援彈窗零點擊，診斷不保存敏感�
         await page.setContent(`<div id="ticket-options"><button onclick="document.querySelector('.klk-modal-alert').hidden=false">下一步</button></div>
 <div class="klk-modal-alert" hidden><p>選位失敗，請重試</p><p>SECRET_VISIBLE</p>
 <input value="SECRET_INPUT"><span hidden>SECRET_HIDDEN</span><button onclick="document.body.dataset.clicked='yes'">OK</button></div>`);
-        await assert.rejects(
-            new KlookSeatSelector(page, { currency: "TWD", amount: 4880 }, 500).openAndVerify(eventConfig.targets[0]!),
-            PurchaseStop,
-        );
+        await assert.rejects(new KlookSeatSelector(page, 500).openAndVerify(eventConfig.targets[0]!), PurchaseStop);
         assert.equal(await page.locator("body").getAttribute("data-clicked"), null);
         await captureSelectionDiagnostics(page, eventUrl, directory, "failure");
         const output = await readFile(join(directory, "failure.json"), "utf8");
@@ -77,9 +74,7 @@ test("已觀察的 seatModal 外殼先出現時等待配位；內層未知提示
 <div class="seat_footer_list-TWhU8V"><div class="list_item-jYRAN7"><span>區 <ins>A1</ins></span><span>排 <ins>4</ins></span><span>座位 <ins>15</ins></span></div></div><div class="con_seats-a3N26U">共計1個座位</div><div class="con_price-YYYONb">NT$4880</div></div><button>確認</button></div>`;
             await page.setContent(`<div id="ticket-options"><button onclick="document.body.dataset.next='1';document.querySelector('.seatModal').hidden=false;setTimeout(()=>document.querySelector('.seatModal').innerHTML=${JSON.stringify(result).replaceAll('"', "&quot;")},150)">下一步</button></div>
 <div class="seatModal" role="dialog" hidden>載入中${hasUnknown ? '<div role="dialog">未知提示<button>OK</button></div>' : ""}</div>`);
-            const promise = new KlookSeatSelector(page, { currency: "TWD", amount: 4880 }, 1000).openAndVerify(
-                eventConfig.targets[0]!,
-            );
+            const promise = new KlookSeatSelector(page, 1000).openAndVerify(eventConfig.targets[0]!);
             if (hasUnknown) await assert.rejects(promise, PurchaseStop);
             else
                 assert.deepEqual(await promise, {

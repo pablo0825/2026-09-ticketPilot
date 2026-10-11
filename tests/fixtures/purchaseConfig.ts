@@ -10,10 +10,7 @@ export const fixtureConfig: PurchaseConfig = {
             area: "A區",
             quantity: 1,
             expectation: {
-                currency: "TWD" as const,
                 eventName: "2026 BOYFRIEND FAN-CONCERT <Our 15th Season> IN TAIPEI",
-                unitPrice: 4880,
-                totalPrice: 4880,
             },
             adjacent: false, // 僅多張票時套用；單張保留網頁的連票勾選狀態。
         },

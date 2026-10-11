@@ -225,14 +225,13 @@ test("日期停用後換到隔天，再跳過 A 區停用而配到 B 區", async
         const nextArea = {
             ...nextDay,
             area: "B區",
-            expectation: { ...first.expectation, unitPrice: 3880, totalPrice: 3880 },
+            expectation: { ...first.expectation },
         };
         const flow = selection(page, [first, nextDay, nextArea]);
         const result = await flow.run();
         assert.equal(result.target.date, "2026-10-04");
         assert.equal(result.target.time, "12:00");
         assert.equal(result.target.area, "B區");
-        assert.equal(result.target.expectation.totalPrice, 3880);
         assert.equal(flow.attempts.length, 3);
         assert.deepEqual(flow.counts(), { recoveries: 0, returns: 0 });
         assert.equal(await page.locator("body").getAttribute("data-clicks"), "日期:1;票種:1;");
@@ -254,13 +253,12 @@ test("初次選時間或切換已選時間後，A 區停用仍能前進 B 區", 
                 const nextArea = {
                     ...target,
                     area: "B區",
-                    expectation: { ...first.expectation, unitPrice: 3880, totalPrice: 3880 },
+                    expectation: { ...first.expectation },
                 };
                 const flow = selection(page, [target, nextArea]);
                 const result = await flow.run();
                 assert.equal(result.target.time, "18:00");
                 assert.equal(result.target.area, "B區");
-                assert.equal(result.target.expectation.totalPrice, 3880);
                 assert.equal(flow.attempts.length, 2);
                 assert.deepEqual(flow.counts(), { recoveries: 0, returns: 0 });
                 assert.equal(await page.locator("body").getAttribute("data-clicks"), "時間:1;票種:1;");
