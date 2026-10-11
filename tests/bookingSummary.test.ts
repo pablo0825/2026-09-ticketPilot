@@ -236,3 +236,89 @@ test("摘要不依賴金額欄位，仍核對票種、活動、場次、張數�
         await browser.close();
     }
 });
+
+test("門票附註支援香港與台灣格式，仍從同列讀取並核對張數", async () => {
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
+    const originalLabel = "門票（不含全家取票手續費NT$30/每筆）";
+    const quantityRow = `<div class="item"><span class="item_label">${originalLabel}</span><span class="item_value">1</span></div>`;
+    const hongKongProduct = product.replace(originalLabel, "門票（已包括HK$58手續費）");
+    try {
+        // 使用本機摘要，確認附註與換行不影響同列張數。
+        await page.route("**/*", route => route.fulfill({ body: "", contentType: "text/html" }));
+        await page.goto(url);
+        for (const label of [
+            "門票",
+            originalLabel,
+            "門票（已包括HK$58手續費）",
+            "門票(已包括HK$80手續費)",
+            " 門票　（已包括<br>HK$58手續費） ",
+        ]) {
+            await page.setContent(product.replace(originalLabel, label));
+            const actual = await readBookingSummary(page, eventUrl);
+            assert.deepEqual(actual, summary, label);
+            verifyBookingSummary(actual, target, allocation, expected);
+        }
+
+        // 近似文字與不完整附註不能當成張數標籤。
+        for (const label of [
+            "門票資訊",
+            "門票張數",
+            "門票（附註）其他",
+            "門票（附註",
+            "門票附註）",
+            "門票（附註（其他））",
+            "門票（附註）（其他）",
+            "門票（）",
+        ]) {
+            await page.setContent(product.replace(originalLabel, label));
+            await assert.rejects(readBookingSummary(page, eventUrl), /預訂摘要標籤缺少或重複/, label);
+        }
+
+        // 不同附註的重複列及同列多個標籤或值，都必須停止。
+        for (const label of ["門票", originalLabel, "門票（已包括HK$80手續費）"]) {
+            const duplicate = quantityRow.replace(originalLabel, label);
+            await page.setContent(hongKongProduct.replace("</div><footer>", `${duplicate}</div><footer>`));
+            await assert.rejects(readBookingSummary(page, eventUrl), /預訂摘要標籤缺少或重複/);
+        }
+        await page.setContent(
+            hongKongProduct.replace(
+                '<span class="item_value">1</span>',
+                '<span class="item_label">門票</span><span class="item_value">1</span>',
+            ),
+        );
+        await assert.rejects(readBookingSummary(page, eventUrl), /預訂摘要標籤缺少或重複/);
+        await page.setContent(
+            hongKongProduct.replace(
+                '<span class="item_value">1</span>',
+                '<span class="item_value">1</span><span class="item_value">1</span>',
+            ),
+        );
+        await assert.rejects(readBookingSummary(page, eventUrl), /預訂摘要標籤值缺少或重複/);
+
+        // 缺值不能拿別列的數字替代，非精確張數也不能放行。
+        for (const value of ["", " "]) {
+            await page.setContent(hongKongProduct.replace('class="item_value">1<', `class="item_value">${value}<`));
+            await assert.rejects(readBookingSummary(page, eventUrl), /預訂摘要標籤值缺少或重複/);
+        }
+        await page.setContent(
+            hongKongProduct.replace(
+                '<span class="item_value">1</span>',
+                '</div><div class="item"><span class="item_label">其他</span><span class="item_value">1</span>',
+            ),
+        );
+        await assert.rejects(readBookingSummary(page, eventUrl), /預訂摘要標籤值缺少或重複/);
+        for (const value of ["2", "未知", "1張", "1其他文字"]) {
+            await page.setContent(hongKongProduct.replace('class="item_value">1<', `class="item_value">${value}<`));
+            const actual = await readBookingSummary(page, eventUrl);
+            assert.equal(actual.quantity, value);
+            assert.throws(() => verifyBookingSummary(actual, target, allocation, expected), /預訂摘要張數不符/);
+        }
+
+        // 日期標籤維持原規則，不跟著門票標籤放寬。
+        await page.setContent(hongKongProduct.replace(">日期<", ">日 期<"));
+        await assert.rejects(readBookingSummary(page, eventUrl), /預訂摘要標籤缺少或重複/);
+    } finally {
+        await browser.close();
+    }
+});

@@ -133,8 +133,8 @@ function requireSingleValue(values: string[], label: string): string {
     return values[0];
 }
 
-function labeledValue(fields: SummaryFields, label: RegExp): string {
-    const rows = fields.rows.filter(row => row.labels.some(text => label.test(text)));
+function labeledValue(fields: SummaryFields, matchesLabel: (text: string) => boolean): string {
+    const rows = fields.rows.filter(row => row.labels.some(matchesLabel));
     if (rows.length !== 1 || rows[0]!.labels.length !== 1) throw new Error("預訂摘要標籤缺少或重複。");
     return requireSingleValue(rows[0]!.values, "標籤值");
 }
@@ -143,8 +143,9 @@ function parseSummaryFields(fields: SummaryFields): BookingSummary {
     return {
         eventName: requireSingleValue(fields.names, "活動名稱"),
         packageName: requireSingleValue(fields.packages, "票種"),
-        dateTime: labeledValue(fields, /^日期$/),
-        quantity: labeledValue(fields, /^門票(?:[（(]不含全家取票手續費[^（）()]+\/每筆[）)])?$/),
+        dateTime: labeledValue(fields, text => /^日期$/.test(text)),
+        // 門票附註不參與核對，仍要求完整標籤與同列唯一張數。
+        quantity: labeledValue(fields, text => /^門票(?:\([^()]+\))?$/.test(normalizeText(text))),
         seatLabels: fields.rows
             .filter(row => row.labels.length === 0)
             .map(row => requireSingleValue(row.values, "座位")),
