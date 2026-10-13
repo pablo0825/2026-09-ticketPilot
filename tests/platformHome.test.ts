@@ -129,6 +129,12 @@ test("離開確認取消保留草稿，確認放棄才卸載；舊活動重開�
 
 test("保存與開始請求送出期間不能離開，完成後導航不產生第二筆購票", async () => {
     await fixture(async (page, url) => {
+        let purchaseRequests = 0;
+        page.on("request", request => {
+            if (new URL(request.url()).pathname === "/api/purchase" && request.method() === "POST") {
+                purchaseRequests++;
+            }
+        });
         await page.goto(url);
         await openEditor(page);
         for (const operation of ["save", "start"]) {
@@ -183,6 +189,8 @@ test("保存與開始請求送出期間不能離開，完成後導航不產生�
         }
         await page.locator("#platformHomeButton").click();
         await page.locator("#platformHome").waitFor();
+        await openEditor(page);
+        assert.equal(purchaseRequests, 1);
     });
 });
 
