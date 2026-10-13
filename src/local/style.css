@@ -302,7 +302,11 @@ th {
     font-weight: 600;
 }
 
-.standalone-check {
+.checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.checkbox-row input {
     width: auto;
-    align-self: flex-start;
 }

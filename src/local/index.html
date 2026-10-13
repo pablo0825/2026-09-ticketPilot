@@ -59,12 +59,22 @@
                         /></label>
                     </div>
                     <label for="queueEnabled"
-                        >排隊流程<input id="queueEnabled" type="checkbox" class="standalone-check"
-                    /></label>
+                        ><span id="queueEnabledTitle">排隊流程</span
+                        ><span class="checkbox-row"
+                            ><input id="queueEnabled" type="checkbox" aria-labelledby="queueEnabledTitle" />啟用</span
+                        ></label
+                    >
                     <div id="bundleSettings">
                         <label for="bundleEnabled"
-                            >組合套票<input id="bundleEnabled" type="checkbox" class="standalone-check"
-                        /></label>
+                            ><span id="bundleEnabledTitle">組合套票</span
+                            ><span class="checkbox-row"
+                                ><input
+                                    id="bundleEnabled"
+                                    type="checkbox"
+                                    aria-labelledby="bundleEnabledTitle"
+                                />啟用</span
+                            ></label
+                        >
                         <label
                             >取票方式（選填）<input id="deliveryMethod" disabled placeholder="例如：指定地點自取"
                         /></label>
