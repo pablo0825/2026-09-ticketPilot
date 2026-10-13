@@ -9,6 +9,21 @@ export interface QueueSnapshot {
     seconds?: number;
 }
 
+interface QueueDomData {
+    rootCount: number;
+    notice: boolean;
+    sources: (string | null)[];
+    percents: string[];
+    entryCount: number;
+    continueCount: number;
+    countdownLabel: boolean;
+    admitted: boolean;
+    waiting: boolean;
+    invalidLink: boolean;
+    countdown: number[] | undefined;
+    reservation: number[] | undefined;
+}
+
 export function isQueuePage(url: string, eventUrl: string): boolean {
     const current = new URL(url);
     const expected = new URL(eventUrl);
@@ -25,7 +40,12 @@ export async function readQueueSnapshot(page: Page, eventUrl: string): Promise<Q
     const expectedId = new URL(eventUrl).pathname.match(/\/event-detail\/(\d+)-/)?.[1];
     if (!expectedId) throw new PurchaseStop("無法核對排隊活動編號，已停止。");
 
-    const data = await page.evaluate(rootSelector => {
+    const data = await readQueueDom(page);
+    return classifyQueueSnapshot(data, expectedId, page.url());
+}
+
+async function readQueueDom(page: Page): Promise<QueueDomData> {
+    return page.evaluate(rootSelector => {
         // 只讀可見的排隊區與提示，不讀帳戶或排隊憑證
         const roots = [...document.querySelectorAll<HTMLElement>(rootSelector)].filter(
             el => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden",
@@ -42,7 +62,12 @@ export async function readQueueSnapshot(page: Page, eventUrl: string): Promise<Q
                   el => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden",
               )
             : [];
-        const counts = ["排隊購票", "繼續預訂", "排隊中", "You're now in the queue!"].map(
+        const [entryCount, continueCount, waitingChineseCount, waitingEnglishCount] = [
+            "排隊購票",
+            "繼續預訂",
+            "排隊中",
+            "You're now in the queue!",
+        ].map(
             value =>
                 texts.filter(
                     el =>
@@ -69,22 +94,24 @@ export async function readQueueSnapshot(page: Page, eventUrl: string): Promise<Q
             notice: notices.length > 0,
             sources,
             percents,
-            entryCount: counts[0]!,
-            continueCount: counts[1]!,
+            entryCount: entryCount!,
+            continueCount: continueCount!,
             countdownLabel: text.includes("開賣倒數"),
             admitted: text.includes("輪到你了，請盡快完成購票！"),
-            waiting: counts[2]! === 1 || counts[3]! === 1,
+            waiting: waitingChineseCount === 1 || waitingEnglishCount === 1,
             invalidLink: text.includes("此連結無法使用，請從活動頁面加入排隊"),
             countdown: countdown?.slice(1).map(Number),
             reservation: reservation?.slice(1).map(Number),
         };
     }, queueRootSelector);
+}
 
+function classifyQueueSnapshot(data: QueueDomData, expectedId: string, pageUrl: string): QueueSnapshot {
     // 核對活動快照，缺資料僅可暫時等待
     if (data.notice || data.invalidLink) throw new PurchaseStop("排隊頁出現提示，請人工檢查；不會自動重新入隊。");
     if (data.rootCount > 1 || data.sources.length > 1) throw new PurchaseStop("排隊頁活動資料不唯一，已停止。");
     if (data.rootCount !== 1 || data.sources.length !== 1 || !data.sources[0]) return { stage: "unknown" };
-    const source = new URL(data.sources[0], page.url());
+    const source = new URL(data.sources[0], pageUrl);
     if (
         source.origin !== "https://cdn.klook.com" ||
         !source.pathname.startsWith(`/event/queue-snapshot/${expectedId}/`)
