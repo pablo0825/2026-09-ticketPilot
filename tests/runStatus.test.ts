@@ -1,3 +1,4 @@
+import { snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -16,9 +17,6 @@ test("執行狀態簡化：階段分組、等待倒數、結束文案及紀錄�
     const browser = await chromium.launch();
     try {
         const page = await browser.newPage();
-        await page.goto(service.url);
-        await page.locator("#new").click();
-        await page.evaluate("displayedRun = {kind:'purchase',id:'fixture'}; showStep(4)");
         const base = {
             id: "fixture",
             activityName: "測試活動",
@@ -29,12 +27,27 @@ test("執行狀態簡化：階段分組、等待倒數、結束文案及紀錄�
             message: "正在啟動購票，請勿重複開始。",
             historyTruncated: false,
         };
-        const render = async (state: string, fields = {}) => {
-            await page.evaluate(run => (window as any).render(run), {
+        const feed = await snapshotFeed(page, "/api/purchase/events", { ...base, events: [] });
+        await page.goto(service.url);
+        await page.locator("#viewRun").click();
+        await page.locator("#step4").waitFor();
+        let sequence = 0;
+        const render = async (state: string, fields: Record<string, unknown> = {}) => {
+            const marker = `測試事件 ${++sequence}`;
+            const run = {
                 ...base,
-                events: [{ at: new Date().toISOString(), event: { type: "state", state } }],
                 ...fields,
-            });
+                events: [
+                    ...((fields.events as unknown[] | undefined) ?? [
+                        { at: new Date().toISOString(), event: { type: "state", state } },
+                    ]),
+                    { at: new Date().toISOString(), event: { type: "log", message: marker } },
+                ],
+            };
+            feed.publish(run);
+            if (run.id === "fixture")
+                await eventually(async () => assert((await page.locator("#logs").innerText()).includes(marker)));
+            else await eventually(async () => assert.equal(await page.locator("#homeRun").textContent(), ""));
         };
         for (const state of [
             "STARTING",
@@ -121,7 +134,7 @@ test("執行狀態簡化：階段分組、等待倒數、結束文案及紀錄�
         assert.match(logs, /恢復額度：排隊 1\/1；預留 0\/1/);
         assert.match(logs, /原始紀錄/);
         assert.equal(await page.locator("#runLabel, #target, #budget, #browser, #countdown").count(), 0);
-        await render("WAITING_FOR_LOGIN", { id: "other" });
+        await render("WAITING_FOR_LOGIN", { id: "other", occupied: false });
         await page.waitForTimeout(1100);
         assert.equal(await page.locator("#status").innerText(), "正在購票");
         assert.equal(await page.locator("#logs").innerText(), logs);

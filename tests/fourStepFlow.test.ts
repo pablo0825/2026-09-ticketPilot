@@ -1,4 +1,4 @@
-import { guiUrl, snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
+import { snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -45,7 +45,7 @@ async function fixture(
     try {
         const page = await browser.newPage();
         const feed = controlledFeed ? await snapshotFeed(page, "/api/purchase/events") : null;
-        await page.goto(guiUrl(service.url));
+        await page.goto(service.url);
         await page.locator("#activities").getByText("使用活動").click();
         await page.locator("#step1").waitFor();
         await page.getByRole("button", { name: "③ 確認與開始" }).click();

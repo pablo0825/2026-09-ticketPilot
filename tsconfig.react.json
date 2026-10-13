@@ -1,9 +1,12 @@
 {
-  "extends": "./tsconfig.browser.json",
+  "extends": "./tsconfig.json",
   "compilerOptions": {
     "types": ["node", "vite/client"],
     "jsx": "react-jsx",
-    "noEmit": true
+    "noEmit": true,
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
   "include": ["src/local/react/**/*.ts", "src/local/react/**/*.tsx"],
   "exclude": []

@@ -6,14 +6,14 @@
   "scripts": {
     "test": "node --import tsx --test tests/*.test.ts",
     "start": "tsx src/main.ts",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.browser.json --noEmit && tsc -p tsconfig.react.json --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.react.json --noEmit",
     "gui": "tsx src/local/main.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "build:gui": "tsc -p tsconfig.browser.json && vite build",
+    "build:gui": "vite build",
     "pretest": "npm run build:gui",
     "pregui": "npm run build:gui",
-    "test:gui:react": "npm run build:gui && TICKET_GUI_PREVIEW=1 node --import tsx --test tests/reactAsset.test.ts tests/reactRunOrdering.test.ts tests/activityHome.test.ts tests/queueSettings.test.ts tests/guiRequest.test.ts tests/fourStepFlow.test.ts"
+    "test:gui": "npm run build:gui && node --import tsx --test tests/*gui*.test.ts tests/react*.test.ts tests/activityHome.test.ts tests/fourStepFlow.test.ts tests/queueSettings.test.ts tests/runStatus.test.ts"
   },
   "keywords": [],
   "author": "",

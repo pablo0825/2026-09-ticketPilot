@@ -18,7 +18,7 @@ test("React 正式打包由本機同源載入，保留 API 驗證與資源邊界
         const page = await browser.newPage();
         const errors: string[] = [];
         page.on("pageerror", error => errors.push(error.message));
-        const response = await page.goto(service.url + "/react");
+        const response = await page.goto(service.url);
         await page.locator("#new").click();
         await page.locator("#step1").waitFor();
         assert.match(response!.headers()["content-security-policy"]!, /frame-ancestors 'none'/);

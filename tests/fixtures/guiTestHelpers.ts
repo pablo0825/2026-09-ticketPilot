@@ -1,7 +1,3 @@
-export function guiUrl(url: string): string {
-    return url + (process.env.TICKET_GUI_PREVIEW ? "/react" : "");
-}
-
 import type { Page } from "playwright";
 
 // 每次短串流結束後由原生 EventSource 重連，下一次收到最新快照。

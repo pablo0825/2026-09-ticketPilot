@@ -1,4 +1,3 @@
-import { guiUrl } from "./fixtures/guiTestHelpers.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -34,7 +33,7 @@ test("首頁場次摘要、未存離開、同名刪除及API占用與並發保�
     const browser = await chromium.launch();
     try {
         const page = await browser.newPage();
-        await page.goto(guiUrl(service.url));
+        await page.goto(service.url);
         await page.locator("#activities tr").nth(1).waitFor();
         await page.screenshot({ path: "/tmp/activity-home.png", fullPage: true });
         assert.equal(await page.locator("#activities tr").filter({ hasText: "2026-11-02" }).count(), 1);
@@ -60,7 +59,7 @@ test("首頁場次摘要、未存離開、同名刪除及API占用與並發保�
         await assert.rejects(store.load(b.id));
         assert.equal((await store.list()).activities.length, 1);
         const html = await (await fetch(service.url)).text();
-        const token = html.match(/const token = "([^"]+)"/)![1]!;
+        const token = html.match(/<meta name="local-token" content="([^"]+)"/)![1]!;
         const headers = { "X-Local-Token": token, "Content-Type": "application/json" };
         const lease = acquirePurchaseLease(join(dir, "runtime"));
         try {
@@ -102,7 +101,10 @@ test("啟動與刪除並發只有一方成功，不刪個資或執行紀錄", as
         purchaseWorker: new URL("./fixtures/guiPurchaseWorker.ts", import.meta.url),
     });
     const html = await (await fetch(service.url)).text();
-    const headers = { "X-Local-Token": html.match(/const token = "([^"]+)"/)![1]!, "Content-Type": "application/json" };
+    const headers = {
+        "X-Local-Token": html.match(/<meta name="local-token" content="([^"]+)"/)![1]!,
+        "Content-Type": "application/json",
+    };
     const contact = {
         firstName: "Demo",
         lastName: "Test",

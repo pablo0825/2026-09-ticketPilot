@@ -1,4 +1,3 @@
-import { guiUrl } from "./fixtures/guiTestHelpers.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -51,7 +50,7 @@ test("GUI 每活動保存勾選、摘要顯示、重開與新增不沿用其他�
     const browser = await chromium.launch();
     try {
         const page = await browser.newPage();
-        await page.goto(guiUrl(service.url));
+        await page.goto(service.url);
         await page.locator("#activities tr").filter({ hasText: settings.eventName }).getByText("使用活動").click();
         await page.locator("#step1").waitFor({ state: "visible" });
         assert.equal(await page.locator("#queueEnabled").isChecked(), false);

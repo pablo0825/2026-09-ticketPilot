@@ -11,5 +11,5 @@
     "noEmit": true
   },
   "include": ["src/**/*.ts", "tests/**/*.ts"],
-  "exclude": ["src/local/app.ts", "src/local/react"]
+  "exclude": ["src/local/react"]
 }

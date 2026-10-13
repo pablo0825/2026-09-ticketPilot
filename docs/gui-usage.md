@@ -27,7 +27,9 @@ GUI 不再要求幣種、單價或總價。工具仍核對活動、日期、時�
 
 ## 檔案與既有 CLI
 
-GUI 的前端來源是 `src/local/app.ts`。`npm run gui` 和 `npm test` 會先執行 `npm run build:gui`，將來源編譯到已忽略的 `dist/gui/`；瀏覽器仍以傳統 script 載入 `/app.js`，不改變載入順序或操作流程。`npm run typecheck` 同時檢查 Node 與前端程式。修改前端後，若直接使用 `node --import tsx --test ...` 執行個別測試，請先執行 `npm run build:gui`；開發中的 GUI 也需要重新編譯並重新整理頁面。請修改來源檔，不要直接編輯生成檔。
+GUI 使用 `src/local/react/` 的 React 元件，以 Vite 打包至已忽略的 `dist/react/`。`npm run gui` 和 `npm test` 會先打包，正式首頁由同一個本機 Node 服務提供，不需要額外啟動前端服務。`npm run typecheck` 同時檢查 Node 與 React；`npm run test:gui` 執行本機 GUI 回歸測試。修改前端後，若直接使用 `node --import tsx --test ...` 執行個別測試，請先執行 `npm run build:gui`；開發中的 GUI 也需要重新打包並重新整理頁面。請修改來源檔，不要直接編輯生成檔。
+
+React 只負責表單與畫面：活動 JSON、聯絡資料、API 與購票引擎沿用原有格式。`ActivityEditor`、`ContactForm` 與 `PurchaseSummary` 管理不同區塊；`startPurchase` 保留未知請求的識別碼與設定核對；`useRunStatus` 接收狀態串流並清理訂閱，重連不觸發購票。本次仍僅支援 Klook，沒有增加 TicketPlus 平台或變更付款邊界。
 
 - `local-data/events/<UUID>.json`：每場活動、順位與開賣時間，格式沿用第一批 schemaVersion 1。
 - `contact.local.json`：所有活動共用的聯絡資訊，格式沿用 `contact.example.json`。

@@ -31,7 +31,7 @@ test("本機 API：驗證、保存、去重、快照及模擬結束；無實站�
     });
     try {
         const html = await (await fetch(service.url)).text();
-        const token = /const token = "([a-f0-9]+)"/.exec(html)![1]!;
+        const token = /<meta name="local-token" content="([a-f0-9]+)"/.exec(html)![1]!;
         const headers = { "X-Local-Token": token, "Content-Type": "application/json" };
         assert.equal((await fetch(service.url + "/api/activities")).status, 403);
         assert.equal(

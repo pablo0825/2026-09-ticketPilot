@@ -3,41 +3,34 @@ import { test } from "node:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Script } from "node:vm";
 import { ActivityStore } from "../src/config/activityStore.js";
 import { startLocalServer } from "../src/local/server.js";
 
-test("GUI 提供編譯後的傳統腳本，保留 token 載入順序與 CSS", async () => {
-    // 使用獨立目錄啟動本機服務，不讀取使用者的設定。
+test("正式 GUI 提供 React 打包模組與 CSS，不再提供舊腳本", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ticket-gui-asset-"));
     const service = await startLocalServer(new ActivityStore(join(directory, "events")), {
         contactPath: join(directory, "contact.json"),
         runDirectory: join(directory, "runtime"),
     });
-
     try {
-        // 確認 HTML 先提供 token，再載入原本的腳本網址。
-        const html = await (await fetch(service.url)).text();
-        assert.match(html, /<script>\s*const token = "[a-f0-9]+";\s*<\/script>\s*<script src="\/app.js"><\/script>/);
+        const response = await fetch(service.url);
+        const html = await response.text();
+        const token = /<meta name="local-token" content="([a-f0-9]+)"/.exec(html)![1]!;
+        assert.match(html, /<script type="module" crossorigin src="\/assets\/[^"\s]+\.js"><\/script>/);
+        assert.doesNotMatch(response.headers.get("content-security-policy")!, /script-src[^;]*unsafe-inline/);
+        assert.doesNotMatch(html, /__TOKEN__|\/app.js/);
 
-        // 以傳統 script 解析，避免型別、import 或 export 被送到瀏覽器。
-        const response = await fetch(service.url + "/app.js");
-        assert.equal(response.status, 200);
-        assert.match(response.headers.get("content-type") ?? "", /^text\/javascript/);
-        assert.equal(response.headers.get("cache-control"), "no-store");
-
-        const script = await response.text();
-        const generated = await readFile(new URL("../dist/gui/local/app.js", import.meta.url), "utf8");
-        assert.equal(script, generated);
-        assert.doesNotThrow(() => new Script(script));
-
-        // 樣式仍由原本的檔案提供。
-        const stylesheet = await fetch(service.url + "/style.css");
-        assert.match(stylesheet.headers.get("content-type") ?? "", /^text\/css/);
-        assert.equal(
-            await stylesheet.text(),
-            await readFile(new URL("../src/local/style.css", import.meta.url), "utf8"),
-        );
+        // 比對實際提供的產物與打包檔案，而非只檢查副檔名。
+        const paths = [...html.matchAll(/(?:src|href)="(\/assets\/[^"\s]+)"/g)].map(match => match[1]!);
+        assert.equal(paths.length, 2);
+        for (const path of paths) {
+            const asset = await fetch(service.url + path);
+            assert.equal(asset.status, 200);
+            assert.match(asset.headers.get("content-type")!, path.endsWith(".js") ? /^text\/javascript/ : /^text\/css/);
+            assert.equal(asset.headers.get("cache-control"), "no-store");
+            assert.equal(await asset.text(), await readFile(new URL("../dist/react" + path, import.meta.url), "utf8"));
+        }
+        assert.equal((await fetch(service.url + "/app.js", { headers: { "X-Local-Token": token } })).status, 404);
     } finally {
         await service.close();
         await rm(directory, { recursive: true, force: true });

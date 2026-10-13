@@ -67,23 +67,20 @@ export async function startLocalServer(
 
             // 提供網頁與靜態檔案
             const url = new URL(request.url ?? "/", origin);
-            if (request.method === "GET" && ["/", "/react"].includes(url.pathname)) {
+            if (request.method === "GET" && url.pathname === "/") {
                 if (request.headers["sec-fetch-site"] === "cross-site") {
                     json(response, 403, {});
                     return;
                 }
 
-                const index =
-                    url.pathname === "/react"
-                        ? new URL("../../dist/react/index.html", import.meta.url)
-                        : new URL("./index.html", import.meta.url);
+                const index = new URL("../../dist/react/index.html", import.meta.url);
                 const html = (await readFile(index, "utf8")).replace("__TOKEN__", token);
 
                 response.writeHead(200, {
                     "Content-Type": "text/html; charset=utf-8",
                     "Cache-Control": "no-store",
                     "Content-Security-Policy":
-                        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'",
+                        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'",
                     "Referrer-Policy": "no-referrer",
                 });
                 response.end(html);
@@ -101,21 +98,6 @@ export async function startLocalServer(
                     "Cache-Control": "no-store",
                 });
                 response.end(content);
-                return;
-            }
-
-            if (request.method === "GET" && ["/app.js", "/style.css"].includes(url.pathname)) {
-                response.writeHead(200, {
-                    "Content-Type": url.pathname.endsWith(".js")
-                        ? "text/javascript; charset=utf-8"
-                        : "text/css; charset=utf-8",
-                    "Cache-Control": "no-store",
-                });
-                const asset =
-                    url.pathname === "/app.js"
-                        ? new URL("../../dist/gui/local/app.js", import.meta.url)
-                        : new URL("./style.css", import.meta.url);
-                response.end(await readFile(asset, "utf8"));
                 return;
             }
 

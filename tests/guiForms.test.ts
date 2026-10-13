@@ -1,3 +1,4 @@
+import { snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -7,7 +8,7 @@ import { chromium } from "playwright";
 import { ActivityStore } from "../src/config/activityStore.js";
 import { startLocalServer } from "../src/local/server.js";
 
-test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、重連保留真實結果", async () => {
+test("完整GUI：設定保存、個資未存阻擋、真實fixture與重連保留結果", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-gui-"));
     const store = new ActivityStore(join(dir, "events"));
     const service = await startLocalServer(store, {
@@ -60,10 +61,6 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
         releaseSave();
         await page.locator("#step3").waitFor({ state: "visible" });
         assert.equal(await page.getByRole("button", { name: "模擬執行（不購票）" }).count(), 0);
-        // 僅從測試呼叫模擬流程，正式介面不提供模擬按鈕。
-        await page.evaluate("begin(true)");
-
-        await page.getByText("模擬完成（未購票）", { exact: true }).waitFor();
         await page.locator("#homeButton").click();
         await page.locator("#activities .activity-status").filter({ hasText: "尚無執行紀錄" }).waitFor();
         await page.locator("#activities").getByText("使用活動").click();
@@ -93,18 +90,11 @@ test("完整GUI：設定保存、個資未存阻擋、模擬與實際fixture、�
         assert(await page.locator("#viewRun").isHidden());
         await page.waitForTimeout(200);
         assert.equal(await page.locator("#status").textContent(), "尚未執行");
-        assert.equal(await page.evaluate("currentRun.status"), "unknown");
+        const html = await (await fetch(service.url)).text();
+        const headers = { "X-Local-Token": /<meta name="local-token" content="([^"]+)"/.exec(html)![1]! };
+        assert.equal((await (await fetch(service.url + "/api/purchase", { headers })).json()).status, "unknown");
         assert.doesNotMatch((await page.locator("#logs").textContent()) ?? "", /0999999999|demo@example.com/);
         await page.screenshot({ path: "/tmp/ticketpilot-gui-phase6.png", fullPage: true });
-        await page.locator("#activities").getByText("使用活動").click();
-        await page.locator("#step1").waitFor();
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
-        // 僅從測試呼叫模擬流程，正式介面不提供模擬按鈕。
-        await page.evaluate("begin(true)");
-        await page.getByText("模擬完成（未購票）", { exact: true }).waitFor();
-        // 模擬畫面收到舊真實快照，標題與日誌仍屬於模擬。
-        await page.evaluate("render(currentRun)");
-        assert.match(await page.locator("#logs").innerText(), /模擬執行紀錄/);
     } finally {
         await browser.close();
         await service.close();
@@ -135,9 +125,7 @@ test("首頁只顯示占用或執行中的狀態，結束紀錄仍保留", async
                 historyTruncated: false,
             };
             await page.route("**/api/purchase", route => route.fulfill({ json: run }));
-            await page.route("**/api/purchase/events?*", route =>
-                route.fulfill({ contentType: "text/event-stream", body: `data: ${JSON.stringify(run)}\n\n` }),
-            );
+            const feed = await snapshotFeed(page, "/api/purchase/events", run);
             await page.goto(service.url);
             await page.locator("#viewRun").waitFor();
             assert.equal(await page.locator("#viewRun").textContent(), "查看目前狀態");
@@ -148,21 +136,44 @@ test("首頁只顯示占用或執行中的狀態，結束紀錄仍保留", async
             await page.locator("#step4").waitFor();
             await page.locator("#homeButton").click();
             // 模擬接收到解除占用的下一個快照；不改變執行結果。
-            await page.evaluate("render({...currentRun, occupied:false, browserOpen:false})");
+            feed.publish({ ...run, occupied: false, browserOpen: false });
+            await eventually(async () => assert.equal(await page.locator("#homeRun").textContent(), ""));
             assert(await page.locator("#viewRun").isHidden());
             assert(await page.locator("#homeRun").isHidden());
-            assert.equal(await page.evaluate("currentRun.status"), status);
+            assert.equal(
+                await page.locator("#status").textContent(),
+                status === "running" ? "正在購票" : status === "payment-ready" ? "已到付款頁" : "購票已停止",
+            );
             await page.waitForFunction(() => !(document.querySelector("#new") as HTMLButtonElement).disabled);
             assert(await page.locator("#new").isEnabled());
             await page.close();
         }
         const page = await browser.newPage();
+        const simulation = { id: "simulation", status: "running", events: [], historyTruncated: false };
+        const feed = await snapshotFeed(page, "/api/events", simulation);
+        const purchaseFeed = await snapshotFeed(page, "/api/purchase/events");
         await page.goto(service.url);
-        await page.evaluate("renderSimulation({id:'simulation',status:'running',events:[],historyTruncated:false})");
         await page.locator("#viewRun").filter({ hasText: "查看模擬狀態" }).click();
         await page.locator("#step4").waitFor();
+        feed.publish({ ...simulation, status: "completed" });
+        await page.getByText("模擬完成（未購票）", { exact: true }).waitFor();
+        purchaseFeed.publish({
+            id: "other",
+            status: "running",
+            occupied: true,
+            browserOpen: true,
+            activityName: "另一場",
+            events: [],
+            historyTruncated: false,
+        });
+        await eventually(async () =>
+            assert.match((await page.locator("#homeRun").textContent()) ?? "", /購票流程執行中/),
+        );
+        assert.match(await page.locator("#logs").innerText(), /模擬執行紀錄/);
+        assert.equal(await page.locator("#status").innerText(), "模擬完成（未購票）");
+        purchaseFeed.publish(null);
+        await eventually(async () => assert.equal(await page.locator("#homeRun").textContent(), ""));
         await page.locator("#homeButton").click();
-        await page.evaluate("renderSimulation({...latestSimulation,status:'completed'})");
         assert(await page.locator("#viewRun").isHidden());
         assert(await page.locator("#homeRun").isHidden());
     } finally {
@@ -189,7 +200,10 @@ test("結束後關閉瀏覽器：確認取消、付款提醒、解除占用及�
         email: "fixture@example.com",
     };
     const html = await (await fetch(service.url)).text();
-    const headers = { "X-Local-Token": html.match(/const token = "([^"]+)"/)![1]!, "Content-Type": "application/json" };
+    const headers = {
+        "X-Local-Token": html.match(/<meta name="local-token" content="([^"]+)"/)![1]!,
+        "Content-Type": "application/json",
+    };
     let runId = "";
     try {
         await fetch(service.url + "/api/contact", { method: "PUT", headers, body: JSON.stringify(contact) });
@@ -284,7 +298,7 @@ test("結束後關閉瀏覽器：確認取消、付款提醒、解除占用及�
     }
 });
 
-test("舊價格活動可載入，無金額表單仍可保存、模擬及重載", async () => {
+test("舊價格活動可載入，無金額表單仍可保存、摘要及重載", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-gui-currency-"));
     const store = new ActivityStore(join(dir, "events"));
     const record = await store.save({
@@ -312,17 +326,17 @@ test("舊價格活動可載入，無金額表單仍可保存、模擬及重載",
         await page.locator("#step2").waitFor({ state: "visible" });
         assert.equal("currency" in (await store.load(record.id)).settings, false);
 
-        // 無價格也能完成摘要與模擬
+        // 無價格也能完成聯絡資料保存與摘要
         await page.locator("#firstName").fill("Demo");
         await page.locator("#lastName").fill("Test");
         await page.locator("#phone").fill("0912345678");
         await page.locator("#email").fill("demo@example.com");
         await page.getByRole("button", { name: "下一步" }).click();
         await page.locator("#summary").filter({ hasText: "VIP" }).waitFor();
-        await page.evaluate("begin(true)");
-        await page.getByText("模擬完成（未購票）", { exact: true }).waitFor();
-        assert.match(await page.locator("#logs").innerText(), /VIP/);
-        assert.doesNotMatch(await page.locator("#logs").innerText(), /NT\$1699/);
+        assert.match(await page.locator("#summary").innerText(), /VIP/);
+        assert.doesNotMatch(await page.locator("#summary").innerText(), /NT\$1699/);
+        await page.locator("#confirm").check();
+        assert(await page.locator("#start").isEnabled());
 
         // 重載活動無價格欄位，也沒有模組載入錯誤
         await page.reload();

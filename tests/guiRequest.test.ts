@@ -1,4 +1,3 @@
-import { guiUrl } from "./fixtures/guiTestHelpers.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -36,7 +35,7 @@ test("啟動已接受但回應遺失：重載再操作沿用請求，只啟動�
         purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
     });
     const html = await (await fetch(service.url)).text();
-    const token = /const token = "([^"]+)"/.exec(html)![1]!;
+    const token = /<meta name="local-token" content="([^"]+)"/.exec(html)![1]!;
     const waitUntilIdle = async () => {
         const deadline = Date.now() + 10000;
         while (Date.now() < deadline) {
@@ -67,7 +66,7 @@ test("啟動已接受但回應遺失：重載再操作沿用請求，只啟動�
         });
 
         // 第一次送到真正後端後丟棄回應，不能清除待確認請求。
-        await page.goto(guiUrl(service.url));
+        await page.goto(service.url);
         await page.getByText("使用活動", { exact: true }).click();
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
         await page.locator("#confirm").check();
