@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { chromium, type Page } from "playwright";
+import { PurchaseStop } from "../src/core/purchaseStop.js";
 import { prepareStartup } from "../src/platforms/klook/startup.js";
 import { KlookQueueWaiting } from "../src/platforms/klook/queueWaiting.js";
 import { findQueueControl } from "../src/platforms/klook/queueControl.js";
@@ -447,6 +448,108 @@ test("快照讀取中網站 reload：忽略舊文件或導頁讀取錯誤，辨�
                 assert.equal(clicks, 1);
             } finally {
                 interception.mock.restore();
+                await page.close();
+            }
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
+test("動作前重讀遇刷新、階段或倒數變動：本輪不點，下一輪仍可單次入隊", async () => {
+    const browser = await chromium.launch();
+    try {
+        for (const change of ["reload", "countdown", "stage", "navigation-error", "stop"] as const) {
+            const page = await browser.newPage();
+            let clicks = 0;
+            let reads = 0;
+            let polls = 0;
+            await page.exposeFunction("record", () => clicks++);
+            const entry =
+                countdown.replace("00:00:01", "00:00:00") +
+                `<button onclick="window.record();location.href='${eventUrl}'">排隊購票</button>`;
+            await localQueue(page, entry);
+            const evaluate = page.evaluate.bind(page);
+            const sleep = page.waitForTimeout.bind(page);
+
+            // 在動作前的第二次快照讀取插入變動，不攔截控制項判斷。
+            const interception = mock.method(page, "evaluate", async (fn: any, arg: any) => {
+                if (arg !== queueRootSelector || ++reads !== 2) return evaluate(fn, arg);
+                if (change === "countdown") {
+                    await page.locator("#clock").evaluate(el => (el.textContent = "00:00:01"));
+                } else if (change === "stage") {
+                    await page.locator("main").evaluate((el, html) => (el.innerHTML = html), frame + waiting);
+                } else {
+                    const previous = await evaluate(fn, arg);
+                    await page.reload();
+                    if (change === "navigation-error") throw new Error("Execution context was destroyed");
+                    if (change === "stop") throw new PurchaseStop("測試安全停止");
+                    return previous;
+                }
+                return evaluate(fn, arg);
+            });
+            page.waitForTimeout = async ms => {
+                polls++;
+                assert.equal(clicks, 0, "變動當輪不可點擊");
+                await page.locator("main").evaluate((el, html) => (el.innerHTML = html), frame + entry);
+                page.waitForTimeout = sleep;
+                await sleep(ms);
+            };
+
+            // 除明確停止外，下一輪恢復合法入口後應只點一次。
+            try {
+                const run = new KlookQueueWaiting(page, eventUrl, options).handleIfPresent();
+                if (change === "stop") {
+                    await assert.rejects(run, /測試安全停止/);
+                    assert.equal(clicks, 0);
+                    assert.equal(polls, 0);
+                } else {
+                    assert.equal(await run, true);
+                    assert.equal(polls, 1);
+                    assert.equal(clicks, 1);
+                }
+                assert(reads >= 2);
+            } finally {
+                interception.mock.restore();
+                await page.close();
+            }
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
+test("按鈕缺失或停用：提早返回仍輪詢並因未知狀態逾時，零次點擊", async () => {
+    const browser = await chromium.launch();
+    try {
+        for (const button of ["", '<button disabled onclick="window.record()">排隊購票</button>']) {
+            const page = await browser.newPage();
+            let clicks = 0;
+            let polls = 0;
+            let now = Date.now();
+            await page.exposeFunction("record", () => clicks++);
+            // 保留入口文字，確保快照辨識為 countdown，再由控制項搜尋提早返回。
+            const label = button || "<p>排隊購票</p>";
+            await localQueue(page, countdown.replace("00:00:01", "00:00:00") + label);
+            const clock = mock.method(Date, "now", () => now);
+            page.waitForTimeout = async ms => {
+                assert(ms > 0);
+                polls++;
+                now += ms;
+            };
+            try {
+                await assert.rejects(
+                    new KlookQueueWaiting(page, eventUrl, {
+                        ...options,
+                        pageTimeout: 100,
+                        pollInterval: 25,
+                    }).handleIfPresent(),
+                    /排隊頁持續未知/,
+                );
+                assert.equal(polls, 4);
+                assert.equal(clicks, 0);
+            } finally {
+                clock.mock.restore();
                 await page.close();
             }
         }

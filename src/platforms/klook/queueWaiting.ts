@@ -5,7 +5,7 @@ import { reportState } from "../../core/state.js";
 import { isEventPage } from "./eventPage.js";
 import { findQueueControl } from "./queueControl.js";
 import { isQueuePage, readQueueSnapshot } from "./queuePage.js";
-import type { QueueSnapshot } from "./queuePage.js";
+import type { QueueSnapshot, QueueStage } from "./queuePage.js";
 
 export interface QueueWaitingOptions {
     queueEnabled?: boolean;
@@ -13,6 +13,22 @@ export interface QueueWaitingOptions {
     pageTimeout?: number;
     pollInterval?: number;
 }
+
+interface QueueWaitState {
+    documentVersion: number;
+    joinAttempted: boolean;
+    continueAttempted: boolean;
+    pendingUntil?: number;
+    admissionUntil?: number;
+}
+
+interface QueueWaitContext {
+    queueUrl: string;
+    deadline: number;
+    loadTimeout: number;
+}
+
+type QueueActionResult = "clicked" | "wait" | "unknown";
 
 function isNavigationReadError(error: unknown): boolean {
     return (
@@ -55,18 +71,19 @@ export class KlookQueueWaiting {
         const deadline = Date.now() + (this.options.queueTimeout ?? 3_600_000);
         const loadTimeout = this.options.pageTimeout ?? 30_000;
         const queueUrl = page.url();
-        let documentVersion = 0;
+        const context = { queueUrl, deadline, loadTimeout };
+        const state: QueueWaitState = {
+            documentVersion: 0,
+            joinAttempted: false,
+            continueAttempted: false,
+        };
         const onNavigation = () => {
-            documentVersion++;
+            state.documentVersion++;
         };
         page.on("framenavigated", onNavigation);
 
         // 點擊紀錄與順位期限跨網站刷新保留
-        let joinAttempted = false;
-        let continueAttempted = false;
         let joined = false;
-        let pendingUntil: number | undefined;
-        let admissionUntil: number | undefined;
         let unknownSince: number | undefined;
         let lastStage: string | undefined;
 
@@ -78,32 +95,31 @@ export class KlookQueueWaiting {
                 if (!isQueuePage(page.url(), this.eventUrl) || !isEventPage(page.url(), queueUrl)) {
                     throw new PurchaseStop("排隊途中到達非預期頁面，已停止。");
                 }
-                if (pendingUntil !== undefined && Date.now() >= pendingUntil) {
+                if (state.pendingUntil !== undefined && Date.now() >= state.pendingUntil) {
                     throw new PurchaseStop("排隊按鈕點擊結果未確認，已停止；不會重按。");
                 }
-                if (admissionUntil !== undefined && Date.now() >= admissionUntil) {
+                if (state.admissionUntil !== undefined && Date.now() >= state.admissionUntil) {
                     throw new PurchaseStop("順位保留已過期，已停止；不會重新入隊。");
                 }
 
                 // 網站導頁可能銷毀讀取中的文件，只重讀，不重做操作
-                const version = documentVersion;
-                let snapshot: QueueSnapshot = { stage: "unknown" };
-                try {
-                    snapshot = await readQueueSnapshot(page, this.eventUrl);
-                } catch (error) {
-                    if (!isNavigationReadError(error)) throw error;
-                }
-                if (version !== documentVersion) snapshot = { stage: "unknown" };
+                const version = state.documentVersion;
+                const snapshot = await this.readCurrentSnapshot(state, version);
                 let stage = snapshot.stage;
-                if (continueAttempted || ((joinAttempted || joined) && stage === "countdown")) stage = "unknown";
+                if (state.continueAttempted || ((state.joinAttempted || joined) && stage === "countdown")) {
+                    stage = "unknown";
+                }
 
                 // 排隊與放行是入隊完成的證據；不要求觀察到每個百分比
                 if (stage === "waiting" || stage === "admitted") {
                     joined = true;
-                    pendingUntil = undefined;
+                    state.pendingUntil = undefined;
                 }
                 if (stage === "admitted") {
-                    admissionUntil = Math.min(admissionUntil ?? Infinity, Date.now() + snapshot.seconds! * 1000);
+                    state.admissionUntil = Math.min(
+                        state.admissionUntil ?? Infinity,
+                        Date.now() + snapshot.seconds! * 1000,
+                    );
                 }
                 if (stage !== "unknown" && stage !== lastStage) {
                     reportState(stage === "countdown" ? "QUEUE_COUNTDOWN" : "WAITING_IN_QUEUE");
@@ -118,48 +134,8 @@ export class KlookQueueWaiting {
                           ? "排隊購票"
                           : undefined;
                 if (name) {
-                    try {
-                        const control = await findQueueControl(page, name);
-                        if (!control) stage = "unknown";
-                        if (control && version === documentVersion && isEventPage(page.url(), queueUrl)) {
-                            const current = await readQueueSnapshot(page, this.eventUrl);
-                            if (
-                                current.stage === stage &&
-                                version === documentVersion &&
-                                (stage !== "countdown" || current.seconds === 0)
-                            ) {
-                                if (stage === "admitted") {
-                                    admissionUntil = Math.min(admissionUntil!, Date.now() + current.seconds! * 1000);
-                                }
-                                const actionDeadline = Math.min(
-                                    deadline,
-                                    Date.now() + loadTimeout,
-                                    admissionUntil ?? Infinity,
-                                );
-                                if (Date.now() >= actionDeadline) throw new PurchaseStop("排隊操作期限已過，已停止。");
-                                if (name === "排隊購票") joinAttempted = true;
-                                else continueAttempted = true;
-                                pendingUntil = actionDeadline;
-                                log(`嘗試點擊「${name}」一次，等待網站回應。`);
-                                if (continueAttempted) reportState("QUEUE_CONTINUING");
-                                try {
-                                    await control.click({
-                                        timeout: Math.max(1, actionDeadline - Date.now()),
-                                        noWaitAfter: true,
-                                    });
-                                } catch {
-                                    throw new PurchaseStop(`「${name}」點擊結果不明，已停止；不會重按。`);
-                                }
-                            }
-                        }
-                    } catch (error) {
-                        if (
-                            error instanceof PurchaseStop ||
-                            (!isNavigationReadError(error) && version === documentVersion)
-                        )
-                            throw error;
-                        stage = "unknown";
-                    }
+                    const result = await this.tryQueueAction(name, stage, version, context, state);
+                    if (result === "unknown") stage = "unknown";
                 }
 
                 // 未知或重載中的畫面只給短暫寬限，不延長整體期限
@@ -176,6 +152,69 @@ export class KlookQueueWaiting {
             throw new PurchaseStop("排隊已達等待上限，已停止；保留分頁，不自動重新排隊。");
         } finally {
             page.off("framenavigated", onNavigation);
+        }
+    }
+
+    private async readCurrentSnapshot(state: QueueWaitState, version: number): Promise<QueueSnapshot> {
+        try {
+            const snapshot = await readQueueSnapshot(this.page, this.eventUrl);
+            return version === state.documentVersion ? snapshot : { stage: "unknown" };
+        } catch (error) {
+            if (!isNavigationReadError(error)) throw error;
+            return { stage: "unknown" };
+        }
+    }
+
+    private async tryQueueAction(
+        name: "排隊購票" | "繼續預訂",
+        stage: QueueStage,
+        version: number,
+        context: QueueWaitContext,
+        state: QueueWaitState,
+    ): Promise<QueueActionResult> {
+        try {
+            // 找到控制項後，確認仍是本輪讀取的排隊頁
+            const control = await findQueueControl(this.page, name);
+            if (!control) return "unknown";
+            if (version !== state.documentVersion || !isEventPage(this.page.url(), context.queueUrl)) {
+                return "wait";
+            }
+
+            // 點擊前重讀狀態，刷新或倒數變動就留到下一輪
+            const current = await readQueueSnapshot(this.page, this.eventUrl);
+            if (current.stage !== stage || version !== state.documentVersion) return "wait";
+            if (stage === "countdown" && current.seconds !== 0) return "wait";
+
+            // 順位與操作期限只能維持或縮短
+            if (stage === "admitted") {
+                state.admissionUntil = Math.min(state.admissionUntil!, Date.now() + current.seconds! * 1000);
+            }
+            const actionDeadline = Math.min(
+                context.deadline,
+                Date.now() + context.loadTimeout,
+                state.admissionUntil ?? Infinity,
+            );
+            if (Date.now() >= actionDeadline) throw new PurchaseStop("排隊操作期限已過，已停止。");
+
+            // 先記錄嘗試再點擊，結果不明也不會重按
+            if (name === "排隊購票") state.joinAttempted = true;
+            else state.continueAttempted = true;
+            state.pendingUntil = actionDeadline;
+            log(`嘗試點擊「${name}」一次，等待網站回應。`);
+            if (state.continueAttempted) reportState("QUEUE_CONTINUING");
+
+            try {
+                await control.click({ timeout: Math.max(1, actionDeadline - Date.now()), noWaitAfter: true });
+            } catch {
+                throw new PurchaseStop(`「${name}」點擊結果不明，已停止；不會重按。`);
+            }
+            return "clicked";
+        } catch (error) {
+            // 操作中的文件變動可重讀，但明確停止與點擊失敗不可忽略
+            if (error instanceof PurchaseStop || (!isNavigationReadError(error) && version === state.documentVersion)) {
+                throw error;
+            }
+            return "unknown";
         }
     }
 }
