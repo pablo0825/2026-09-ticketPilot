@@ -69,7 +69,11 @@ test("平台首頁不讀 Klook 個資；TicketPlus 無請求，個資損壞可�
         await page.goto(url);
         await page.locator("#selectKlook").waitFor();
         assert.equal(contactReads, 0);
-        assert(await page.getByRole("button", { name: "TicketPlus 尚未支援" }).isDisabled());
+        const ticketPlus = page.getByRole("row").filter({ hasText: "TicketPlus" });
+        assert.match(await ticketPlus.innerText(), /尚未支援/);
+        assert.equal(await ticketPlus.getByRole("button").count(), 0);
+        await eventually(async () => assert.equal(await page.locator("#platformStatus").innerText(), "可使用"));
+        assert.equal(await page.locator("#platformViewRun").count(), 0);
         await page.setViewportSize({ width: 1280, height: 900 });
         await page.screenshot({ path: "/tmp/ticket-platform-home-desktop.png", fullPage: true });
         await page.setViewportSize({ width: 390, height: 844 });
@@ -242,12 +246,13 @@ test("舊未知請求跨首頁導航保留，不保存、不建立新請求", as
     });
 });
 
-test("返回平台首頁後購票解除占用及模擬完成，兩種結果仍可分別查看", async () => {
+test("平台列隨流程更新，僅進行中或待人工確認可查看；導航不發送購票請求", async () => {
     await fixture(async (page, url) => {
+        // 初始購票與後續狀態由串流送達，確認按鈕位於 Klook 列
         const purchase = {
             id: "purchase",
             requestId: randomUUID(),
-            activityName: "已停止活動",
+            activityName: "狀態測試",
             status: "running",
             occupied: true,
             browserOpen: true,
@@ -257,23 +262,67 @@ test("返回平台首頁後購票解除占用及模擬完成，兩種結果仍�
         };
         const purchaseFeed = await snapshotFeed(page, "/api/purchase/events", purchase);
         const simulationFeed = await snapshotFeed(page, "/api/events");
+        let writes = 0;
+        page.on("request", request => {
+            if (["PUT", "POST", "DELETE"].includes(request.method())) writes++;
+        });
         await page.goto(url);
-        await page.locator("#platformViewRun").click();
-        await page.locator("#platformHomeButton").click();
-        purchaseFeed.publish({ ...purchase, status: "failed", occupied: false, browserOpen: false, message: "已停止" });
-        await page.locator("#platformPurchaseResult").click();
-        assert.match(await page.locator("main").innerText(), /購票已停止/);
-        await page.locator("#platformHomeButton").click();
+        const row = page.getByRole("row").filter({ hasText: "Klook" });
+        await row.getByRole("button", { name: "查看狀態" }).waitFor();
+        await eventually(async () => assert.equal(await page.locator("#platformStatus").innerText(), "購票進行中"));
 
+        await page.setViewportSize({ width: 390, height: 844 });
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+        await page.screenshot({ path: "/tmp/ticket-platform-home-active-mobile.png", fullPage: true });
+
+        // 等待開賣與瀏覽器占用都可查看，返回不會中斷訂閱
+        purchaseFeed.publish({
+            ...purchase,
+            events: [{ at: new Date().toISOString(), event: { type: "state", state: "WAITING_FOR_SALE" } }],
+        });
+        await eventually(async () => assert.equal(await page.locator("#platformStatus").innerText(), "等待開賣"));
+        await page.locator("#platformViewRun").click();
+        await eventually(async () => assert.equal(await page.locator("#status").innerText(), "等待開賣"));
+        await page.locator("#platformHomeButton").click();
+        purchaseFeed.publish({ ...purchase, status: "payment-ready" });
+        await eventually(async () => assert.equal(await page.locator("#platformStatus").innerText(), "瀏覽器仍開啟"));
+
+        // 正常終態及一般失敗不當作待確認，也不提供歷史結果入口
+        for (const status of ["payment-ready", "failed"]) {
+            purchaseFeed.publish({ ...purchase, status, occupied: false, browserOpen: false });
+            await eventually(async () => assert.equal(await page.locator("#platformStatus").innerText(), "可使用"));
+            assert.equal(await page.locator("#platformViewRun").count(), 0);
+            assert.equal(await page.getByRole("button", { name: /最近.*結果/ }).count(), 0);
+        }
+
+        // 即使已解除占用，不確定結果仍可查看對應原因
+        for (const status of ["unknown", "interrupted"]) {
+            purchaseFeed.publish({ ...purchase, status, occupied: false, browserOpen: false });
+            await eventually(async () =>
+                assert.equal(await page.locator("#platformStatus").innerText(), "需要人工確認"),
+            );
+            await page.locator("#platformViewRun").click();
+            await eventually(async () =>
+                assert.match(
+                    await page.locator("#instruction").innerText(),
+                    status === "unknown" ? /提交結果尚未確認/ : /程序異常中斷/,
+                ),
+            );
+            await page.locator("#platformHomeButton").click();
+        }
+
+        // 進行中的模擬優先於歷史異常，完成後不顯示模擬結果
         const simulation = { id: "simulation", status: "running", events: [], historyTruncated: false };
         simulationFeed.publish(simulation);
+        await eventually(async () => assert.equal(await page.locator("#platformStatus").innerText(), "模擬執行中"));
         await page.locator("#platformViewRun").click();
+        assert.equal(await page.locator("#status").innerText(), "模擬執行中");
         await page.locator("#platformHomeButton").click();
+        purchaseFeed.publish({ ...purchase, status: "failed", occupied: false, browserOpen: false });
         simulationFeed.publish({ ...simulation, status: "completed" });
-        await page.locator("#platformSimulationResult").click();
-        assert.match(await page.locator("main").innerText(), /模擬完成/);
-        await page.locator("#platformHomeButton").click();
-        await page.locator("#platformPurchaseResult").click();
-        assert.match(await page.locator("main").innerText(), /購票已停止/);
+        await eventually(async () => assert.equal(await page.locator("#platformStatus").innerText(), "可使用"));
+        assert.equal(await page.locator("#platformViewRun").count(), 0);
+        assert.equal(await page.getByRole("button", { name: /最近.*結果/ }).count(), 0);
+        assert.equal(writes, 0);
     });
 });

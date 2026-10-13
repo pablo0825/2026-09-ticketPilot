@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { KlookWorkspace } from "./platforms/klook/KlookWorkspace.js";
 import { PlatformHome } from "./pages/PlatformHome.js";
+import { platformRunStatus } from "./shared/runs/runPresentation.js";
 import { RunStatus } from "./shared/runs/RunStatus.js";
 import { useRunStatus } from "./shared/runs/useRunStatus.js";
 
@@ -9,7 +10,7 @@ export function App() {
     const [message, setMessage] = useState("");
     const [page, setPage] = useState<"platforms" | "klook" | "run">("platforms");
     const runs = useRunStatus(setMessage);
-    const hasActiveRun = runs.purchase?.occupied === true || runs.simulation?.status === "running";
+    const platformStatus = platformRunStatus(runs.purchase, runs.simulation);
 
     function showPlatforms() {
         setMessage("");
@@ -33,19 +34,15 @@ export function App() {
             {page === "platforms" && (
                 <PlatformHome
                     disabled={!runs.ready || runs.closing}
-                    hasActiveRun={hasActiveRun}
-                    hasPurchaseResult={Boolean(runs.purchase)}
-                    hasSimulationResult={Boolean(runs.simulation)}
-                    onViewResult={kind => {
-                        runs.showResult(kind);
-                        setPage("run");
-                    }}
+                    status={runs.ready ? platformStatus.label : "載入中…"}
+                    canViewRun={platformStatus.kind !== null}
                     onKlook={() => {
                         setMessage("");
                         setPage("klook");
                     }}
                     onViewRun={() => {
-                        runs.showCurrent();
+                        if (!platformStatus.kind) return;
+                        runs.showResult(platformStatus.kind);
                         setPage("run");
                     }}
                 />

@@ -318,17 +318,53 @@ th {
     cursor: not-allowed;
 }
 
-.platform-options {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
-    margin: 20px 0;
+.platform-table {
+    table-layout: fixed;
 }
-.platform-option {
-    border: 1px solid #e1e7ed;
-    border-radius: 8px;
-    padding: 20px;
-    background: #f7f9fb;
+.platform-table th:first-child {
+    width: 25%;
+}
+.platform-table th:last-child {
+    width: 42%;
+}
+.platform-table tbody th {
+    color: #243746;
+    font-size: inherit;
+    overflow-wrap: anywhere;
+}
+.platform-table td:last-child {
+    white-space: normal;
+    text-align: right;
+}
+.platform-table thead th:last-child {
+    text-align: right;
+}
+.platform-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.platform-actions button + button {
+    margin-left: 0;
+}
+@media (max-width: 760px) {
+    .platform-table th,
+    .platform-table td {
+        padding: 12px 4px;
+    }
+    .platform-table th:first-child {
+        width: 30%;
+    }
+    .platform-table th:last-child {
+        width: 36%;
+    }
+    .platform-table tbody th {
+        font-size: 14px;
+    }
+    .platform-actions button {
+        padding: 10px 8px;
+    }
 }
 #platformHomeButton {
     margin-right: 8px;
