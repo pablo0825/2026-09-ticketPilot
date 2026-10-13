@@ -6,7 +6,7 @@ import { api } from "../../shared/api.js";
 import type { ApiError } from "../../shared/api.js";
 
 interface PendingRequest {
-    version: 2;
+    version: 4;
     requestId: string;
     activityId: string;
     signature: string;
@@ -23,8 +23,9 @@ export async function startPurchase(
     const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify({ activity, contact })));
     const signature = [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2, "0")).join("");
     let pending = JSON.parse(sessionStorage.getItem(key) || "null") as PendingRequest | null;
-    if (pending && pending.version !== 2)
+    if (pending && pending.version !== 4) {
         throw new Error("舊版開始請求結果尚待確認，請檢查目前流程與訂單；不會自動重新開始。");
+    }
     if (pending && (pending.activityId !== record.id || pending.signature !== signature)) {
         throw new Error("上一筆開始請求結果尚待確認，不能更換設定或再次保存；請查看目前狀態。");
     }
@@ -34,7 +35,7 @@ export async function startPurchase(
         if (JSON.stringify(activity) !== JSON.stringify(record.settings)) {
             onSaved(await api<ActivityRecord>("/api/activities/" + record.id, "PUT", activity, record.updatedAt));
         }
-        pending = { version: 2, requestId: crypto.randomUUID(), activityId: record.id, signature };
+        pending = { version: 4, requestId: crypto.randomUUID(), activityId: record.id, signature };
         sessionStorage.setItem(key, JSON.stringify(pending));
     }
 

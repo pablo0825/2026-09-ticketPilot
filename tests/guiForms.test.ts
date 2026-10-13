@@ -212,6 +212,7 @@ test("結束後關閉瀏覽器：確認取消、付款提醒、解除占用及�
         for (const eventName of ["HOLD_PAYMENT", "HOLD_FAILED", "HOLD_UNKNOWN"]) {
             const activity = await store.save({
                 eventName,
+                platform: "klook",
                 eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
                 fallbackMode: "STRICT",
                 excludeKeywords: [],
@@ -303,6 +304,7 @@ test("舊價格活動可載入，無金額表單仍可保存、摘要及重載",
     const store = new ActivityStore(join(dir, "events"));
     const record = await store.save({
         eventName: "港幣測試",
+        platform: "klook",
         eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
         fallbackMode: "STRICT",
         excludeKeywords: [],

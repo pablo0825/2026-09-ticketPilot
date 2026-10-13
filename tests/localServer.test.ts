@@ -9,6 +9,7 @@ import { ActivityStore } from "../src/config/activityStore.js";
 import { startLocalServer } from "../src/local/server.js";
 
 const activity = {
+    platform: "klook",
     eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
     eventName: "測試活動",
     fallbackMode: "STRICT",

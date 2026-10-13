@@ -26,6 +26,7 @@ test("React：新 POST 早於 SSE 時立即占用；SSE 先到時晚回應不倒
     const store = new ActivityStore(join(directory, "events"));
     await store.save({
         eventName: "新活動",
+        platform: "klook",
         eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
         fallbackMode: "STRICT",
         excludeKeywords: [],

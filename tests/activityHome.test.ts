@@ -9,6 +9,7 @@ import { startLocalServer } from "../src/local/server.js";
 import { acquirePurchaseLease, releasePurchaseLease } from "../src/app/purchaseLock.js";
 const settings = {
     eventName: "同名活動",
+    platform: "klook",
     eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
     fallbackMode: "STRICT",
     excludeKeywords: [],

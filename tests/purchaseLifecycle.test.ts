@@ -20,6 +20,7 @@ const contact = {
     email: "fixture@example.com",
 };
 const activity = {
+    platform: "klook",
     eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
     eventName: "Fixture",
     fallbackMode: "STRICT",
@@ -265,64 +266,67 @@ test("活動狀態：同名分離、實際內容比較、等待切換與重新�
     }
 });
 
-test("舊價格指紋與事件可讀；同一舊請求不得重新啟動", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "ticket-legacy-currency-"));
-    const store = new ActivityStore(join(dir, "events"));
-    try {
-        // 建立更新前的持久化格式，不能用新雜湊函式製作測試資料
-        const record = await store.save(activity);
-        const requestId = randomUUID();
-        const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
-        const legacy = {
-            fingerprint: hash({ activity, contact }),
-            activity: { id: record.id, settingsHash: hash(activity) },
-            snapshot: {
-                id: `1-${requestId}`,
-                requestId,
-                activityName: activity.eventName,
-                status: "failed",
-                browserOpen: false,
-                occupied: false,
-                message: "已停止",
-                historyTruncated: false,
-                events: [
-                    {
-                        sequence: 1,
-                        at: new Date().toISOString(),
-                        event: {
-                            type: "target",
-                            index: 1,
-                            total: 1,
-                            area: "B區",
-                            quantity: 1,
-                            date: "2026-11-02",
-                            time: "19:30",
-                            totalPrice: 5280,
+for (const version of [undefined, 2, 3]) {
+    test(`舊指紋 ${version ?? "無版本"} 與事件可讀；同一舊請求不得重新啟動`, async () => {
+        const dir = await mkdtemp(join(tmpdir(), "ticket-legacy-currency-"));
+        const store = new ActivityStore(join(dir, "events"));
+        try {
+            // 建立更新前的持久化格式，不能用新雜湊函式製作測試資料
+            const record = await store.save(activity);
+            const requestId = randomUUID();
+            const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+            const legacy = {
+                ...(version === undefined ? {} : { fingerprintVersion: version }),
+                fingerprint: hash({ activity, contact }),
+                activity: { id: record.id, settingsHash: hash(activity) },
+                snapshot: {
+                    id: `1-${requestId}`,
+                    requestId,
+                    activityName: activity.eventName,
+                    status: "failed",
+                    browserOpen: false,
+                    occupied: false,
+                    message: "已停止",
+                    historyTruncated: false,
+                    events: [
+                        {
+                            sequence: 1,
+                            at: new Date().toISOString(),
+                            event: {
+                                type: "target",
+                                index: 1,
+                                total: 1,
+                                area: "B區",
+                                quantity: 1,
+                                date: "2026-11-02",
+                                time: "19:30",
+                                totalPrice: 5280,
+                            },
                         },
-                    },
-                ],
-            },
-        };
-        await mkdir(join(dir, "runs"));
-        await writeFile(join(dir, "runs", `${requestId}.json`), JSON.stringify(legacy));
+                    ],
+                },
+            };
+            await mkdir(join(dir, "runs"));
+            await writeFile(join(dir, "runs", `${requestId}.json`), JSON.stringify(legacy));
 
-        // 舊指紋不能安全轉換，保留紀錄並拒絕重新啟動
-        const runs = new PurchaseRuns(dir, worker);
-        assert.equal(runs.activityStatus(record), "舊版執行紀錄");
-        assert.throws(() => runs.start(requestId, activity, contact, record.id), /舊版開始請求/);
-        assert.throws(
-            () => runs.start(requestId, { ...activity, currency: "TWD" }, contact, record.id),
-            /舊版開始請求/,
-        );
-        const event = runs.snapshot()!.events[0]!.event;
-        assert.equal(event.type === "target" && event.quantity, 1);
+            // 舊指紋不能安全轉換，保留紀錄並拒絕重新啟動
+            const runs = new PurchaseRuns(dir, worker);
+            assert.equal(runs.activityStatus(record), "舊版執行紀錄");
+            assert.throws(() => runs.start(requestId, activity, contact, record.id), /舊版開始請求/);
+            assert.throws(
+                () => runs.start(requestId, { ...activity, currency: "TWD" }, contact, record.id),
+                /舊版開始請求/,
+            );
+            const event = runs.snapshot()!.events[0]!.event;
+            assert.equal(event.type === "target" && event.quantity, 1);
 
-        // 舊金額值改變也不能重啟舊請求
-        const hk = await store.save({ ...activity, currency: "HKD" }, record.id);
-        assert.equal(runs.activityStatus(hk), "舊版執行紀錄");
-        assert.throws(() => runs.start(requestId, hk.settings, contact, record.id), /舊版開始請求/);
-        assert.equal(runs.busy(), false);
-    } finally {
-        await rm(dir, { recursive: true, force: true });
-    }
-});
+            // 舊金額值改變也不能重啟舊請求
+            const hk = await store.save({ ...activity, currency: "HKD" }, record.id);
+            assert.equal(runs.activityStatus(hk), "舊版執行紀錄");
+            assert.throws(() => runs.start(requestId, hk.settings, contact, record.id), /舊版開始請求/);
+            assert.equal(runs.busy(), false);
+        } finally {
+            await rm(dir, { recursive: true, force: true });
+        }
+    });
+}

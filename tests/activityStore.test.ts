@@ -7,6 +7,7 @@ import { ActivityStore, parseActivity, toPurchaseConfig } from "../src/config/ac
 import { saveContactDetails } from "../src/config/contact.config.js";
 
 export const activity = {
+    platform: "klook",
     eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
     eventName: "測試活動",
     fallbackMode: "STRICT",

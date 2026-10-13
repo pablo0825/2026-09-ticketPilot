@@ -9,6 +9,7 @@ import { normalizePurchaseConfig } from "../src/core/purchaseValidation.js";
 import { startLocalServer } from "../src/local/server.js";
 
 const settings = {
+    platform: "klook",
     eventUrl: "https://www.klook.com/zh-TW/event-detail/102001116-fixture/",
     eventName: "排隊設定測試",
     fallbackMode: "STRICT",

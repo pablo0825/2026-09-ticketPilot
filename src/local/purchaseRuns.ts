@@ -27,7 +27,7 @@ export interface PurchaseSnapshot {
 interface Record {
     snapshot: PurchaseSnapshot;
     fingerprint: string;
-    fingerprintVersion?: 2;
+    fingerprintVersion?: 2 | 3 | 4;
     activity?: { id: string; settingsHash: string };
 }
 
@@ -89,7 +89,7 @@ export class PurchaseRuns {
             const record = JSON.parse(readFileSync(this.file(id), "utf8")) as Record;
             const valid = z
                 .object({
-                    fingerprintVersion: z.literal(2).optional(),
+                    fingerprintVersion: z.union([z.literal(2), z.literal(3), z.literal(4)]).optional(),
                     fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
                     activity: z
                         .object({ id: z.string().uuid(), settingsHash: z.string().regex(/^[0-9a-f]{64}$/) })
@@ -204,7 +204,7 @@ export class PurchaseRuns {
             return state?.type === "state" && state.state === "WAITING_FOR_SALE" ? "等待開賣" : "執行中";
         }
 
-        if (record.fingerprintVersion !== 2) return "舊版執行紀錄";
+        if (record.fingerprintVersion !== 4) return "舊版執行紀錄";
         return record.activity.settingsHash === settingsHash(activity.settings) ? "已執行" : "設定已更新";
     }
 
@@ -233,7 +233,7 @@ export class PurchaseRuns {
         // 取得占用並建立執行紀錄
         const lease = acquirePurchaseLease(this.root);
         const record: Record = {
-            fingerprintVersion: 2,
+            fingerprintVersion: 4,
             fingerprint,
             ...(activityId ? { activity: { id: activityId, settingsHash: settingsHash(activity) } } : {}),
             snapshot: {
@@ -284,7 +284,7 @@ export class PurchaseRuns {
         const previous = this.read(requestId);
         if (!previous) return undefined;
 
-        if (previous.fingerprintVersion !== 2) {
+        if (previous.fingerprintVersion !== 4) {
             throw new Error("舊版開始請求結果需人工確認，請檢查原流程與訂單；不會重新啟動。");
         }
         if (previous.activity && previous.activity.id !== activityId) throw new Error("同一開始請求不能更換活動。");

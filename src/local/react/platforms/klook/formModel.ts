@@ -12,6 +12,7 @@ export interface TargetDraft {
 }
 
 export interface ActivityForm {
+    platform: "klook";
     eventName: string;
     eventUrl: string;
     exclude: string;
@@ -44,6 +45,7 @@ export function activityForm(settings?: ActivitySettings): ActivityForm {
 
     // 開賣欄位使用台灣時間文字，避免作業系統時區轉換
     return {
+        platform: settings?.platform ?? "klook",
         eventName: settings?.eventName ?? "",
         eventUrl: settings?.eventUrl ?? "",
         exclude: settings?.excludeKeywords.join(",") ?? "愛心席,身障,視線不良",
@@ -60,6 +62,7 @@ export function activityForm(settings?: ActivitySettings): ActivityForm {
 export function activityInput(form: ActivityForm, includeSchedule = true): ActivityDraft {
     // 明列儲存欄位及顺序，不把畫面識別碼送到後端
     const settings: ActivityDraft = {
+        platform: form.platform,
         eventUrl: form.eventUrl.trim(),
         eventName: form.eventName.trim(),
         fallbackMode: "STRICT",

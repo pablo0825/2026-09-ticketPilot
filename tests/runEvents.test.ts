@@ -52,6 +52,7 @@ test("關閉模擬服務會停止子程序並標記中斷，不會自動續跑",
     const { randomUUID } = await import("node:crypto");
     const runs = new SimulationRuns();
     const activity = {
+        platform: "klook",
         eventUrl: "https://www.klook.com/zh-TW/event-detail/test/",
         eventName: "中斷測試",
         fallbackMode: "STRICT",

@@ -13,6 +13,7 @@ test("啟動已接受但回應遺失：重載再操作沿用請求，只啟動�
     const directory = await mkdtemp(join(tmpdir(), "ticket-request-"));
     const store = new ActivityStore(join(directory, "events"));
     await store.save({
+        platform: "klook",
         eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
         eventName: "回應遺失測試",
         fallbackMode: "STRICT",

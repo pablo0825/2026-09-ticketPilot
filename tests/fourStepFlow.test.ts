@@ -10,6 +10,7 @@ import { saveContactDetails } from "../src/config/contact.config.js";
 import { startLocalServer } from "../src/local/server.js";
 const settings = {
     eventName: "Fixture",
+    platform: "klook",
     eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
     fallbackMode: "STRICT",
     excludeKeywords: [],
@@ -315,26 +316,32 @@ test("摘要：欄位表格、完整連結、空白草稿及窄螢幕", async ()
         assert.match(await page.locator("#summary").innerText(), /javascript:alert\(1\)/);
     }));
 
-test("舊版未決請求不因移除價格而清除或產生新購票", async () =>
-    fixture(async (page, _store, id) => {
-        let starts = 0;
-        page.on("request", request => {
-            if (request.method() === "POST" && new URL(request.url()).pathname === "/api/purchase") starts++;
-        });
-        const pending = JSON.stringify({
-            requestId: "11111111-1111-4111-8111-111111111111",
-            activityId: id,
-            signature: "old-price-hash",
-        });
-        await page.evaluate(value => sessionStorage.setItem("ticketpilot-purchase-request", value), pending);
-        await page.locator("#confirm").check();
-        await page.locator("#start").click();
-        await page.locator("#message").filter({ hasText: "舊版開始請求結果尚待確認" }).waitFor();
-        assert.equal(starts, 0);
-        assert.equal(await page.evaluate(() => sessionStorage.getItem("ticketpilot-purchase-request")), pending);
-        await page.reload();
-        assert.equal(await page.evaluate(() => sessionStorage.getItem("ticketpilot-purchase-request")), pending);
-    }));
+for (const version of [undefined, 2, 3]) {
+    test(`舊版未決請求 ${version ?? "無版本"} 不因平台升版而清除或重送`, async () =>
+        fixture(async (page, _store, id) => {
+            let starts = 0;
+            let saves = 0;
+            page.on("request", request => {
+                if (request.method() === "PUT") saves++;
+                if (request.method() === "POST" && new URL(request.url()).pathname === "/api/purchase") starts++;
+            });
+            const pending = JSON.stringify({
+                ...(version === undefined ? {} : { version }),
+                requestId: "11111111-1111-4111-8111-111111111111",
+                activityId: id,
+                signature: "old-price-hash",
+            });
+            await page.evaluate(value => sessionStorage.setItem("ticketpilot-purchase-request", value), pending);
+            await page.locator("#confirm").check();
+            await page.locator("#start").click();
+            await page.locator("#message").filter({ hasText: "舊版開始請求結果尚待確認" }).waitFor();
+            assert.equal(starts, 0);
+            assert.equal(saves, 0);
+            assert.equal(await page.evaluate(() => sessionStorage.getItem("ticketpilot-purchase-request")), pending);
+            await page.reload();
+            assert.equal(await page.evaluate(() => sessionStorage.getItem("ticketpilot-purchase-request")), pending);
+        }));
+}
 
 test("順位複製：插入來源下方、保留草稿且獨立編輯，儲存後順序不變", async () =>
     fixture(async (page, store, id) => {
