@@ -12,7 +12,8 @@
     "format:check": "prettier --check .",
     "build:gui": "tsc -p tsconfig.browser.json && vite build",
     "pretest": "npm run build:gui",
-    "pregui": "npm run build:gui"
+    "pregui": "npm run build:gui",
+    "test:gui:react": "npm run build:gui && TICKET_GUI_PREVIEW=1 node --import tsx --test tests/reactAsset.test.ts tests/reactRunOrdering.test.ts tests/activityHome.test.ts tests/queueSettings.test.ts tests/guiRequest.test.ts tests/fourStepFlow.test.ts"
   },
   "keywords": [],
   "author": "",

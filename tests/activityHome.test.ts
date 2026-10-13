@@ -1,3 +1,4 @@
+import { guiUrl } from "./fixtures/guiTestHelpers.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -33,7 +34,7 @@ test("首頁場次摘要、未存離開、同名刪除及API占用與並發保�
     const browser = await chromium.launch();
     try {
         const page = await browser.newPage();
-        await page.goto(service.url);
+        await page.goto(guiUrl(service.url));
         await page.locator("#activities tr").nth(1).waitFor();
         await page.screenshot({ path: "/tmp/activity-home.png", fullPage: true });
         assert.equal(await page.locator("#activities tr").filter({ hasText: "2026-11-02" }).count(), 1);

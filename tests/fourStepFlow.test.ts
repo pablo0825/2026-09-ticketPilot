@@ -1,3 +1,4 @@
+import { guiUrl, snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -21,7 +22,16 @@ const contact = {
     phone: "0912345678",
     email: "fixture@example.com",
 };
-async function fixture(action: (page: Page, store: ActivityStore, id: string, url: string) => Promise<void>) {
+async function fixture(
+    action: (
+        page: Page,
+        store: ActivityStore,
+        id: string,
+        url: string,
+        feed: Awaited<ReturnType<typeof snapshotFeed>> | null,
+    ) => Promise<void>,
+    controlledFeed = false,
+) {
     const dir = await mkdtemp(join(tmpdir(), "ticket-four-"));
     const store = new ActivityStore(join(dir, "events"));
     const record = await store.save(settings);
@@ -34,11 +44,12 @@ async function fixture(action: (page: Page, store: ActivityStore, id: string, ur
     const browser = await chromium.launch();
     try {
         const page = await browser.newPage();
-        await page.goto(service.url);
+        const feed = controlledFeed ? await snapshotFeed(page, "/api/purchase/events") : null;
+        await page.goto(guiUrl(service.url));
         await page.locator("#activities").getByText("使用活動").click();
         await page.locator("#step1").waitFor();
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
-        await action(page, store, record.id, service.url);
+        await action(page, store, record.id, service.url, feed);
     } finally {
         await browser.close();
         await service.close();
@@ -59,7 +70,8 @@ function result(id: string) {
 }
 
 test("四步：時間草稿、延遲保存鎖定、一次啟動與run隔離", async () =>
-    fixture(async (page, store, id) => {
+    fixture(async (page, store, id, _url, controlled) => {
+        const feed = controlled!;
         await page.locator("#mode").selectOption("scheduled");
         await page.locator("#saleAt").fill("2027-01-01T10:00");
         await page.locator("#confirm").check();
@@ -99,15 +111,25 @@ test("四步：時間草稿、延遲保存鎖定、一次啟動與run隔離", as
         assert.equal(starts.length, 1);
         await page.screenshot({ path: "/tmp/ticket-four-status.png", fullPage: true });
         assert.deepEqual(starts[0].expectedActivity, (await store.load(id)).settings);
-        await page.evaluate("render({id:'old',status:'failed',occupied:false,events:[],activityName:'Old'})");
+        assert.deepEqual(starts[0].expectedActivity.saleSchedule, {
+            saleAt: "2027-01-01T10:00:00+08:00",
+            advanceSeconds: 2,
+        });
+        feed.publish({ ...result("old"), status: "failed", occupied: true });
+        await eventually(async () => assert.match((await page.locator("#homeRun").textContent()) ?? "", /仍占用中/));
         assert.match(await page.locator("#logs").innerText(), /Fixture/);
+        feed.publish({ ...result("old"), status: "failed", occupied: false });
+        await eventually(async () => assert.equal(await page.locator("#homeRun").textContent(), ""));
         await page.locator("#homeButton").click();
         await page.locator("#activities").getByText("使用活動").click();
         await page.locator("#step1").waitFor();
         await page.getByRole("button", { name: "④ 執行狀態" }).click();
         assert.equal(await page.locator("#status").innerText(), "尚未執行");
-        await page.evaluate("render({id:'old',status:'failed',occupied:false,events:[],activityName:'Old'})");
+        feed.publish({ ...result("old"), status: "failed", occupied: true });
+        await eventually(async () => assert.match((await page.locator("#homeRun").textContent()) ?? "", /仍占用中/));
         assert.equal(await page.locator("#status").innerText(), "尚未執行");
+        feed.publish({ ...result("old"), occupied: false });
+        await eventually(async () => assert.equal(await page.locator("#homeRun").textContent(), ""));
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
         await page.locator("#mode").selectOption("now");
         await page.locator("#confirm").check();
@@ -116,7 +138,7 @@ test("四步：時間草稿、延遲保存鎖定、一次啟動與run隔離", as
         assert.equal(starts.length, 2);
         assert.equal(starts[1].expectedActivity.saleSchedule, undefined);
         assert.equal((await store.load(id)).settings.saleSchedule, undefined);
-    }));
+    }, true));
 
 test("四步：保存拒絕留第三步；未知請求不能改時間再保存", async () =>
     fixture(async (page, store, id) => {

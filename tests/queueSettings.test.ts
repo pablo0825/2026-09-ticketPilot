@@ -1,3 +1,4 @@
+import { guiUrl } from "./fixtures/guiTestHelpers.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -50,22 +51,22 @@ test("GUI 每活動保存勾選、摘要顯示、重開與新增不沿用其他�
     const browser = await chromium.launch();
     try {
         const page = await browser.newPage();
-        await page.goto(service.url);
+        await page.goto(guiUrl(service.url));
         await page.locator("#activities tr").filter({ hasText: settings.eventName }).getByText("使用活動").click();
         await page.locator("#step1").waitFor({ state: "visible" });
         assert.equal(await page.locator("#queueEnabled").isChecked(), false);
         await page.locator("#queueEnabled").check();
-        assert.equal(await page.evaluate("activityNeedsSave()"), true);
+        assert.equal((await store.load(original.id)).settings.queueEnabled, undefined);
         await page.locator("#saveActivity").click();
-        await page.waitForFunction(() => !(window as any).activityNeedsSave());
+        await page.locator("#step2").waitFor();
         assert.equal((await store.load(original.id)).settings.queueEnabled, true);
-        await page.evaluate("summary()");
+        await page.getByRole("button", { name: "③ 確認與開始" }).click();
         assert.match((await page.locator("#summary").textContent()) ?? "", /排隊流程.*已啟用/);
         await page.reload();
         await page.locator("#activities tr").filter({ hasText: settings.eventName }).getByText("使用活動").click();
         await page.locator("#step1").waitFor({ state: "visible" });
         assert.equal(await page.locator("#queueEnabled").isChecked(), true);
-        assert.equal(await page.evaluate("activityNeedsSave()"), false);
+        assert.equal((await store.load(original.id)).settings.queueEnabled, true);
         await page.locator("#homeButton").click();
         await page.locator("#activities tr").filter({ hasText: "另一場活動" }).getByText("使用活動").click();
         await page.locator("#step1").waitFor({ state: "visible" });

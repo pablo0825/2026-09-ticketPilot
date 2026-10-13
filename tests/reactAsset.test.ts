@@ -19,7 +19,8 @@ test("React 正式打包由本機同源載入，保留 API 驗證與資源邊界
         const errors: string[] = [];
         page.on("pageerror", error => errors.push(error.message));
         const response = await page.goto(service.url + "/react");
-        await page.getByRole("status").filter({ hasText: "本機連線正常" }).waitFor();
+        await page.locator("#new").click();
+        await page.locator("#step1").waitFor();
         assert.match(response!.headers()["content-security-policy"]!, /frame-ancestors 'none'/);
         assert.equal(response!.headers()["cache-control"], "no-store");
         assert.equal(await page.locator("h1").evaluate(el => getComputedStyle(el).fontSize), "32px");
