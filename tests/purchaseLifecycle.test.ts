@@ -83,6 +83,11 @@ test("付款結果不等於可重啟；相同請求與服務重開不重複執�
     try {
         const first = runs.start(id, activity, contact);
         assert.equal(runs.start(id, activity, contact).id, first.id);
+
+        // 同一請求換聯絡資料或張數重送，必須拒絕，不能當成原結果。
+        assert.throws(() => runs.start(id, activity, { ...contact, phone: "0987654321" }), /更換設定/);
+        const changedQuantity = { ...activity, targets: [{ ...activity.targets[0]!, quantity: 2 }] };
+        assert.throws(() => runs.start(id, changedQuantity, contact), /更換設定/);
         await until(() => runs.snapshot()?.status === "payment-ready");
         assert(runs.busy());
         assert.throws(() => runs.start(randomUUID(), activity, contact), /占用/);
@@ -129,8 +134,14 @@ test("程序異常保留占用、重啟不續購；錯設定不拿占用", async
 test("關閉只接受目前已結束的自有瀏覽器，重複請求不重啟", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-close-"));
     const runs = new PurchaseRuns(dir, worker);
+    const outcomes = {
+        HOLD_PAYMENT: "payment-ready",
+        HOLD_FAILED: "failed",
+        HOLD_UNKNOWN: "unknown",
+        HOLD_ERROR: "payment-ready",
+    } as const;
     try {
-        for (const name of ["HOLD_PAYMENT", "HOLD_FAILED", "HOLD_UNKNOWN", "HOLD_ERROR"]) {
+        for (const name of ["HOLD_PAYMENT", "HOLD_FAILED", "HOLD_UNKNOWN", "HOLD_ERROR"] as const) {
             const requestId = randomUUID();
             const data = { ...activity, eventName: name };
             const first = runs.start(requestId, data, contact);
@@ -140,6 +151,12 @@ test("關閉只接受目前已結束的自有瀏覽器，重複請求不重啟",
             await assert.rejects(runs.closeBrowser("old-run"), /已變更/);
             const restored = new PurchaseRuns(dir, worker);
             assert.equal(restored.snapshot()?.canCloseBrowser, false);
+
+            // 子程序回報的結果、事件與瀏覽器狀態都已寫入檔案，服務重開後仍讀得到。
+            assert.equal(restored.snapshot()?.id, first.id);
+            assert.equal(restored.snapshot()?.status, outcomes[name]);
+            assert.equal(restored.snapshot()?.events.length, 2);
+            assert.equal(restored.snapshot()?.browserOpen, true);
             await assert.rejects(restored.closeBrowser(first.id), /無法控制/);
             restored.close();
             const status = runs.snapshot()!.status;
