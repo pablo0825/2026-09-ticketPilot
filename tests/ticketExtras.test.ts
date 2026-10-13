@@ -185,3 +185,75 @@ test("點選後未選中會逾時停止，只點一次且不繼續選取票方�
         await page.close();
     }
 });
+
+test("取票群組不存在可略過，仍選取套票並通過最終檢查", async () => {
+    const page = await browser.newPage();
+    try {
+        await page.setContent(fixture());
+        await page
+            .locator(".skuGroup-hk2pfU")
+            .nth(1)
+            .evaluate(el => el.remove());
+        const extras = new KlookTicketExtras(page, target, options, 200, async () => {});
+        await extras.select();
+        await extras.verify();
+        assert.equal(await page.locator("body").getAttribute("data-clicks"), "1");
+        assert.equal(await page.locator(".active-vB3nra").innerText(), "演唱會套票1：門票＋eSIM");
+    } finally {
+        await page.close();
+    }
+});
+
+test("取票群組存在時仍拒絕缺設定、錯誤選項、重複或停用", async () => {
+    const page = await browser.newPage();
+    try {
+        for (const [delivery, reason] of [
+            [group("取票方式", ["郵寄"]), /找不到唯一符合的取票方式/],
+            [group("取票方式", ["指定地點自取"], "disabled-ImixBj"), /目前無法選取/],
+            [group("取票方式", ["指定地點自取"]) + group("取票方式", ["指定地點自取"]), /群組不唯一/],
+            [group("取票方式", ["指定地點自取：A", "指定地點自取：B"]), /多個匹配選項/],
+        ] as const) {
+            await page.setContent('<div id="ticket-options">' + delivery + "</div>");
+            await page.locator(".spec-LwNjSh").evaluateAll(elements => {
+                for (const el of elements) {
+                    el.addEventListener("click", () => {
+                        document.body.dataset.clicks = "1";
+                        el.classList.add("active-vB3nra");
+                    });
+                }
+            });
+            const extras = new KlookTicketExtras(page, target, { deliveryMethod: "指定地點自取" }, 200, async () => {});
+            await assert.rejects(extras.select(), reason);
+            assert.equal(await page.locator("body").getAttribute("data-clicks"), null);
+        }
+        await page.setContent('<div id="ticket-options">' + group("取票方式", ["指定地點自取"]) + "</div>");
+        await assert.rejects(new KlookTicketExtras(page, target, {}, 200, async () => {}).select(), /完成設定/);
+    } finally {
+        await page.close();
+    }
+});
+
+test("取票方式選取後消失不可略過，略過後才出現也不默認已選", async () => {
+    const page = await browser.newPage();
+    try {
+        await page.setContent(fixture());
+        const selected = new KlookTicketExtras(page, target, options, 200, async () => {});
+        await selected.select();
+        await page
+            .locator(".skuGroup-hk2pfU")
+            .nth(1)
+            .evaluate(el => el.remove());
+        await assert.rejects(selected.verify(), /找不到唯一符合的取票方式/);
+
+        await page.setContent('<div id="ticket-options"></div>');
+        const skipped = new KlookTicketExtras(page, target, { deliveryMethod: "指定地點自取" }, 200, async () => {});
+        await skipped.select();
+        await page
+            .locator("#ticket-options")
+            .evaluate((el, html) => (el.innerHTML = html), group("取票方式", ["指定地點自取"]));
+        await assert.rejects(skipped.verify(), /內容已改變/);
+        assert.equal(await page.locator(".active-vB3nra").count(), 0);
+    } finally {
+        await page.close();
+    }
+});

@@ -466,7 +466,10 @@ test("套票設定獨立區塊：舊取票值保留且阻擋儲存與啟動，�
         await page.reload();
         await page.locator("#activities").getByText("使用活動").click();
         await page.locator("#step1").waitFor();
-        assert.equal(await page.locator("#bundleSettings h2").innerText(), "套票設定");
+        assert.equal(await page.locator("#bundleSettings h2").count(), 0);
+        assert(await page.getByRole("checkbox", { name: "組合套票", exact: true }).isVisible());
+        assert(await page.getByRole("checkbox", { name: "排隊流程", exact: true }).isVisible());
+        assert.equal(await page.getByText("套票或取票方式無法選取時會停止", { exact: false }).count(), 0);
         assert(await page.locator("#bundleSettings #bundleEnabled").isVisible());
         assert(!(await page.locator("#bundleEnabled").isChecked()));
         assert(await page.locator("#deliveryMethod").isDisabled());

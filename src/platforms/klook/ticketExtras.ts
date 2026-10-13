@@ -28,6 +28,8 @@ interface ExtraChoice {
     heading: string;
     wanted?: string;
     selectedText?: string;
+    optionalGroup?: boolean;
+    groupSeen?: boolean;
 }
 
 // 只處理選票頁的兩個額外群組，不改動票種或後續頁面核對。
@@ -44,7 +46,7 @@ export class KlookTicketExtras {
         if (options.bundleEnabled && !target.bundle?.trim()) throw new PurchaseStop("請填寫組合套票名稱。");
         this.choices = [
             { heading: "組合套票", wanted: options.bundleEnabled ? target.bundle : undefined },
-            { heading: "取票方式", wanted: options.deliveryMethod },
+            { heading: "取票方式", wanted: options.deliveryMethod, optionalGroup: true },
         ];
     }
 
@@ -95,6 +97,8 @@ export class KlookTicketExtras {
             await this.observeNotice();
             const group = this.group(choice.heading);
             const count = await group.count();
+            if (count > 0) choice.groupSeen = true;
+            if (count === 0 && choice.optionalGroup && !choice.groupSeen) return null;
             if (count > 1) throw new PurchaseStop(`${choice.heading}群組不唯一，已停止。`);
             if (!choice.wanted) {
                 if (count) throw new PurchaseStop(`頁面出現${choice.heading}，請先完成設定。`);

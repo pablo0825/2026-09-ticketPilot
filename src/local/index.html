@@ -58,20 +58,16 @@
                                 placeholder="https://www.klook.com/zh-TW/event-detail/…/"
                         /></label>
                     </div>
-                    <label class="check"><input id="queueEnabled" type="checkbox" />啟用排隊流程</label>
-                    <p>
-                        遇到排隊頁時自動加入排隊，輪到時點擊「繼續預訂」。直接進入購票頁則照常選票；排隊最多等待一小時。
-                    </p>
+                    <label for="queueEnabled"
+                        >排隊流程<input id="queueEnabled" type="checkbox" class="standalone-check"
+                    /></label>
                     <div id="bundleSettings">
-                        <h2>套票設定</h2>
-                        <label class="check"><input id="bundleEnabled" type="checkbox" />啟用組合套票</label>
-                        <label
-                            >取票方式<input
-                                id="deliveryMethod"
-                                disabled
-                                placeholder="勾選啟用組合套票後可填寫，例如：指定地點自取"
+                        <label for="bundleEnabled"
+                            >組合套票<input id="bundleEnabled" type="checkbox" class="standalone-check"
                         /></label>
-                        <p>套票或取票方式無法選取時會停止，不會自動改選其他方案。</p>
+                        <label
+                            >取票方式（選填）<input id="deliveryMethod" disabled placeholder="例如：指定地點自取"
+                        /></label>
                         <div id="legacyDelivery" hidden>
                             <p>
                                 此活動有未啟用套票的舊取票設定。請啟用套票並補齊各順位，或清除舊取票設定後再儲存及開始。

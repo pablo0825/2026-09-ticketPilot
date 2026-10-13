@@ -708,6 +708,15 @@ test("套票與取票方式接入選票，張數操作清除選中時不放行",
         assert.equal(await new KlookTicketSelector(page, 500).selectAndVerify(wanted, extras), "selected");
         assert.equal(await page.locator("body").getAttribute("data-next"), null);
 
+        // 活動沒有取票群組時，保留設定也能完成選票
+        await page.setContent(html);
+        await page
+            .locator(".skuGroup-hk2pfU")
+            .filter({ hasText: "取票方式" })
+            .evaluate(el => el.remove());
+        assert.equal(await new KlookTicketSelector(page, 500).selectAndVerify(wanted, extras), "selected");
+        assert.equal(await page.locator(".value-xWKzpL").innerText(), "1");
+
         // 後續數量操作重設套票，最後核對必須停止
         await page.setContent(html);
         await page
@@ -769,6 +778,12 @@ test("新套票停用不切下一順位，取票方式設定傳到實際 adapter
 
         // 獨立取票方式設定必須傳至選票器，不能被靜默忽略
         await page.setContent(fixture(1));
+        await page.locator("#ticket-options").evaluate(el => {
+            el.insertAdjacentHTML(
+                "beforeend",
+                '<div class="skuGroup-hk2pfU"><div class="name-Cu4gxk">取票方式</div><div class="spec-LwNjSh">郵寄</div></div>',
+            );
+        });
         await assert.rejects(
             new KlookTargetAttempt(page, eventConfig.eventUrl, 200, { deliveryMethod: "自取" }).attempt(
                 eventConfig.targets[0]!,
