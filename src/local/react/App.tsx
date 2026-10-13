@@ -1,3 +1,4 @@
+import { AppHeader } from "./shared/AppHeader.js";
 import { useState } from "react";
 import { KlookWorkspace } from "./platforms/klook/KlookWorkspace.js";
 import { PlatformHome } from "./pages/PlatformHome.js";
@@ -13,6 +14,7 @@ export function App() {
     const platformStatus = platformRunStatus(runs.purchase, runs.simulation);
 
     function showPlatforms() {
+        if (runs.closing) return;
         setMessage("");
         setPage("platforms");
     }
@@ -20,12 +22,7 @@ export function App() {
     // 頁面只負責導覽，真正啟動仍經過平台與後端驗證
     return (
         <main>
-            <header>
-                <div>
-                    <small>本機購票助手</small>
-                    <h1>TicketPilot</h1>
-                </div>
-            </header>
+            {page !== "klook" && <AppHeader disabled={runs.closing} onHome={showPlatforms} />}
             {page !== "klook" && (
                 <div id="message" role="alert">
                     {message}
@@ -52,14 +49,6 @@ export function App() {
             )}
             {page === "run" && (
                 <>
-                    <button
-                        id="platformHomeButton"
-                        className="secondary"
-                        disabled={runs.closing}
-                        onClick={showPlatforms}
-                    >
-                        返回平台首頁
-                    </button>
                     <RunStatus
                         displayed={runs.displayed}
                         closing={runs.closing}

@@ -68,6 +68,8 @@ test("平台首頁不讀 Klook 個資；TicketPlus 無請求，個資損壞可�
         });
         await page.goto(url);
         await page.locator("#selectKlook").waitFor();
+        assert.equal(await page.getByRole("heading", { name: "TicketPilot" }).count(), 1);
+        assert.equal(await page.locator("#platformHomeButton").count(), 0);
         assert.equal(contactReads, 0);
         const ticketPlus = page.getByRole("row").filter({ hasText: "TicketPlus" });
         assert.match(await ticketPlus.innerText(), /尚未支援/);
@@ -85,7 +87,7 @@ test("平台首頁不讀 Klook 個資；TicketPlus 無請求，個資損壞可�
             .filter({ hasText: /無法|格式|資料/ })
             .waitFor();
         assert(await page.locator("#new").isDisabled());
-        await page.locator("#platformHomeButton").click();
+        await page.locator("#brandHome").click();
         await page.locator("#platformHome").waitFor();
         assert.equal(writes, 0);
     }, true);
@@ -111,17 +113,18 @@ test("離開確認取消保留草稿，確認放棄才卸載；舊活動重開�
             await dialog.dismiss();
         };
         page.on("dialog", dismiss);
-        await page.locator("#platformHomeButton").click();
+        await page.locator("#brandHome").click();
         await page.locator("#platformHome").waitFor();
         assert.equal(dialogs, 0);
         await openEditor(page);
         await page.locator("#eventName").fill("未保存的草稿");
-        await page.locator("#platformHomeButton").click();
+        await page.locator("#brandHome").click();
         assert.equal(dialogs, 1);
         assert.equal(await page.locator("#eventName").inputValue(), "未保存的草稿");
         page.off("dialog", dismiss);
         page.once("dialog", dialog => dialog.accept());
-        await page.locator("#platformHomeButton").click();
+        await page.getByRole("button", { name: "TicketPilot，返回平台首頁" }).focus();
+        await page.keyboard.press("Enter");
         await openEditor(page);
         assert.equal(await page.locator("#eventName").inputValue(), settings.eventName);
         assert.equal(await readFile(path, "utf8"), raw);
@@ -180,7 +183,7 @@ test("保存與開始請求送出期間不能離開，完成後導航不產生�
             }
             await arrived;
             try {
-                assert(await page.locator("#platformHomeButton").isDisabled());
+                assert(await page.locator("#brandHome").isDisabled());
                 assert(await page.locator("#homeButton").isDisabled());
                 assert.equal(await page.locator("#platformHome").count(), 0);
                 assert.equal(requests, 1);
@@ -188,10 +191,10 @@ test("保存與開始請求送出期間不能離開，完成後導航不產生�
                 release();
             }
             await page.locator(operation === "save" ? "#step2" : "#step4").waitFor();
-            await eventually(async () => assert(await page.locator("#platformHomeButton").isEnabled()));
+            await eventually(async () => assert(await page.locator("#brandHome").isEnabled()));
             await page.unroute(pattern);
         }
-        await page.locator("#platformHomeButton").click();
+        await page.locator("#brandHome").click();
         await page.locator("#platformHome").waitFor();
         await openEditor(page);
         assert.equal(purchaseRequests, 1);
@@ -216,11 +219,11 @@ test("執行中返回平台首頁仍接收狀態，不能在 Klook 再開另一�
         await page.locator("#platformViewRun").waitFor();
         await page.locator("#selectKlook").click();
         assert(await page.locator("#new").isDisabled());
-        await page.locator("#platformHomeButton").click();
+        await page.locator("#brandHome").click();
         feed.publish({ ...initial, status: "payment-ready", message: "等待付款" });
         await page.locator("#platformViewRun").click();
         await eventually(async () => assert.match(await page.locator("main").innerText(), /已到付款頁/));
-        await page.locator("#platformHomeButton").click();
+        await page.locator("#brandHome").click();
         await page.locator("#platformViewRun").waitFor();
     });
 });
@@ -235,7 +238,7 @@ test("舊未知請求跨首頁導航保留，不保存、不建立新請求", as
             if (["PUT", "POST"].includes(request.method())) writes++;
         });
         await openEditor(page);
-        await page.locator("#platformHomeButton").click();
+        await page.locator("#brandHome").click();
         await openEditor(page);
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
         await page.locator("#confirm").check();
@@ -283,7 +286,7 @@ test("平台列隨流程更新，僅進行中或待人工確認可查看；導�
         await eventually(async () => assert.equal(await page.locator("#platformStatus").innerText(), "等待開賣"));
         await page.locator("#platformViewRun").click();
         await eventually(async () => assert.equal(await page.locator("#status").innerText(), "等待開賣"));
-        await page.locator("#platformHomeButton").click();
+        await page.locator("#brandHome").click();
         purchaseFeed.publish({ ...purchase, status: "payment-ready" });
         await eventually(async () => assert.equal(await page.locator("#platformStatus").innerText(), "瀏覽器仍開啟"));
 
@@ -308,7 +311,7 @@ test("平台列隨流程更新，僅進行中或待人工確認可查看；導�
                     status === "unknown" ? /提交結果尚未確認/ : /程序異常中斷/,
                 ),
             );
-            await page.locator("#platformHomeButton").click();
+            await page.locator("#brandHome").click();
         }
 
         // 進行中的模擬優先於歷史異常，完成後不顯示模擬結果
@@ -317,12 +320,70 @@ test("平台列隨流程更新，僅進行中或待人工確認可查看；導�
         await eventually(async () => assert.equal(await page.locator("#platformStatus").innerText(), "模擬執行中"));
         await page.locator("#platformViewRun").click();
         assert.equal(await page.locator("#status").innerText(), "模擬執行中");
-        await page.locator("#platformHomeButton").click();
+        await page.locator("#brandHome").click();
         purchaseFeed.publish({ ...purchase, status: "failed", occupied: false, browserOpen: false });
         simulationFeed.publish({ ...simulation, status: "completed" });
         await eventually(async () => assert.equal(await page.locator("#platformStatus").innerText(), "可使用"));
         assert.equal(await page.locator("#platformViewRun").count(), 0);
         assert.equal(await page.getByRole("button", { name: /最近.*結果/ }).count(), 0);
         assert.equal(writes, 0);
+    });
+});
+
+test("點擊品牌返回前確認聯絡草稿，關閉瀏覽器期間兩種狀態頁都禁止離開", async () => {
+    await fixture(async (page, url) => {
+        // 聯絡資料仍走工作區的未儲存檢查
+        await page.goto(url);
+        await openEditor(page);
+        await page.getByRole("button", { name: "② 聯絡資料" }).click();
+        const input = page.locator("#firstName");
+        await input.fill("未儲存");
+        page.once("dialog", dialog => dialog.dismiss());
+        await page.locator("#brandHome").click();
+        assert.equal(await input.inputValue(), "未儲存");
+        page.once("dialog", dialog => dialog.accept());
+        await page.locator("#brandHome").click();
+        await page.locator("#platformHome").waitFor();
+
+        // 根層與 Klook 狀態頁共用關閉中的禁止離開條件
+        const run = {
+            id: "closing",
+            activityName: "關閉測試",
+            status: "payment-ready",
+            occupied: true,
+            browserOpen: true,
+            canCloseBrowser: true,
+            events: [],
+            historyTruncated: false,
+        };
+        const feed = await snapshotFeed(page, "/api/purchase/events", run);
+        for (const workspace of [false, true]) {
+            await page.reload();
+            if (workspace) {
+                await page.locator("#selectKlook").click();
+                await page.locator("#viewRun").click();
+            } else await page.locator("#platformViewRun").click();
+            let release: () => void = () => {};
+            const gate = new Promise<void>(resolve => {
+                release = resolve;
+            });
+            await page.route("**/api/purchase/close-browser", async route => {
+                await gate;
+                await route.fulfill({ json: run });
+            });
+            page.once("dialog", dialog => dialog.accept());
+            await page.locator("#closeBrowser").click();
+            try {
+                await eventually(async () => assert(await page.locator("#brandHome").isDisabled()));
+                assert.equal(await page.locator("#platformHome").count(), 0);
+            } finally {
+                release();
+            }
+            await eventually(async () => assert(await page.locator("#brandHome").isEnabled()));
+            await page.unroute("**/api/purchase/close-browser");
+            await page.locator("#brandHome").click();
+            await page.locator("#platformHome").waitFor();
+            feed.publish(run);
+        }
     });
 });

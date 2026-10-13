@@ -1,3 +1,4 @@
+import { AppHeader } from "../../shared/AppHeader.js";
 import { ActivityList } from "./ActivityList.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityRecord } from "../../../../config/activityStore.js";
@@ -207,14 +208,7 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
 
     return (
         <>
-            <button
-                id="platformHomeButton"
-                className="secondary"
-                disabled={busy || runs.closing}
-                onClick={leavePlatform}
-            >
-                返回平台首頁
-            </button>
+            <AppHeader disabled={busy || runs.closing} onHome={leavePlatform} />
             <button id="homeButton" className="secondary" hidden={step === 0} disabled={locked} onClick={goHome}>
                 返回活動首頁
             </button>
