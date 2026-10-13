@@ -56,6 +56,8 @@ interface PageElements {
     eventUrl: HTMLInputElement;
     bundleEnabled: HTMLInputElement;
     deliveryMethod: HTMLInputElement;
+    legacyDelivery: HTMLElement;
+    clearLegacyDelivery: HTMLButtonElement;
     add: HTMLButtonElement;
     targets: HTMLElement;
     exclude: HTMLInputElement;
@@ -172,6 +174,7 @@ function controls() {
         simulationRunning ||
         requesting ||
         activityNeedsSave() ||
+        hasLegacyDelivery() ||
         !contactReady ||
         !$("confirm").checked;
 
@@ -374,18 +377,42 @@ function row(data: TargetFields = { date: "", time: "", area: "", quantity: 1, a
     return container;
 }
 
+function hasLegacyDelivery(): boolean {
+    return !$("bundleEnabled").checked && Boolean($("deliveryMethod").value.trim());
+}
+
+function syncDeliveryState(): void {
+    $("deliveryMethod").disabled = actionBusy || !$("bundleEnabled").checked;
+    $("legacyDelivery").hidden = !hasLegacyDelivery();
+}
+
+function requireBundleSettings(): void {
+    if (hasLegacyDelivery()) throw new Error("請先處理套票設定中的舊取票方式，再儲存或開始。");
+}
+
 function syncBundleFields(): void {
     for (const field of document.querySelectorAll<HTMLElement>(".bundle-field")) {
         const input = field.querySelector<HTMLInputElement>("input")!;
         field.hidden = !$("bundleEnabled").checked;
         input.disabled = field.hidden;
         input.required = !field.hidden;
-        if (field.hidden) input.value = "";
     }
+    syncDeliveryState();
 }
 
 $("bundleEnabled").onchange = () => {
+    // 只有主動關閉時清值，載入舊活動保留資料
+    if (!$("bundleEnabled").checked) {
+        $("deliveryMethod").value = "";
+        for (const input of document.querySelectorAll<HTMLInputElement>('[name="bundle"]')) input.value = "";
+    }
     syncBundleFields();
+    changed();
+};
+
+$("clearLegacyDelivery").onclick = () => {
+    $("deliveryMethod").value = "";
+    syncDeliveryState();
     changed();
 };
 
@@ -696,6 +723,7 @@ function summary() {
 
 async function saveActivity() {
     // 儲存活動設定，沿用已儲存的開賣時間
+    requireBundleSettings();
     const settings = activityInput(false);
     if (savedActivity?.saleSchedule) {
         settings.saleSchedule = structuredClone(savedActivity.saleSchedule);
@@ -747,6 +775,7 @@ async function action(fn: () => Promise<unknown>): Promise<void> {
             input.disabled = previous[index]!;
         });
         actionBusy = false;
+        syncDeliveryState();
         controls();
     }
 }
@@ -826,6 +855,8 @@ async function begin(simulation: boolean): Promise<void> {
     requesting = true;
     controls();
     await action(async () => {
+        requireBundleSettings();
+
         // 確認設定已儲存，購票前也已勾選確認
         if (activityNeedsSave() || !contactReady || !selectedId) {
             throw Error("請先儲存並驗證完整設定。");

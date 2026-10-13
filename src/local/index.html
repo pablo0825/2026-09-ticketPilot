@@ -58,6 +58,23 @@
                                 placeholder="https://www.klook.com/zh-TW/event-detail/…/"
                         /></label>
                     </div>
+                    <div id="bundleSettings">
+                        <h2>套票設定</h2>
+                        <label class="check"><input id="bundleEnabled" type="checkbox" />啟用組合套票</label>
+                        <label
+                            >取票方式<input
+                                id="deliveryMethod"
+                                disabled
+                                placeholder="勾選啟用組合套票後可填寫，例如：指定地點自取"
+                        /></label>
+                        <p>套票或取票方式無法選取時會停止，不會自動改選其他方案。</p>
+                        <div id="legacyDelivery" hidden>
+                            <p>
+                                此活動有未啟用套票的舊取票設定。請啟用套票並補齊各順位，或清除舊取票設定後再儲存及開始。
+                            </p>
+                            <button id="clearLegacyDelivery" type="button" class="secondary">清除舊取票設定</button>
+                        </div>
+                    </div>
                     <div class="section-title">
                         <div>
                             <h2>購票順位</h2>
@@ -65,11 +82,6 @@
                         </div>
                         <button id="add" class="secondary">新增順位</button>
                     </div>
-                    <label class="check"><input id="bundleEnabled" type="checkbox" />啟用組合套票</label>
-                    <label
-                        >取票方式<input id="deliveryMethod" placeholder="例如：指定地點自取；頁面沒有此選項時可留空"
-                    /></label>
-                    <p>套票或取票方式無法選取時會停止，不會自動改選其他方案。</p>
                     <div id="targets"></div>
                     <details>
                         <summary>進階設定 · 嚴格順位</summary>

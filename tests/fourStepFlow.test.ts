@@ -410,10 +410,12 @@ test("套票GUI：啟用、複製、摘要、儲存重載及關閉後移除殘�
         // 舊活動預設關閉，啟用後要求每列填寫
         await page.getByRole("button", { name: "① 活動與順位" }).click();
         assert(!(await page.locator("#bundleEnabled").isChecked()));
+        assert(await page.locator("#deliveryMethod").isDisabled());
         assert(!(await page.locator("[name=bundle]").isVisible()));
         await page.locator("#bundleEnabled").check();
         await page.locator("#saveActivity").click();
         await page.locator("#message").filter({ hasText: "每個順位" }).waitFor();
+        assert(await page.locator("#deliveryMethod").isEnabled());
         await page.locator("[name=bundle]").fill("演唱會套票 1");
         await page.locator("#deliveryMethod").fill("指定地點自取");
         await page.getByRole("button", { name: "複製", exact: true }).click();
@@ -439,17 +441,107 @@ test("套票GUI：啟用、複製、摘要、儲存重載及關閉後移除殘�
         await page.locator("#activities").getByText("使用活動").click();
         await page.locator("#step1").waitFor();
         assert(await page.locator("#bundleEnabled").isChecked());
+        assert(await page.locator("#deliveryMethod").isEnabled());
         assert.equal(await page.locator("[name=bundle]").nth(1).inputValue(), "演唱會套票 2");
 
-        // 關閉套票但保留獨立取票方式，重新開啟不得帶回舊值
+        // 關閉套票清除取票方式，重新開啟不得帶回舊值
         await page.locator("#bundleEnabled").uncheck();
+        assert(await page.locator("#deliveryMethod").isDisabled());
+        assert.equal(await page.locator("#deliveryMethod").inputValue(), "");
         await page.locator("#saveActivity").click();
         await page.locator("#step2").waitFor();
         const disabled = (await store.load(id)).settings;
         assert.equal(disabled.bundleEnabled, undefined);
         assert(disabled.targets.every(t => t.bundle === undefined));
-        assert.equal(disabled.deliveryMethod, "指定地點自取");
+        assert.equal(disabled.deliveryMethod, undefined);
         await page.getByRole("button", { name: "① 活動與順位" }).click();
         await page.locator("#bundleEnabled").check();
         assert.equal(await page.locator("[name=bundle]").nth(0).inputValue(), "");
+    }));
+
+test("套票設定獨立區塊：舊取票值保留且阻擋儲存與啟動，明確清除才更新", async () =>
+    fixture(async (page, store, id) => {
+        // 載入舊版獨立取票設定，不能默默清除或自動啟用套票
+        await store.save({ ...settings, deliveryMethod: "指定地點自取" }, id);
+        await page.reload();
+        await page.locator("#activities").getByText("使用活動").click();
+        await page.locator("#step1").waitFor();
+        assert.equal(await page.locator("#bundleSettings h2").innerText(), "套票設定");
+        assert(await page.locator("#bundleSettings #bundleEnabled").isVisible());
+        assert(!(await page.locator("#bundleEnabled").isChecked()));
+        assert(await page.locator("#deliveryMethod").isDisabled());
+        assert.equal(await page.locator("#deliveryMethod").inputValue(), "指定地點自取");
+        assert(await page.locator("#legacyDelivery").isVisible());
+        await page.locator("#saveActivity").click();
+        await page.locator("#message").filter({ hasText: "舊取票方式" }).waitFor();
+        assert(await page.locator("#deliveryMethod").isDisabled());
+        assert.equal((await store.load(id)).settings.deliveryMethod, "指定地點自取");
+        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.locator("#confirm").check();
+        assert(await page.locator("#start").isDisabled());
+
+        // 清除是明確編輯，儲存前不改原檔且取消先前確認
+        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.locator("#clearLegacyDelivery").click();
+        assert(!(await page.locator("#confirm").isChecked()));
+        assert(!(await page.locator("#legacyDelivery").isVisible()));
+        assert.equal((await store.load(id)).settings.deliveryMethod, "指定地點自取");
+        await page.locator("#saveActivity").click();
+        await page.locator("#step2").waitFor();
+        assert.equal((await store.load(id)).settings.deliveryMethod, undefined);
+        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        assert.doesNotMatch(await page.locator("#summary").innerText(), /指定地點自取/);
+    }));
+
+test("跨活動切換重新計算取票欄位狀態，儲存失敗後仍可依開關編輯", async () =>
+    fixture(async (page, store, id) => {
+        // 同一頁切換啟用與未啟用活動，操作鎖不能還原錯誤狀態
+        const bundle = await store.save({
+            ...settings,
+            eventName: "套票活動",
+            bundleEnabled: true,
+            deliveryMethod: "郵寄",
+            targets: settings.targets.map(t => ({ ...t, bundle: "套票1" })),
+        });
+        await page.reload();
+        const use = async (name: string) => {
+            await page.locator("#activities tr").filter({ hasText: name }).getByText("使用活動").click();
+            await page.locator("#step1").waitFor();
+        };
+        await use("套票活動");
+        assert(await page.locator("#deliveryMethod").isEnabled());
+        assert.equal(await page.locator("#deliveryMethod").inputValue(), "郵寄");
+        await page.locator("#homeButton").click();
+        await use("Fixture");
+        assert(await page.locator("#deliveryMethod").isDisabled());
+        assert.equal(await page.locator("#deliveryMethod").inputValue(), "");
+        assert.equal((await store.load(id)).settings.deliveryMethod, undefined);
+        await page.locator("#homeButton").click();
+        await use("套票活動");
+        assert(await page.locator("#deliveryMethod").isEnabled());
+
+        // 延遲且拒絕儲存，期間鎖定，失敗後回復啟用狀態
+        let release: () => void = () => {};
+        const received = page.waitForRequest(
+            request => request.method() === "PUT" && request.url().endsWith(`/api/activities/${bundle.id}`),
+            { timeout: 5000 },
+        );
+        const gate = new Promise<void>(resolve => {
+            release = resolve;
+        });
+        await page.route(`**/api/activities/${bundle.id}`, async route => {
+            if (route.request().method() !== "PUT") return route.continue();
+            await gate;
+            await route.fulfill({ status: 400, json: { error: "fixture 保存拒絕" } });
+        });
+        try {
+            await page.locator("#saveActivity").click();
+            await received;
+            assert(await page.locator("#deliveryMethod").isDisabled());
+        } finally {
+            release();
+        }
+        await page.locator("#message").filter({ hasText: "fixture 保存拒絕" }).waitFor();
+        assert(await page.locator("#deliveryMethod").isEnabled());
+        assert.equal(await page.locator("#deliveryMethod").inputValue(), "郵寄");
     }));
