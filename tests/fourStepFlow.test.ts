@@ -230,6 +230,7 @@ test("順位清空：保留空列、阻擋舊設定啟動，重新填寫才能�
         await saving;
         try {
             assert(await page.getByRole("button", { name: "清空", exact: true }).isDisabled());
+            assert(await page.getByRole("button", { name: "複製", exact: true }).isDisabled());
             assert(await page.locator("#add").isDisabled());
         } finally {
             release();
@@ -311,4 +312,95 @@ test("舊版未決請求不因移除價格而清除或產生新購票", async ()
         assert.equal(await page.evaluate(() => sessionStorage.getItem("ticketpilot-purchase-request")), pending);
         await page.reload();
         assert.equal(await page.evaluate(() => sessionStorage.getItem("ticketpilot-purchase-request")), pending);
+    }));
+
+test("順位複製：插入來源下方、保留草稿且獨立編輯，儲存後順序不變", async () =>
+    fixture(async (page, store, id) => {
+        // 建立尾列並修改來源，確認複製使用尚未儲存的內容
+        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.locator("#add").click();
+        const rows = page.locator(".target-row");
+        const source = rows.nth(0);
+        await rows.nth(1).locator("[name=area]").fill("尾列");
+        await source.locator("[name=date]").fill("2026-11-21");
+        await source.locator("[name=time]").fill("14:00");
+        await source.locator("[name=area]").fill("黃2C");
+        await source.locator("[name=quantity]").fill("2");
+        await source.locator("[name=adjacent]").check();
+        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.locator("#confirm").check();
+        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await source.getByRole("button", { name: "複製", exact: true }).click();
+
+        // 核對每個欄位與插入位置，不沿用舊確認
+        assert.equal(await rows.count(), 3);
+        assert.deepEqual(await page.locator(".position").allTextContents(), ["順位 1", "順位 2", "順位 3"]);
+        const copy = rows.nth(1);
+        for (const [name, value] of Object.entries({
+            date: "2026-11-21",
+            time: "14:00",
+            area: "黃2C",
+            quantity: "2",
+        })) {
+            assert.equal(await copy.locator(`[name=${name}]`).inputValue(), value);
+        }
+        assert(await copy.locator("[name=adjacent]").isChecked());
+        assert(await copy.locator("[name=adjacent]").isEnabled());
+        assert.equal(await rows.nth(2).locator("[name=area]").inputValue(), "尾列");
+        assert(!(await page.locator("#confirm").isChecked()));
+        assert.deepEqual((await store.load(id)).settings.targets, settings.targets);
+
+        // 修改副本並排序，確認新列的事件可用且不影響來源
+        await copy.locator("[name=area]").fill("黃2D");
+        await copy.locator("[name=quantity]").fill("1");
+        assert(await copy.locator("[name=adjacent]").isDisabled());
+        assert(!(await copy.locator("[name=adjacent]").isChecked()));
+        assert.equal(await source.locator("[name=quantity]").inputValue(), "2");
+        assert(await source.locator("[name=adjacent]").isChecked());
+        await copy.getByRole("button", { name: "上移", exact: true }).click();
+        assert.equal(await rows.nth(0).locator("[name=area]").inputValue(), "黃2D");
+        await rows.nth(0).getByRole("button", { name: "下移", exact: true }).click();
+        await rows.nth(2).getByRole("button", { name: "移除", exact: true }).click();
+
+        // 儲存並重新載入，確認順位和資料持久化
+        await page.locator("#saveActivity").click();
+        await page.locator("#step2").waitFor();
+        const expected = [
+            { date: "2026-11-21", time: "14:00", area: "黃2C", quantity: 2, adjacent: true },
+            { date: "2026-11-21", time: "14:00", area: "黃2D", quantity: 1, adjacent: false },
+        ];
+        assert.deepEqual((await store.load(id)).settings.targets, expected);
+        await page.reload();
+        await page.locator("#activities").getByText("使用活動").click();
+        await page.locator("#step1").waitFor();
+        assert.deepEqual(
+            await page
+                .locator("[name=area]")
+                .evaluateAll(inputs => inputs.map(input => (input as HTMLInputElement).value)),
+            ["黃2C", "黃2D"],
+        );
+    }));
+
+test("順位複製：空白草稿保持空白，單張連位限制與副本刪除正常", async () =>
+    fixture(async page => {
+        // 複製唯一順位，沿用單張票的連位限制
+        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.getByRole("button", { name: "複製", exact: true }).click();
+        const rows = page.locator(".target-row");
+        assert.equal(await rows.count(), 2);
+        assert(await rows.nth(1).locator("[name=adjacent]").isDisabled());
+        await rows.nth(1).getByRole("button", { name: "移除", exact: true }).click();
+        await page.getByRole("button", { name: "清空", exact: true }).click();
+
+        // 數字空白不可在複製時被轉成零或預設值
+        await rows.nth(0).locator("[name=quantity]").fill("");
+        await page.getByRole("button", { name: "複製", exact: true }).click();
+        for (const name of ["date", "time", "area", "quantity"]) {
+            assert.equal(await rows.nth(1).locator(`[name=${name}]`).inputValue(), "");
+        }
+        assert(!(await rows.nth(1).locator("[name=adjacent]").isChecked()));
+        assert(await rows.nth(1).locator("[name=adjacent]").isDisabled());
+        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.locator("#confirm").check();
+        assert(await page.locator("#start").isDisabled());
     }));

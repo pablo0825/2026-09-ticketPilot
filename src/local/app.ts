@@ -286,12 +286,12 @@ function changed() {
 
 $("confirm").onchange = controls;
 
-function row(data: TargetFields = { date: "", time: "", area: "", quantity: 1, adjacent: false }) {
+function row(data: TargetFields = { date: "", time: "", area: "", quantity: 1, adjacent: false }): HTMLDivElement {
     // 建立一列順位欄位，並填入資料
     const container = document.createElement("div");
     container.className = "target-row";
     container.innerHTML =
-        '<div class="target-fields"><label>演出日期<input name="date" type="date" required></label><label>演出時間<input name="time" type="time" required></label><label>票區／票種<input name="area" required></label><label>張數<input name="quantity" type="number" min="1" step="1" required></label></div><div class="target-tools"><strong class="position"></strong><label class="check"><input name="adjacent" type="checkbox">要求連位</label><button type="button" class="secondary up">上移</button><button type="button" class="secondary down">下移</button><button type="button" class="secondary remove">移除</button></div>';
+        '<div class="target-fields"><label>演出日期<input name="date" type="date" required></label><label>演出時間<input name="time" type="time" required></label><label>票區／票種<input name="area" required></label><label>張數<input name="quantity" type="number" min="1" step="1" required></label></div><div class="target-tools"><strong class="position"></strong><label class="check"><input name="adjacent" type="checkbox">要求連位</label><button type="button" class="secondary up">上移</button><button type="button" class="secondary down">下移</button><button type="button" class="secondary remove">移除</button><button type="button" class="secondary duplicate">複製</button></div>';
 
     for (const [key, value] of Object.entries(data)) {
         const input = container.querySelector<HTMLInputElement>(`[name="${key}"]`);
@@ -319,7 +319,7 @@ function row(data: TargetFields = { date: "", time: "", area: "", quantity: 1, a
     // 上移、下移、移除按鈕；只剩一列時改成清空
     container.querySelector<HTMLButtonElement>(".up")!.onclick = () => {
         if (container.previousElementSibling) {
-            container.before(container.previousElementSibling);
+            container.previousElementSibling.before(container);
         }
         renumber();
         changed();
@@ -327,7 +327,7 @@ function row(data: TargetFields = { date: "", time: "", area: "", quantity: 1, a
 
     container.querySelector<HTMLButtonElement>(".down")!.onclick = () => {
         if (container.nextElementSibling) {
-            container.after(container.nextElementSibling);
+            container.nextElementSibling.after(container);
         }
         renumber();
         changed();
@@ -349,9 +349,26 @@ function row(data: TargetFields = { date: "", time: "", area: "", quantity: 1, a
         changed();
     };
 
+    // 複製目前輸入，保留尚未填完的欄位
+    container.querySelector<HTMLButtonElement>(".duplicate")!.onclick = () => {
+        const copy = row();
+        for (const input of container.querySelectorAll<HTMLInputElement>("[name]")) {
+            const copiedInput = copy.querySelector<HTMLInputElement>(`[name="${input.name}"]`)!;
+            copiedInput.value = input.value;
+            copiedInput.checked = input.checked;
+            copiedInput.disabled = input.disabled;
+        }
+
+        // 插在來源下方，更新順位並要求重新確認
+        container.after(copy);
+        renumber();
+        changed();
+    };
+
     // 加到畫面並重新編號
     $("targets").append(container);
     renumber();
+    return container;
 }
 
 function renumber() {
