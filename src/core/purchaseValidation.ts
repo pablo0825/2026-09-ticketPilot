@@ -24,6 +24,9 @@ export function validateBookingExpectation(expected: BookingExpectation): void {
 }
 
 export function validatePurchaseConfig(config: PurchaseConfig): void {
+    if (config.queueEnabled !== undefined && typeof config.queueEnabled !== "boolean") {
+        throw new Error("排隊開關必須是布林值。");
+    }
     if (config.bundleEnabled !== undefined && typeof config.bundleEnabled !== "boolean") {
         throw new Error("套票開關必須是布林值。");
     }
@@ -96,6 +99,7 @@ export function normalizePurchaseConfig(input: PurchaseConfigInput): PurchaseCon
 
     // 啟動前檢查購票目標
     validatePurchaseConfig(config);
+    if (!config.queueEnabled) delete config.queueEnabled;
     if (!config.bundleEnabled) {
         delete config.bundleEnabled;
         for (const target of config.targets) delete target.bundle;

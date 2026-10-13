@@ -60,6 +60,14 @@ test("執行狀態簡化：階段分組、等待倒數、結束文案及紀錄�
             assert.match(await page.locator("#instruction").innerText(), /依照設定執行/);
             assert(await page.locator("#closeBrowser").isHidden());
         }
+        for (const [state, label] of [
+            ["QUEUE_COUNTDOWN", "等待排隊開賣"],
+            ["WAITING_IN_QUEUE", "排隊中"],
+            ["QUEUE_CONTINUING", "等待進入購票頁"],
+        ]) {
+            await render(state!);
+            assert.equal(await page.locator("#status").innerText(), label);
+        }
         await render("WAITING_FOR_LOGIN");
         assert.equal(await page.locator("#status").innerText(), "請手動登入");
         assert.match(await page.locator("#instruction").innerText(), /登入.*自動繼續/);

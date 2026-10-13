@@ -47,11 +47,13 @@ const activitySchema = z
             .object({ saleAt: z.string(), advanceSeconds: z.union([z.literal(1), z.literal(2)]).optional() })
             .strict()
             .optional(),
+        queueEnabled: z.boolean().optional(),
         bundleEnabled: z.boolean().optional(),
         deliveryMethod: z.string().trim().min(1).optional(),
     })
     .strict()
     .transform(({ currency: _currency, ...settings }) => {
+        if (!settings.queueEnabled) delete settings.queueEnabled;
         if (!settings.bundleEnabled) {
             delete settings.bundleEnabled;
             for (const target of settings.targets) delete target.bundle;
@@ -84,6 +86,7 @@ export function toPurchaseConfig(settings: ActivitySettings): PurchaseConfig {
         fallbackMode: settings.fallbackMode,
         excludeKeywords: [...settings.excludeKeywords],
         ...(settings.saleSchedule ? { saleSchedule: { ...settings.saleSchedule } } : {}),
+        ...(settings.queueEnabled ? { queueEnabled: true } : {}),
         ...(settings.bundleEnabled ? { bundleEnabled: true } : {}),
         ...(settings.deliveryMethod ? { deliveryMethod: settings.deliveryMethod } : {}),
         targets: settings.targets.map(target => ({

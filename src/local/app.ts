@@ -54,6 +54,7 @@ interface PageElements {
     editorTitle: HTMLElement;
     eventName: HTMLInputElement;
     eventUrl: HTMLInputElement;
+    queueEnabled: HTMLInputElement;
     bundleEnabled: HTMLInputElement;
     deliveryMethod: HTMLInputElement;
     legacyDelivery: HTMLElement;
@@ -400,6 +401,8 @@ function syncBundleFields(): void {
     syncDeliveryState();
 }
 
+$("queueEnabled").onchange = changed;
+
 $("bundleEnabled").onchange = () => {
     // 只有主動關閉時清值，載入舊活動保留資料
     if (!$("bundleEnabled").checked) {
@@ -434,6 +437,7 @@ function loadForm(settings: ActivityFields): void {
     $("eventName").value = settings.eventName;
     $("eventUrl").value = settings.eventUrl;
     $("exclude").value = settings.excludeKeywords.join(",");
+    $("queueEnabled").checked = settings.queueEnabled === true;
     $("bundleEnabled").checked = settings.bundleEnabled === true;
     $("deliveryMethod").value = settings.deliveryMethod ?? "";
 
@@ -491,6 +495,7 @@ function activityInput(includeSchedule = true): ActivityDraft {
         }
     }
 
+    if ($("queueEnabled").checked) settings.queueEnabled = true;
     if ($("bundleEnabled").checked) settings.bundleEnabled = true;
     if ($("deliveryMethod").value.trim()) settings.deliveryMethod = $("deliveryMethod").value.trim();
     return settings;
@@ -662,6 +667,7 @@ function summary() {
         /* 不完整網址只顯示文字。 */
     }
 
+    field("排隊流程", draft.queueEnabled ? "已啟用（最多等待一小時）" : "未啟用");
     if (draft.bundleEnabled) field("組合套票", "已啟用");
     if (draft.deliveryMethod) field("取票方式", draft.deliveryMethod);
 
@@ -981,6 +987,15 @@ function updateRunStatus() {
         if (state === "WAITING_FOR_LOGIN") {
             title = "請手動登入";
             instruction = "請到購票瀏覽器完成登入，完成後會自動繼續。";
+        } else if (state === "QUEUE_COUNTDOWN") {
+            title = "等待排隊開賣";
+            instruction = "等待網站倒數結束，請保留瀏覽器分頁。";
+        } else if (state === "WAITING_IN_QUEUE") {
+            title = "排隊中";
+            instruction = "等待輪到購票，網站可能自動刷新；請勿手動刷新或離隊。";
+        } else if (state === "QUEUE_CONTINUING") {
+            title = "等待進入購票頁";
+            instruction = "已嘗試繼續預訂，正在核對購票頁；不會重複點擊。";
         } else if (state === "WAITING_FOR_SALE") {
             title = "等待開賣";
             const saleAt = Date.parse(run.saleAt!);

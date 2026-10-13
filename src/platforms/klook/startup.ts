@@ -6,6 +6,8 @@ import { PurchaseStop } from "../../core/purchaseStop.js";
 import { reportState } from "../../core/state.js";
 import { hasVisibleSeatScreen, isEventPage } from "./eventPage.js";
 import { getSelectionNotices, isQueueExpiryShown } from "./notices.js";
+import { KlookQueueWaiting } from "./queueWaiting.js";
+import type { QueueWaitingOptions } from "./queueWaiting.js";
 
 export type LoginState = "logged-in" | "logged-out" | "unknown";
 
@@ -54,7 +56,7 @@ export async function readLoginState(page: Page): Promise<LoginState> {
     });
 }
 
-interface StartupOptions {
+interface StartupOptions extends QueueWaitingOptions {
     saleSchedule?: SaleSchedule;
     deadline?: number;
     pageTimeout?: number;
@@ -134,59 +136,87 @@ export async function prepareStartup(
         await navigate(page, eventUrl, "活動頁", remaining());
         reportState("EVENT_PAGE");
 
+        const queue = new KlookQueueWaiting(page, eventUrl, options);
+
         // 有開賣時間就交給開賣等待流程
         if (saleAt !== undefined) {
-            return await waitForSale(page, eventUrl, saleAt, options);
+            return await waitForSale(page, eventUrl, saleAt, options, queue);
         }
 
-        // 沒有開賣時間：等活動頁的選票區準備好
-        const pageDeadline = Date.now() + timeout;
-        while (Date.now() < pageDeadline) {
-            // 確認仍在活動頁，而且沒有被登出
-            if (!isEventPage(page.url(), eventUrl)) {
-                throw new PurchaseStop("未到達目標活動頁，未開始購票；請檢查登入或重新導向。");
-            }
-            const login = await readLoginState(page);
-            if (login === "logged-out") throw new PurchaseStop("活動頁登入狀態已失效，未開始購票。");
-
-            // 檢查是否有選位畫面或提示；只接受排隊過期提示
-            const notices = await getSelectionNotices(page);
-            if (await hasVisibleSeatScreen(page)) throw new PurchaseStop("啟動時已有選位畫面，未開始新的購票流程。");
-            if (notices.length > 0) {
-                if (notices.length === 1 && (await isQueueExpiryShown(page, eventUrl))) {
-                    if (login === "logged-in") {
-                        log("活動頁出現已知排隊過期提示，交由既有恢復流程核對；尚未宣告 READY。");
-                        return "queue-expired";
-                    }
-                    // 已知提示不代表頁首已載入；登入未知時仍使用原頁面等待期限。
-                    await page.waitForTimeout(options.pollInterval ?? 500);
-                    continue;
-                }
-                throw new PurchaseStop("活動頁有未處理提示，未開始購票；請人工檢查。");
-            }
-
-            // 已登入且看得到選票選項，就可以開始
-            const tickets = page.locator("#ticket-options");
-            if (
-                login === "logged-in" &&
-                (await tickets.count()) === 1 &&
-                (await tickets.isVisible()) &&
-                (await tickets.locator(".spec-LwNjSh").filter({ visible: true }).count()) > 0
-            ) {
-                reportState("READY");
-                log("登入與活動頁檢查完成，開始依設定順位選票。");
-                return "ready";
-            }
-
-            await page.waitForTimeout(options.pollInterval ?? 500);
-        }
-
-        throw new PurchaseStop("活動頁準備逾時：登入狀態或選票區尚未就緒，可能尚未開賣或載入異常；未開始購票。");
+        return await waitForEventReady(page, eventUrl, options, queue);
     } catch (error) {
         reportState("MANUAL_REQUIRED");
         if (error instanceof PurchaseStop) throw error;
         throw new PurchaseStop("啟動準備中斷，未開始購票；請檢查瀏覽器或網路，不會自動重試。");
     }
+}
+
+// 只驗證購票入口；不能重新呼叫啟動導覽而丟失排隊資格。
+async function waitForEventReady(
+    page: Page,
+    eventUrl: string,
+    options: StartupOptions,
+    queue: KlookQueueWaiting,
+    saleAt?: number,
+): Promise<"ready" | "queue-expired"> {
+    // 排隊放行後有新的載入期限，但仍遵守最早開賣時間
+    const timeout = options.pageTimeout ?? 30_000;
+    let pageDeadline = Math.max(Date.now(), saleAt ?? 0) + timeout;
+    while (Date.now() < pageDeadline) {
+        // 只有明確啟用才接手排隊，放行後不重新導覽或刷新
+        if (await queue.handleIfPresent()) {
+            pageDeadline = Math.max(Date.now(), saleAt ?? 0) + timeout;
+            continue;
+        }
+
+        // 確認仍在活動頁，而且沒有被登出
+        if (!isEventPage(page.url(), eventUrl)) {
+            throw new PurchaseStop("未到達目標活動頁，未開始購票；請檢查登入或重新導向。");
+        }
+        const login = await readLoginState(page);
+        if (login === "logged-out") throw new PurchaseStop("活動頁登入狀態已失效，未開始購票。");
+
+        // 檢查是否有選位畫面或提示；只接受排隊過期提示
+        const notices = await getSelectionNotices(page);
+        if (await hasVisibleSeatScreen(page)) throw new PurchaseStop("啟動時已有選位畫面，未開始新的購票流程。");
+        if (notices.length > 0) {
+            if (notices.length === 1 && (await isQueueExpiryShown(page, eventUrl))) {
+                if (login === "logged-in" && Date.now() >= (saleAt ?? 0)) {
+                    log("活動頁出現已知排隊過期提示，交由既有恢復流程核對；尚未宣告 READY。");
+                    return "queue-expired";
+                }
+                // 已知提示不代表頁首已載入；登入未知時仍使用原頁面等待期限。
+                await page.waitForTimeout(options.pollInterval ?? 500);
+                continue;
+            }
+            throw new PurchaseStop("活動頁有未處理提示，未開始購票；請人工檢查。");
+        }
+
+        // 已登入且看得到選票選項，就可以開始
+        const tickets = page.locator("#ticket-options");
+        const hasOptions = (await tickets.locator(".spec-LwNjSh").filter({ visible: true }).count()) > 0;
+        if (queue.hasEntered) {
+            const stateCount = await tickets.locator(".package-wrapper.stateText").filter({ visible: true }).count();
+            if (stateCount > 1 || (stateCount > 0 && hasOptions)) {
+                throw new PurchaseStop("排隊放行後選票區狀態不明或互相矛盾，已停止。");
+            }
+        }
+        if (
+            Date.now() >= (saleAt ?? 0) &&
+            login === "logged-in" &&
+            (await tickets.count()) === 1 &&
+            (await tickets.isVisible()) &&
+            hasOptions
+        ) {
+            reportState("READY");
+            log("登入與活動頁檢查完成，開始依設定順位選票。");
+            return "ready";
+        }
+
+        await page.waitForTimeout(options.pollInterval ?? 500);
+    }
+
+    throw new PurchaseStop("活動頁準備逾時：登入狀態或選票區尚未就緒，可能尚未開賣或載入異常；未開始購票。");
 }
 
 // 開賣 gate 只執行於 prepareBooking 之前；不持有或重設購票恢復額度。
@@ -195,6 +225,7 @@ async function waitForSale(
     eventUrl: string,
     saleAt: number,
     options: StartupOptions,
+    queueWaiting: KlookQueueWaiting,
 ): Promise<"ready" | "queue-expired"> {
     const cutoff = saleAt + 120_000;
     const refreshAt = saleAt - (options.saleSchedule!.advanceSeconds ?? 1) * 1000;
@@ -230,8 +261,14 @@ async function waitForSale(
         unknownSince = undefined;
     }
 
-    while (Date.now() < cutoff) {
+    while (true) {
+        // 排隊接手後使用獨立期限，放行不回到開賣刷新迴圈
+        if (await queueWaiting.handleIfPresent()) {
+            return await waitForEventReady(page, eventUrl, options, queueWaiting, saleAt);
+        }
+
         // 確認瀏覽器、期限與目前頁面
+        if (Date.now() >= cutoff) break;
         if (page.isClosed()) throw new PurchaseStop("瀏覽器已關閉，開賣等待已停止。");
         if (Date.now() >= loadDeadline) throw new PurchaseStop("開賣頁面載入逾時，未開始購票。");
         if (!isEventPage(page.url(), eventUrl)) throw new PurchaseStop("未到達目標活動頁，開賣等待已停止。");

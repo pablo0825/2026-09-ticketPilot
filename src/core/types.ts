@@ -19,6 +19,7 @@ export interface TicketOptions {
 
 export interface EventConfig extends TicketOptions {
     saleSchedule?: SaleSchedule;
+    queueEnabled?: boolean;
     eventUrl: string;
     targets: TicketTarget[];
     fallbackMode: "STRICT";

@@ -3,6 +3,9 @@ import { log, emitRunEvent } from "./logger.js";
 export type PurchaseState =
     | "WAITING_FOR_SALE"
     | "SALE_REFRESH"
+    | "QUEUE_COUNTDOWN"
+    | "WAITING_IN_QUEUE"
+    | "QUEUE_CONTINUING"
     | "STARTING"
     | "LOGIN_CHECK"
     | "WAITING_FOR_LOGIN"

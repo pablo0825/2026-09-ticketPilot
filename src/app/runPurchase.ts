@@ -54,7 +54,10 @@ async function openEventPage(
     // 讀取瀏覽器的 navigator.webdriver，並打印結果
     log(`啟動頁 navigator.webdriver： ${await page.evaluate(() => navigator.webdriver)}`);
 
-    await prepareStartup(page, eventUrlString, { saleSchedule: config.saleSchedule });
+    await prepareStartup(page, eventUrlString, {
+        saleSchedule: config.saleSchedule,
+        queueEnabled: config.queueEnabled,
+    });
     return page;
 }
 
