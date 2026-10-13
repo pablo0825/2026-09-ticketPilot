@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.browser.json",
+  "compilerOptions": {
+    "types": ["node", "vite/client"],
+    "jsx": "react-jsx",
+    "noEmit": true
+  },
+  "include": ["src/local/react/**/*.ts", "src/local/react/**/*.tsx"],
+  "exclude": []
+}

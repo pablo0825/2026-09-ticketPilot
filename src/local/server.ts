@@ -67,16 +67,17 @@ export async function startLocalServer(
 
             // 提供網頁與靜態檔案
             const url = new URL(request.url ?? "/", origin);
-            if (request.method === "GET" && url.pathname === "/") {
+            if (request.method === "GET" && ["/", "/react"].includes(url.pathname)) {
                 if (request.headers["sec-fetch-site"] === "cross-site") {
                     json(response, 403, {});
                     return;
                 }
 
-                const html = (await readFile(new URL("./index.html", import.meta.url), "utf8")).replace(
-                    "__TOKEN__",
-                    token,
-                );
+                const index =
+                    url.pathname === "/react"
+                        ? new URL("../../dist/react/index.html", import.meta.url)
+                        : new URL("./index.html", import.meta.url);
+                const html = (await readFile(index, "utf8")).replace("__TOKEN__", token);
 
                 response.writeHead(200, {
                     "Content-Type": "text/html; charset=utf-8",
@@ -86,6 +87,20 @@ export async function startLocalServer(
                     "Referrer-Policy": "no-referrer",
                 });
                 response.end(html);
+                return;
+            }
+
+            // 只提供打包的腳本與樣式，不把檔案系統路徑交給請求決定
+            if (request.method === "GET" && /^\/assets\/[a-zA-Z0-9_-]+\.(js|css)$/.test(url.pathname)) {
+                const asset = new URL(`../../dist/react${url.pathname}`, import.meta.url);
+                const content = await readFile(asset);
+                response.writeHead(200, {
+                    "Content-Type": url.pathname.endsWith(".js")
+                        ? "text/javascript; charset=utf-8"
+                        : "text/css; charset=utf-8",
+                    "Cache-Control": "no-store",
+                });
+                response.end(content);
                 return;
             }
 
