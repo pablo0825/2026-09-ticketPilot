@@ -643,3 +643,48 @@ test("調整張數後改價格可通過，新增同名票種則停止且不送�
         await page.close();
     }
 });
+
+test("純金額與 VIP 混合票種可選，名稱歧義或不同則不點票種", async () => {
+    const page = await browser.newPage();
+    try {
+        // 同一群組含金額票種時，仍可找到金額或 VIP 目標
+        const html = fixture(1)
+            .replace("A區（NT$4,880）", "NT$6,980")
+            .replace("A區愛心席（NT$2,440）", "VIP 1 (已包括VIP粉絲福利)")
+            .replace("B區（NT$3,880）", "NT$8,380 - 看台");
+        for (const area of ["NT$6,980", "VIP 1 (已包括VIP粉絲福利)", "NT$8,380 - 看台"]) {
+            await page.setContent(html);
+            assert.equal(await new KlookTicketSelector(page, 500).selectAndVerify({ ...target, area }), "selected");
+            assert.equal(
+                await page.getByText(area, { exact: true }).getAttribute("class"),
+                "spec-LwNjSh active-vB3nra",
+            );
+            assert.equal(await page.locator("body").getAttribute("data-next"), null);
+        }
+
+        // 不同金額、幣別、限定與重複名稱都不能選取
+        for (const label of [
+            "NT$4,980",
+            "HK$6,980",
+            "NT$6,980 - 內場",
+            "NT$6,980</div><div class='spec-LwNjSh'>NT$6,980",
+            "NT$6,980</div><div class='spec-LwNjSh disabled-ImixBj'>NT$6,980",
+        ]) {
+            await page.setContent(html.replace("NT$6,980", label));
+            await page
+                .locator(".skuGroup-hk2pfU")
+                .filter({ hasText: "票種" })
+                .evaluate(el => {
+                    el.addEventListener("click", () => (document.body.dataset.ticketClicked = "1"));
+                });
+            await assert.rejects(
+                new KlookTicketSelector(page, 500).selectAndVerify({ ...target, area: "NT$6,980" }),
+                PurchaseStop,
+            );
+            assert.equal(await page.locator("body").getAttribute("data-ticket-clicked"), null);
+            assert.equal(await page.locator("body").getAttribute("data-next"), null);
+        }
+    } finally {
+        await page.close();
+    }
+});

@@ -440,3 +440,11 @@ test("配位與確認不依賴價格 DOM，仍保留兩張配位並只確認一�
         await browser.close();
     }
 });
+
+test("配位的純金額票種須完整匹配，不能混用其他金額或區域", () => {
+    const moneyTarget = { ...target, area: "NT$6,980" };
+    assert.equal(getSeatResultMismatch({ ...result, area: "NT$ 6,980" }, moneyTarget), undefined);
+    for (const area of ["NT$4,980", "HK$6,980", "NT$6,980 - 內場", "NT$6,980起"]) {
+        assert.match(getSeatResultMismatch({ ...result, area }, moneyTarget)!, /票種不符/);
+    }
+});

@@ -322,3 +322,14 @@ test("門票附註支援香港與台灣格式，仍從同列讀取並核對張�
         await browser.close();
     }
 });
+
+test("摘要的純金額票種仍須完整匹配", () => {
+    const moneyTarget = { ...target, area: "NT$6,980" };
+    verifyBookingSummary({ ...summary, packageName: "NT$ 6,980" }, moneyTarget, allocation, expected);
+    for (const packageName of ["NT$4,980", "HK$6,980", "NT$6,980 - 看台", "NT$6,980起"]) {
+        assert.throws(
+            () => verifyBookingSummary({ ...summary, packageName }, moneyTarget, allocation, expected),
+            /票種不符/,
+        );
+    }
+});

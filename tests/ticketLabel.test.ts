@@ -26,5 +26,16 @@ test("保留括號、VIP與票區數字；不明後綴不可偷偷變成另一�
     for (const text of ["A區 3000", "A區（NT$3,000", "A區（未知方案）", "A區 NT$待定"]) {
         assert.notEqual(parseTicketLabel(text).name, "A區");
     }
-    for (const text of ["", "　", "NT$3000"]) assert.throws(() => parseTicketLabel(text));
+    for (const text of ["", "　"]) assert.throws(() => parseTicketLabel(text));
+});
+
+test("純金額票種保留完整名稱，只正規化全半形與空白", () => {
+    for (const text of ["NT$6,980", " NT$ 6,980 ", "ＮＴ＄６，９８０"]) {
+        assert.deepEqual(parseTicketLabel(text), { name: "NT$6,980" });
+    }
+    for (const text of ["NT$4,980", "HK$6,980", "NT$6980", "NT$6,980起", "NT$6,980 - 內場", "NT$6,980 - 看台"]) {
+        assert.notEqual(parseTicketLabel(text).name, "NT$6,980");
+    }
+    assert.equal(parseTicketLabel("NT$8,380 - 內場").name, "NT$8,380-內場");
+    assert.equal(parseTicketLabel("NT$8,380 - 看台").name, "NT$8,380-看台");
 });
