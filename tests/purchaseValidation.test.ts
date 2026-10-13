@@ -26,3 +26,15 @@ test("移除價格後，活動名稱及票數無效仍在啟動前拒絕", () =>
         assert.throws(() => normalizePurchaseConfig({ ...fixtureConfig, targets: [{ ...target, ...change }] }));
     }
 });
+
+test("CLI 套票缺值拒絕，關閉後移除殘值且不改原輸入", () => {
+    assert.throws(() => normalizePurchaseConfig({ ...fixtureConfig, bundleEnabled: true }), /每個順位/);
+    const input = {
+        ...fixtureConfig,
+        bundleEnabled: false,
+        targets: fixtureConfig.targets.map(t => ({ ...t, bundle: "套票1" })),
+    };
+    assert.deepEqual(normalizePurchaseConfig(input), fixtureConfig);
+    assert.equal(input.targets[0]!.bundle, "套票1");
+    assert.throws(() => normalizePurchaseConfig({ ...fixtureConfig, deliveryMethod: " " }), /取票方式/);
+});

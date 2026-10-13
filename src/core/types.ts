@@ -3,6 +3,7 @@ export interface TicketTarget {
     time: string;
     area: string;
     quantity: number;
+    bundle?: string;
     adjacent: boolean; // 多張票才套用，單張票不操作連票設定。
 }
 
@@ -11,7 +12,12 @@ export interface SaleSchedule {
     advanceSeconds?: 1 | 2; // 預設提前 1 秒刷新。
 }
 
-export interface EventConfig {
+export interface TicketOptions {
+    bundleEnabled?: boolean;
+    deliveryMethod?: string;
+}
+
+export interface EventConfig extends TicketOptions {
     saleSchedule?: SaleSchedule;
     eventUrl: string;
     targets: TicketTarget[];

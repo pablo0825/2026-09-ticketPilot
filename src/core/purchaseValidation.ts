@@ -24,6 +24,15 @@ export function validateBookingExpectation(expected: BookingExpectation): void {
 }
 
 export function validatePurchaseConfig(config: PurchaseConfig): void {
+    if (config.bundleEnabled !== undefined && typeof config.bundleEnabled !== "boolean") {
+        throw new Error("套票開關必須是布林值。");
+    }
+    if (
+        config.deliveryMethod !== undefined &&
+        (typeof config.deliveryMethod !== "string" || !config.deliveryMethod.trim())
+    ) {
+        throw new Error("取票方式必須是非空文字。");
+    }
     if (config.saleSchedule !== undefined) validateSaleSchedule(config.saleSchedule);
     if (config.fallbackMode !== "STRICT" || config.targets.length === 0) {
         throw new Error("必須設定 STRICT 與至少一個目標。");
@@ -31,6 +40,12 @@ export function validatePurchaseConfig(config: PurchaseConfig): void {
 
     for (const target of config.targets) {
         validateTicketTarget(target);
+        if (target.bundle !== undefined && typeof target.bundle !== "string") {
+            throw new Error("組合套票必須是文字。");
+        }
+        if (config.bundleEnabled && !target.bundle?.trim()) {
+            throw new Error("啟用組合套票時，每個順位都必須填寫套票名稱。");
+        }
 
         const normalize = (text: string) => text.normalize("NFKC").replace(/\s/g, "");
         const area = normalize(target.area);
@@ -81,5 +96,9 @@ export function normalizePurchaseConfig(input: PurchaseConfigInput): PurchaseCon
 
     // 啟動前檢查購票目標
     validatePurchaseConfig(config);
+    if (!config.bundleEnabled) {
+        delete config.bundleEnabled;
+        for (const target of config.targets) delete target.bundle;
+    }
     return config;
 }

@@ -155,7 +155,7 @@ async function executePurchase(
         {
             selectSeats: async () => {
                 selecting = true;
-                return strategy.select(new KlookTargetAttempt(page, eventConfig.eventUrl));
+                return strategy.select(new KlookTargetAttempt(page, eventConfig.eventUrl, 30_000, eventConfig));
             },
             confirmSeats: async ({ target, value: { seatSelector, allocation } }) => {
                 selecting = false;

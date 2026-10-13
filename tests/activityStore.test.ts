@@ -109,3 +109,26 @@ test("舊活動金額欄位可讀取並移除，新格式不再保存價格；�
         await rm(dir, { recursive: true, force: true });
     }
 });
+
+test("套票設定保留舊資料形狀，驗證必填及共用取票方式傳遞", () => {
+    const old = parseActivity(activity);
+    const disabled = parseActivity({
+        ...activity,
+        bundleEnabled: false,
+        targets: activity.targets.map(t => ({ ...t, bundle: "舊套票" })),
+    });
+    assert.equal(JSON.stringify(disabled), JSON.stringify(old));
+    const enabled = parseActivity({
+        ...activity,
+        bundleEnabled: true,
+        deliveryMethod: "指定地點自取",
+        targets: activity.targets.map(t => ({ ...t, bundle: "套票 1" })),
+    });
+    assert.deepEqual(parseActivity(JSON.parse(JSON.stringify(enabled))), enabled);
+    const config = toPurchaseConfig(enabled);
+    assert.equal(config.bundleEnabled, true);
+    assert.equal(config.deliveryMethod, "指定地點自取");
+    assert(config.targets.every(t => t.bundle === "套票 1"));
+    assert.throws(() => parseActivity({ ...activity, bundleEnabled: true }), /每個順位/);
+    assert.throws(() => parseActivity({ ...activity, deliveryMethod: 1 }));
+});

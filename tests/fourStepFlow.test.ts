@@ -404,3 +404,52 @@ test("順位複製：空白草稿保持空白，單張連位限制與副本刪�
         await page.locator("#confirm").check();
         assert(await page.locator("#start").isDisabled());
     }));
+
+test("套票GUI：啟用、複製、摘要、儲存重載及關閉後移除殘值", async () =>
+    fixture(async (page, store, id) => {
+        // 舊活動預設關閉，啟用後要求每列填寫
+        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        assert(!(await page.locator("#bundleEnabled").isChecked()));
+        assert(!(await page.locator("[name=bundle]").isVisible()));
+        await page.locator("#bundleEnabled").check();
+        await page.locator("#saveActivity").click();
+        await page.locator("#message").filter({ hasText: "每個順位" }).waitFor();
+        await page.locator("[name=bundle]").fill("演唱會套票 1");
+        await page.locator("#deliveryMethod").fill("指定地點自取");
+        await page.getByRole("button", { name: "複製", exact: true }).click();
+        assert.equal(await page.locator("[name=bundle]").nth(1).inputValue(), "演唱會套票 1");
+        await page.locator("[name=bundle]").nth(1).fill("演唱會套票 2");
+
+        // 儲存摘要與重載都保留新條件
+        await page.locator("#saveActivity").click();
+        await page.locator("#step2").waitFor();
+        const saved = (await store.load(id)).settings;
+        assert.equal(saved.bundleEnabled, true);
+        assert.equal(saved.deliveryMethod, "指定地點自取");
+        assert.deepEqual(
+            saved.targets.map(t => t.bundle),
+            ["演唱會套票 1", "演唱會套票 2"],
+        );
+        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        assert.match(await page.locator("#summary").innerText(), /指定地點自取/);
+        assert.match(await page.locator("#summary").innerText(), /演唱會套票 2/);
+        await page.locator("#confirm").check();
+        assert(await page.locator("#start").isEnabled());
+        await page.reload();
+        await page.locator("#activities").getByText("使用活動").click();
+        await page.locator("#step1").waitFor();
+        assert(await page.locator("#bundleEnabled").isChecked());
+        assert.equal(await page.locator("[name=bundle]").nth(1).inputValue(), "演唱會套票 2");
+
+        // 關閉套票但保留獨立取票方式，重新開啟不得帶回舊值
+        await page.locator("#bundleEnabled").uncheck();
+        await page.locator("#saveActivity").click();
+        await page.locator("#step2").waitFor();
+        const disabled = (await store.load(id)).settings;
+        assert.equal(disabled.bundleEnabled, undefined);
+        assert(disabled.targets.every(t => t.bundle === undefined));
+        assert.equal(disabled.deliveryMethod, "指定地點自取");
+        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.locator("#bundleEnabled").check();
+        assert.equal(await page.locator("[name=bundle]").nth(0).inputValue(), "");
+    }));

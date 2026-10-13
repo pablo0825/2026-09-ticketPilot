@@ -1,10 +1,11 @@
+import { KlookTicketExtras } from "./ticketExtras.js";
 import { SelectionExpiryNotice } from "./notices.js";
 import { parseDateOption, matchesDateOption } from "./eventDate.js";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { normalizeTicketName, parseTicketLabel } from "./ticketLabel.js";
 import { validateTicketTarget } from "../../core/purchaseValidation.js";
 import type { Locator, Page } from "playwright";
-import type { TicketTarget } from "../../core/types.js";
+import type { TicketTarget, TicketOptions } from "../../core/types.js";
 import { log } from "../../core/logger.js";
 
 // Klook 改版時，優先檢查這裡的定位方式。
@@ -48,7 +49,7 @@ export class KlookTicketSelector {
         this.root = page.locator(selectors.root);
     }
 
-    async selectAndVerify(target: TicketTarget): Promise<"selected" | "disabled"> {
+    async selectAndVerify(target: TicketTarget, options: TicketOptions = {}): Promise<"selected" | "disabled"> {
         // 檢查票券格式是否符合
         validateTicketTarget(target);
 
@@ -78,6 +79,10 @@ export class KlookTicketSelector {
             return "disabled";
         }
 
+        // 選擇套票與取票方式
+        const extras = new KlookTicketExtras(this.page, target, options, this.timeout, this.observeSelectionNotice);
+        await extras.select();
+
         // 設定張數與相連座位
         await this.setQuantity(target.quantity);
         await this.setAdjacentPreference(target);
@@ -96,6 +101,7 @@ export class KlookTicketSelector {
         await this.verifyQuantity(target.quantity);
         await this.verifyAdjacentPreference(target);
 
+        await extras.verify();
         log("選票驗證完成，目前尚未取得座位。");
         return "selected";
     }

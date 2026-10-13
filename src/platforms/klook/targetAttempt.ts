@@ -1,6 +1,6 @@
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { hasVisibleSeatScreen } from "./eventPage.js";
-import type { PurchaseTarget } from "../../core/types.js";
+import type { PurchaseTarget, TicketOptions } from "../../core/types.js";
 import type { TargetAttempt, AttemptResult } from "../../core/priorityStrategy.js";
 import { KlookSelectionFailure, SelectionFailure } from "./selectionFailure.js";
 import { reportState } from "../../core/state.js";
@@ -21,6 +21,7 @@ export class KlookTargetAttempt implements TargetAttempt<KlookAssignment> {
         private readonly page: Page,
         eventUrl: string,
         private readonly timeout = 30_000,
+        private readonly options: TicketOptions = {},
     ) {
         this.failure = new KlookSelectionFailure(page, eventUrl, timeout);
     }
@@ -31,7 +32,7 @@ export class KlookTargetAttempt implements TargetAttempt<KlookAssignment> {
         reportState("TICKET_SELECTION");
         const selection = await new KlookTicketSelector(this.page, this.timeout, () =>
             this.failure.assertNoExistingNotice(),
-        ).selectAndVerify(target);
+        ).selectAndVerify(target, this.options);
 
         // 目標目前不可選：確認頁面安全後回報不可選
         if (selection === "disabled") {

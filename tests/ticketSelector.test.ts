@@ -1,3 +1,4 @@
+import { KlookTargetAttempt } from "../src/platforms/klook/targetAttempt.js";
 import { PurchaseStop } from "../src/core/purchaseStop.js";
 import { PriorityStrategy } from "../src/core/priorityStrategy.js";
 import { prepareBooking } from "../src/core/bookingPreparation.js";
@@ -684,6 +685,97 @@ test("純金額與 VIP 混合票種可選，名稱歧義或不同則不點票種
             assert.equal(await page.locator("body").getAttribute("data-ticket-clicked"), null);
             assert.equal(await page.locator("body").getAttribute("data-next"), null);
         }
+    } finally {
+        await page.close();
+    }
+});
+
+test("套票與取票方式接入選票，張數操作清除選中時不放行", async () => {
+    const page = await browser.newPage();
+    try {
+        // 補入兩組實站觀察結構，沿用 fixture 選取事件
+        const extra = (title: string, name: string) =>
+            `<div class="skuGroup-hk2pfU"><div class="name-Cu4gxk">${title}</div><div><div class="spec-LwNjSh">${name}</div></div></div>`;
+        const html = fixture().replace(
+            '<div class="eventUnit-kxDycC">',
+            extra("組合套票", "演唱會套票1：門票") +
+                extra("取票方式 (訂單確認後不可更改)", "指定地點自取") +
+                '<div class="eventUnit-kxDycC">',
+        );
+        const wanted = { ...target, bundle: "演唱會套票 1" };
+        const extras = { bundleEnabled: true, deliveryMethod: "指定地點自取" };
+        await page.setContent(html);
+        assert.equal(await new KlookTicketSelector(page, 500).selectAndVerify(wanted, extras), "selected");
+        assert.equal(await page.locator("body").getAttribute("data-next"), null);
+
+        // 後續數量操作重設套票，最後核對必須停止
+        await page.setContent(html);
+        await page
+            .locator(".btn-vDH5IS")
+            .last()
+            .evaluate(el => {
+                el.addEventListener("click", () => {
+                    for (const option of document.querySelectorAll(".spec-LwNjSh")) {
+                        if (option.textContent?.startsWith("演唱會套票")) option.classList.remove("active-vB3nra");
+                    }
+                });
+            });
+        await assert.rejects(new KlookTicketSelector(page, 500).selectAndVerify(wanted, extras), /組合套票選取結果/);
+        assert.equal(await page.locator("body").getAttribute("data-next"), null);
+    } finally {
+        await page.close();
+    }
+});
+
+test("新套票停用不切下一順位，取票方式設定傳到實際 adapter", async () => {
+    const page = await browser.newPage();
+    try {
+        // 選票頁不會送出，保留真實網址以通過既有提示檢查
+        await page.route(eventConfig.eventUrl, route =>
+            route.fulfill({ body: fixture(1), contentType: "text/html; charset=utf-8" }),
+        );
+        await page.goto(eventConfig.eventUrl);
+        await page.locator("#ticket-options").evaluate(el => {
+            el.insertAdjacentHTML(
+                "beforeend",
+                '<div class="skuGroup-hk2pfU"><div class="name-Cu4gxk">組合套票</div><div class="spec-LwNjSh disabled-ImixBj">套票1：門票</div></div>',
+            );
+        });
+        const config = {
+            ...eventConfig,
+            bundleEnabled: true,
+            targets: [eventConfig.targets[0]!, { ...eventConfig.targets[0]!, area: "B區" }].map(t => ({
+                ...t,
+                bundle: "套票1",
+            })),
+        };
+        const strategy = new PriorityStrategy(config);
+        const adapter = new KlookTargetAttempt(page, eventConfig.eventUrl, 300, config);
+        let attempts = 0;
+        await assert.rejects(
+            strategy.select({
+                attempt: async wanted => {
+                    attempts++;
+                    return adapter.attempt(wanted);
+                },
+                returnAfterFailure: async () => {
+                    throw new Error("不應返回");
+                },
+            }),
+            /組合套票目前無法選取/,
+        );
+        assert.equal(attempts, 1);
+        assert.equal(await page.locator("body").getAttribute("data-next"), null);
+
+        // 獨立取票方式設定必須傳至選票器，不能被靜默忽略
+        await page.setContent(fixture(1));
+        await assert.rejects(
+            new KlookTargetAttempt(page, eventConfig.eventUrl, 200, { deliveryMethod: "自取" }).attempt(
+                eventConfig.targets[0]!,
+            ),
+            /找不到唯一符合的取票方式/,
+        );
+        assert.equal(await page.locator("body").getAttribute("data-next"), null);
     } finally {
         await page.close();
     }

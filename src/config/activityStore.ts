@@ -37,6 +37,7 @@ const activitySchema = z
                         unitPrice: z.unknown().optional(), // 相容舊活動，解析後移除。
                         quantity: z.number().int().positive().safe(),
                         adjacent: z.boolean(),
+                        bundle: z.string().trim().optional(),
                     })
                     .strict()
                     .transform(({ unitPrice: _unitPrice, ...target }) => target),
@@ -46,9 +47,17 @@ const activitySchema = z
             .object({ saleAt: z.string(), advanceSeconds: z.union([z.literal(1), z.literal(2)]).optional() })
             .strict()
             .optional(),
+        bundleEnabled: z.boolean().optional(),
+        deliveryMethod: z.string().trim().min(1).optional(),
     })
     .strict()
-    .transform(({ currency: _currency, ...settings }) => settings);
+    .transform(({ currency: _currency, ...settings }) => {
+        if (!settings.bundleEnabled) {
+            delete settings.bundleEnabled;
+            for (const target of settings.targets) delete target.bundle;
+        }
+        return settings;
+    });
 
 export type ActivitySettings = z.infer<typeof activitySchema>;
 
@@ -75,6 +84,8 @@ export function toPurchaseConfig(settings: ActivitySettings): PurchaseConfig {
         fallbackMode: settings.fallbackMode,
         excludeKeywords: [...settings.excludeKeywords],
         ...(settings.saleSchedule ? { saleSchedule: { ...settings.saleSchedule } } : {}),
+        ...(settings.bundleEnabled ? { bundleEnabled: true } : {}),
+        ...(settings.deliveryMethod ? { deliveryMethod: settings.deliveryMethod } : {}),
         targets: settings.targets.map(target => ({
             ...target,
             expectation: {

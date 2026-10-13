@@ -54,6 +54,8 @@ interface PageElements {
     editorTitle: HTMLElement;
     eventName: HTMLInputElement;
     eventUrl: HTMLInputElement;
+    bundleEnabled: HTMLInputElement;
+    deliveryMethod: HTMLInputElement;
     add: HTMLButtonElement;
     targets: HTMLElement;
     exclude: HTMLInputElement;
@@ -291,7 +293,7 @@ function row(data: TargetFields = { date: "", time: "", area: "", quantity: 1, a
     const container = document.createElement("div");
     container.className = "target-row";
     container.innerHTML =
-        '<div class="target-fields"><label>演出日期<input name="date" type="date" required></label><label>演出時間<input name="time" type="time" required></label><label>票區／票種<input name="area" required></label><label>張數<input name="quantity" type="number" min="1" step="1" required></label></div><div class="target-tools"><strong class="position"></strong><label class="check"><input name="adjacent" type="checkbox">要求連位</label><button type="button" class="secondary up">上移</button><button type="button" class="secondary down">下移</button><button type="button" class="secondary remove">移除</button><button type="button" class="secondary duplicate">複製</button></div>';
+        '<div class="target-fields"><label>演出日期<input name="date" type="date" required></label><label>演出時間<input name="time" type="time" required></label><label>票區／票種<input name="area" required></label><label>張數<input name="quantity" type="number" min="1" step="1" required></label></div><label class="bundle-field">組合套票<input name="bundle" placeholder="例如：演唱會套票 1"></label><div class="target-tools"><strong class="position"></strong><label class="check"><input name="adjacent" type="checkbox">要求連位</label><button type="button" class="secondary up">上移</button><button type="button" class="secondary down">下移</button><button type="button" class="secondary remove">移除</button><button type="button" class="secondary duplicate">複製</button></div>';
 
     for (const [key, value] of Object.entries(data)) {
         const input = container.querySelector<HTMLInputElement>(`[name="${key}"]`);
@@ -337,7 +339,7 @@ function row(data: TargetFields = { date: "", time: "", area: "", quantity: 1, a
         if ($("targets").children.length > 1) {
             container.remove();
         } else {
-            for (const name of ["date", "time", "area"]) {
+            for (const name of ["date", "time", "area", "bundle"]) {
                 container.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = "";
             }
             quantity.value = "1";
@@ -354,7 +356,7 @@ function row(data: TargetFields = { date: "", time: "", area: "", quantity: 1, a
         const copy = row();
         for (const input of container.querySelectorAll<HTMLInputElement>("[name]")) {
             const copiedInput = copy.querySelector<HTMLInputElement>(`[name="${input.name}"]`)!;
-            copiedInput.value = input.value;
+            copiedInput.value = input.name === "bundle" ? input.value.trim() : input.value;
             copiedInput.checked = input.checked;
             copiedInput.disabled = input.disabled;
         }
@@ -367,9 +369,25 @@ function row(data: TargetFields = { date: "", time: "", area: "", quantity: 1, a
 
     // 加到畫面並重新編號
     $("targets").append(container);
+    syncBundleFields();
     renumber();
     return container;
 }
+
+function syncBundleFields(): void {
+    for (const field of document.querySelectorAll<HTMLElement>(".bundle-field")) {
+        const input = field.querySelector<HTMLInputElement>("input")!;
+        field.hidden = !$("bundleEnabled").checked;
+        input.disabled = field.hidden;
+        input.required = !field.hidden;
+        if (field.hidden) input.value = "";
+    }
+}
+
+$("bundleEnabled").onchange = () => {
+    syncBundleFields();
+    changed();
+};
 
 function renumber() {
     const rows = [...$("targets").children];
@@ -389,6 +407,8 @@ function loadForm(settings: ActivityFields): void {
     $("eventName").value = settings.eventName;
     $("eventUrl").value = settings.eventUrl;
     $("exclude").value = settings.excludeKeywords.join(",");
+    $("bundleEnabled").checked = settings.bundleEnabled === true;
+    $("deliveryMethod").value = settings.deliveryMethod ?? "";
 
     // 依儲存順序重建購票順位
     $("targets").replaceChildren();
@@ -404,21 +424,24 @@ function loadForm(settings: ActivityFields): void {
 }
 
 function activityInput(includeSchedule = true): ActivityDraft {
-    // 讀取每一列順位
+    // 讀取每一列順位；套票放最後，保持與儲存格式相同的欄位順序
     const targets = [...$("targets").children].map(
         el =>
             Object.fromEntries(
-                [...el.querySelectorAll<HTMLInputElement>("[name]")].map(input => {
-                    let value: boolean | number | string;
-                    if (input.type === "checkbox") {
-                        value = input.checked;
-                    } else if (input.type === "number") {
-                        value = Number(input.value);
-                    } else {
-                        value = input.value;
-                    }
-                    return [input.name, value];
-                }),
+                [...el.querySelectorAll<HTMLInputElement>("[name]")]
+                    .filter(input => input.name !== "bundle" || $("bundleEnabled").checked)
+                    .sort((a, b) => Number(a.name === "bundle") - Number(b.name === "bundle"))
+                    .map(input => {
+                        let value: boolean | number | string;
+                        if (input.type === "checkbox") {
+                            value = input.checked;
+                        } else if (input.type === "number") {
+                            value = Number(input.value);
+                        } else {
+                            value = input.name === "bundle" ? input.value.trim() : input.value;
+                        }
+                        return [input.name, value];
+                    }),
             ) as ActivitySettings["targets"][number],
     );
 
@@ -441,6 +464,8 @@ function activityInput(includeSchedule = true): ActivityDraft {
         }
     }
 
+    if ($("bundleEnabled").checked) settings.bundleEnabled = true;
+    if ($("deliveryMethod").value.trim()) settings.deliveryMethod = $("deliveryMethod").value.trim();
     return settings;
 }
 
@@ -610,6 +635,9 @@ function summary() {
         /* 不完整網址只顯示文字。 */
     }
 
+    if (draft.bundleEnabled) field("組合套票", "已啟用");
+    if (draft.deliveryMethod) field("取票方式", draft.deliveryMethod);
+
     // 購票順位表格
     const heading = document.createElement("h3");
     heading.textContent = "購票順位";
@@ -622,7 +650,15 @@ function summary() {
 
     const table = document.createElement("table");
     const header = table.createTHead().insertRow();
-    for (const title of ["順位", "演出日期", "時間", "票區／票種", "張數", "要求連位"]) {
+    for (const title of [
+        "順位",
+        "演出日期",
+        "時間",
+        "票區／票種",
+        "張數",
+        "要求連位",
+        ...(draft.bundleEnabled ? ["組合套票"] : []),
+    ]) {
         const cell = document.createElement("th");
         cell.scope = "col";
         cell.textContent = title;
@@ -641,6 +677,7 @@ function summary() {
             target.area.trim() || "未填寫",
             quantityValid ? target.quantity : "未填寫或無效",
             target.quantity === 1 ? "不適用（單張）" : target.adjacent ? "是" : "否",
+            ...(draft.bundleEnabled ? [target.bundle?.trim() || "未填寫"] : []),
         ];
 
         const row = body.insertRow();
