@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { chromium, type Page } from "playwright";
 import { PurchaseStop } from "../src/core/purchaseStop.js";
+import { withRunEvents, type RunEvent } from "../src/core/logger.js";
 import { prepareStartup } from "../src/platforms/klook/startup.js";
 import { KlookQueueWaiting } from "../src/platforms/klook/queueWaiting.js";
 import { findQueueControl } from "../src/platforms/klook/queueControl.js";
@@ -459,7 +460,16 @@ test("快照讀取中網站 reload：忽略舊文件或導頁讀取錯誤，辨�
 test("動作前重讀遇刷新、階段或倒數變動：本輪不點，下一輪仍可單次入隊", async () => {
     const browser = await chromium.launch();
     try {
-        for (const change of ["reload", "countdown", "stage", "navigation-error", "stop"] as const) {
+        for (const change of [
+            "reload",
+            "countdown",
+            "stage",
+            "navigation-error",
+            "navigation-error-only",
+            "reload-error",
+            "bug",
+            "stop",
+        ] as const) {
             const page = await browser.newPage();
             let clicks = 0;
             let reads = 0;
@@ -479,11 +489,19 @@ test("動作前重讀遇刷新、階段或倒數變動：本輪不點，下一�
                     await page.locator("#clock").evaluate(el => (el.textContent = "00:00:01"));
                 } else if (change === "stage") {
                     await page.locator("main").evaluate((el, html) => (el.innerHTML = html), frame + waiting);
+                } else if (change === "navigation-error-only") {
+                    // 導頁讀取錯誤即使尚未觸發導頁事件，也只重讀。
+                    throw new Error("Execution context was destroyed");
+                } else if (change === "bug") {
+                    // 文件未變動的未知錯誤不可吞掉。
+                    throw new Error("unexpected bug");
                 } else {
                     const previous = await evaluate(fn, arg);
                     await page.reload();
                     if (change === "navigation-error") throw new Error("Execution context was destroyed");
                     if (change === "stop") throw new PurchaseStop("測試安全停止");
+                    // 文件已換時，一般讀取錯誤也只重讀。
+                    if (change === "reload-error") throw new Error("Target closed");
                     return previous;
                 }
                 return evaluate(fn, arg);
@@ -501,6 +519,13 @@ test("動作前重讀遇刷新、階段或倒數變動：本輪不點，下一�
                 const run = new KlookQueueWaiting(page, eventUrl, options).handleIfPresent();
                 if (change === "stop") {
                     await assert.rejects(run, /測試安全停止/);
+                    assert.equal(clicks, 0);
+                    assert.equal(polls, 0);
+                } else if (change === "bug") {
+                    await assert.rejects(
+                        run,
+                        error => !(error instanceof PurchaseStop) && /unexpected bug/.test((error as Error).message),
+                    );
                     assert.equal(clicks, 0);
                     assert.equal(polls, 0);
                 } else {
@@ -553,6 +578,71 @@ test("按鈕缺失或停用：提早返回仍輪詢並因未知狀態逾時，�
                 await page.close();
             }
         }
+    } finally {
+        await browser.close();
+    }
+});
+
+test("已入隊後網站返回歸零倒數：視為未知，不按排隊購票", async () => {
+    const browser = await chromium.launch();
+    try {
+        const page = await browser.newPage();
+        let loads = 0;
+        let clicks = 0;
+        await page.exposeFunction("record", () => clicks++);
+        await page.route("**/*", route => {
+            let body = "";
+            if (route.request().url() === queueUrl) {
+                // 第一次是排隊中；網站 reload 後回到歸零倒數與可按的入口。
+                body =
+                    ++loads === 1
+                        ? wrap(waiting) + "<script>setTimeout(()=>location.reload(),60)</script>"
+                        : wrap(
+                              countdown.replace("00:00:01", "00:00:00") +
+                                  '<button onclick="window.record()">排隊購票</button>',
+                          );
+            }
+            return route.fulfill({ contentType: "text/html; charset=utf-8", body });
+        });
+        await page.goto(queueUrl);
+
+        await assert.rejects(new KlookQueueWaiting(page, eventUrl, options).handleIfPresent(), /未知/);
+        assert(loads >= 2);
+        assert.equal(clicks, 0);
+    } finally {
+        await browser.close();
+    }
+});
+
+test("排隊階段只在改變時回報，不隨每次輪詢重複", async () => {
+    const browser = await chromium.launch();
+    try {
+        const page = await browser.newPage();
+        let loads = 0;
+        await page.exposeFunction("record", () => {});
+        await page.route("**/*", route => {
+            let body = "";
+            if (route.request().url() === queueUrl) {
+                // 排隊中持續多次輪詢後才 reload 成放行頁。
+                body =
+                    ++loads === 1
+                        ? wrap(waiting) + "<script>setTimeout(()=>location.reload(),100)</script>"
+                        : wrap(admitted + `<button onclick="location.href='${eventUrl}'">繼續預訂</button>`);
+            }
+            return route.fulfill({ contentType: "text/html; charset=utf-8", body });
+        });
+        await page.goto(queueUrl);
+
+        const events: RunEvent[] = [];
+        const result = await withRunEvents(
+            event => events.push(event),
+            () => new KlookQueueWaiting(page, eventUrl, options).handleIfPresent(),
+        );
+        assert.equal(result, true);
+        assert.deepEqual(
+            events.flatMap(event => (event.type === "state" ? [event.state] : [])),
+            ["WAITING_IN_QUEUE", "WAITING_IN_QUEUE", "QUEUE_CONTINUING"],
+        );
     } finally {
         await browser.close();
     }

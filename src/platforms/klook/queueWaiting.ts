@@ -14,12 +14,23 @@ export interface QueueWaitingOptions {
     pollInterval?: number;
 }
 
+// 單次排隊等待的進度；跨網站刷新保留。
 interface QueueWaitState {
+    // 網站導頁次數；用來判斷讀取途中文件是否已換。
     documentVersion: number;
+    // 已嘗試點擊的按鈕（點擊前就記錄）；嘗試過就不再按。
     joinAttempted: boolean;
     continueAttempted: boolean;
+    // 已看到排隊中或放行，代表確實已入隊。
+    joined: boolean;
+    // 最近一次回報給畫面的階段，只在階段改變時回報。
+    lastStage?: QueueStage;
+    // 點擊後等待網站回應的期限；它比點擊後 unknownSince 的寬限早，通常由它先停止。
     pendingUntil?: number;
+    // 順位保留期限，只能維持或縮短。
     admissionUntil?: number;
+    // 畫面持續看不懂的起點；超過寬限就停止。
+    unknownSince?: number;
 }
 
 interface QueueWaitContext {
@@ -35,6 +46,14 @@ function isNavigationReadError(error: unknown): boolean {
         error instanceof Error &&
         /Execution context was destroyed|Cannot find context with specified id/.test(error.message)
     );
+}
+
+// 點擊後不再信任畫面，避免重按：
+// 按過「繼續預訂」一律視為未知；已按排隊購票或已入隊後又看到倒數，也視為未知。
+function effectiveStage(stage: QueueStage, state: QueueWaitState): QueueStage {
+    if (state.continueAttempted) return "unknown";
+    if ((state.joinAttempted || state.joined) && stage === "countdown") return "unknown";
+    return stage;
 }
 
 // 每次啟動只建立一個實例；網站刷新不重設入隊、繼續預訂或等待期限。
@@ -76,16 +95,12 @@ export class KlookQueueWaiting {
             documentVersion: 0,
             joinAttempted: false,
             continueAttempted: false,
+            joined: false,
         };
         const onNavigation = () => {
             state.documentVersion++;
         };
         page.on("framenavigated", onNavigation);
-
-        // 點擊紀錄與順位期限跨網站刷新保留
-        let joined = false;
-        let unknownSince: number | undefined;
-        let lastStage: string | undefined;
 
         try {
             while (Date.now() < deadline) {
@@ -105,14 +120,11 @@ export class KlookQueueWaiting {
                 // 網站導頁可能銷毀讀取中的文件，只重讀，不重做操作
                 const version = state.documentVersion;
                 const snapshot = await this.readCurrentSnapshot(state, version);
-                let stage = snapshot.stage;
-                if (state.continueAttempted || ((state.joinAttempted || joined) && stage === "countdown")) {
-                    stage = "unknown";
-                }
+                let stage = effectiveStage(snapshot.stage, state);
 
                 // 排隊與放行是入隊完成的證據；不要求觀察到每個百分比
                 if (stage === "waiting" || stage === "admitted") {
-                    joined = true;
+                    state.joined = true;
                     state.pendingUntil = undefined;
                 }
                 if (stage === "admitted") {
@@ -121,9 +133,9 @@ export class KlookQueueWaiting {
                         Date.now() + snapshot.seconds! * 1000,
                     );
                 }
-                if (stage !== "unknown" && stage !== lastStage) {
+                if (stage !== "unknown" && stage !== state.lastStage) {
                     reportState(stage === "countdown" ? "QUEUE_COUNTDOWN" : "WAITING_IN_QUEUE");
-                    lastStage = stage;
+                    state.lastStage = stage;
                 }
 
                 // 動作前再核對當下文件及階段，先記錄嘗試再點擊
@@ -140,11 +152,11 @@ export class KlookQueueWaiting {
 
                 // 未知或重載中的畫面只給短暫寬限，不延長整體期限
                 if (stage === "unknown") {
-                    unknownSince ??= Date.now();
-                    if (Date.now() - unknownSince >= loadTimeout) {
+                    state.unknownSince ??= Date.now();
+                    if (Date.now() - state.unknownSince >= loadTimeout) {
                         throw new PurchaseStop("排隊頁持續未知或回到入隊入口，已停止；不會重新入隊。");
                     }
-                } else unknownSince = undefined;
+                } else state.unknownSince = undefined;
                 await page.waitForTimeout(
                     Math.max(0, Math.min(this.options.pollInterval ?? 500, deadline - Date.now())),
                 );
@@ -210,11 +222,14 @@ export class KlookQueueWaiting {
             }
             return "clicked";
         } catch (error) {
-            // 操作中的文件變動可重讀，但明確停止與點擊失敗不可忽略
-            if (error instanceof PurchaseStop || (!isNavigationReadError(error) && version === state.documentVersion)) {
-                throw error;
-            }
-            return "unknown";
+            // 明確停止（包含點擊結果不明）一律往外拋
+            if (error instanceof PurchaseStop) throw error;
+
+            // 讀取途中網站導頁或刷新，下一輪重讀
+            if (isNavigationReadError(error) || version !== state.documentVersion) return "unknown";
+
+            // 其他錯誤不可忽略
+            throw error;
         }
     }
 }
