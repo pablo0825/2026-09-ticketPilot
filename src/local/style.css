@@ -334,15 +334,15 @@ th {
 }
 .platform-table td:last-child {
     white-space: normal;
-    text-align: right;
+    text-align: center;
 }
 .platform-table thead th:last-child {
-    text-align: right;
+    text-align: center;
 }
 .platform-actions {
     display: flex;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: center;
     gap: 8px;
 }
 .platform-actions button + button {
