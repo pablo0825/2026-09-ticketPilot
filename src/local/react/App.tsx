@@ -2,15 +2,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityRecord } from "../../config/activityStore.js";
 import type { ContactDetails } from "../../config/contact.config.js";
 import type { ActivityExecutionStatus } from "../purchaseRuns.js";
-import { api } from "./api.js";
-import { activityForm, activityInput, contactInput, emptyContact, needsActivitySave } from "./formModel.js";
-import type { ActivityForm } from "./formModel.js";
-import { ActivityEditor } from "./ActivityEditor.js";
-import { ContactForm } from "./ContactForm.js";
-import { PurchaseSummary } from "./PurchaseSummary.js";
-import { RunStatus } from "./RunStatus.js";
-import { useRunStatus } from "./useRunStatus.js";
-import { startPurchase } from "./startPurchase.js";
+import { api } from "./shared/api.js";
+import {
+    activityForm,
+    activityInput,
+    contactInput,
+    emptyContact,
+    needsActivitySave,
+} from "./platforms/klook/formModel.js";
+import type { ActivityForm } from "./platforms/klook/formModel.js";
+import { ActivityEditor } from "./platforms/klook/ActivityEditor.js";
+import { ContactForm } from "./platforms/klook/ContactForm.js";
+import { PurchaseSummary } from "./platforms/klook/PurchaseSummary.js";
+import { RunStatus } from "./shared/runs/RunStatus.js";
+import { useRunStatus } from "./shared/runs/useRunStatus.js";
+import { startPurchase } from "./platforms/klook/startPurchase.js";
 
 interface ActivityList {
     activities: (ActivityRecord & { executionStatus: ActivityExecutionStatus })[];

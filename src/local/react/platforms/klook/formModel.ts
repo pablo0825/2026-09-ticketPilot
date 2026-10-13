@@ -1,5 +1,5 @@
-import type { ActivitySettings } from "../../config/activityStore.js";
-import type { ContactDetails } from "../../config/contact.config.js";
+import type { ActivitySettings } from "../../../../config/activityStore.js";
+import type { ContactDetails } from "../../../../config/contact.config.js";
 
 export interface TargetDraft {
     key: string;

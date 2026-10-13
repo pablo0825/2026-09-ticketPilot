@@ -1,9 +1,9 @@
-import type { ActivityRecord, ActivitySettings } from "../../config/activityStore.js";
-import type { ContactDetails } from "../../config/contact.config.js";
-import type { PurchaseSnapshot } from "../purchaseRuns.js";
+import type { ActivityRecord, ActivitySettings } from "../../../../config/activityStore.js";
+import type { ContactDetails } from "../../../../config/contact.config.js";
+import type { PurchaseSnapshot } from "../../../purchaseRuns.js";
 import type { ActivityDraft } from "./formModel.js";
-import { api } from "./api.js";
-import type { ApiError } from "./api.js";
+import { api } from "../../shared/api.js";
+import type { ApiError } from "../../shared/api.js";
 
 interface PendingRequest {
     version: 2;

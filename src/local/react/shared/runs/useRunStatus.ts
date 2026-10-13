@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PurchaseSnapshot } from "../purchaseRuns.js";
-import type { SimulationSnapshot } from "../simulationRuns.js";
-import { api, localToken } from "./api.js";
+import type { PurchaseSnapshot } from "../../../purchaseRuns.js";
+import type { SimulationSnapshot } from "../../../simulationRuns.js";
+import { api, localToken } from "../api.js";
 
 export type DisplayedRun =
     { kind: "purchase"; run: PurchaseSnapshot } | { kind: "simulation"; run: SimulationSnapshot };

@@ -1,4 +1,4 @@
-import type { ContactDetails } from "../../config/contact.config.js";
+import type { ContactDetails } from "../../../../config/contact.config.js";
 
 const regions = [
     "台灣 (+886)",

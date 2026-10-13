@@ -1,4 +1,4 @@
-import type { PurchaseSnapshot } from "../purchaseRuns.js";
+import type { PurchaseSnapshot } from "../../../purchaseRuns.js";
 
 export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, now: number) {
     const stateEvent = run.events.filter(item => item.event.type === "state").at(-1)?.event;
