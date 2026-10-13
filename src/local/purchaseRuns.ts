@@ -221,17 +221,8 @@ export class PurchaseRuns {
             .digest("hex");
 
         // 同一個請求重送時，回傳原本的結果
-        const previous = this.read(requestId);
-        if (previous) {
-            if (previous.fingerprintVersion !== 2) {
-                throw new Error("舊版開始請求結果需人工確認，請檢查原流程與訂單；不會重新啟動。");
-            }
-            if (previous.activity && previous.activity.id !== activityId) throw new Error("同一開始請求不能更換活動。");
-            if (previous.fingerprint !== fingerprint) throw new Error("同一開始請求不能更換設定。");
-            return previous.snapshot.id === this.current?.snapshot.id
-                ? this.snapshot()!
-                : { ...previous.snapshot, occupied: this.busy(), canCloseBrowser: false };
-        }
+        const previous = this.previousResult(requestId, activityId, fingerprint);
+        if (previous) return previous;
 
         // 確認沒有占用，且還沒超過開賣等待期限
         if (this.busy()) throw new Error("已有購票程序或瀏覽器占用，請先關閉原購票瀏覽器。");
@@ -264,7 +255,7 @@ export class PurchaseRuns {
         this.current = record;
         if (record.activity) this.latestByActivity.set(record.activity.id, record);
 
-        // 啟動購票子程序
+        // 啟動購票子程序，並接收它的回報
         const child = fork(fileURLToPath(this.worker), [], {
             cwd: projectRoot,
             detached: true,
@@ -273,9 +264,43 @@ export class PurchaseRuns {
             stdio: ["ignore", "ignore", "ignore", "ipc"],
         });
         this.child = child;
+        this.attachWorker(child, record);
+
+        // 傳送設定給子程序
+        child.send(structuredClone({ activity, contact, lease }), error => {
+            if (error) child.kill();
+        });
+
+        this.notify();
+        return this.snapshot()!;
+    }
+
+    // 同一請求只能回傳原結果；換活動或換設定都拒絕。
+    private previousResult(
+        requestId: string,
+        activityId: string | undefined,
+        fingerprint: string,
+    ): PurchaseSnapshot | undefined {
+        const previous = this.read(requestId);
+        if (!previous) return undefined;
+
+        if (previous.fingerprintVersion !== 2) {
+            throw new Error("舊版開始請求結果需人工確認，請檢查原流程與訂單；不會重新啟動。");
+        }
+        if (previous.activity && previous.activity.id !== activityId) throw new Error("同一開始請求不能更換活動。");
+        if (previous.fingerprint !== fingerprint) throw new Error("同一開始請求不能更換設定。");
+
+        return previous.snapshot.id === this.current?.snapshot.id
+            ? this.snapshot()!
+            : { ...previous.snapshot, occupied: this.busy(), canCloseBrowser: false };
+    }
+
+    // 接收子程序回報；結束時依是否正常完成更新紀錄。
+    private attachWorker(child: ChildProcess, record: Record): void {
+        // 只有收到 finished 且沒有錯誤，才算正常結束
+        let clean = false;
 
         // 接收子程序回報的事件、瀏覽器狀態與結果
-        let clean = false;
         child.on("message", (value: any) => {
             try {
                 if (value?.type === "event" && ["state", "log", "target", "recovery"].includes(value.event?.type)) {
@@ -329,14 +354,6 @@ export class PurchaseRuns {
             clean = false;
         });
         child.once("close", ended);
-
-        // 傳送設定給子程序
-        child.send(structuredClone({ activity, contact, lease }), error => {
-            if (error) child.kill();
-        });
-
-        this.notify();
-        return this.snapshot()!;
     }
 
     async closeBrowser(runId: string): Promise<PurchaseSnapshot> {

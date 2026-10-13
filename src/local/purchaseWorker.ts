@@ -39,6 +39,8 @@ process.once("message", async (input: { activity: unknown; contact: unknown; lea
         // 把事件傳回主服務，並隱藏紀錄裡的個資
         const privateValues = Object.values(contact).filter(value => value.length > 1);
         const sendEvent = (event: RunEvent) => {
+            // 必須在提交前就標記；runPurchase.ts 的 submitAndVerifyPayment 在 contactForm.submit() 前回報 CONTACT_SUBMISSION。
+            // 若調整回報順序，提交結果不明時會被誤判為「未提交」。
             if (event.type === "state" && event.state === "CONTACT_SUBMISSION") submitted = true;
             // 個資不進 IPC 日誌；原始 Playwright error/stdout 也不轉送。
             if (event.type === "log") {
