@@ -3,7 +3,7 @@ import { test, mock } from "node:test";
 import { chromium, type Page } from "playwright";
 import { prepareBooking } from "../src/core/bookingPreparation.js";
 import { KlookQueueRecovery } from "../src/platforms/klook/expiryRecovery.js";
-import { prepareStartup } from "../src/platforms/klook/startup.js";
+import { decideSaleStep, prepareStartup, type SalePageState, type SaleTiming } from "../src/platforms/klook/startup.js";
 import { validateSaleSchedule } from "../src/core/purchaseValidation.js";
 
 const eventUrl = "https://www.klook.com/zh-TW/event-detail/sale-fixture/";
@@ -343,4 +343,112 @@ test("人工登入超過六十秒成功仍可待命；bookings 返回不取代�
             sale - 75_000,
         );
     }
+});
+
+// 判斷函式不讀 DOM；以下只核對開賣規則，不重算函式內的條件。
+const refreshAt = sale - 1000;
+const comingSoonPage: SalePageState = {
+    login: "logged-in",
+    queueExpired: false,
+    comingSoon: true,
+    hasOptions: false,
+    stateCount: 1,
+};
+const openPage: SalePageState = {
+    login: "logged-in",
+    queueExpired: false,
+    comingSoon: false,
+    hasOptions: true,
+    stateCount: 0,
+};
+const queuePage: SalePageState = { ...comingSoonPage, queueExpired: true, comingSoon: false, stateCount: 0 };
+
+function timing(overrides: Partial<SaleTiming>): SaleTiming {
+    return { now: sale, saleAt: sale, refreshAt, lastRefresh: undefined, scheduledRefreshDone: false, ...overrides };
+}
+
+test("開賣判斷：預定刷新前只等待，到點且未完成預定刷新才刷新", () => {
+    assert.equal(decideSaleStep(comingSoonPage, timing({ now: refreshAt - 1 })), "wait");
+    assert.equal(decideSaleStep(comingSoonPage, timing({ now: refreshAt })), "refresh");
+    assert.equal(decideSaleStep(openPage, timing({ now: refreshAt })), "refresh");
+});
+
+test("開賣判斷：登入後提早返回的刷新不算預定刷新", () => {
+    const early = timing({ now: refreshAt, lastRefresh: refreshAt - 2000, scheduledRefreshDone: false });
+    assert.equal(decideSaleStep(comingSoonPage, early), "refresh");
+    assert.equal(decideSaleStep(openPage, { ...early, now: sale }), "refresh");
+});
+
+test("開賣判斷：預定刷新後須到開賣時間且有選項才開始", () => {
+    const refreshed = { lastRefresh: refreshAt, scheduledRefreshDone: true };
+    assert.equal(decideSaleStep(openPage, timing({ ...refreshed, now: sale - 1 })), "wait");
+    assert.equal(decideSaleStep(openPage, timing({ ...refreshed, now: sale })), "ready");
+    assert.equal(decideSaleStep(comingSoonPage, timing({ ...refreshed, now: sale })), "wait");
+});
+
+test("開賣判斷：開賣後仍即將開賣，距上次刷新滿三秒才再刷新", () => {
+    const refreshed = { lastRefresh: sale, scheduledRefreshDone: true };
+    assert.equal(decideSaleStep(comingSoonPage, timing({ ...refreshed, now: sale + 2999 })), "wait");
+    assert.equal(decideSaleStep(comingSoonPage, timing({ ...refreshed, now: sale + 3000 })), "refresh");
+
+    // 開賣前即使距上次刷新已超過三秒，也不提前重刷。
+    const early = timing({ now: sale - 1, lastRefresh: sale - 4000, scheduledRefreshDone: true });
+    assert.equal(decideSaleStep(comingSoonPage, early), "wait");
+});
+
+test("開賣判斷：排隊彈窗優先，開賣前等待、開賣後交恢復，不刷新", () => {
+    assert.equal(decideSaleStep(queuePage, timing({ now: refreshAt })), "wait");
+    assert.equal(decideSaleStep(queuePage, timing({ now: sale })), "queue-expired");
+    const refreshed = timing({ now: sale + 5000, lastRefresh: sale, scheduledRefreshDone: true });
+    assert.equal(decideSaleStep({ ...queuePage, comingSoon: true, stateCount: 1 }, refreshed), "queue-expired");
+});
+
+test("開賣判斷：未登入、登入未知、選項與狀態並存或兩者皆無都視為未知", () => {
+    const refreshed = timing({ now: sale, lastRefresh: refreshAt, scheduledRefreshDone: true });
+    assert.equal(decideSaleStep({ ...openPage, login: "unknown" }, refreshed), "unknown");
+    assert.equal(decideSaleStep({ ...openPage, login: "logged-out" }, refreshed), "unknown");
+    assert.equal(decideSaleStep({ ...openPage, stateCount: 1 }, refreshed), "unknown");
+    assert.equal(decideSaleStep({ ...openPage, hasOptions: false, stateCount: 0 }, refreshed), "unknown");
+});
+
+test("輪詢不落在預定刷新時間時，縮短等待以準時刷新", async () => {
+    await scenario(
+        async (page, clock, visits) => {
+            assert.equal(await prepareStartup(page, eventUrl, options), "ready");
+            assert.deepEqual(visits, [sale - 1300, sale - 1000]);
+        },
+        visit => ({ body: logged + (visit === 1 ? coming : tickets) }),
+        sale - 1300,
+    );
+});
+
+test("登入提早返回的刷新跨過開賣時間，仍補做一次預定刷新才開始", async () => {
+    await scenario(
+        async (page, clock, visits) => {
+            let restored = false;
+            page.waitForTimeout = async ms => {
+                if (!restored) {
+                    restored = true;
+                    // 手動登入完成後停在首頁，交由 refresh(true) 回到活動頁。
+                    await page.goto("https://www.klook.com/zh-TW/");
+                } else clock.now += ms;
+            };
+            const goto = page.goto.bind(page);
+            page.goto = (async (...args: Parameters<Page["goto"]>) => {
+                const response = await goto(...args);
+                // 提早返回的導覽在開賣前開始，載入完成時已過開賣時間。
+                if (args[0] === eventUrl && visits.length === 2) clock.now = sale + 100;
+                return response;
+            }) as Page["goto"];
+
+            assert.equal(await prepareStartup(page, eventUrl, options), "ready");
+            assert.deepEqual(visits, [sale - 5000, sale - 5000, sale + 100]);
+        },
+        visit => ({
+            body:
+                visit === 1
+                    ? '<nav class="default-header"><button class="default-header_signin">登入</button></nav>' + coming
+                    : logged + tickets,
+        }),
+    );
 });

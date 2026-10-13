@@ -219,6 +219,57 @@ async function waitForEventReady(
     throw new PurchaseStop("活動頁準備逾時：登入狀態或選票區尚未就緒，可能尚未開賣或載入異常；未開始購票。");
 }
 
+type SaleStep = "unknown" | "wait" | "refresh" | "ready" | "queue-expired";
+
+export interface SalePageState {
+    login: LoginState;
+    queueExpired: boolean;
+    comingSoon: boolean;
+    hasOptions: boolean;
+    stateCount: number;
+}
+
+export interface SaleTiming {
+    now: number;
+    saleAt: number;
+    refreshAt: number;
+    lastRefresh: number | undefined;
+    scheduledRefreshDone: boolean;
+}
+
+// 只依目前畫面與時間決定下一步；不讀 DOM、不刷新，也不改變等待狀態。
+export function decideSaleStep(page: SalePageState, timing: SaleTiming): SaleStep {
+    // 畫面狀態看不懂時回報未知
+    const known =
+        page.login === "logged-in" &&
+        (page.queueExpired || page.comingSoon || (page.hasOptions && page.stateCount === 0));
+    if (!known) return "unknown";
+
+    // 已知排隊彈窗優先；不以刷新蓋掉它，也不在開賣前消耗恢復額度。
+    const afterSale = timing.now >= timing.saleAt;
+    if (page.queueExpired) return afterSale ? "queue-expired" : "wait";
+
+    // 預定刷新完成、已開賣且看得到票券選項時，開始選票
+    if (timing.scheduledRefreshDone && page.hasOptions && afterSale) return "ready";
+
+    // 到了預定刷新時間但尚未完成時，進行預定刷新
+    if (!timing.scheduledRefreshDone && timing.now >= timing.refreshAt) return "refresh";
+
+    // 已開賣仍顯示即將開賣，距上次刷新滿 3 秒時再刷新
+    // lastRefresh 在預定刷新完成後必定有值；保留檢查供型別判斷。
+    if (
+        page.comingSoon &&
+        timing.scheduledRefreshDone &&
+        afterSale &&
+        timing.lastRefresh !== undefined &&
+        timing.now - timing.lastRefresh >= 3000
+    ) {
+        return "refresh";
+    }
+
+    return "wait";
+}
+
 // 開賣 gate 只執行於 prepareBooking 之前；不持有或重設購票恢復額度。
 async function waitForSale(
     page: Page,
@@ -232,7 +283,10 @@ async function waitForSale(
     const loadTimeout = options.pageTimeout ?? 60_000;
     let loadDeadline = Math.min(Date.now() + loadTimeout, cutoff);
 
+    // 上次刷新的時間，只要刷新過就有值。
     let lastRefresh: number | undefined;
+    // 開賣前的預定刷新是否已完成；登入後提早返回的刷新不算。
+    let scheduledRefreshDone = false;
     let prepared = false;
     let unknownSince: number | undefined;
 
@@ -242,8 +296,8 @@ async function waitForSale(
     async function refresh(restoreEvent = false): Promise<void> {
         // 記錄刷新時間，並重新計算載入期限
         const started = Date.now();
-        // 開賣前手動登入返回活動頁，不算已完成預定的提前刷新。
-        lastRefresh = restoreEvent && started < refreshAt ? undefined : started;
+        lastRefresh = started;
+        scheduledRefreshDone = !(restoreEvent && started < refreshAt);
         loadDeadline = Math.min(started + loadTimeout, cutoff);
         const timeout = loadDeadline - Date.now();
         if (timeout <= 0) throw new PurchaseStop("已超過開賣等待截止時間。");
@@ -320,9 +374,14 @@ async function waitForSale(
             throw new PurchaseStop("開賣頁面等待已逾時，未開始購票。");
         }
 
-        // 狀態看不懂太久就停止；看得懂就決定開始、刷新或繼續等待
-        const known = login === "logged-in" && (queue || comingSoon || (hasOptions && stateCount === 0));
-        if (!known) {
+        // 依目前畫面與時間決定下一步
+        const step = decideSaleStep(
+            { login, queueExpired: queue, comingSoon, hasOptions, stateCount },
+            { now: Date.now(), saleAt, refreshAt, lastRefresh, scheduledRefreshDone },
+        );
+
+        // 狀態看不懂太久就停止；看得懂就照判斷結果開始、刷新或繼續等待
+        if (step === "unknown") {
             unknownSince ??= Date.now();
             if (Date.now() - unknownSince >= loadTimeout) {
                 throw new PurchaseStop("開賣頁面狀態未知，已停止；不判定售罄。");
@@ -336,24 +395,20 @@ async function waitForSale(
                 log("登入與活動頁檢查完成，等待開賣；尚未開始選票。");
             }
 
-            if (queue) {
-                // 已知彈窗優先；不以刷新蓋掉它，也不在開賣前消耗恢復額度。
-                if (Date.now() >= saleAt) return "queue-expired";
-            } else if (lastRefresh !== undefined && hasOptions && Date.now() >= saleAt) {
+            if (step === "queue-expired") return "queue-expired";
+            if (step === "ready") {
                 reportState("READY");
                 log("開賣等待完成，交由既有順位策略核對票券。");
                 return "ready";
-            } else if (
-                (lastRefresh === undefined && Date.now() >= refreshAt) ||
-                (comingSoon && lastRefresh !== undefined && Date.now() >= saleAt && Date.now() - lastRefresh >= 3000)
-            ) {
+            }
+            if (step === "refresh") {
                 await refresh();
                 continue;
             }
         }
 
         // 等到下一次檢查或刷新時間
-        const nextTrigger = lastRefresh === undefined ? refreshAt : saleAt;
+        const nextTrigger = scheduledRefreshDone ? saleAt : refreshAt;
         const delay =
             nextTrigger > Date.now()
                 ? Math.min(nextTrigger - Date.now(), options.pollInterval ?? 500)
