@@ -20,6 +20,7 @@ test("完整GUI：設定保存、個資未存阻擋、真實fixture與重連保�
     try {
         const page = await browser.newPage();
         await page.goto(service.url);
+        await page.locator("#selectKlook").click();
         await page.locator("#new").click();
         await page.locator("#eventName").fill("UNKNOWN");
         await page.locator("#eventUrl").fill("https://www.klook.com/zh-TW/event-detail/fixture/");
@@ -85,6 +86,7 @@ test("完整GUI：設定保存、個資未存阻擋、真實fixture與重連保�
         assert(await page.locator("#viewRun").isHidden());
         assert(await page.locator("#homeRun").isHidden());
         await page.reload();
+        await page.locator("#selectKlook").click();
         await page.locator("#home").waitFor();
         await page.waitForFunction(() => document.querySelector("#status")!.textContent === "尚未執行");
         assert(await page.locator("#viewRun").isHidden());
@@ -127,6 +129,7 @@ test("首頁只顯示占用或執行中的狀態，結束紀錄仍保留", async
             await page.route("**/api/purchase", route => route.fulfill({ json: run }));
             const feed = await snapshotFeed(page, "/api/purchase/events", run);
             await page.goto(service.url);
+            await page.locator("#selectKlook").click();
             await page.locator("#viewRun").waitFor();
             assert.equal(await page.locator("#viewRun").textContent(), "查看目前狀態");
             assert(await page.locator("#new").isDisabled());
@@ -153,6 +156,7 @@ test("首頁只顯示占用或執行中的狀態，結束紀錄仍保留", async
         const feed = await snapshotFeed(page, "/api/events", simulation);
         const purchaseFeed = await snapshotFeed(page, "/api/purchase/events");
         await page.goto(service.url);
+        await page.locator("#selectKlook").click();
         await page.locator("#viewRun").filter({ hasText: "查看模擬狀態" }).click();
         await page.locator("#step4").waitFor();
         feed.publish({ ...simulation, status: "completed" });
@@ -209,6 +213,7 @@ test("結束後關閉瀏覽器：確認取消、付款提醒、解除占用及�
         await fetch(service.url + "/api/contact", { method: "PUT", headers, body: JSON.stringify(contact) });
         const page = await browser.newPage();
         await page.goto(service.url);
+        await page.locator("#selectKlook").click();
         for (const eventName of ["HOLD_PAYMENT", "HOLD_FAILED", "HOLD_UNKNOWN"]) {
             const activity = await store.save({
                 eventName,
@@ -221,6 +226,7 @@ test("結束後關閉瀏覽器：確認取消、付款提醒、解除占用及�
                 ],
             });
             await page.reload();
+            await page.locator("#selectKlook").click();
             await page
                 .locator("#activities tr")
                 .filter({ hasText: eventName })
@@ -239,6 +245,7 @@ test("結束後關閉瀏覽器：確認取消、付款提醒、解除占用及�
             });
             runId = (await started.json()).id;
             await page.reload();
+            await page.locator("#selectKlook").click();
             await page.locator("#viewRun").click();
             const close = page.getByRole("button", { name: "關閉購票瀏覽器", exact: true });
             await close.waitFor();
@@ -321,6 +328,7 @@ test("舊價格活動可載入，無金額表單仍可保存、摘要及重載",
         const errors: string[] = [];
         page.on("pageerror", error => errors.push(error.message));
         await page.goto(service.url);
+        await page.locator("#selectKlook").click();
         await page.getByText("使用活動", { exact: true }).click();
         await page.locator("#step1").waitFor({ state: "visible" });
         assert.equal(await page.locator("#currency, [name=unitPrice]").count(), 0);
@@ -342,6 +350,7 @@ test("舊價格活動可載入，無金額表單仍可保存、摘要及重載",
 
         // 重載活動無價格欄位，也沒有模組載入錯誤
         await page.reload();
+        await page.locator("#selectKlook").click();
         await page.getByText("使用活動", { exact: true }).click();
         await page.locator("#step1").waitFor({ state: "visible" });
         assert.equal(await page.locator("#currency, [name=unitPrice]").count(), 0);

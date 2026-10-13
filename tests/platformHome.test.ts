@@ -1,0 +1,271 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { chromium, type Page } from "playwright";
+import { ActivityStore } from "../src/config/activityStore.js";
+import { saveContactDetails } from "../src/config/contact.config.js";
+import { startLocalServer } from "../src/local/server.js";
+import { snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
+
+const settings = {
+    platform: "klook",
+    eventName: "平台首頁測試",
+    eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
+    fallbackMode: "STRICT",
+    excludeKeywords: [],
+    targets: [{ date: "2026-11-21", time: "19:30", area: "B區", quantity: 2, adjacent: true }],
+};
+const contact = {
+    firstName: "Demo",
+    lastName: "Test",
+    regionLabel: "台灣 (+886)",
+    phone: "0912345678",
+    email: "demo@example.com",
+};
+
+async function fixture(
+    work: (page: Page, url: string, store: ActivityStore, id: string, dir: string) => Promise<void>,
+    corruptContact = false,
+) {
+    const dir = await mkdtemp(join(tmpdir(), "ticket-platform-home-"));
+    const store = new ActivityStore(join(dir, "events"));
+    const record = await store.save(settings);
+    const contactPath = join(dir, "contact.json");
+    if (corruptContact) await writeFile(contactPath, "{invalid");
+    else await saveContactDetails(contact, contactPath);
+    const service = await startLocalServer(store, {
+        contactPath,
+        runDirectory: join(dir, "runtime"),
+        purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
+    });
+    const browser = await chromium.launch();
+    try {
+        const page = await browser.newPage();
+        await work(page, service.url, store, record.id, dir);
+    } finally {
+        await browser.close();
+        await service.close();
+        await rm(dir, { recursive: true, force: true });
+    }
+}
+
+async function openEditor(page: Page) {
+    await page.locator("#selectKlook").click();
+    await page.locator("#activities").getByText("使用活動").click();
+    await page.locator("#step1").waitFor();
+}
+
+test("平台首頁不讀 Klook 個資；TicketPlus 無請求，個資損壞可返回首頁", async () => {
+    await fixture(async (page, url) => {
+        let contactReads = 0;
+        let writes = 0;
+        page.on("request", request => {
+            if (new URL(request.url()).pathname === "/api/contact") contactReads++;
+            if (["PUT", "POST", "DELETE"].includes(request.method())) writes++;
+        });
+        await page.goto(url);
+        await page.locator("#selectKlook").waitFor();
+        assert.equal(contactReads, 0);
+        assert(await page.getByRole("button", { name: "TicketPlus 尚未支援" }).isDisabled());
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.screenshot({ path: "/tmp/ticket-platform-home-desktop.png", fullPage: true });
+        await page.setViewportSize({ width: 390, height: 844 });
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+        await page.screenshot({ path: "/tmp/ticket-platform-home-mobile.png", fullPage: true });
+        await page.locator("#selectKlook").click();
+        await page
+            .locator("#message")
+            .filter({ hasText: /無法|格式|資料/ })
+            .waitFor();
+        assert(await page.locator("#new").isDisabled());
+        await page.locator("#platformHomeButton").click();
+        await page.locator("#platformHome").waitFor();
+        assert.equal(writes, 0);
+    }, true);
+});
+
+test("離開確認取消保留草稿，確認放棄才卸載；舊活動重開不誤判未保存", async () => {
+    await fixture(async (page, url, store, id, dir) => {
+        // 用真正舊版檔案驗證載入相容，讀取不能升版或建立備份
+        const { platform: _platform, ...oldSettings } = settings;
+        const raw = JSON.stringify({
+            schemaVersion: 1,
+            id,
+            updatedAt: "2026-10-01T00:00:00.000Z",
+            settings: oldSettings,
+        });
+        const path = join(dir, "events", `${id}.json`);
+        await writeFile(path, raw);
+        await page.goto(url);
+        await openEditor(page);
+        let dialogs = 0;
+        const dismiss = async (dialog: import("playwright").Dialog) => {
+            dialogs++;
+            await dialog.dismiss();
+        };
+        page.on("dialog", dismiss);
+        await page.locator("#platformHomeButton").click();
+        await page.locator("#platformHome").waitFor();
+        assert.equal(dialogs, 0);
+        await openEditor(page);
+        await page.locator("#eventName").fill("未保存的草稿");
+        await page.locator("#platformHomeButton").click();
+        assert.equal(dialogs, 1);
+        assert.equal(await page.locator("#eventName").inputValue(), "未保存的草稿");
+        page.off("dialog", dismiss);
+        page.once("dialog", dialog => dialog.accept());
+        await page.locator("#platformHomeButton").click();
+        await openEditor(page);
+        assert.equal(await page.locator("#eventName").inputValue(), settings.eventName);
+        assert.equal(await readFile(path, "utf8"), raw);
+        await assert.rejects(readFile(path + ".v1.bak"), { code: "ENOENT" });
+        assert.equal((await store.load(id)).settings.platform, "klook");
+        await page.screenshot({ path: "/tmp/ticket-klook-preserved.png", fullPage: true });
+    });
+});
+
+test("保存與開始請求送出期間不能離開，完成後導航不產生第二筆購票", async () => {
+    await fixture(async (page, url) => {
+        await page.goto(url);
+        await openEditor(page);
+        for (const operation of ["save", "start"]) {
+            let release: () => void = () => {};
+            let received: () => void = () => {};
+            const gate = new Promise<void>(resolve => {
+                release = resolve;
+            });
+            const arrived = new Promise<void>(resolve => {
+                received = resolve;
+            });
+            const pattern = operation === "save" ? "**/api/activities/*" : "**/api/purchase";
+            let requests = 0;
+            await page.route(pattern, async route => {
+                if (route.request().method() !== (operation === "save" ? "PUT" : "POST")) return route.continue();
+                requests++;
+                received();
+                await gate;
+                if (operation === "save") await route.continue();
+                else
+                    await route.fulfill({
+                        json: {
+                            id: "accepted",
+                            status: "failed",
+                            occupied: false,
+                            browserOpen: false,
+                            events: [],
+                            message: "fixture 完成",
+                        },
+                    });
+            });
+            if (operation === "save") {
+                await page.locator("#eventName").fill("已修改");
+                await page.locator("#saveActivity").click();
+            } else {
+                await page.getByRole("button", { name: "③ 確認與開始" }).click();
+                await page.locator("#confirm").check();
+                await page.locator("#start").click();
+            }
+            await arrived;
+            try {
+                assert(await page.locator("#platformHomeButton").isDisabled());
+                assert(await page.locator("#homeButton").isDisabled());
+                assert.equal(await page.locator("#platformHome").count(), 0);
+                assert.equal(requests, 1);
+            } finally {
+                release();
+            }
+            await page.locator(operation === "save" ? "#step2" : "#step4").waitFor();
+            await eventually(async () => assert(await page.locator("#platformHomeButton").isEnabled()));
+            await page.unroute(pattern);
+        }
+        await page.locator("#platformHomeButton").click();
+        await page.locator("#platformHome").waitFor();
+    });
+});
+
+test("執行中返回平台首頁仍接收狀態，不能在 Klook 再開另一輪", async () => {
+    await fixture(async (page, url) => {
+        const initial = {
+            id: "running",
+            requestId: randomUUID(),
+            activityName: "占用中",
+            status: "running",
+            occupied: true,
+            browserOpen: true,
+            events: [],
+            historyTruncated: false,
+            message: "購票中",
+        };
+        const feed = await snapshotFeed(page, "/api/purchase/events", initial);
+        await page.goto(url);
+        await page.locator("#platformViewRun").waitFor();
+        await page.locator("#selectKlook").click();
+        assert(await page.locator("#new").isDisabled());
+        await page.locator("#platformHomeButton").click();
+        feed.publish({ ...initial, status: "payment-ready", message: "等待付款" });
+        await page.locator("#platformViewRun").click();
+        await eventually(async () => assert.match(await page.locator("main").innerText(), /已到付款頁/));
+        await page.locator("#platformHomeButton").click();
+        await page.locator("#platformViewRun").waitFor();
+    });
+});
+
+test("舊未知請求跨首頁導航保留，不保存、不建立新請求", async () => {
+    await fixture(async (page, url, _store, id) => {
+        await page.goto(url);
+        const pending = JSON.stringify({ version: 2, requestId: randomUUID(), activityId: id, signature: "old" });
+        await page.evaluate(value => sessionStorage.setItem("ticketpilot-purchase-request", value), pending);
+        let writes = 0;
+        page.on("request", request => {
+            if (["PUT", "POST"].includes(request.method())) writes++;
+        });
+        await openEditor(page);
+        await page.locator("#platformHomeButton").click();
+        await openEditor(page);
+        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.locator("#confirm").check();
+        await page.locator("#start").click();
+        await page.locator("#message").filter({ hasText: "舊版開始請求" }).waitFor();
+        assert.equal(writes, 0);
+        assert.equal(await page.evaluate(() => sessionStorage.getItem("ticketpilot-purchase-request")), pending);
+    });
+});
+
+test("返回平台首頁後購票解除占用及模擬完成，兩種結果仍可分別查看", async () => {
+    await fixture(async (page, url) => {
+        const purchase = {
+            id: "purchase",
+            requestId: randomUUID(),
+            activityName: "已停止活動",
+            status: "running",
+            occupied: true,
+            browserOpen: true,
+            events: [],
+            historyTruncated: false,
+            message: "執行中",
+        };
+        const purchaseFeed = await snapshotFeed(page, "/api/purchase/events", purchase);
+        const simulationFeed = await snapshotFeed(page, "/api/events");
+        await page.goto(url);
+        await page.locator("#platformViewRun").click();
+        await page.locator("#platformHomeButton").click();
+        purchaseFeed.publish({ ...purchase, status: "failed", occupied: false, browserOpen: false, message: "已停止" });
+        await page.locator("#platformPurchaseResult").click();
+        assert.match(await page.locator("main").innerText(), /購票已停止/);
+        await page.locator("#platformHomeButton").click();
+
+        const simulation = { id: "simulation", status: "running", events: [], historyTruncated: false };
+        simulationFeed.publish(simulation);
+        await page.locator("#platformViewRun").click();
+        await page.locator("#platformHomeButton").click();
+        simulationFeed.publish({ ...simulation, status: "completed" });
+        await page.locator("#platformSimulationResult").click();
+        assert.match(await page.locator("main").innerText(), /模擬完成/);
+        await page.locator("#platformHomeButton").click();
+        await page.locator("#platformPurchaseResult").click();
+        assert.match(await page.locator("main").innerText(), /購票已停止/);
+    });
+});

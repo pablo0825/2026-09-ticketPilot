@@ -47,6 +47,7 @@ async function fixture(
         const page = await browser.newPage();
         const feed = controlledFeed ? await snapshotFeed(page, "/api/purchase/events") : null;
         await page.goto(service.url);
+        await page.locator("#selectKlook").click();
         await page.locator("#activities").getByText("使用活動").click();
         await page.locator("#step1").waitFor();
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
@@ -339,6 +340,7 @@ for (const version of [undefined, 2, 3]) {
             assert.equal(saves, 0);
             assert.equal(await page.evaluate(() => sessionStorage.getItem("ticketpilot-purchase-request")), pending);
             await page.reload();
+            await page.locator("#selectKlook").click();
             assert.equal(await page.evaluate(() => sessionStorage.getItem("ticketpilot-purchase-request")), pending);
         }));
 }
@@ -400,6 +402,7 @@ test("順位複製：插入來源下方、保留草稿且獨立編輯，儲存�
         ];
         assert.deepEqual((await store.load(id)).settings.targets, expected);
         await page.reload();
+        await page.locator("#selectKlook").click();
         await page.locator("#activities").getByText("使用活動").click();
         await page.locator("#step1").waitFor();
         assert.deepEqual(
@@ -467,6 +470,7 @@ test("套票GUI：啟用、複製、摘要、儲存重載及關閉後移除殘�
         await page.locator("#confirm").check();
         assert(await page.locator("#start").isEnabled());
         await page.reload();
+        await page.locator("#selectKlook").click();
         await page.locator("#activities").getByText("使用活動").click();
         await page.locator("#step1").waitFor();
         assert(await page.locator("#bundleEnabled").isChecked());
@@ -493,6 +497,7 @@ test("套票設定獨立區塊：舊取票值保留且阻擋儲存與啟動，�
         // 載入舊版獨立取票設定，不能默默清除或自動啟用套票
         await store.save({ ...settings, deliveryMethod: "指定地點自取" }, id);
         await page.reload();
+        await page.locator("#selectKlook").click();
         await page.locator("#activities").getByText("使用活動").click();
         await page.locator("#step1").waitFor();
         assert.equal(await page.locator("#bundleSettings h2").count(), 0);
@@ -538,6 +543,7 @@ test("跨活動切換重新計算取票欄位狀態，儲存失敗後仍可依�
             targets: settings.targets.map(t => ({ ...t, bundle: "套票1" })),
         });
         await page.reload();
+        await page.locator("#selectKlook").click();
         const use = async (name: string) => {
             await page.locator("#activities tr").filter({ hasText: name }).getByText("使用活動").click();
             await page.locator("#step1").waitFor();

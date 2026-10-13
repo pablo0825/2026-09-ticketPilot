@@ -52,6 +52,7 @@ test("GUI 每活動保存勾選、摘要顯示、重開與新增不沿用其他�
     try {
         const page = await browser.newPage();
         await page.goto(service.url);
+        await page.locator("#selectKlook").click();
         await page.locator("#activities tr").filter({ hasText: settings.eventName }).getByText("使用活動").click();
         await page.locator("#step1").waitFor({ state: "visible" });
         assert.equal(await page.locator("#queueEnabled").isChecked(), false);
@@ -63,6 +64,7 @@ test("GUI 每活動保存勾選、摘要顯示、重開與新增不沿用其他�
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
         assert.match((await page.locator("#summary").textContent()) ?? "", /排隊流程.*已啟用/);
         await page.reload();
+        await page.locator("#selectKlook").click();
         await page.locator("#activities tr").filter({ hasText: settings.eventName }).getByText("使用活動").click();
         await page.locator("#step1").waitFor({ state: "visible" });
         assert.equal(await page.locator("#queueEnabled").isChecked(), true);

@@ -22,9 +22,10 @@ interface Props {
     message: string;
     setMessage: (message: string) => void;
     runs: ReturnType<typeof useRunStatus>;
+    onExit: () => void;
 }
 
-export function KlookWorkspace({ message, setMessage, runs }: Props) {
+export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
     const [step, setStep] = useState(0);
     const [editing, setEditing] = useState(false);
     const [form, setForm] = useState(activityForm);
@@ -44,7 +45,7 @@ export function KlookWorkspace({ message, setMessage, runs }: Props) {
         const request = ++listRequest.current;
         const data = await api<ActivityListData>("/api/activities");
         if (request !== listRequest.current) return;
-        setActivities(data.activities);
+        setActivities(data.activities.filter(activity => activity.settings.platform === "klook"));
         if (data.invalidFiles) setMessage(`${data.invalidFiles} 個設定檔無法載入，未覆寫。`);
     }, [setMessage]);
 
@@ -70,12 +71,18 @@ export function KlookWorkspace({ message, setMessage, runs }: Props) {
     const lastState = runs.purchase?.events.filter(item => item.event.type === "state").at(-1)?.event;
     const statusSignature = JSON.stringify([runs.purchase?.id, runs.purchase?.status, lastState]);
     useEffect(() => {
-        void refreshList().catch(error => setMessage(error.message));
-    }, [refreshList, statusSignature]);
+        let active = true;
+        void refreshList().catch(error => {
+            if (active) setMessage(error.message);
+        });
+        return () => {
+            active = false;
+        };
+    }, [refreshList, statusSignature, setMessage]);
 
     const occupied = runs.purchase?.occupied === true;
     const simulationRunning = runs.simulation?.status === "running";
-    const locked = busy || !initialized || !runs.ready;
+    const locked = busy || runs.closing || !initialized || !runs.ready;
     const blocked = locked || occupied || simulationRunning;
     const legacy = !form.bundleEnabled && Boolean(form.deliveryMethod.trim());
     const needsSave = needsActivitySave(form, record?.settings ?? null);
@@ -140,6 +147,13 @@ export function KlookWorkspace({ message, setMessage, runs }: Props) {
         void action(refreshList);
     }
 
+    function leavePlatform() {
+        // 送出中不能卸載工作區，避免重建同步操作鎖
+        if (busyRef.current || runs.closing) return;
+        if (hasUnsavedChanges() && !window.confirm("有尚未儲存的修改，要放棄並返回平台首頁嗎？")) return;
+        onExit();
+    }
+
     async function saveActivity() {
         // 第一階段保存活動內容，保留先前已儲存的開賣時間
         if (legacy) throw new Error("請先處理套票設定中的舊取票方式，再儲存或開始。");
@@ -193,6 +207,14 @@ export function KlookWorkspace({ message, setMessage, runs }: Props) {
 
     return (
         <>
+            <button
+                id="platformHomeButton"
+                className="secondary"
+                disabled={busy || runs.closing}
+                onClick={leavePlatform}
+            >
+                返回平台首頁
+            </button>
             <button id="homeButton" className="secondary" hidden={step === 0} disabled={locked} onClick={goHome}>
                 返回活動首頁
             </button>

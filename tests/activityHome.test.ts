@@ -35,6 +35,7 @@ test("首頁場次摘要、未存離開、同名刪除及API占用與並發保�
     try {
         const page = await browser.newPage();
         await page.goto(service.url);
+        await page.locator("#selectKlook").click();
         await page.locator("#activities tr").nth(1).waitFor();
         await page.screenshot({ path: "/tmp/activity-home.png", fullPage: true });
         assert.equal(await page.locator("#activities tr").filter({ hasText: "2026-11-02" }).count(), 1);
@@ -81,6 +82,7 @@ test("首頁場次摘要、未存離開、同名刪除及API占用與並發保�
         await assert.rejects(store.load(a.id));
         assert.equal((await fetch(`${service.url}/api/activities/${a.id}`, { method: "DELETE" })).status, 403);
         await page.reload();
+        await page.locator("#selectKlook").click();
         await page.locator("#emptyActivities").waitFor();
         await page.locator("#new").click();
         assert.equal(await page.locator("#eventName").inputValue(), "");

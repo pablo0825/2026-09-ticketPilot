@@ -107,6 +107,11 @@ export function useRunStatus(onError: (message: string) => void) {
         else if (purchase) setDisplayed({ kind: "purchase", run: purchase });
     }
 
+    function showResult(kind: "purchase" | "simulation") {
+        if (kind === "purchase" && purchase) setDisplayed({ kind, run: purchase });
+        if (kind === "simulation" && simulation) setDisplayed({ kind, run: simulation });
+    }
+
     function showAccepted(run: PurchaseSnapshot, previousId: string | undefined) {
         // POST 可能比同一輪的 SSE 晚到，保留已收到的最新狀態
         const latest = latestPurchase.current;
@@ -123,6 +128,7 @@ export function useRunStatus(onError: (message: string) => void) {
         closing,
         closeBrowser,
         showCurrent,
+        showResult,
         showAccepted,
         resetDisplay: () => setDisplayed(null),
     };

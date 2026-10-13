@@ -68,6 +68,7 @@ test("啟動已接受但回應遺失：重載再操作沿用請求，只啟動�
 
         // 第一次送到真正後端後丟棄回應，不能清除待確認請求。
         await page.goto(service.url);
+        await page.locator("#selectKlook").click();
         await page.getByText("使用活動", { exact: true }).click();
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
         await page.locator("#confirm").check();
@@ -80,6 +81,7 @@ test("啟動已接受但回應遺失：重載再操作沿用請求，只啟動�
 
         // 載入同一設定再次操作，後端須回傳原紀錄而非重開子程序。
         await page.reload();
+        await page.locator("#selectKlook").click();
         await page.getByText("使用活動", { exact: true }).click();
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
         await page.locator("#confirm").check();

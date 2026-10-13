@@ -29,6 +29,7 @@ test("執行狀態簡化：階段分組、等待倒數、結束文案及紀錄�
         };
         const feed = await snapshotFeed(page, "/api/purchase/events", { ...base, events: [] });
         await page.goto(service.url);
+        await page.locator("#selectKlook").click();
         await page.locator("#viewRun").click();
         await page.locator("#step4").waitFor();
         let sequence = 0;
