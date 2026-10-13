@@ -302,11 +302,18 @@ th {
     font-weight: 600;
 }
 
-.checkbox-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+.feature-settings {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
 }
-.checkbox-row input {
-    width: auto;
+.feature-settings legend {
+    padding: 0;
+    margin-bottom: 6px;
+}
+#deliveryMethod:disabled {
+    background: #eef1f4;
+    color: #526575;
+    cursor: not-allowed;
 }

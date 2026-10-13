@@ -58,23 +58,12 @@
                                 placeholder="https://www.klook.com/zh-TW/event-detail/…/"
                         /></label>
                     </div>
-                    <label for="queueEnabled"
-                        ><span id="queueEnabledTitle">排隊流程</span
-                        ><span class="checkbox-row"
-                            ><input id="queueEnabled" type="checkbox" aria-labelledby="queueEnabledTitle" />啟用</span
-                        ></label
-                    >
+                    <fieldset class="feature-settings">
+                        <legend>功能啟用</legend>
+                        <label class="check"><input id="queueEnabled" type="checkbox" />排隊流程</label>
+                        <label class="check"><input id="bundleEnabled" type="checkbox" />組合套票</label>
+                    </fieldset>
                     <div id="bundleSettings">
-                        <label for="bundleEnabled"
-                            ><span id="bundleEnabledTitle">組合套票</span
-                            ><span class="checkbox-row"
-                                ><input
-                                    id="bundleEnabled"
-                                    type="checkbox"
-                                    aria-labelledby="bundleEnabledTitle"
-                                />啟用</span
-                            ></label
-                        >
                         <label
                             >取票方式（選填）<input id="deliveryMethod" disabled placeholder="例如：指定地點自取"
                         /></label>
