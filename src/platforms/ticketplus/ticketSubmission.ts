@@ -32,7 +32,7 @@ export type SubmissionReason =
     | "dismiss-changed"
     | "dismiss-unconfirmed";
 export type Dismissal = "not-attempted" | "disappeared" | "confirmed" | "unconfirmed";
-interface Progress {
+export interface SubmissionProgress {
     submitAttempted: boolean;
     dismissAttempted: boolean;
     sawQueue: boolean;
@@ -42,7 +42,7 @@ interface Progress {
 export class TicketPlusSubmissionError extends Error {
     constructor(
         public readonly reason: SubmissionReason,
-        public readonly progress: Readonly<Progress>,
+        public readonly progress: Readonly<SubmissionProgress>,
     ) {
         super(`TicketPlus 選票提交停止（${reason}），不會刷新或重新提交。`);
         this.name = "TicketPlusSubmissionError";
@@ -53,7 +53,8 @@ interface Submission {
     selected: TicketSelectionPage;
     options: Required<TicketSubmissionOptions>;
     deadline: number;
-    progress: Progress;
+    progress: SubmissionProgress;
+    observer?: SubmissionObserver;
 }
 const defaults: Required<TicketSubmissionOptions> = {
     preflightTimeoutMs: 5_000,
@@ -65,12 +66,23 @@ const defaults: Required<TicketSubmissionOptions> = {
     readTimeoutMs: 2_000,
     pollIntervalMs: 500,
 };
-const emptyProgress = (): Progress => ({
+export type SubmissionObserver = (progress: Readonly<SubmissionProgress>) => void | Promise<void>;
+
+export const emptySubmissionProgress = (): SubmissionProgress => ({
     submitAttempted: false,
     dismissAttempted: false,
     sawQueue: false,
     dismissal: "not-attempted",
 });
+
+// 通知只接收複本，失敗不能改變購票流程或觸發重試。
+function notifyProgress(context: Submission): void {
+    try {
+        void Promise.resolve(context.observer?.(Object.freeze({ ...context.progress }))).catch(() => {});
+    } catch {
+        // 觀察者不是購票流程的一部分。
+    }
+}
 
 function stop(context: Submission, reason: SubmissionReason): TicketPlusSubmissionError {
     return new TicketPlusSubmissionError(reason, { ...context.progress });
@@ -203,8 +215,11 @@ async function submitOnce(page: Page, context: Submission, deadline: number): Pr
             remaining(context, waitDeadline),
         );
         context.progress.submitAttempted = true;
+        notifyProgress(context);
         try {
-            await button.click({ timeout });
+            await button.click({
+                timeout: Math.min(timeout, remaining(context, deadline), remaining(context, waitDeadline)),
+            });
         } catch {
             throw stop(context, "submit-click-failed");
         }
@@ -227,6 +242,7 @@ async function dismissFailure(page: Page, context: Submission, failure: OrderFai
     // 確認失敗後結果不再轉為成功；關閉另有一次額度且受總期限限制。
     context.progress.failure = failure.failure;
     const deadline = Math.min(context.deadline, performance.now() + context.options.closeTimeoutMs);
+    notifyProgress(context);
     checkRoute(page, context, true);
     if (failure.dismissNames.length !== 1) throw stop(context, "dismiss-unavailable");
     const candidates = page.locator('[role="dialog"], .v-dialog, .v-dialog__content');
@@ -236,6 +252,7 @@ async function dismissFailure(page: Page, context: Submission, failure: OrderFai
         const latest = await snapshot(page, context, deadline);
         if (latest.kind === "ticket-selection" || latest.kind === "queue") {
             context.progress.dismissal = "disappeared";
+            notifyProgress(context);
             throw stop(context, "order-rejected");
         }
         if (!sameFailure(latest, failure)) throw stop(context, "dismiss-changed");
@@ -275,7 +292,8 @@ async function dismissFailure(page: Page, context: Submission, failure: OrderFai
                 context.progress.dismissal = "unconfirmed";
                 const timeout = Math.min(context.options.clickTimeoutMs, remaining(context, deadline));
                 context.progress.dismissAttempted = true;
-                await button.click({ timeout });
+                notifyProgress(context);
+                await button.click({ timeout: Math.min(timeout, remaining(context, deadline)) });
             } finally {
                 await button.dispose().catch(() => {});
             }
@@ -289,6 +307,7 @@ async function dismissFailure(page: Page, context: Submission, failure: OrderFai
             const current = await snapshot(page, context, deadline);
             if (current.kind === "ticket-selection" || current.kind === "queue") {
                 context.progress.dismissal = "confirmed";
+                notifyProgress(context);
                 throw stop(context, "order-rejected");
             }
             if (!sameFailure(current, failure)) throw stop(context, "dismiss-unconfirmed");
@@ -315,6 +334,7 @@ async function waitForInformation(page: Page, context: Submission, initialDeadli
             if (!context.progress.sawQueue) {
                 context.progress.sawQueue = true;
                 deadline = Math.min(context.deadline, performance.now() + context.options.queueWaitMs);
+                notifyProgress(context);
             }
         } else if (value.kind === "ticket-selection") {
             verifySelection(context, value);
@@ -334,6 +354,7 @@ export async function submitTicketPlusSelection(
     input: TicketPlusActivitySettings,
     selection: TicketSelectionPage,
     options: TicketSubmissionOptions = {},
+    observer?: SubmissionObserver,
 ): Promise<InformationPage> {
     let context: Submission | undefined;
     try {
@@ -342,14 +363,15 @@ export async function submitTicketPlusSelection(
         const selected = structuredClone(selection);
         const resolved = { ...defaults, ...options };
         if (!Object.values(resolved).every(value => Number.isFinite(value) && value > 0 && value <= 2_147_483_647)) {
-            throw new TicketPlusSubmissionError("invalid-options", emptyProgress());
+            throw new TicketPlusSubmissionError("invalid-options", emptySubmissionProgress());
         }
         context = {
             settings,
             selected,
             options: resolved,
             deadline: performance.now() + resolved.totalTimeoutMs,
-            progress: emptyProgress(),
+            progress: emptySubmissionProgress(),
+            observer,
         };
         if (
             selected.eventId !== new URL(settings.eventUrl).pathname.split("/")[2] ||
@@ -367,6 +389,6 @@ export async function submitTicketPlusSelection(
     } catch (error) {
         if (error instanceof TicketPlusSubmissionError) throw error;
         if (context) throw stop(context, context.progress.failure ? "dismiss-unconfirmed" : "read-failed");
-        throw new TicketPlusSubmissionError("invalid-input", emptyProgress());
+        throw new TicketPlusSubmissionError("invalid-input", emptySubmissionProgress());
     }
 }

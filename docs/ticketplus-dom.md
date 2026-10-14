@@ -187,3 +187,13 @@ fixture 不取得 production target，expected 手寫，張數另以 fixture 的
 `ticketPlusSubmission.test.ts` 使用獨立 click counter 與 route request 次數，固定場次與固定 handler，不從正式 failure 常數產生預期答案，不用正式 reader 作唯一裁判。
 資料頁下一步刻意啟用；測最後核對後換頁、排隊消失／再現、失敗與排隊共存、巢狀外框、隱藏殘留、兩彈窗歧義、關閉逾時與替換、晚到更新、無刷新重送。
 共用 reader 增加 blocking-dialog／order-failure 後，既有場次的可見未知彈窗改為點擊前停止；隱藏彈窗仍不阻擋。張數調整遇新失敗狀態也是零操作停止。
+
+## 提交結果契約
+
+`submissionOutcome.ts` 的 `runTicketPlusSubmission` 將提交結果整理成四種終局：
+information-ready（同場次資料頁）、rejected（明確失敗，另保留關閉狀態）、stopped（未嘗試提交即停止）、unknown（已嘗試但結果未確認）。
+不是付款成功，也沒有任何重試。底層仍可直接使用原本 `submitTicketPlusSelection` 的快照／錯誤介面。
+提交／關閉嘗試在 click 前記錄並通知；通知只拿凍結複本，同步拋錯或非同步拒絕均不改變購票行為。
+結果層先保存狀態再通知外部，未知例外不會將已嘗試退回未提交。通知後仍重新檢查剩餘時間。
+這是單次呼叫的記憶體狀態，並非跨程序訂單紀錄；runner 與持久占用鎖負責避免異常中斷後自動重跑。
+本步尚未接通 CLI、API、worker，也未改變 Klook 狀態或結果格式。
