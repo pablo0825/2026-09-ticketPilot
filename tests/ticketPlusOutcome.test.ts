@@ -5,10 +5,10 @@ import { stoppedSubmissionResult, runTicketPlusSubmission } from "../src/platfor
 import { emptySubmissionProgress, TicketPlusSubmissionError } from "../src/platforms/ticketplus/ticketSubmission.js";
 import type { SubmissionProgress } from "../src/platforms/ticketplus/ticketSubmission.js";
 import type { TicketSelectionPage } from "../src/platforms/ticketplus/ticketSelectionPage.js";
-import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
 import { installSubmission, submissionCounts } from "./fixtures/ticketplus/submissionPage.js";
 
-const settings: TicketPlusActivitySettings = {
+const settings: TicketPlusSelection = {
     platform: "ticketplus",
     eventUrl: "https://ticketplus.com.tw/activity/event-fixture",
     eventName: "2026孿生姐妹之夜之鬼迷心竅",

@@ -8,6 +8,7 @@ import { parseActivity, projectRoot, type ActivityRecord, type ActivitySettings 
 import { validateContactDetails } from "../config/contact.config.js";
 import { validateSaleSchedule } from "../core/purchaseValidation.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
+import { singleTicketPlusSelection } from "../config/ticketPlusActivity.js";
 import { ticketPlusEventSchema } from "./purchaseEvents.js";
 import { sendLoginConfirmation } from "./sendLoginConfirmation.js";
 import type { PurchaseEvent } from "./purchaseEvents.js";
@@ -31,7 +32,7 @@ export interface PurchaseSnapshot {
 interface Record {
     snapshot: PurchaseSnapshot;
     fingerprint: string;
-    fingerprintVersion?: 2 | 3 | 4;
+    fingerprintVersion?: 2 | 3 | 4 | 5;
     activity?: { id: string; settingsHash: string };
 }
 
@@ -94,7 +95,7 @@ export class PurchaseRuns {
             const record = JSON.parse(readFileSync(this.file(id), "utf8")) as Record;
             const valid = z
                 .object({
-                    fingerprintVersion: z.union([z.literal(2), z.literal(3), z.literal(4)]).optional(),
+                    fingerprintVersion: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
                     fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
                     activity: z
                         .object({ id: z.string().uuid(), settingsHash: z.string().regex(/^[0-9a-f]{64}$/) })
@@ -137,6 +138,9 @@ export class PurchaseRuns {
                 .safeParse(record);
             if (!valid.success) throw new Error("Invalid run record");
             const platform = valid.data.snapshot.platform ?? "klook";
+            if (record.fingerprintVersion === 5 && platform !== "ticketplus") {
+                throw new Error("Invalid fingerprint platform");
+            }
             if (
                 platform !== "ticketplus" &&
                 (valid.data.snapshot.status === "information-ready" ||
@@ -230,7 +234,15 @@ export class PurchaseRuns {
             return state?.type === "state" && state.state === "WAITING_FOR_SALE" ? "等待開賣" : "執行中";
         }
 
-        if (record.fingerprintVersion !== 4) return "舊版執行紀錄";
+        if (record.fingerprintVersion !== 4 && record.fingerprintVersion !== 5) return "舊版執行紀錄";
+        // 舊 TicketPlus 紀錄依原單目標形狀比對，純格式轉換不算設定變更。
+        if (record.fingerprintVersion === 4 && activity.settings.platform === "ticketplus") {
+            if (activity.settings.targets.length !== 1) return "設定已更新";
+            const legacyHash = createHash("sha256")
+                .update(JSON.stringify(singleTicketPlusSelection(activity.settings)))
+                .digest("hex");
+            return record.activity.settingsHash === legacyHash ? "已執行" : "設定已更新";
+        }
         return record.activity.settingsHash === settingsHash(activity.settings) ? "已執行" : "設定已更新";
     }
 
@@ -256,8 +268,15 @@ export class PurchaseRuns {
             .digest("hex");
 
         // 同一個請求重送時，回傳原本的結果
-        const previous = this.previousResult(requestId, activityId, fingerprint, activity.platform);
+        const legacyFingerprint =
+            activity.platform === "ticketplus" && activity.targets.length === 1
+                ? createHash("sha256")
+                      .update(JSON.stringify({ activity: singleTicketPlusSelection(activity) }))
+                      .digest("hex")
+                : undefined;
+        const previous = this.previousResult(requestId, activityId, fingerprint, activity.platform, legacyFingerprint);
         if (previous) return previous;
+        if (activity.platform === "ticketplus") singleTicketPlusSelection(activity);
 
         // 確認沒有占用，且還沒超過開賣等待期限
         if (this.busy()) throw new Error("已有購票程序或瀏覽器占用，請先關閉原購票瀏覽器。");
@@ -272,7 +291,7 @@ export class PurchaseRuns {
         // 取得占用並建立執行紀錄
         const lease = acquirePurchaseLease(this.root);
         const record: Record = {
-            fingerprintVersion: 4,
+            fingerprintVersion: activity.platform === "ticketplus" ? 5 : 4,
             fingerprint,
             ...(activityId ? { activity: { id: activityId, settingsHash: settingsHash(activity) } } : {}),
             snapshot: {
@@ -323,16 +342,19 @@ export class PurchaseRuns {
         activityId: string | undefined,
         fingerprint: string,
         platform: ActivitySettings["platform"],
+        legacyFingerprint?: string,
     ): PurchaseSnapshot | undefined {
         const previous = this.read(requestId);
         if (!previous) return undefined;
 
-        if (previous.fingerprintVersion !== 4) {
+        if (previous.fingerprintVersion !== 4 && previous.fingerprintVersion !== 5) {
             throw new Error("舊版開始請求結果需人工確認，請檢查原流程與訂單；不會重新啟動。");
         }
         if (previous.snapshot.platform !== platform) throw new Error("同一開始請求不能更換平台。");
         if (previous.activity && previous.activity.id !== activityId) throw new Error("同一開始請求不能更換活動。");
-        if (previous.fingerprint !== fingerprint) throw new Error("同一開始請求不能更換設定。");
+        const expectedFingerprint =
+            platform === "ticketplus" && previous.fingerprintVersion === 4 ? legacyFingerprint : fingerprint;
+        if (previous.fingerprint !== expectedFingerprint) throw new Error("同一開始請求不能更換設定。");
 
         const current = this.snapshot();
         return previous.snapshot.id === current?.id

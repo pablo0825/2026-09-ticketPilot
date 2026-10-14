@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import type { TicketPlusActivitySettings } from "../../config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 import type { InformationPage } from "./informationPage.js";
 import { emptySubmissionProgress, submitTicketPlusSelection, TicketPlusSubmissionError } from "./ticketSubmission.js";
@@ -38,7 +38,7 @@ export function stoppedSubmissionResult(
 // runner 只接收終局結果；此層不做任何重試或錯誤恢復。
 export async function runTicketPlusSubmission(
     page: Page,
-    settings: TicketPlusActivitySettings,
+    settings: TicketPlusSelection,
     selected: TicketSelectionPage,
     options: TicketSubmissionOptions = {},
     observer?: SubmissionObserver,

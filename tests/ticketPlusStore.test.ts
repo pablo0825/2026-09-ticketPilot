@@ -18,6 +18,12 @@ const ticketplus = {
     eventName: "TicketPlus 測試活動",
     target: { date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 1 },
 };
+const canonical = {
+    platform: "ticketplus",
+    eventUrl: "https://ticketplus.com.tw/activity/0233a891800ffaa343bf8bff73d390e8",
+    eventName: "TicketPlus 測試活動",
+    targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 1 }],
+};
 const klook = {
     platform: "klook",
     eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
@@ -42,9 +48,9 @@ test("混合平台設定可存取；無效更新與跨平台覆寫保留原檔",
         const saved = await store.save(ticketplus);
         const path = join(dir, `${saved.id}.json`);
         const raw = await readFile(path, "utf8");
-        assert.deepEqual(JSON.parse(raw).settings, ticketplus);
+        assert.deepEqual(JSON.parse(raw).settings, canonical);
         assert.equal(JSON.parse(raw).schemaVersion, 3);
-        assert.deepEqual((await store.load(saved.id)).settings, ticketplus);
+        assert.deepEqual((await store.load(saved.id)).settings, canonical);
         assert.equal(await readFile(path, "utf8"), raw);
 
         // 混合列表不漏資料，Klook 表單不能讀取 TicketPlus
@@ -61,8 +67,8 @@ test("混合平台設定可存取；無效更新與跨平台覆寫保留原檔",
         const updated = await store.save({ ...ticketplus, target: { ...ticketplus.target, quantity: 2 } }, saved.id);
         assert.equal(updated.id, saved.id);
         assert.deepEqual((await store.load(saved.id)).settings, {
-            ...ticketplus,
-            target: { ...ticketplus.target, quantity: 2 },
+            ...canonical,
+            targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 }],
         });
     } finally {
         await rm(dir, { recursive: true, force: true });
@@ -118,9 +124,9 @@ test("HTTP 可儲存 TicketPlus；模擬仍拒絕，購票拒絕誤傳聯絡資�
         });
         assert.equal(createdResponse.status, 201);
         const created = await createdResponse.json();
-        assert.deepEqual(created.settings, ticketplus);
+        assert.deepEqual(created.settings, canonical);
         const loaded = await (await fetch(service.url + "/api/activities/" + created.id, { headers })).json();
-        assert.deepEqual(loaded.settings, ticketplus);
+        assert.deepEqual(loaded.settings, canonical);
 
         // 聯絡資料不存在或損壞都不得掩蓋平台拒絕訊息
         for (const corrupt of [false, true]) {

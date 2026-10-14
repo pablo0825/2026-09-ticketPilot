@@ -68,12 +68,37 @@ test(
                     await readFile(join(h.runtime, "runs", input.requestId + ".json"), "utf8"),
                 );
                 assert.equal(persisted.snapshot.platform, "ticketplus");
+                assert.equal(persisted.fingerprintVersion, 5);
+                const { target, ...identity } = apiActivity;
+                const canonicalRetry = await h.request("/api/purchase", {
+                    ...input,
+                    expectedActivity: { ...identity, targets: [target] },
+                });
+                assert.equal(canonicalRetry.status, 200);
+                assert.equal((await canonicalRetry.json()).id, run.id);
+                assert.equal(await readFile(h.report + ".starts", "utf8"), "started\n");
                 // 人工關閉購票頁以取消等待，再用既有 API 關閉剩餘瀏覽器。
                 await h.closePage();
                 await h.until(run => run?.status === "failed");
                 assert.equal((await h.request("/api/purchase/close-browser", { runId: run.id })).status, 200);
                 await h.until(run => !run?.occupied);
                 assert(!purchaseOccupied(h.runtime));
+                const list = await (await h.request("/api/activities")).json();
+                assert.equal(
+                    list.activities.find((item: { id: string }) => item.id === created.id).executionStatus,
+                    "已執行",
+                );
+                const update = await fetch(h.url + "/api/activities/" + created.id, {
+                    method: "PUT",
+                    headers: h.headers,
+                    body: JSON.stringify({ ...identity, targets: [{ ...target, quantity: 3 }] }),
+                });
+                assert.equal(update.status, 200);
+                const changedList = await (await h.request("/api/activities")).json();
+                assert.equal(
+                    changedList.activities.find((item: { id: string }) => item.id === created.id).executionStatus,
+                    "設定已更新",
+                );
             } finally {
                 await h.dispose();
             }

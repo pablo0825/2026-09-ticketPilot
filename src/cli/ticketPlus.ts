@@ -1,6 +1,6 @@
 import { TicketPlusCliInputError } from "./ticketPlusMessages.js";
 import { readFile } from "node:fs/promises";
-import { parseTicketPlusActivity } from "../config/ticketPlusActivity.js";
+import { parseTicketPlusActivity, singleTicketPlusSelection } from "../config/ticketPlusActivity.js";
 import { runTicketPlus } from "../app/runTicketPlus.js";
 import { ticketPlusResultMessage, ticketPlusEventMessage } from "../app/ticketPlusPresentation.js";
 export { ticketPlusResultMessage } from "../app/ticketPlusPresentation.js";
@@ -37,6 +37,7 @@ export async function runTicketPlusCli(
     }
     // 錯誤設定與非互動終端在瀏覽器／占用鎖之前拒絕，不讀 Klook 聯絡資料。
     const settings = await loadTicketPlusCliSettings(args);
+    singleTicketPlusSelection(settings);
     try {
         requireTicketPlusTerminal(terminal.input);
     } catch {

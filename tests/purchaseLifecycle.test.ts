@@ -237,7 +237,7 @@ test("活動狀態：同名分離、實際內容比較、等待切換與重新�
         const reordered = {
             ...same,
             settings: {
-                ...same.settings,
+                ...klookSettings(same.settings),
                 targets: klookSettings(same.settings).targets.map(target => ({
                     adjacent: target.adjacent,
                     quantity: target.quantity,

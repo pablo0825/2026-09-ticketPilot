@@ -2,8 +2,8 @@ import { chromium } from "playwright";
 import type { BrowserContext, Page } from "playwright";
 import { join } from "node:path";
 import { projectRoot } from "../config/activityStore.js";
-import { parseTicketPlusActivity } from "../config/ticketPlusActivity.js";
-import type { TicketPlusActivitySettings } from "../config/ticketPlusActivity.js";
+import { parseTicketPlusActivity, singleTicketPlusSelection } from "../config/ticketPlusActivity.js";
+import type { TicketPlusActivitySettings, TicketPlusSelection } from "../config/ticketPlusActivity.js";
 import { acquirePurchaseLease, releasePurchaseLease, verifyPurchaseLease } from "./purchaseLock.js";
 import type { PurchaseLease } from "./purchaseLock.js";
 import type { SessionEntryReason, SessionEntryStage } from "../platforms/ticketplus/sessionSelection.js";
@@ -45,11 +45,11 @@ function notify(options: TicketPlusRunOptions, event: TicketPlusRunEvent): void 
 }
 
 export async function runTicketPlus(
-    input: TicketPlusActivitySettings,
+    input: TicketPlusActivitySettings | TicketPlusSelection,
     options: TicketPlusRunOptions,
 ): Promise<TicketPlusRunResult> {
     // 所有啟動輸入先驗證，錯誤時不取得占用或開啟瀏覽器。
-    const settings = parseTicketPlusActivity(input);
+    const settings = singleTicketPlusSelection(parseTicketPlusActivity(input));
     if (typeof options.waitForLogin !== "function") throw new Error("TicketPlus 需要人工登入交接。");
     const lease = options.lease ?? acquirePurchaseLease();
     verifyPurchaseLease(lease);

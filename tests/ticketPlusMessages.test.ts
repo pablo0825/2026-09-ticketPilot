@@ -67,8 +67,5 @@ test("CLI 僅顯示已分類訊息，未知錯誤不轉印私密資料", async (
     assert.match(message, /不會再次點擊/);
     assert.doesNotMatch(message, /尚未嘗試點擊立即購買/);
     assert.match(ticketPlusSessionMessage({ reason: "session-disabled", stage: "before-click" }), /不能僅據此判定/);
-    assert.match(
-        ticketPlusSessionMessage({ reason: "session-missing", stage: "before-click" }),
-        /target.date 與 target.time/,
-    );
+    assert.match(ticketPlusSessionMessage({ reason: "session-missing", stage: "before-click" }), /該順位的日期與時間/);
 });

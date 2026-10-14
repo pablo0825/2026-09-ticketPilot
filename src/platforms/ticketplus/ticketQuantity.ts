@@ -1,6 +1,6 @@
 import type { Locator, Page } from "playwright";
-import { parseTicketPlusActivity } from "../../config/ticketPlusActivity.js";
-import type { TicketPlusActivitySettings } from "../../config/ticketPlusActivity.js";
+import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import { readTicketPlusPage } from "./pageState.js";
 import type { TicketRow, TicketSelectionPage } from "./ticketSelectionPage.js";
 
@@ -51,7 +51,7 @@ export interface TicketQuantityOptions {
 }
 
 interface Adjustment {
-    settings: TicketPlusActivitySettings;
+    settings: TicketPlusSelection;
     identity: VerifiedTicketPlusSession;
     deadline: number;
     attemptedClicks: number;
@@ -173,10 +173,7 @@ async function waitForChange(
     }
 }
 
-function copyIdentity(
-    settings: TicketPlusActivitySettings,
-    value: VerifiedTicketPlusSession,
-): VerifiedTicketPlusSession {
+function copyIdentity(settings: TicketPlusSelection, value: VerifiedTicketPlusSession): VerifiedTicketPlusSession {
     const identity = {
         eventId: value.eventId,
         sessionId: value.sessionId,
@@ -200,7 +197,7 @@ function copyIdentity(
 // 僅調整單一票種；不按下一步或更新票數、不切換候補、不恢復、不保證跨呼叫去重。
 export async function selectTicketPlusTickets(
     page: Page,
-    input: TicketPlusActivitySettings,
+    input: TicketPlusSelection,
     verifiedSession: VerifiedTicketPlusSession,
     options: TicketQuantityOptions = {},
 ): Promise<TicketSelectionPage> {
@@ -208,7 +205,7 @@ export async function selectTicketPlusTickets(
     let reason: QuantityReason = "invalid-settings";
     try {
         // 驗證並複製輸入，整段調整共用一個不重設的期限。
-        const settings = parseTicketPlusActivity(input);
+        const settings = parseTicketPlusSelection(input);
         reason = "invalid-session";
         const identity = copyIdentity(settings, verifiedSession);
         reason = "invalid-options";

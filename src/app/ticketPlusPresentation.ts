@@ -6,7 +6,7 @@ const sessionReasons: Record<SessionEntryReason, string> = {
     "invalid-options": "場次操作的等待時間設定無效",
     "unexpected-page": "目前頁面不是可辨識的預期頁面，請確認登入狀態、活動頁及是否有彈窗",
     "activity-mismatch": "頁面活動名稱或活動 ID 與設定不符，請核對 eventName 與 eventUrl",
-    "session-missing": "找不到符合日期與時間的場次，請核對 target.date 與 target.time",
+    "session-missing": "找不到符合日期與時間的場次，請核對 該順位的日期與時間",
     "session-ambiguous": "同日期與時間有多個場次，無法唯一選擇，請人工確認",
     "session-disabled": "目標場次的立即購買按鈕目前停用，請查看網站狀態；不能僅據此判定尚未開賣或已售完",
     "session-changed": "點擊前場次資料已改變，請重新核對頁面",

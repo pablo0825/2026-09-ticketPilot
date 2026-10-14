@@ -1,3 +1,4 @@
+import { TicketPlusCapabilityError } from "../config/ticketPlusActivity.js";
 import { PurchaseLockError } from "../app/purchaseLock.js";
 export { ticketPlusSessionMessage } from "../app/ticketPlusPresentation.js";
 
@@ -14,6 +15,7 @@ export function ticketPlusStartupMessage(error: unknown): string {
         }
         return "TicketPlus 未啟動：購票占用檔案無法讀取或識別不符。請檢查原程序與占用檔案；不會自動清鎖或重跑。";
     }
-    if (error instanceof TicketPlusCliInputError) return `TicketPlus 未啟動：${error.message}`;
+    if (error instanceof TicketPlusCliInputError || error instanceof TicketPlusCapabilityError)
+        return `TicketPlus 未啟動：${error.message}`;
     return "TicketPlus 啟動發生未分類錯誤。請先確認購票瀏覽器與訂單狀態；不會自動清鎖或重跑。";
 }

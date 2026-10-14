@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 import type { Page, ElementHandle } from "playwright";
 import { submitTicketPlusSelection, TicketPlusSubmissionError } from "../src/platforms/ticketplus/ticketSubmission.js";
 import type { TicketSubmissionOptions } from "../src/platforms/ticketplus/ticketSubmission.js";
-import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
 import type { TicketSelectionPage } from "../src/platforms/ticketplus/ticketSelectionPage.js";
 import { readTicketPlusPage } from "../src/platforms/ticketplus/pageState.js";
 import { selectTicketPlusTickets } from "../src/platforms/ticketplus/ticketQuantity.js";
@@ -20,7 +20,7 @@ import {
 } from "./fixtures/ticketplus/submissionPage.js";
 import type { Mode } from "./fixtures/ticketplus/submissionPage.js";
 
-const settings: TicketPlusActivitySettings = {
+const settings: TicketPlusSelection = {
     platform: "ticketplus",
     eventUrl: "https://ticketplus.com.tw/activity/event-fixture",
     eventName: "2026孿生姐妹之夜之鬼迷心竅",

@@ -12,7 +12,7 @@ function validActivity() {
     };
 }
 
-test("TicketPlus 設定保留單一目標，整理名稱外側空白但不修改輸入", () => {
+test("TicketPlus 舊設定正規化成一筆順位，整理名稱外側空白但不修改輸入", () => {
     // 準備帶有空白的名稱並保留原始輸入
     const input = validActivity();
     input.eventName = "  音樂會 A  B  ";
@@ -25,11 +25,11 @@ test("TicketPlus 設定保留單一目標，整理名稱外側空白但不修改
         platform: "ticketplus",
         eventUrl: "https://ticketplus.com.tw/activity/0233a891800ffaa343bf8bff73d390e8",
         eventName: "音樂會 A  B",
-        target: { date: "2026-10-30", time: "20:00", ticketType: "預售票 A  區", quantity: 1 },
+        targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票 A  區", quantity: 1 }],
     });
     // 確認解析與後續修改都不影響原始輸入
     assert.deepEqual(input, before);
-    parsed.target.quantity = 2;
+    parsed.targets[0]!.quantity = 2;
     assert.equal(input.target.quantity, 1);
 });
 
@@ -71,7 +71,7 @@ test("TicketPlus 驗證真實日期與完整時間，不要求日期必須在未
     for (const date of ["2028-02-29", "2000-02-29", "2020-01-01"]) {
         const input = validActivity();
         input.target.date = date;
-        assert.equal(parseTicketPlusActivity(input).target.date, date);
+        assert.equal(parseTicketPlusActivity(input).targets[0]!.date, date);
     }
     for (const date of [
         "2026-02-29",
@@ -92,7 +92,7 @@ test("TicketPlus 驗證真實日期與完整時間，不要求日期必須在未
     for (const time of ["00:00", "23:59"]) {
         const input = validActivity();
         input.target.time = time;
-        assert.equal(parseTicketPlusActivity(input).target.time, time);
+        assert.equal(parseTicketPlusActivity(input).targets[0]!.time, time);
     }
     for (const time of ["24:00", "19:60", "9:30", "20:00:00", " 20:00", ""]) {
         const input = validActivity();
@@ -105,7 +105,7 @@ test("TicketPlus 張數只接受正安全整數，不猜測網站限購上限", 
     for (const quantity of [1, 5, Number.MAX_SAFE_INTEGER]) {
         const input = validActivity();
         input.target.quantity = quantity;
-        assert.equal(parseTicketPlusActivity(input).target.quantity, quantity);
+        assert.equal(parseTicketPlusActivity(input).targets[0]!.quantity, quantity);
     }
     for (const quantity of [0, -1, 1.5, "2", null, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
         const input = validActivity();

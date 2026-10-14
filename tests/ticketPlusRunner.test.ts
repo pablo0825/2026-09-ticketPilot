@@ -8,11 +8,11 @@ import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
 import { runTicketPlus } from "../src/app/runTicketPlus.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../src/app/purchaseLock.js";
-import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
 import { activity } from "./fixtures/ticketplus/pages.js";
 import { readyInformation, readyOrder, failureDialog } from "./fixtures/ticketplus/submissionPage.js";
 
-const settings: TicketPlusActivitySettings = {
+const settings: TicketPlusSelection = {
     platform: "ticketplus",
     eventUrl: "https://ticketplus.com.tw/activity/event-fixture",
     eventName: "2026孿生姐妹之夜之鬼迷心竅",

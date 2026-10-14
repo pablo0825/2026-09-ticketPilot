@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
 import { selectTicketPlusSession, TicketPlusSessionError } from "../src/platforms/ticketplus/sessionSelection.js";
 import type { SessionEntryStage, SessionEntryReason } from "../src/platforms/ticketplus/sessionSelection.js";
 import * as fixture from "./fixtures/ticketplus/pages.js";
@@ -10,7 +10,7 @@ import * as fixture from "./fixtures/ticketplus/pages.js";
 const origin = "https://ticketplus.com.tw";
 const activityUrl = `${origin}/activity/event-fixture`;
 const eventName = "2026孿生姐妹之夜之鬼迷心竅";
-const settings: TicketPlusActivitySettings = {
+const settings: TicketPlusSelection = {
     platform: "ticketplus",
     eventUrl: activityUrl,
     eventName,

@@ -4,12 +4,12 @@ import { chromium } from "playwright";
 import type { Page } from "playwright";
 import { selectTicketPlusTickets, TicketPlusQuantityError } from "../src/platforms/ticketplus/ticketQuantity.js";
 import type { QuantityReason, QuantityStage } from "../src/platforms/ticketplus/ticketQuantity.js";
-import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
 import { installQuantityFixture, quantityPage, quantityState } from "./fixtures/ticketplus/quantityPage.js";
 import type { QuantityFixtureOptions } from "./fixtures/ticketplus/quantityPage.js";
 import { presale } from "./fixtures/ticketplus/pages.js";
 
-const settings: TicketPlusActivitySettings = {
+const settings: TicketPlusSelection = {
     platform: "ticketplus",
     eventUrl: "https://ticketplus.com.tw/activity/event-fixture",
     eventName: "2026孿生姐妹之夜之鬼迷心竅",

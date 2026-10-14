@@ -1,6 +1,6 @@
 import type { Locator, Page } from "playwright";
-import { parseTicketPlusActivity } from "../../config/ticketPlusActivity.js";
-import type { TicketPlusActivitySettings } from "../../config/ticketPlusActivity.js";
+import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { ActivityPage } from "./activityPage.js";
 import { readTicketPlusPage } from "./pageState.js";
 import type { TicketPlusPage } from "./pageState.js";
@@ -43,7 +43,7 @@ export interface SessionSelectionOptions {
     pollIntervalMs?: number;
 }
 
-function requireTargetSession(snapshot: TicketPlusPage, settings: TicketPlusActivitySettings): Session {
+function requireTargetSession(snapshot: TicketPlusPage, settings: TicketPlusSelection): Session {
     // 先核對活動身分，再以日期與時間找唯一場次。
     if (snapshot.kind !== "activity") throw new TicketPlusSessionError("before-click", "unexpected-page");
     const eventId = new URL(settings.eventUrl).pathname.split("/")[2];
@@ -66,7 +66,7 @@ function exactText(value: string): RegExp {
     return new RegExp(`^\\s*${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`);
 }
 
-function sessionButton(page: Page, settings: TicketPlusActivitySettings, session: Session): Locator {
+function sessionButton(page: Page, settings: TicketPlusSelection, session: Session): Locator {
     // 定位條件隨 DOM 重新解析，不保存列表索引，也不使用整列模糊文字。
     const body = page
         .locator("body")
@@ -85,7 +85,7 @@ function sessionButton(page: Page, settings: TicketPlusActivitySettings, session
     return row.getByRole("button", { name: "立即購買", exact: true }).filter({ visible: true });
 }
 
-function expectedArrivalRoute(page: Page, settings: TicketPlusActivitySettings): boolean {
+function expectedArrivalRoute(page: Page, settings: TicketPlusSelection): boolean {
     const current = new URL(page.url());
     const expected = new URL(settings.eventUrl);
     if (current.origin !== expected.origin || current.search || current.hash || current.username || current.password) {
@@ -124,7 +124,7 @@ async function readWithinDeadline(page: Page, timeout: number, stage: SessionEnt
 
 async function waitForSelection(
     page: Page,
-    settings: TicketPlusActivitySettings,
+    settings: TicketPlusSelection,
     timeout: number,
     interval: number,
 ): Promise<TicketSelectionPage> {
@@ -173,14 +173,14 @@ async function waitForSelection(
 // 前提是使用者已手動登入並停在活動頁。單次呼叫最多一次 click；跨呼叫防重複由未來 runner 負責。
 export async function selectTicketPlusSession(
     page: Page,
-    input: TicketPlusActivitySettings,
+    input: TicketPlusSelection,
     options: SessionSelectionOptions = {},
 ): Promise<TicketSelectionPage> {
     let stage: SessionEntryStage = "before-click";
     let reason: SessionEntryReason = "invalid-settings";
     try {
         // 複製並驗證設定，操作途中不受呼叫端修改設定影響。
-        const settings = parseTicketPlusActivity(input);
+        const settings = parseTicketPlusSelection(input);
         const clickTimeout = options.clickTimeoutMs ?? 5_000;
         const arrivalTimeout = options.arrivalTimeoutMs ?? 15_000;
         const interval = options.pollIntervalMs ?? 100;

@@ -2,10 +2,12 @@
   "platform": "ticketplus",
   "eventUrl": "https://ticketplus.com.tw/activity/REPLACE_EVENT_ID",
   "eventName": "請填寫活動名稱",
-  "target": {
-    "date": "2026-12-31",
-    "time": "20:00",
-    "ticketType": "請填寫完整票種名稱",
-    "quantity": 1
-  }
+  "targets": [
+    {
+      "date": "2026-12-31",
+      "time": "20:00",
+      "ticketType": "請填寫完整票種名稱",
+      "quantity": 1
+    }
+  ]
 }

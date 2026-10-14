@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
-import { parseTicketPlusActivity } from "../../config/ticketPlusActivity.js";
-import type { TicketPlusActivitySettings } from "../../config/ticketPlusActivity.js";
+import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import { readTicketPlusPage } from "./pageState.js";
 import type { OrderFailurePage, TicketPlusPage } from "./pageState.js";
 import type { InformationPage } from "./informationPage.js";
@@ -49,7 +49,7 @@ export class TicketPlusSubmissionError extends Error {
     }
 }
 interface Submission {
-    settings: TicketPlusActivitySettings;
+    settings: TicketPlusSelection;
     selected: TicketSelectionPage;
     options: Required<TicketSubmissionOptions>;
     deadline: number;
@@ -351,7 +351,7 @@ async function waitForInformation(page: Page, context: Submission, initialDeadli
 // 單次呼叫最多一次提交及一次關閉；不刷新、不恢復、不保證跨呼叫防重送。
 export async function submitTicketPlusSelection(
     page: Page,
-    input: TicketPlusActivitySettings,
+    input: TicketPlusSelection,
     selection: TicketSelectionPage,
     options: TicketSubmissionOptions = {},
     observer?: SubmissionObserver,
@@ -359,7 +359,7 @@ export async function submitTicketPlusSelection(
     let context: Submission | undefined;
     try {
         // 複製設定與上一步快照，先拒絕不一致的輸入，不碰瀏覽器。
-        const settings = parseTicketPlusActivity(input);
+        const settings = parseTicketPlusSelection(input);
         const selected = structuredClone(selection);
         const resolved = { ...defaults, ...options };
         if (!Object.values(resolved).every(value => Number.isFinite(value) && value > 0 && value <= 2_147_483_647)) {
