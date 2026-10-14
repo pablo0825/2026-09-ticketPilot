@@ -1,3 +1,4 @@
+import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
 import type { Locator, Page } from "playwright";
 import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
@@ -52,6 +53,7 @@ export interface TicketQuantityOptions {
 }
 
 interface Adjustment {
+    control: TicketPlusRunControl;
     settings: TicketPlusSelection;
     identity: VerifiedTicketPlusSession;
     deadline: number;
@@ -69,6 +71,7 @@ function stop(context: Adjustment, reason: QuantityReason): TicketPlusQuantityEr
 }
 
 function remaining(context: Adjustment, deadline = context.deadline): number {
+    context.control.check();
     const now = performance.now();
     if (now >= context.deadline) throw stop(context, "operation-timeout");
     if (now >= deadline) throw stop(context, "change-timeout");
@@ -80,15 +83,20 @@ async function readBeforeDeadline<T>(context: Adjustment, deadline: number, read
     const timeout = remaining(context, deadline);
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-        const result = await Promise.race([
-            read(),
-            new Promise<never>((_, reject) => {
-                timer = setTimeout(
-                    () => reject(stop(context, context.deadline <= deadline ? "operation-timeout" : "change-timeout")),
-                    timeout,
-                );
-            }),
-        ]);
+        const result = await context.control.read(() =>
+            Promise.race([
+                read(),
+                new Promise<never>((_, reject) => {
+                    timer = setTimeout(
+                        () =>
+                            reject(
+                                stop(context, context.deadline <= deadline ? "operation-timeout" : "change-timeout"),
+                            ),
+                        timeout,
+                    );
+                }),
+            ]),
+        );
         remaining(context, deadline);
         return result;
     } finally {
@@ -170,7 +178,7 @@ async function waitForChange(
             return;
         }
         if (ticket.selectedQuantity !== context.lastVerifiedQuantity) throw stop(context, "quantity-changed");
-        await new Promise(resolve => setTimeout(resolve, Math.min(interval, remaining(context, deadline))));
+        await context.control.wait(Math.min(interval, remaining(context, deadline)));
     }
 }
 
@@ -201,11 +209,13 @@ export async function selectTicketPlusTickets(
     input: TicketPlusSelection,
     verifiedSession: VerifiedTicketPlusSession,
     options: TicketQuantityOptions = {},
+    control = new TicketPlusRunControl(),
 ): Promise<TicketSelectionPage> {
     let context: Adjustment | undefined;
     let reason: QuantityReason = "invalid-settings";
     try {
         // 驗證並複製輸入，整段調整共用一個不重設的期限。
+        control.check();
         const settings = parseTicketPlusSelection(input);
         reason = "invalid-session";
         const identity = copyIdentity(settings, verifiedSession);
@@ -221,7 +231,7 @@ export async function selectTicketPlusTickets(
         ) {
             throw new TicketPlusQuantityError("before-click", "invalid-options", undefined, 0);
         }
-        context = { settings, identity, deadline: performance.now() + timeout, attemptedClicks: 0 };
+        context = { control, settings, identity, deadline: performance.now() + timeout, attemptedClicks: 0 };
         reason = "read-failed";
         const initial = await readSelection(page, context);
         if (options.requireZeroInitialQuantity && initial.ticket.selectedQuantity !== 0) {
@@ -243,7 +253,7 @@ export async function selectTicketPlusTickets(
             const button = quantityButton(page, settings.target.ticketType, context.lastVerifiedQuantity!, direction);
             if (
                 (await readBeforeDeadline(context, context.deadline, () => button.count())) !== 1 ||
-                !(await button.isEnabled({ timeout: Math.min(clickTimeout, remaining(context)) }))
+                !(await control.read(() => button.isEnabled({ timeout: Math.min(clickTimeout, remaining(context!)) })))
             ) {
                 throw stop(context, "button-unavailable");
             }
@@ -270,6 +280,8 @@ export async function selectTicketPlusTickets(
         if (final.ticket.selectedQuantity !== settings.target.quantity) throw stop(context, "quantity-changed");
         return final.snapshot;
     } catch (error) {
+        control.check();
+        if (error instanceof TicketPlusStopError) throw error;
         if (error instanceof TicketPlusQuantityError) throw error;
         if (context) throw stop(context, reason);
         throw new TicketPlusQuantityError("before-click", reason, undefined, 0);

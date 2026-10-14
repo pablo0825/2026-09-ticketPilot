@@ -1,3 +1,4 @@
+import { TicketPlusRunControl, TicketPlusStopError } from "../platforms/ticketplus/runControl.js";
 import { chromium } from "playwright";
 import type { BrowserContext, Page } from "playwright";
 import { join } from "node:path";
@@ -28,10 +29,13 @@ export type TicketPlusRunResult =
           reason: "startup-stopped" | "login-stopped" | "session-selection-stopped" | "ticket-selection-stopped";
           progress: Readonly<SubmissionProgress>;
           priorityFailure?: PriorityReason;
+          stopReason?: "user-stop";
           sessionFailure?: { reason: SessionEntryReason; stage: SessionEntryStage };
       };
 export interface TicketPlusRunOptions {
-    waitForLogin: (page: Page) => Promise<void>;
+    // 回呼必須合作取消並清理監聽，不能只讓外層提早返回。
+    waitForLogin: (page: Page, signal?: AbortSignal) => Promise<void>;
+    signal?: AbortSignal;
     onEvent?: (event: TicketPlusRunEvent) => void | Promise<void>;
     onBrowser?: (context: BrowserContext) => void;
     lease?: PurchaseLease;
@@ -54,6 +58,15 @@ export async function runTicketPlus(
     const activity = parseTicketPlusActivity(input);
     const settings = ticketPlusSessionSelection(activity);
     if (typeof options.waitForLogin !== "function") throw new Error("TicketPlus 需要人工登入交接。");
+    const control = new TicketPlusRunControl(options.signal);
+    if (options.signal?.aborted && !options.lease) {
+        return {
+            outcome: "stopped",
+            reason: "startup-stopped",
+            stopReason: "user-stop",
+            progress: Object.freeze(emptySubmissionProgress()),
+        };
+    }
     const lease = options.lease ?? acquirePurchaseLease();
     verifyPurchaseLease(lease);
     let settled = false;
@@ -78,8 +91,10 @@ export async function runTicketPlus(
     };
     try {
         report("starting");
+        control.check();
         const context = await chromium.launchPersistentContext(join(projectRoot, "browser-profile-ticketplus"), {
             channel: "chrome",
+            timeout: 30_000,
             headless: false,
             chromiumSandbox: true,
             args: options.webdriverExperiment ? ["--disable-blink-features=AutomationControlled"] : [],
@@ -90,26 +105,45 @@ export async function runTicketPlus(
             release();
         });
         options.onBrowser?.(context);
-        const page = context.pages()[0] ?? (await context.newPage());
+        control.check();
+        // persistent context 應有初始分頁；缺頁時停止，避免重新開頁或留下無期限建立工作。
+        const page = context.pages()[0];
+        if (!page) throw new Error("購票瀏覽器沒有可用分頁。");
+        control.check();
         const response = await page.goto(settings.eventUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+        control.check();
         if (response && !response.ok()) throw new Error("活動頁無法載入。");
 
         // 登入由使用者操作；交接後仍由正式模組核對活動／場次，不相信舊畫面。
         report("waiting-for-login");
-        await options.waitForLogin(page);
+        control.check();
+        await options.waitForLogin(page, options.signal);
+        control.check();
         if (page.isClosed()) throw new Error("購票頁已關閉。");
         report("selecting-session");
-        const session = await selectTicketPlusSession(page, settings);
+        const session = await selectTicketPlusSession(page, settings, {}, control);
         report("selecting-tickets");
-        const selected = await selectTicketPlusPriority(page, activity, session);
+        const selected = await selectTicketPlusPriority(page, activity, session, {}, control);
 
         // 唯一一次提交在單向流程最後；資料頁是本階段終點，不處理條款或付款。
         report("submitting");
-        return await runTicketPlusSubmission(page, selected.selection, selected.snapshot, {}, observed => {
-            progress = { ...observed };
-            notify(options, { type: "submission", progress: Object.freeze({ ...progress }) });
-        });
+        return await runTicketPlusSubmission(
+            page,
+            selected.selection,
+            selected.snapshot,
+            {},
+            observed => {
+                progress = { ...observed };
+                notify(options, { type: "submission", progress: Object.freeze({ ...progress }) });
+            },
+            control,
+        );
     } catch (error) {
+        const stopped = error instanceof TicketPlusStopError || options.signal?.aborted;
+        if (stopped) {
+            const result = stoppedSubmissionResult(new TicketPlusStopError(), progress);
+            return result;
+        }
         if (progress.submitAttempted || progress.failure) return stoppedSubmissionResult(error, progress);
         if ((stage as TicketPlusStage) === "selecting-session" && error instanceof TicketPlusSessionError) {
             return {

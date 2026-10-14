@@ -1,3 +1,4 @@
+import { waitForTicketPlusWorkerLogin } from "../src/local/ticketPlusWorkerLogin.js";
 import { ticketPlusResultMessage } from "../src/cli/ticketPlus.js";
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
@@ -19,6 +20,8 @@ const settings: TicketPlusActivitySettings = {
     targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 }],
 };
 async function setup(context: BrowserContext, rejected: boolean) {
+    // 模擬 persistent context 啟動時已有的初始分頁。
+    await context.newPage();
     const requests: string[] = [];
     await context.route("**/*", route => {
         const path = new URL(route.request().url()).pathname;
@@ -244,5 +247,212 @@ test("TicketPlus runner：活動不符保留具體原因，CLI 指出設定欄�
         launch.mock.restore();
         await browser.close();
         await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus runner：預先取消不啟動；啟動途中取消須接管瀏覽器與占用", { timeout: 15_000 }, async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-stop-start-"));
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    let releaseLaunch!: () => void;
+    let enteredLaunch!: () => void;
+    const gate = new Promise<void>(resolve => {
+        releaseLaunch = resolve;
+    });
+    const entered = new Promise<void>(resolve => {
+        enteredLaunch = resolve;
+    });
+    const launch = mock.method(chromium, "launchPersistentContext", async () => {
+        enteredLaunch();
+        await gate;
+        return context;
+    });
+    try {
+        const pre = new AbortController();
+        pre.abort();
+        const stopped = await runTicketPlus(settings, { signal: pre.signal, waitForLogin: async () => {} });
+        assert.equal(stopped.stopReason, "user-stop");
+        assert.equal(launch.mock.callCount(), 0);
+        const lease = acquirePurchaseLease(directory);
+        const controller = new AbortController();
+        let settled = false;
+        let managed = false;
+        let logins = 0;
+        const pending = runTicketPlus(settings, {
+            lease,
+            signal: controller.signal,
+            onBrowser: () => {
+                managed = true;
+            },
+            waitForLogin: async () => {
+                logins++;
+            },
+        }).then(result => {
+            settled = true;
+            return result;
+        });
+        await entered;
+        controller.abort();
+        assert.equal(settled, false);
+        assert(purchaseOccupied(directory));
+        releaseLaunch();
+        assert.equal((await pending).stopReason, "user-stop");
+        assert.equal(managed, true);
+        assert.equal(logins, 0);
+        assert(purchaseOccupied(directory));
+        await context.close();
+        assert(!purchaseOccupied(directory));
+    } finally {
+        releaseLaunch();
+        launch.mock.restore();
+        await browser.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus runner：登入等待取消保留畫面與占用，不選場次", { timeout: 15_000 }, async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-stop-login-"));
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    const requests = await setup(context, false);
+    const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+    const controller = new AbortController();
+    try {
+        const lease = acquirePurchaseLease(directory);
+        const result = await runTicketPlus(settings, {
+            lease,
+            signal: controller.signal,
+            waitForLogin: (page, signal) => waitForTicketPlusWorkerLogin(page, () => controller.abort(), signal),
+        });
+        assert.equal(result.outcome, "stopped");
+        assert.equal(result.stopReason, "user-stop");
+        assert.match(ticketPlusResultMessage(result), /已依要求停止/);
+        assert.deepEqual(requests, ["/activity/event-fixture"]);
+        assert(purchaseOccupied(directory));
+        await context.close();
+        assert(!purchaseOccupied(directory));
+    } finally {
+        launch.mock.restore();
+        await browser.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus runner：預先取消接管有效外部占用，不釋放錯誤識別的占用", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-prestop-lease-"));
+    const launch = mock.method(chromium, "launchPersistentContext", async () => {
+        throw new Error("不可啟動");
+    });
+    const controller = new AbortController();
+    controller.abort();
+    try {
+        const lease = acquirePurchaseLease(directory);
+        await assert.rejects(
+            runTicketPlus(settings, {
+                lease: { ...lease, token: "wrong-token" },
+                signal: controller.signal,
+                waitForLogin: async () => {},
+            }),
+            /購票占用識別無法確認/,
+        );
+        assert(purchaseOccupied(directory));
+        const result = await runTicketPlus(settings, {
+            lease,
+            signal: controller.signal,
+            waitForLogin: async () => {},
+        });
+        assert.equal(result.stopReason, "user-stop");
+        assert.equal(result.progress.submitAttempted, false);
+        assert(!purchaseOccupied(directory));
+        assert.equal(launch.mock.callCount(), 0);
+    } finally {
+        launch.mock.restore();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus runner：初始分頁遺失不重新建立，保留瀏覽器直到人工關閉", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-no-page-"));
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+    const newPage = mock.method(context, "newPage", async () => {
+        throw new Error("不可重新建立分頁");
+    });
+    try {
+        const result = await runTicketPlus(settings, {
+            lease: acquirePurchaseLease(directory),
+            waitForLogin: async () => {},
+        });
+        assert.equal(result.outcome, "stopped");
+        assert.equal(newPage.mock.callCount(), 0);
+        assert(purchaseOccupied(directory));
+        await context.close();
+        assert(!purchaseOccupied(directory));
+    } finally {
+        launch.mock.restore();
+        newPage.mock.restore();
+        await browser.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus runner：首張加票後取消，停止訊號穿過順位與張數層且不提交", { timeout: 15_000 }, async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-stop-quantity-"));
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    const requests = await setup(context, false);
+    const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+    const controller = new AbortController();
+    let clicked!: () => void;
+    const firstClick = new Promise<void>(resolve => {
+        clicked = resolve;
+    });
+    await context.exposeBinding("fixtureFirstPlus", () => {
+        clicked();
+    });
+    await context.addInitScript(() => {
+        // 攔下第一個加票的更新，用獨立DOM計數記錄，稍後由測試釋放。
+        document.addEventListener(
+            "click",
+            event => {
+                const button = (event.target as Element).closest("button");
+                if (!button?.querySelector(".mdi-plus")) return;
+                event.stopImmediatePropagation();
+                (window as any).fixturePlus = ((window as any).fixturePlus ?? 0) + 1;
+                (window as any).fixtureAcknowledge = () => {
+                    button.parentElement!.querySelector("div")!.textContent = "1";
+                };
+                void (window as any).fixtureFirstPlus();
+            },
+            true,
+        );
+    });
+    try {
+        const pending = runTicketPlus(settings, {
+            lease: acquirePurchaseLease(directory),
+            signal: controller.signal,
+            waitForLogin: async () => {},
+        });
+        await firstClick;
+        controller.abort();
+        const result = await pending;
+        assert.equal(result.stopReason, "user-stop");
+        assert.equal(result.progress.submitAttempted, false);
+        const page = context.pages()[0]!;
+        await page.evaluate(() => (window as any).fixtureAcknowledge());
+        await new Promise(resolve => setTimeout(resolve, 150));
+        assert.equal(await page.evaluate(() => (window as any).fixturePlus), 1);
+        const counts = await page.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
+        assert.equal(counts.session, 1);
+        assert.equal(counts.submit, 0);
+        assert.deepEqual(requests, ["/activity/event-fixture", "/order/event-fixture/session-B"]);
+        assert(purchaseOccupied(directory));
+        await context.close();
+        assert(!purchaseOccupied(directory));
+    } finally {
+        launch.mock.restore();
+        await browser.close();
+        await rm(directory, { recursive: true, force: true });
     }
 });

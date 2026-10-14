@@ -26,6 +26,8 @@ chromium.launchPersistentContext = async (_profile, options) => {
     );
     const browser = await chromium.connect(process.env.FIXTURE_BROWSER_ENDPOINT!);
     context = await browser.newContext();
+    // 正式 persistent context 會帶有初始分頁。
+    await context.newPage();
     await context.exposeBinding(
         "recordFixture",
         async ({ page }, key: keyof typeof counts, tickets?: { name: string; quantity: number }[]) => {

@@ -1,3 +1,4 @@
+import { TicketPlusRunControl } from "./runControl.js";
 import type { Page } from "playwright";
 import { parseTicketPlusActivity, ticketPlusSessionSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusActivitySettings, TicketPlusSelection } from "../../config/ticketPlusActivity.js";
@@ -26,8 +27,10 @@ export async function selectTicketPlusPriority(
     input: TicketPlusActivitySettings,
     session: VerifiedTicketPlusSession,
     options: TicketQuantityOptions = {},
+    control = new TicketPlusRunControl(),
 ): Promise<{ selection: TicketPlusSelection; snapshot: TicketSelectionPage; priorityIndex: number }> {
     // 複製設定並確認同場次；挑選與調張數共用一個期限。
+    control.check();
     const settings = parseTicketPlusActivity(input);
     const first = ticketPlusSessionSelection(settings);
     const timeout = options.timeoutMs ?? 30_000;
@@ -44,6 +47,7 @@ export async function selectTicketPlusPriority(
         throw new TicketPlusPriorityError("identity-mismatch");
     }
     const remaining = () => {
+        control.check();
         const value = deadline - performance.now();
         if (value <= 0) throw new TicketPlusPriorityError("operation-timeout");
         return value;
@@ -54,12 +58,14 @@ export async function selectTicketPlusPriority(
         let timer: ReturnType<typeof setTimeout> | undefined;
         let snapshot;
         try {
-            snapshot = await Promise.race([
-                readTicketPlusPage(page),
-                new Promise<never>((_, reject) => {
-                    timer = setTimeout(() => reject(new TicketPlusPriorityError("operation-timeout")), remaining());
-                }),
-            ]);
+            snapshot = await control.read(() =>
+                Promise.race([
+                    readTicketPlusPage(page),
+                    new Promise<never>((_, reject) => {
+                        timer = setTimeout(() => reject(new TicketPlusPriorityError("operation-timeout")), remaining());
+                    }),
+                ]),
+            );
         } finally {
             clearTimeout(timer);
         }
@@ -91,11 +97,17 @@ export async function selectTicketPlusPriority(
 
         // 選定後不得候補；略過售完順位後，調張數的首次讀取也必須保持零張。
         const selection = { ...first, target };
-        const selected = await selectTicketPlusTickets(page, selection, identity, {
-            ...options,
-            timeoutMs: remaining(),
-            requireZeroInitialQuantity: priorityIndex > 0 || options.requireZeroInitialQuantity,
-        });
+        const selected = await selectTicketPlusTickets(
+            page,
+            selection,
+            identity,
+            {
+                ...options,
+                timeoutMs: remaining(),
+                requireZeroInitialQuantity: priorityIndex > 0 || options.requireZeroInitialQuantity,
+            },
+            control,
+        );
         return { selection, snapshot: selected, priorityIndex };
     }
     throw new TicketPlusPriorityError("all-targets-sold-out");

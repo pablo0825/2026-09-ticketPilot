@@ -1,3 +1,4 @@
+import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
 import type { Page } from "playwright";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
@@ -11,6 +12,7 @@ import type {
 } from "./ticketSubmission.js";
 
 interface ResultProgress {
+    stopReason?: "user-stop";
     progress: Readonly<SubmissionProgress>;
 }
 export type TicketPlusSubmissionResult =
@@ -31,8 +33,19 @@ export function stoppedSubmissionResult(
         failure: reported.failure ?? observed.failure,
     });
     const outcome = progress.failure ? "rejected" : progress.submitAttempted ? "unknown" : "stopped";
-    const reason = error instanceof TicketPlusSubmissionError ? error.reason : "unexpected-error";
-    return { outcome, reason, progress };
+    const reason =
+        error instanceof TicketPlusSubmissionError
+            ? error.reason
+            : error instanceof TicketPlusStopError
+              ? "user-stopped"
+              : "unexpected-error";
+    const stopReason =
+        error instanceof TicketPlusSubmissionError
+            ? error.stopReason
+            : error instanceof TicketPlusStopError
+              ? error.stopReason
+              : undefined;
+    return { outcome, reason, progress, ...(stopReason ? { stopReason } : {}) };
 }
 
 // runner 只接收終局結果；此層不做任何重試或錯誤恢復。
@@ -42,14 +55,22 @@ export async function runTicketPlusSubmission(
     selected: TicketSelectionPage,
     options: TicketSubmissionOptions = {},
     observer?: SubmissionObserver,
+    control = new TicketPlusRunControl(),
 ): Promise<TicketPlusSubmissionResult> {
     let progress = emptySubmissionProgress();
     try {
-        const information = await submitTicketPlusSelection(page, settings, selected, options, value => {
-            // 先保存內部狀態，再通知外部；外部出錯仍有可靠的提交紀錄。
-            progress = { ...value };
-            return observer?.(Object.freeze({ ...value }));
-        });
+        const information = await submitTicketPlusSelection(
+            page,
+            settings,
+            selected,
+            options,
+            value => {
+                // 先保存內部狀態，再通知外部；外部出錯仍有可靠的提交紀錄。
+                progress = { ...value };
+                return observer?.(Object.freeze({ ...value }));
+            },
+            control,
+        );
         return { outcome: "information-ready", information, progress: Object.freeze({ ...progress }) };
     } catch (error) {
         return stoppedSubmissionResult(error, progress);

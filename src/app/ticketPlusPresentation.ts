@@ -28,6 +28,13 @@ export function ticketPlusSessionMessage(failure: { reason: SessionEntryReason; 
 export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
     if (result.outcome === "information-ready")
         return "已到同場次填寫資料頁，本階段完成。請人工接手；未填資料、未勾條款、未操作付款。";
+    if (result.stopReason === "user-stop") {
+        if (result.outcome === "unknown")
+            return "已依要求停止自動操作；已嘗試提交，結果未確認。請檢查原頁面及訂單，不會重送。";
+        if (result.outcome === "rejected")
+            return "已依要求停止自動操作；已確認購票失敗，請人工檢查彈窗與頁面，不會繼續關閉或重試。";
+        return "已依要求停止自動操作，尚未嘗試選票提交。瀏覽器保留供人工檢查，關閉後才解除購票占用。";
+    }
     if (result.outcome === "unknown") return "已嘗試提交，結果未確認。請檢查原頁面及訂單；不會重送。";
     if (result.outcome === "rejected") {
         const reason = result.progress.failure === "sold-out" ? "已售完" : "購票失敗";

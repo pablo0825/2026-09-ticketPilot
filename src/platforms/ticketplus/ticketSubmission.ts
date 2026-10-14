@@ -1,3 +1,4 @@
+import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
 import type { Page } from "playwright";
 import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
@@ -17,6 +18,7 @@ export interface TicketSubmissionOptions {
     pollIntervalMs?: number;
 }
 export type SubmissionReason =
+    | "user-stopped"
     | "invalid-input"
     | "invalid-options"
     | "unexpected-route"
@@ -43,12 +45,14 @@ export class TicketPlusSubmissionError extends Error {
     constructor(
         public readonly reason: SubmissionReason,
         public readonly progress: Readonly<SubmissionProgress>,
+        public readonly stopReason?: "user-stop",
     ) {
         super(`TicketPlus 選票提交停止（${reason}），不會刷新或重新提交。`);
         this.name = "TicketPlusSubmissionError";
     }
 }
 interface Submission {
+    control: TicketPlusRunControl;
     settings: TicketPlusSelection;
     selected: TicketSelectionPage;
     options: Required<TicketSubmissionOptions>;
@@ -88,6 +92,7 @@ function stop(context: Submission, reason: SubmissionReason): TicketPlusSubmissi
     return new TicketPlusSubmissionError(reason, { ...context.progress });
 }
 function remaining(context: Submission, deadline: number): number {
+    context.control.check();
     const value = Math.min(context.deadline, deadline) - performance.now();
     if (value <= 0) throw stop(context, "wait-timeout");
     return value;
@@ -97,12 +102,14 @@ async function readBounded<T>(context: Submission, deadline: number, read: () =>
     const timeout = Math.min(remaining(context, deadline), context.options.readTimeoutMs);
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-        const value = await Promise.race([
-            read(),
-            new Promise<never>((_, reject) => {
-                timer = setTimeout(() => reject(stop(context, "read-timeout")), timeout);
-            }),
-        ]);
+        const value = await context.control.read(() =>
+            Promise.race([
+                read(),
+                new Promise<never>((_, reject) => {
+                    timer = setTimeout(() => reject(stop(context, "read-timeout")), timeout);
+                }),
+            ]),
+        );
         remaining(context, deadline);
         return value;
     } finally {
@@ -110,6 +117,7 @@ async function readBounded<T>(context: Submission, deadline: number, read: () =>
     }
 }
 function checkRoute(page: Page, context: Submission, orderOnly = false): void {
+    context.control.check();
     if (page.isClosed()) throw stop(context, "read-failed");
     const url = new URL(page.url());
     const suffix = `${context.selected.eventId}/${context.selected.sessionId}`;
@@ -221,8 +229,10 @@ async function submitOnce(page: Page, context: Submission, deadline: number): Pr
                 timeout: Math.min(timeout, remaining(context, deadline), remaining(context, waitDeadline)),
             });
         } catch {
+            context.control.check();
             throw stop(context, "submit-click-failed");
         }
+        context.control.check();
         return waitDeadline;
     } finally {
         await button.dispose().catch(() => {});
@@ -318,9 +328,7 @@ async function dismissFailure(page: Page, context: Submission, failure: OrderFai
     }
 }
 async function pause(context: Submission, deadline: number): Promise<void> {
-    await new Promise(resolve =>
-        setTimeout(resolve, Math.min(context.options.pollIntervalMs, remaining(context, deadline))),
-    );
+    await context.control.wait(Math.min(context.options.pollIntervalMs, remaining(context, deadline)));
 }
 async function waitForInformation(page: Page, context: Submission, initialDeadline: number): Promise<InformationPage> {
     let deadline = initialDeadline;
@@ -355,10 +363,12 @@ export async function submitTicketPlusSelection(
     selection: TicketSelectionPage,
     options: TicketSubmissionOptions = {},
     observer?: SubmissionObserver,
+    control = new TicketPlusRunControl(),
 ): Promise<InformationPage> {
     let context: Submission | undefined;
     try {
         // 複製設定與上一步快照，先拒絕不一致的輸入，不碰瀏覽器。
+        control.check();
         const settings = parseTicketPlusSelection(input);
         const selected = structuredClone(selection);
         const resolved = { ...defaults, ...options };
@@ -366,6 +376,7 @@ export async function submitTicketPlusSelection(
             throw new TicketPlusSubmissionError("invalid-options", emptySubmissionProgress());
         }
         context = {
+            control,
             settings,
             selected,
             options: resolved,
@@ -387,6 +398,13 @@ export async function submitTicketPlusSelection(
         const initialDeadline = await submitOnce(page, context, deadline);
         return await waitForInformation(page, context, initialDeadline);
     } catch (error) {
+        if (error instanceof TicketPlusStopError || control.signal?.aborted) {
+            throw new TicketPlusSubmissionError(
+                "user-stopped",
+                { ...(context?.progress ?? emptySubmissionProgress()) },
+                "user-stop",
+            );
+        }
         if (error instanceof TicketPlusSubmissionError) throw error;
         if (context) throw stop(context, context.progress.failure ? "dismiss-unconfirmed" : "read-failed");
         throw new TicketPlusSubmissionError("invalid-input", emptySubmissionProgress());

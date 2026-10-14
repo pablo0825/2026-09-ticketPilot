@@ -1,3 +1,4 @@
+import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
 import type { Locator, Page } from "playwright";
 import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
@@ -99,24 +100,31 @@ function expectedArrivalRoute(page: Page, settings: TicketPlusSelection): boolea
 }
 
 // 逾時後可能仍有唯讀 evaluate 收尾，但不會繼續點擊或變更頁面。
-async function readWithinDeadline(page: Page, timeout: number, stage: SessionEntryStage): Promise<TicketPlusPage> {
+async function readWithinDeadline(
+    page: Page,
+    timeout: number,
+    stage: SessionEntryStage,
+    control: TicketPlusRunControl,
+): Promise<TicketPlusPage> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-        return await Promise.race([
-            readTicketPlusPage(page),
-            new Promise<never>((_, reject) => {
-                timer = setTimeout(
-                    () =>
-                        reject(
-                            new TicketPlusSessionError(
-                                stage,
-                                stage === "before-click" ? "read-failed" : "arrival-timeout",
+        return await control.read(() =>
+            Promise.race([
+                readTicketPlusPage(page),
+                new Promise<never>((_, reject) => {
+                    timer = setTimeout(
+                        () =>
+                            reject(
+                                new TicketPlusSessionError(
+                                    stage,
+                                    stage === "before-click" ? "read-failed" : "arrival-timeout",
+                                ),
                             ),
-                        ),
-                    Math.max(1, timeout),
-                );
-            }),
-        ]);
+                        Math.max(1, timeout),
+                    );
+                }),
+            ]),
+        );
     } finally {
         clearTimeout(timer);
     }
@@ -127,16 +135,18 @@ async function waitForSelection(
     settings: TicketPlusSelection,
     timeout: number,
     interval: number,
+    control: TicketPlusRunControl,
 ): Promise<TicketSelectionPage> {
     // 只設一次期限，暫時缺資料不會延長等待，也不會回到點擊流程。
     const deadline = performance.now() + timeout;
     const eventId = new URL(settings.eventUrl).pathname.split("/")[2];
     while (performance.now() < deadline) {
+        control.check();
         if (page.isClosed()) throw new TicketPlusSessionError("after-click-attempt", "read-failed");
         if (!expectedArrivalRoute(page, settings)) {
             throw new TicketPlusSessionError("after-click-attempt", "unexpected-page");
         }
-        const snapshot = await readWithinDeadline(page, deadline - performance.now(), "after-click-attempt");
+        const snapshot = await readWithinDeadline(page, deadline - performance.now(), "after-click-attempt", control);
         if (performance.now() >= deadline) break;
 
         // 完整選票頁必須符合活動與日期時間；sessionId 是此時新取得的資料。
@@ -163,9 +173,7 @@ async function waitForSelection(
         }
 
         // 等待期間不刷新、不處理排隊，也不碰選票頁的任何控制項。
-        await new Promise(resolve =>
-            setTimeout(resolve, Math.min(interval, Math.max(0, deadline - performance.now()))),
-        );
+        await control.wait(Math.min(interval, Math.max(0, deadline - performance.now())));
     }
     throw new TicketPlusSessionError("after-click-attempt", "arrival-timeout");
 }
@@ -175,11 +183,13 @@ export async function selectTicketPlusSession(
     page: Page,
     input: TicketPlusSelection,
     options: SessionSelectionOptions = {},
+    control = new TicketPlusRunControl(),
 ): Promise<TicketSelectionPage> {
     let stage: SessionEntryStage = "before-click";
     let reason: SessionEntryReason = "invalid-settings";
     try {
         // 複製並驗證設定，操作途中不受呼叫端修改設定影響。
+        control.check();
         const settings = parseTicketPlusSelection(input);
         const clickTimeout = options.clickTimeoutMs ?? 5_000;
         const arrivalTimeout = options.arrivalTimeoutMs ?? 15_000;
@@ -194,23 +204,30 @@ export async function selectTicketPlusSession(
 
         // 以最新快照建立目標定位，再確認按鈕與場次身分仍然相同。
         reason = "read-failed";
-        const target = requireTargetSession(await readWithinDeadline(page, clickTimeout, stage), settings);
+        const target = requireTargetSession(await readWithinDeadline(page, clickTimeout, stage, control), settings);
         const button = sessionButton(page, settings, target);
-        if ((await button.count()) !== 1 || !(await button.isEnabled({ timeout: clickTimeout }))) {
+        if (
+            (await control.read(() => button.count())) !== 1 ||
+            !(await control.read(() => button.isEnabled({ timeout: clickTimeout })))
+        ) {
             throw new TicketPlusSessionError(stage, "button-unavailable");
         }
-        const latest = requireTargetSession(await readWithinDeadline(page, clickTimeout, stage), settings);
+        const latest = requireTargetSession(await readWithinDeadline(page, clickTimeout, stage, control), settings);
         if (latest.name !== target.name || latest.date !== target.date || latest.time !== target.time) {
             throw new TicketPlusSessionError(stage, "session-changed");
         }
 
         // 先記錄已嘗試，再呼叫一次 click。任何錯誤都不重按、不切換場次。
+        control.check();
         stage = "after-click-attempt";
         reason = "click-failed";
         await button.click({ timeout: clickTimeout });
+        control.check();
         reason = "read-failed";
-        return await waitForSelection(page, settings, arrivalTimeout, interval);
+        return await waitForSelection(page, settings, arrivalTimeout, interval, control);
     } catch (error) {
+        control.check();
+        if (error instanceof TicketPlusStopError) throw error;
         if (error instanceof TicketPlusSessionError) throw error;
         // 原始 Playwright 錯誤可能包含網址或 DOM，僅回傳固定階段與原因。
         throw new TicketPlusSessionError(stage, reason);

@@ -27,10 +27,14 @@ export async function runTicketPlusWorker(
             lease,
             webdriverExperiment: process.env.WEBDRIVER_EXPERIMENT === "1",
             onBrowser,
-            waitForLogin: page =>
-                waitForTicketPlusWorkerLogin(page, confirmationId => {
-                    sendEvent({ type: "ticketplus", stage: "login-ready", confirmationId });
-                }),
+            waitForLogin: (page, signal) =>
+                waitForTicketPlusWorkerLogin(
+                    page,
+                    confirmationId => {
+                        sendEvent({ type: "ticketplus", stage: "login-ready", confirmationId });
+                    },
+                    signal,
+                ),
             onEvent: event => {
                 if (event.type === "submission") {
                     progress = { ...event.progress };

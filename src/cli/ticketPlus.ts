@@ -47,7 +47,7 @@ export async function runTicketPlusCli(
     let closed: Promise<void> = Promise.resolve();
     const result = await runTicketPlus(settings, {
         webdriverExperiment: environment.WEBDRIVER_EXPERIMENT === "1",
-        waitForLogin: page => waitForTicketPlusLogin(page, terminal),
+        waitForLogin: (page, signal) => waitForTicketPlusLogin(page, terminal, signal),
         onEvent: event => {
             const message = ticketPlusEventMessage(event);
             if (message) terminal.output.write(`${message}\n`);
