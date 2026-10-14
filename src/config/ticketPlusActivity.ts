@@ -59,7 +59,7 @@ export function parseTicketPlusSelection(value: unknown): TicketPlusSelection {
     return result.data;
 }
 
-// 僅產生目前可執行的單次目標；未接通的順位／排程不能在轉換時被忽略。
+// 舊執行紀錄的單目標投影；不得丟棄多順位或排程以比對歷史指紋。
 export function singleTicketPlusSelection(settings: TicketPlusActivitySettings): TicketPlusSelection {
     if (settings.saleSchedule) {
         throw new TicketPlusCapabilityError("TicketPlus 開賣等待與提前刷新尚未接通；設定可保存，但本次不會啟動購票。");
@@ -75,4 +75,16 @@ export function singleTicketPlusSelection(settings: TicketPlusActivitySettings):
         eventName: settings.eventName,
         target: settings.targets[0]!,
     };
+}
+
+// 執行能力與舊紀錄的單目標投影分開；只有同一場次可依序選票。
+export function ticketPlusSessionSelection(settings: TicketPlusActivitySettings): TicketPlusSelection {
+    if (settings.saleSchedule) {
+        throw new TicketPlusCapabilityError("TicketPlus 開賣等待與提前刷新尚未接通；設定可保存，但本次不會啟動購票。");
+    }
+    const first = settings.targets[0]!;
+    if (settings.targets.some(target => target.date !== first.date || target.time !== first.time)) {
+        throw new TicketPlusCapabilityError("TicketPlus 目前只支援同場次多順位；不同日期或時間不會啟動購票。");
+    }
+    return { platform: settings.platform, eventUrl: settings.eventUrl, eventName: settings.eventName, target: first };
 }

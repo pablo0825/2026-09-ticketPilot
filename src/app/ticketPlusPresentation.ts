@@ -40,6 +40,13 @@ export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
         return `${reason}，${dismissal}。流程停止，不刷新、不切換候補。`;
     }
     if ("sessionFailure" in result && result.sessionFailure) return ticketPlusSessionMessage(result.sessionFailure);
+    if ("priorityFailure" in result && result.priorityFailure) {
+        const detail =
+            result.priorityFailure === "all-targets-sold-out"
+                ? "本次檢查的設定順位皆明確售完"
+                : `順位核對未通過（${result.priorityFailure}），不能據此判定售完`;
+        return `${detail}。尚未提交，不刷新或重跑。`;
+    }
     return `流程已停止（${result.reason}），尚未嘗試選票提交。請檢查購票瀏覽器；不會自動重跑。`;
 }
 export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | undefined {

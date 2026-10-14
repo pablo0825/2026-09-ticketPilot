@@ -2,13 +2,14 @@ import { chromium } from "playwright";
 import type { BrowserContext, Page } from "playwright";
 import { join } from "node:path";
 import { projectRoot } from "../config/activityStore.js";
-import { parseTicketPlusActivity, singleTicketPlusSelection } from "../config/ticketPlusActivity.js";
+import { parseTicketPlusActivity, ticketPlusSessionSelection } from "../config/ticketPlusActivity.js";
 import type { TicketPlusActivitySettings } from "../config/ticketPlusActivity.js";
 import { acquirePurchaseLease, releasePurchaseLease, verifyPurchaseLease } from "./purchaseLock.js";
 import type { PurchaseLease } from "./purchaseLock.js";
 import type { SessionEntryReason, SessionEntryStage } from "../platforms/ticketplus/sessionSelection.js";
 import { TicketPlusSessionError, selectTicketPlusSession } from "../platforms/ticketplus/sessionSelection.js";
-import { selectTicketPlusTickets } from "../platforms/ticketplus/ticketQuantity.js";
+import { selectTicketPlusPriority, TicketPlusPriorityError } from "../platforms/ticketplus/ticketPriority.js";
+import type { PriorityReason } from "../platforms/ticketplus/ticketPriority.js";
 import { runTicketPlusSubmission, stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
 import type { TicketPlusSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
 import { emptySubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
@@ -26,6 +27,7 @@ export type TicketPlusRunResult =
           outcome: "stopped";
           reason: "startup-stopped" | "login-stopped" | "session-selection-stopped" | "ticket-selection-stopped";
           progress: Readonly<SubmissionProgress>;
+          priorityFailure?: PriorityReason;
           sessionFailure?: { reason: SessionEntryReason; stage: SessionEntryStage };
       };
 export interface TicketPlusRunOptions {
@@ -49,7 +51,8 @@ export async function runTicketPlus(
     options: TicketPlusRunOptions,
 ): Promise<TicketPlusRunResult> {
     // 所有啟動輸入先驗證，錯誤時不取得占用或開啟瀏覽器。
-    const settings = singleTicketPlusSelection(parseTicketPlusActivity(input));
+    const activity = parseTicketPlusActivity(input);
+    const settings = ticketPlusSessionSelection(activity);
     if (typeof options.waitForLogin !== "function") throw new Error("TicketPlus 需要人工登入交接。");
     const lease = options.lease ?? acquirePurchaseLease();
     verifyPurchaseLease(lease);
@@ -91,18 +94,18 @@ export async function runTicketPlus(
         const response = await page.goto(settings.eventUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
         if (response && !response.ok()) throw new Error("活動頁無法載入。");
 
-        // 登入由使用者操作；Enter 後仍由正式模組核對活動／場次，不相信舊畫面。
+        // 登入由使用者操作；交接後仍由正式模組核對活動／場次，不相信舊畫面。
         report("waiting-for-login");
         await options.waitForLogin(page);
         if (page.isClosed()) throw new Error("購票頁已關閉。");
         report("selecting-session");
         const session = await selectTicketPlusSession(page, settings);
         report("selecting-tickets");
-        const selected = await selectTicketPlusTickets(page, settings, session);
+        const selected = await selectTicketPlusPriority(page, activity, session);
 
         // 唯一一次提交在單向流程最後；資料頁是本階段終點，不處理條款或付款。
         report("submitting");
-        return await runTicketPlusSubmission(page, settings, selected, {}, observed => {
+        return await runTicketPlusSubmission(page, selected.selection, selected.snapshot, {}, observed => {
             progress = { ...observed };
             notify(options, { type: "submission", progress: Object.freeze({ ...progress }) });
         });
@@ -124,7 +127,12 @@ export async function runTicketPlus(
                   : stage === "selecting-session"
                     ? "session-selection-stopped"
                     : "ticket-selection-stopped";
-        return { outcome: "stopped", reason, progress: Object.freeze(emptySubmissionProgress()) };
+        return {
+            outcome: "stopped",
+            reason,
+            progress: Object.freeze(emptySubmissionProgress()),
+            ...(error instanceof TicketPlusPriorityError ? { priorityFailure: error.reason } : {}),
+        };
     } finally {
         settled = true;
         release();

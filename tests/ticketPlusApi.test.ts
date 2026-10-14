@@ -149,3 +149,58 @@ test("TicketPlus API：設定不符、誤傳contact與Klook缺資料皆在啟動
         await h.dispose();
     }
 });
+
+test("TicketPlus API：同場次第一順位售完，第二順位提交一次並到資料頁", { timeout: 20_000 }, async () => {
+    const h = await apiHarness();
+    try {
+        const activity = {
+            ...apiActivity,
+            targets: [
+                { date: "2026-10-30", time: "20:00", ticketType: "身障票", quantity: 1 },
+                { date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 },
+            ],
+        };
+        const saved = await (await h.request("/api/activities", activity)).json();
+        const input = { requestId: randomUUID(), activityId: saved.id, expectedActivity: activity };
+        assert.equal((await h.request("/api/purchase", input)).status, 200);
+        const waiting = await h.until(run => Boolean(run?.loginConfirmation));
+        assert.equal(
+            (
+                await h.request("/api/purchase/confirm-login", {
+                    runId: waiting.id,
+                    confirmationId: waiting.loginConfirmation!.confirmationId,
+                })
+            ).status,
+            200,
+        );
+        await h.until(run => run?.status === "information-ready");
+        const report = await h.counts();
+        assert.deepEqual(report.submissions, [
+            [
+                { name: "學生票", quantity: 0 },
+                { name: "預售票", quantity: 2 },
+                { name: "身障票", quantity: 0 },
+            ],
+        ]);
+        assert.deepEqual(report.counts, {
+            session: 1,
+            plus: 2,
+            submit: 1,
+            dismiss: 0,
+            information: 0,
+            other: 0,
+            terms: 0,
+        });
+        assert.deepEqual(report.requests, [
+            "/activity/event-fixture",
+            "/order/event-fixture/session-B",
+            "/confirm/event-fixture/session-B",
+        ]);
+        assert.equal((await h.request("/api/purchase", input)).status, 200);
+        assert.equal(await readFile(h.report + ".starts", "utf8"), "started\n");
+        assert.equal((await h.request("/api/purchase/close-browser", { runId: waiting.id })).status, 200);
+        await h.until(run => !run?.occupied);
+    } finally {
+        await h.dispose();
+    }
+});

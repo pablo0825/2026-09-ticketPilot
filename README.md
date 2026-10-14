@@ -89,6 +89,8 @@ WEBDRIVER_EXPERIMENT=1 npm run start:ticketplus -- --config ./ticketplus.local.j
 
 在新開的 Chrome 手動登入，停在設定的活動頁，再回終端機按 Enter 開始。程式選場次、調整張數、提交一次並等待；到同場次填寫資料頁即停止，保留瀏覽器供人工接手，不填資料、不勾條款、不操作付款。明確購票失敗／已售完會嘗試關閉已辨識的彈窗後停止；結果不明不重送，也不刷新或換候補。
 
-此入口不需要 Klook 聯絡資料，尚未接通 TicketPlus GUI／API／worker。`WEBDRIVER_EXPERIMENT=1` 是選用的瀏覽器參數開關，與 Klook 用法相同。TicketPlus 使用獨立的 `browser-profile-ticketplus/` 保存登入；該目錄與本機設定均不納入版本控制。
+支援同日期、同時間的多順位：只有完整頁面中唯一符合的票種明確售完，且沒有已選張數時，才略過到下一順位。找不到票種、名稱歧義、張數調整失敗或未知頁面均停止；所有設定順位售完也停止，不刷新。跨場次與指定開賣時間目前仍不能啟動。
+
+此入口不需要 Klook 聯絡資料；API／worker 已接通，TicketPlus GUI 尚未接通。`WEBDRIVER_EXPERIMENT=1` 是選用的瀏覽器參數開關，與 Klook 用法相同。TicketPlus 使用獨立的 `browser-profile-ticketplus/` 保存登入；該目錄與本機設定均不納入版本控制。
 
 操作結束請關閉購票 Chrome，流程與瀏覽器都結束後才釋放與 Klook 共用的購票占用。程序異常中斷可能留下占用，請先人工確認瀏覽器及訂單狀態，不要直接重跑。登入等待時 Ctrl+C 會取消交接並保留瀏覽器供檢查。

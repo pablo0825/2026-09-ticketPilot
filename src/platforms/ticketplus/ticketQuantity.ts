@@ -45,6 +45,7 @@ export class TicketPlusQuantityError extends Error {
 
 export interface TicketQuantityOptions {
     timeoutMs?: number;
+    requireZeroInitialQuantity?: boolean;
     clickTimeoutMs?: number;
     changeTimeoutMs?: number;
     pollIntervalMs?: number;
@@ -223,6 +224,9 @@ export async function selectTicketPlusTickets(
         context = { settings, identity, deadline: performance.now() + timeout, attemptedClicks: 0 };
         reason = "read-failed";
         const initial = await readSelection(page, context);
+        if (options.requireZeroInitialQuantity && initial.ticket.selectedQuantity !== 0) {
+            throw stop(context, "quantity-changed");
+        }
         context.lastVerifiedQuantity = initial.ticket.selectedQuantity;
         const difference = settings.target.quantity - initial.ticket.selectedQuantity;
         const direction = Math.sign(difference);

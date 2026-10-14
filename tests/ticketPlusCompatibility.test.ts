@@ -127,7 +127,7 @@ test("舊 TP v4 請求與活動狀態：等價單順位重播原結果，改設�
     }
 });
 
-test("多順位 CLI／runner 拒絕在開瀏覽器前，訊息明確而非默取第一筆", async t => {
+test("跨場次 CLI／runner 拒絕在開瀏覽器前，訊息明確而非默取第一筆", async t => {
     const dir = await mkdtemp(join(tmpdir(), "tp-guard-"));
     const input = Object.assign(new PassThrough(), { isTTY: true });
     const output = new PassThrough();
@@ -138,7 +138,7 @@ test("多順位 CLI／runner 拒絕在開瀏覽器前，訊息明確而非默取
         const file = join(dir, "settings.json");
         await writeFile(file, JSON.stringify(multiple));
         await assert.rejects(runTicketPlusCli(["--config", file], { input, output }), error => {
-            assert.match(ticketPlusStartupMessage(error), /多順位執行尚未接通/);
+            assert.match(ticketPlusStartupMessage(error), /只支援同場次多順位/);
             return true;
         });
         // 無效 lease 若被驗證會先報鎖錯誤；能力限制必須比取得／驗證 lease 更早。
@@ -149,7 +149,7 @@ test("多順位 CLI／runner 拒絕在開瀏覽器前，訊息明確而非默取
                 },
                 lease: { path: join(dir, "missing.lock"), token: "invalid" } as never,
             }),
-            /多順位執行尚未接通/,
+            /只支援同場次多順位/,
         );
         assert.equal(launch.mock.callCount(), 0);
         assert.deepEqual(await readdir(dir), ["settings.json"]);
@@ -160,7 +160,7 @@ test("多順位 CLI／runner 拒絕在開瀏覽器前，訊息明確而非默取
     }
 });
 
-test("API 可保存多順位但啟動零副作用；新單順位可重播舊紀錄", async () => {
+test("API 可保存跨場次順位但啟動零副作用；新單順位可重播舊紀錄", async () => {
     const dir = await mkdtemp(join(tmpdir(), "tp-api-compat-"));
     const runtime = join(dir, "runtime");
     const store = new ActivityStore(join(dir, "events"));
@@ -200,7 +200,7 @@ test("API 可保存多順位但啟動零副作用；新單順位可重播舊紀�
         });
         assert.equal(response.status, 400);
         const rejected = await response.json();
-        assert.match(rejected.error, /多順位執行尚未接通/);
+        assert.match(rejected.error, /只支援同場次多順位/);
         assert.equal(rejected.notAccepted, true);
         assert(!purchaseOccupied(runtime));
         assert.deepEqual(await readdir(join(runtime, "runs")), [requestId + ".json"]);

@@ -12,9 +12,10 @@ appendFileSync(report + ".starts", "started\n");
 const mode = process.env.FIXTURE_MODE ?? "success";
 const counts = { session: 0, plus: 0, submit: 0, dismiss: 0, information: 0, other: 0, terms: 0 };
 const requests: string[] = [];
+const submissions: { name: string; quantity: number }[][] = [];
 let flush = Promise.resolve();
 function save() {
-    const json = JSON.stringify({ counts, requests });
+    const json = JSON.stringify({ counts, requests, submissions });
     flush = flush.then(() => writeFile(report, json));
     return flush;
 }
@@ -25,11 +26,15 @@ chromium.launchPersistentContext = async (_profile, options) => {
     );
     const browser = await chromium.connect(process.env.FIXTURE_BROWSER_ENDPOINT!);
     context = await browser.newContext();
-    await context.exposeBinding("recordFixture", async ({ page }, key: keyof typeof counts) => {
-        counts[key]++;
-        await save();
-        if (key === "submit" && mode === "close-after-submit") await page.close();
-    });
+    await context.exposeBinding(
+        "recordFixture",
+        async ({ page }, key: keyof typeof counts, tickets?: { name: string; quantity: number }[]) => {
+            if (key === "submit" && tickets) submissions.push(tickets);
+            counts[key]++;
+            await save();
+            if (key === "submit" && mode === "close-after-submit") await page.close();
+        },
+    );
     await context.route("**/*", async route => {
         const path = new URL(route.request().url()).pathname;
         requests.push(path);
@@ -66,7 +71,11 @@ chromium.launchPersistentContext = async (_profile, options) => {
                         await (window as any).recordFixture("information");
                         return;
                     }
-                    await (window as any).recordFixture("submit");
+                    const tickets = [...document.querySelectorAll(".row.py-1.py-md-4")].map(row => ({
+                        name: row.querySelector(".font-weight-medium")!.childNodes[0]!.textContent!.trim(),
+                        quantity: Number(row.querySelector(".count-button > div")?.textContent ?? 0),
+                    }));
+                    await (window as any).recordFixture("submit", tickets);
                     if (mode === "failure") document.body.insertAdjacentHTML("beforeend", failure);
                     else if (mode === "queue") {
                         document.body.insertAdjacentHTML("beforeend", queue);
