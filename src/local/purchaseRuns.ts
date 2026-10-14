@@ -4,7 +4,13 @@ import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { parseActivity, projectRoot, type ActivityRecord, type ActivitySettings } from "../config/activityStore.js";
+import {
+    requireKlookActivity,
+    parseActivity,
+    projectRoot,
+    type ActivityRecord,
+    type ActivitySettings,
+} from "../config/activityStore.js";
 import { validateContactDetails } from "../config/contact.config.js";
 import { validateSaleSchedule } from "../core/purchaseValidation.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
@@ -215,6 +221,7 @@ export class PurchaseRuns {
         }
 
         const activity = parseActivity(activityInput);
+        requireKlookActivity(activity);
         const contact = validateContactDetails(contactInput);
         const fingerprint = createHash("sha256")
             .update(JSON.stringify({ activity: fingerprintSettings(activity), contact }))

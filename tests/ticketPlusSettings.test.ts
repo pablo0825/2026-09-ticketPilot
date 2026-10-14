@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseTicketPlusActivity } from "../src/config/ticketPlusActivity.js";
-import { parseActivity } from "../src/config/activityStore.js";
+import { parseActivity, toPurchaseConfig } from "../src/config/activityStore.js";
 
 function validActivity() {
     return {
@@ -148,8 +148,9 @@ test("TicketPlus 缺少必填欄位、未知平台及不適用欄位均拒絕", 
     }
 });
 
-test("合法 TicketPlus 模型尚未開放給既有活動入口", () => {
+test("合法 TicketPlus 設定可解析，但不能轉成 Klook 購票設定", () => {
     const input = validActivity();
     assert.equal(parseTicketPlusActivity(input).platform, "ticketplus");
-    assert.throws(() => parseActivity(input), /目前只支援 Klook/);
+    assert.deepEqual(parseActivity(input), parseTicketPlusActivity(input));
+    assert.throws(() => toPurchaseConfig(parseActivity(input)), /尚未實作/);
 });

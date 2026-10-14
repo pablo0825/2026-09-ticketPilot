@@ -1,3 +1,4 @@
+import { klookSettings } from "./fixtures/klookSettings.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -50,7 +51,7 @@ test("首頁場次摘要、未存離開、同名刪除及API占用與並發保�
         page.once("dialog", dialog => dialog.accept());
         await page.locator("#homeButton").click();
         await page.locator("#home").waitFor();
-        assert.equal((await store.load(a.id)).settings.targets[0]!.area, "B區");
+        assert.equal(klookSettings((await store.load(a.id)).settings).targets[0]!.area, "B區");
         const multi = page.locator("#activities tr").filter({ hasText: "多個場次" });
         page.once("dialog", dialog => dialog.dismiss());
         await multi.getByText("刪除", { exact: true }).click();

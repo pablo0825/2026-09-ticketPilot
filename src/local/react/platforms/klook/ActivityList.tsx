@@ -1,7 +1,7 @@
-import type { ActivityRecord } from "../../../../config/activityStore.js";
+import type { KlookActivityRecord } from "../../../../config/activityStore.js";
 import type { ActivityExecutionStatus } from "../../../purchaseRuns.js";
 
-export type ActivityListEntry = ActivityRecord & { executionStatus: ActivityExecutionStatus };
+export type ActivityListEntry = KlookActivityRecord & { executionStatus: ActivityExecutionStatus };
 
 interface Props {
     activities: ActivityListEntry[];

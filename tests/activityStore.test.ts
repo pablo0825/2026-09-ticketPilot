@@ -1,3 +1,4 @@
+import { klookSettings } from "./fixtures/klookSettings.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
@@ -51,9 +52,9 @@ test("新增不覆蓋同名活動；修改失敗保留舊檔；損壞與版本�
         const b = await store.save(activity);
         assert.notEqual(a.id, b.id);
         await store.save({ ...activity, eventName: "更新活動" }, a.id);
-        assert.equal((await store.load(b.id)).settings.eventName, activity.eventName);
+        assert.equal(klookSettings((await store.load(b.id)).settings).eventName, activity.eventName);
         await assert.rejects(store.save({}, a.id));
-        assert.equal((await store.load(a.id)).settings.eventName, "更新活動");
+        assert.equal(klookSettings((await store.load(a.id)).settings).eventName, "更新活動");
         await assert.rejects(store.load("../../contact.local"));
         await writeFile(join(dir, "corrupt.json"), "{broken");
         await writeFile(join(dir, `${b.id}.json`), JSON.stringify({ ...b, schemaVersion: 99 }));
@@ -95,7 +96,7 @@ test("舊活動金額欄位可讀取並移除，新格式不再保存價格；�
             await writeFile(join(dir, `${record.id}.json`), JSON.stringify({ ...record, settings: legacy }));
             const loaded = await store.load(record.id);
             assert.equal("currency" in loaded.settings, false);
-            assert(loaded.settings.targets.every(t => !("unitPrice" in t)));
+            assert(klookSettings(loaded.settings).targets.every(t => !("unitPrice" in t)));
             assert.deepEqual(toPurchaseConfig(loaded.settings).targets[0]!.expectation, {
                 eventName: activity.eventName,
             });

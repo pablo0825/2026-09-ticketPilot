@@ -2,7 +2,7 @@ import { fork, type ChildProcess } from "node:child_process";
 import { randomUUID, createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { parseActivity, projectRoot } from "../config/activityStore.js";
+import { requireKlookActivity, parseActivity, projectRoot } from "../config/activityStore.js";
 import { validateContactDetails } from "../config/contact.config.js";
 import type { RunEvent } from "../core/logger.js";
 
@@ -52,7 +52,9 @@ export class SimulationRuns {
     start(requestId: string, activity: unknown, contact: unknown): SimulationSnapshot {
         // 檢查請求與設定
         if (!z.string().uuid().safeParse(requestId).success) throw new Error("開始請求識別碼無效。");
-        const input = structuredClone({ activity: parseActivity(activity), contact: validateContactDetails(contact) });
+        const settings = parseActivity(activity);
+        requireKlookActivity(settings);
+        const input = structuredClone({ activity: settings, contact: validateContactDetails(contact) });
         const fingerprint = createHash("sha256").update(JSON.stringify(input)).digest("hex");
 
         // 同一個請求重送時，回傳原本的結果

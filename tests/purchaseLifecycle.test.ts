@@ -1,3 +1,4 @@
+import { klookSettings } from "./fixtures/klookSettings.js";
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
@@ -213,7 +214,7 @@ test("活動狀態：同名分離、實際內容比較、等待切換與重新�
         assert.equal(runs.activityStatus(a), "執行中");
         await until(() => runs.activityStatus(a) === "等待開賣");
         const changed = await store.save(
-            { ...a.settings, targets: [{ ...a.settings.targets[0]!, quantity: 2 }] },
+            { ...a.settings, targets: [{ ...klookSettings(a.settings).targets[0]!, quantity: 2 }] },
             a.id,
         );
         assert.equal(runs.activityStatus(changed), "等待開賣");
@@ -231,7 +232,7 @@ test("活動狀態：同名分離、實際內容比較、等待切換與重新�
             ...same,
             settings: {
                 ...same.settings,
-                targets: same.settings.targets.map(target => ({
+                targets: klookSettings(same.settings).targets.map(target => ({
                     adjacent: target.adjacent,
                     quantity: target.quantity,
                     area: target.area,

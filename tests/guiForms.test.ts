@@ -1,3 +1,4 @@
+import { klookSettings } from "./fixtures/klookSettings.js";
 import { snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -69,7 +70,10 @@ test("完整GUI：設定保存、個資未存阻擋、真實fixture與重連保�
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
         const original = (await store.list()).activities[0]!;
         await store.save(
-            { ...original.settings, targets: original.settings.targets.map(t => ({ ...t, area: "C區" })) },
+            {
+                ...original.settings,
+                targets: klookSettings(original.settings).targets.map(t => ({ ...t, area: "C區" })),
+            },
             original.id,
         );
         await page.locator("#confirm").check();
@@ -334,7 +338,7 @@ test("舊價格活動可載入，無金額表單仍可保存、摘要及重載",
         assert.equal(await page.locator("#currency, [name=unitPrice]").count(), 0);
         await page.getByRole("button", { name: "下一步" }).click();
         await page.locator("#step2").waitFor({ state: "visible" });
-        assert.equal("currency" in (await store.load(record.id)).settings, false);
+        assert.equal("currency" in klookSettings((await store.load(record.id)).settings), false);
 
         // 無價格也能完成聯絡資料保存與摘要
         await page.locator("#firstName").fill("Demo");

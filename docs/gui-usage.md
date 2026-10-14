@@ -31,9 +31,9 @@ Klook 活動首頁：按「新增活動」建立設定，或在列表按「使�
 
 GUI 使用 `src/local/react/` 的 React 元件，以 Vite 打包至已忽略的 `dist/react/`。`npm run gui` 和 `npm test` 會先打包，正式首頁由同一個本機 Node 服務提供，不需要額外啟動前端服務。`npm run typecheck` 同時檢查 Node 與 React；`npm run test:gui` 執行本機 GUI 回歸測試。修改前端後，若直接使用 `node --import tsx --test ...` 執行個別測試，請先執行 `npm run build:gui`；開發中的 GUI 也需要重新打包並重新整理頁面。請修改來源檔，不要直接編輯生成檔。
 
-React 負責表單與畫面；GUI 活動設定新增平台欄位，聯絡資料與購票引擎仍沿用既有格式。`ActivityEditor`、`ContactForm` 與 `PurchaseSummary` 管理不同區塊；`startPurchase` 保留未知請求的識別碼與設定核對；`useRunStatus` 接收狀態串流並清理訂閱，重連不觸發購票。本次仍僅支援 Klook，沒有增加 TicketPlus 平台或變更付款邊界。
+React 負責表單與畫面；GUI 活動設定新增平台欄位，聯絡資料與購票引擎仍沿用既有格式。`ActivityEditor`、`ContactForm` 與 `PurchaseSummary` 管理不同區塊；`startPurchase` 保留未知請求的識別碼與設定核對；`useRunStatus` 接收狀態串流並清理訂閱，重連不觸發購票。目前可執行的購票與模擬仍僅支援 Klook。設定儲存層已能讀寫 TicketPlus，但 GUI 尚未提供 TicketPlus 表單，付款邊界不變。
 
-- `local-data/events/<UUID>.json`：每場活動、順位與開賣時間，新版為 schemaVersion 3，settings 必須包含 platform: "klook"；原 targets 逐筆日期、時間、票種、張數與順序不變。
+- `local-data/events/<UUID>.json`：每場活動、順位與開賣時間，新版為 schemaVersion 3，settings 必須明確包含 platform。Klook 使用 platform: "klook"，原 targets 逐筆日期、時間、票種、張數與順序不變；TicketPlus 使用 platform: "ticketplus"，保存活動網址、名稱及單一 target（date、time、ticketType、quantity）。同一活動 ID 不可變更平台，請另建活動。
 - `contact.local.json`：所有活動共用的聯絡資訊，格式沿用 `contact.example.json`。
 - `local-data/runs/<requestId>.json`：本次執行狀態與最多 300 筆事件，用於重連及避免重複執行；不保存聯絡資料原文。
 - `local-data/purchase.lock`：GUI 和 CLI 共用的瀏覽器占用紀錄。
@@ -48,7 +48,7 @@ React 負責表單與畫面；GUI 活動設定新增平台欄位，聯絡資料�
 
 版本 1 活動會先按舊格式嚴格驗證，再在記憶體補上 `platform: "klook"`。載入本身不寫檔、不改 ID 或更新時間。首次保存時，先在同一目錄建立 `<UUID>.json.v1.bak`，保存原檔的完整內容，再把活動寫成版本 3。備份以獨占方式建立；若已有不同內容、寫入失敗或不完整備份，會停止保存並要求人工確認，不覆寫原活動。後續保存不覆蓋既有備份。舊價格欄位仍依原有規則忽略，保存後移除。
 
-先前實驗格式使用過版本 2（場次＋共用順位），本版不將它推導成原始 targets，也不自動刪除。版本 3 或 API 請求缺平台、平台尚未支援、網址不屬於 Klook 時，一律拒絕；不能靠缺少平台繞過檢查。活動檔案 API 回傳的 `schemaVersion` 表示來源檔案版本，`settings` 則一律已驗證並含平台。
+先前實驗格式使用過版本 2（場次＋共用順位），本版不將它推導成原始 targets，也不自動刪除。版本 3 或 API 請求缺平台、平台未知、網址不符合該平台規則時，一律拒絕；不能靠缺少平台繞過檢查。合法 TicketPlus 設定可保存，但購票與模擬 API、管理入口及 Klook 設定轉換皆拒絕執行；在檢查 Klook 聯絡資料、取得占用或啟動 worker 前停止。活動檔案 API 回傳的 `schemaVersion` 表示來源檔案版本，`settings` 則一律已驗證並含平台。
 
 回退 Git 只還原程式，不會還原 `local-data`。若需要讓舊程式使用已升版活動，先停止 GUI、確認沒有購票程序或未處理提交，另存目前活動檔後，再將對應 `.v1.bak` 複製回原 `.json`。新版建立的活動沒有舊版備份，不提供自動降版。不要使用活動備份覆蓋聯絡資料、執行紀錄或占用檔。
 

@@ -1,4 +1,4 @@
-import type { ActivitySettings } from "../../../../config/activityStore.js";
+import type { ActivitySettings, KlookActivitySettings } from "../../../../config/activityStore.js";
 import type { ContactDetails } from "../../../../config/contact.config.js";
 
 export interface TargetDraft {
@@ -25,7 +25,7 @@ export interface ActivityForm {
     advance: string;
 }
 
-export type ActivityDraft = Omit<ActivitySettings, "saleSchedule"> & {
+export type ActivityDraft = Omit<KlookActivitySettings, "saleSchedule"> & {
     saleSchedule?: { saleAt: string; advanceSeconds?: number };
 };
 
@@ -34,6 +34,7 @@ export function emptyTarget(): TargetDraft {
 }
 
 export function activityForm(settings?: ActivitySettings): ActivityForm {
+    if (settings && settings.platform !== "klook") throw new Error("此工作區僅支援 Klook 活動。");
     // 還原活動與順位，草稿張數保留字串以容許暫時空白
     const targets = settings?.targets.map(target => ({
         ...emptyTarget(),
@@ -96,6 +97,7 @@ export function activityInput(form: ActivityForm, includeSchedule = true): Activ
 
 export function needsActivitySave(form: ActivityForm, saved: ActivitySettings | null): boolean {
     if (!saved) return true;
+    if (saved.platform !== "klook") throw new Error("此工作區僅支援 Klook 活動。");
     const { saleSchedule, ...fields } = saved;
     return JSON.stringify(activityInput(form, false)) !== JSON.stringify(fields);
 }

@@ -1,3 +1,4 @@
+import { klookSettings } from "./fixtures/klookSettings.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -31,9 +32,9 @@ test("舊設定與 false 正規化相同；true 通過儲存、購票轉換、�
     try {
         const store = new ActivityStore(dir);
         const record = await store.save({ ...settings, queueEnabled: true });
-        assert.equal((await store.load(record.id)).settings.queueEnabled, true);
+        assert.equal(klookSettings((await store.load(record.id)).settings).queueEnabled, true);
         await store.save({ ...settings, queueEnabled: false }, record.id);
-        assert.deepEqual((await store.load(record.id)).settings, original);
+        assert.deepEqual(klookSettings((await store.load(record.id)).settings), original);
     } finally {
         await rm(dir, { recursive: true, force: true });
     }
@@ -57,10 +58,10 @@ test("GUI 每活動保存勾選、摘要顯示、重開與新增不沿用其他�
         await page.locator("#step1").waitFor({ state: "visible" });
         assert.equal(await page.locator("#queueEnabled").isChecked(), false);
         await page.locator("#queueEnabled").check();
-        assert.equal((await store.load(original.id)).settings.queueEnabled, undefined);
+        assert.equal(klookSettings((await store.load(original.id)).settings).queueEnabled, undefined);
         await page.locator("#saveActivity").click();
         await page.locator("#step2").waitFor();
-        assert.equal((await store.load(original.id)).settings.queueEnabled, true);
+        assert.equal(klookSettings((await store.load(original.id)).settings).queueEnabled, true);
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
         assert.match((await page.locator("#summary").textContent()) ?? "", /排隊流程.*已啟用/);
         await page.reload();
@@ -68,7 +69,7 @@ test("GUI 每活動保存勾選、摘要顯示、重開與新增不沿用其他�
         await page.locator("#activities tr").filter({ hasText: settings.eventName }).getByText("使用活動").click();
         await page.locator("#step1").waitFor({ state: "visible" });
         assert.equal(await page.locator("#queueEnabled").isChecked(), true);
-        assert.equal((await store.load(original.id)).settings.queueEnabled, true);
+        assert.equal(klookSettings((await store.load(original.id)).settings).queueEnabled, true);
         await page.locator("#homeButton").click();
         await page.locator("#activities tr").filter({ hasText: "另一場活動" }).getByText("使用活動").click();
         await page.locator("#step1").waitFor({ state: "visible" });

@@ -1,3 +1,4 @@
+import { klookSettings } from "./fixtures/klookSettings.js";
 import { snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -82,7 +83,7 @@ test("四步：時間草稿、延遲保存鎖定、一次啟動與run隔離", as
         assert.doesNotMatch(await page.locator("#summary").innerText(), /立即開始|開賣：/);
         assert.equal(await page.locator("#saleAt").inputValue(), "2027-01-01T10:00");
         assert.equal(await page.locator("#advance").inputValue(), "2");
-        assert.equal((await store.load(id)).settings.saleSchedule, undefined);
+        assert.equal(klookSettings((await store.load(id)).settings).saleSchedule, undefined);
         await page.screenshot({ path: "/tmp/ticket-four-confirm.png", fullPage: true });
         let release: () => void = () => {};
         let saving: () => void = () => {};
@@ -112,7 +113,7 @@ test("四步：時間草稿、延遲保存鎖定、一次啟動與run隔離", as
         await page.locator("#step4").waitFor();
         assert.equal(starts.length, 1);
         await page.screenshot({ path: "/tmp/ticket-four-status.png", fullPage: true });
-        assert.deepEqual(starts[0].expectedActivity, (await store.load(id)).settings);
+        assert.deepEqual(starts[0].expectedActivity, klookSettings((await store.load(id)).settings));
         assert.deepEqual(starts[0].expectedActivity.saleSchedule, {
             saleAt: "2027-01-01T10:00:00+08:00",
             advanceSeconds: 2,
@@ -139,7 +140,7 @@ test("四步：時間草稿、延遲保存鎖定、一次啟動與run隔離", as
         await page.locator("#step4").waitFor();
         assert.equal(starts.length, 2);
         assert.equal(starts[1].expectedActivity.saleSchedule, undefined);
-        assert.equal((await store.load(id)).settings.saleSchedule, undefined);
+        assert.equal(klookSettings((await store.load(id)).settings).saleSchedule, undefined);
     }, true));
 
 test("四步：保存拒絕留第三步；未知請求不能改時間再保存", async () =>
@@ -174,7 +175,7 @@ test("四步：保存拒絕留第三步；未知請求不能改時間再保存",
         assert.equal(puts, 1);
         assert.equal(starts, 1);
         assert.equal(await page.evaluate(() => sessionStorage.getItem("ticketpilot-purchase-request")), pending);
-        assert.match((await store.load(id)).settings.saleSchedule!.saleAt, /10:00/);
+        assert.match(klookSettings((await store.load(id)).settings).saleSchedule!.saleAt, /10:00/);
     }));
 
 test("四步：聯絡資料不依賴未完成時間，跨分頁版本不同不覆寫或啟動", async () =>
@@ -194,7 +195,7 @@ test("四步：聯絡資料不依賴未完成時間，跨分頁版本不同不�
         await page.locator("#start").click();
         await page.locator("#message").filter({ hasText: "其他分頁修改" }).waitFor();
         assert.equal(starts, 0);
-        assert.equal((await store.load(id)).settings.eventName, "Updated elsewhere");
+        assert.equal(klookSettings((await store.load(id)).settings).eventName, "Updated elsewhere");
         assert(await page.locator("#step3").isVisible());
     }));
 
@@ -229,7 +230,7 @@ test("順位清空：保留空列、阻擋舊設定啟動，重新填寫才能�
         await page.locator("#saveActivity").click();
         await page.locator("#message").filter({ hasText: "活動設定格式錯誤" }).waitFor();
         assert(await page.locator("#step1").isVisible());
-        assert.deepEqual((await store.load(id)).settings.targets, settings.targets);
+        assert.deepEqual(klookSettings((await store.load(id)).settings).targets, settings.targets);
         page.once("dialog", dialog => dialog.dismiss());
         await page.locator("#homeButton").click();
         assert(await page.locator("#step1").isVisible());
@@ -260,7 +261,7 @@ test("順位清空：保留空列、阻擋舊設定啟動，重新填寫才能�
             release();
         }
         await page.locator("#step2").waitFor();
-        assert.deepEqual((await store.load(id)).settings.targets, [
+        assert.deepEqual(klookSettings((await store.load(id)).settings).targets, [
             { date: "2026-11-03", time: "18:00", area: "C區", quantity: 2, adjacent: true },
         ]);
     }));
@@ -379,7 +380,7 @@ test("順位複製：插入來源下方、保留草稿且獨立編輯，儲存�
         assert(await copy.locator("[name=adjacent]").isEnabled());
         assert.equal(await rows.nth(2).locator("[name=area]").inputValue(), "尾列");
         assert(!(await page.locator("#confirm").isChecked()));
-        assert.deepEqual((await store.load(id)).settings.targets, settings.targets);
+        assert.deepEqual(klookSettings((await store.load(id)).settings).targets, settings.targets);
 
         // 修改副本並排序，確認新列的事件可用且不影響來源
         await copy.locator("[name=area]").fill("黃2D");
@@ -400,7 +401,7 @@ test("順位複製：插入來源下方、保留草稿且獨立編輯，儲存�
             { date: "2026-11-21", time: "14:00", area: "黃2C", quantity: 2, adjacent: true },
             { date: "2026-11-21", time: "14:00", area: "黃2D", quantity: 1, adjacent: false },
         ];
-        assert.deepEqual((await store.load(id)).settings.targets, expected);
+        assert.deepEqual(klookSettings((await store.load(id)).settings).targets, expected);
         await page.reload();
         await page.locator("#selectKlook").click();
         await page.locator("#activities").getByText("使用活動").click();
@@ -457,7 +458,7 @@ test("套票GUI：啟用、複製、摘要、儲存重載及關閉後移除殘�
         // 儲存摘要與重載都保留新條件
         await page.locator("#saveActivity").click();
         await page.locator("#step2").waitFor();
-        const saved = (await store.load(id)).settings;
+        const saved = klookSettings((await store.load(id)).settings);
         assert.equal(saved.bundleEnabled, true);
         assert.equal(saved.deliveryMethod, "指定地點自取");
         assert.deepEqual(
@@ -483,7 +484,7 @@ test("套票GUI：啟用、複製、摘要、儲存重載及關閉後移除殘�
         assert.equal(await page.locator("#deliveryMethod").inputValue(), "");
         await page.locator("#saveActivity").click();
         await page.locator("#step2").waitFor();
-        const disabled = (await store.load(id)).settings;
+        const disabled = klookSettings((await store.load(id)).settings);
         assert.equal(disabled.bundleEnabled, undefined);
         assert(disabled.targets.every(t => t.bundle === undefined));
         assert.equal(disabled.deliveryMethod, undefined);
@@ -514,7 +515,7 @@ test("套票設定獨立區塊：舊取票值保留且阻擋儲存與啟動，�
         await page.locator("#saveActivity").click();
         await page.locator("#message").filter({ hasText: "舊取票方式" }).waitFor();
         assert(await page.locator("#deliveryMethod").isDisabled());
-        assert.equal((await store.load(id)).settings.deliveryMethod, "指定地點自取");
+        assert.equal(klookSettings((await store.load(id)).settings).deliveryMethod, "指定地點自取");
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
         await page.locator("#confirm").check();
         assert(await page.locator("#start").isDisabled());
@@ -524,10 +525,10 @@ test("套票設定獨立區塊：舊取票值保留且阻擋儲存與啟動，�
         await page.locator("#clearLegacyDelivery").click();
         assert(!(await page.locator("#confirm").isChecked()));
         assert(!(await page.locator("#legacyDelivery").isVisible()));
-        assert.equal((await store.load(id)).settings.deliveryMethod, "指定地點自取");
+        assert.equal(klookSettings((await store.load(id)).settings).deliveryMethod, "指定地點自取");
         await page.locator("#saveActivity").click();
         await page.locator("#step2").waitFor();
-        assert.equal((await store.load(id)).settings.deliveryMethod, undefined);
+        assert.equal(klookSettings((await store.load(id)).settings).deliveryMethod, undefined);
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
         assert.doesNotMatch(await page.locator("#summary").innerText(), /指定地點自取/);
     }));
@@ -555,7 +556,7 @@ test("跨活動切換重新計算取票欄位狀態，儲存失敗後仍可依�
         await use("Fixture");
         assert(await page.locator("#deliveryMethod").isDisabled());
         assert.equal(await page.locator("#deliveryMethod").inputValue(), "");
-        assert.equal((await store.load(id)).settings.deliveryMethod, undefined);
+        assert.equal(klookSettings((await store.load(id)).settings).deliveryMethod, undefined);
         await page.locator("#homeButton").click();
         await use("套票活動");
         assert(await page.locator("#deliveryMethod").isEnabled());

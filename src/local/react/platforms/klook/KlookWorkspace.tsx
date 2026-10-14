@@ -1,7 +1,7 @@
 import { AppHeader } from "../../shared/AppHeader.js";
-import { ActivityList } from "./ActivityList.js";
+import { ActivityList, type ActivityListEntry } from "./ActivityList.js";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ActivityRecord } from "../../../../config/activityStore.js";
+import type { ActivityRecord, KlookActivityRecord } from "../../../../config/activityStore.js";
 import type { ContactDetails } from "../../../../config/contact.config.js";
 import type { ActivityExecutionStatus } from "../../../purchaseRuns.js";
 import { api } from "../../shared/api.js";
@@ -30,14 +30,14 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
     const [step, setStep] = useState(0);
     const [editing, setEditing] = useState(false);
     const [form, setForm] = useState(activityForm);
-    const [record, setRecord] = useState<ActivityRecord | null>(null);
+    const [record, setRecord] = useState<KlookActivityRecord | null>(null);
     const [activityBaseline, setActivityBaseline] = useState("");
     const [contact, setContact] = useState<ContactDetails>(emptyContact);
     const [savedContact, setSavedContact] = useState<ContactDetails | null>(null);
     const [contactReady, setContactReady] = useState(false);
     const [initialized, setInitialized] = useState(false);
     const [confirmed, setConfirmed] = useState(false);
-    const [activities, setActivities] = useState<ActivityListData["activities"]>([]);
+    const [activities, setActivities] = useState<ActivityListEntry[]>([]);
     const [busy, setBusy] = useState(false);
     const busyRef = useRef(false);
     const listRequest = useRef(0);
@@ -46,7 +46,9 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
         const request = ++listRequest.current;
         const data = await api<ActivityListData>("/api/activities");
         if (request !== listRequest.current) return;
-        setActivities(data.activities.filter(activity => activity.settings.platform === "klook"));
+        setActivities(
+            data.activities.filter((activity): activity is ActivityListEntry => activity.settings.platform === "klook"),
+        );
         if (data.invalidFiles) setMessage(`${data.invalidFiles} 個設定檔無法載入，未覆寫。`);
     }, [setMessage]);
 
@@ -110,8 +112,10 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
     }
 
     function loadRecord(next: ActivityRecord | null) {
-        const nextForm = activityForm(next?.settings);
-        setRecord(next);
+        const settings = next?.settings;
+        if (settings && settings.platform !== "klook") throw new Error("此工作區僅支援 Klook 活動。");
+        const nextForm = activityForm(settings);
+        setRecord(next && settings ? { ...next, settings } : null);
         setForm(nextForm);
         setActivityBaseline(JSON.stringify(activityInput(nextForm)));
         setConfirmed(false);
@@ -121,7 +125,8 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
     }
 
     function acceptSaved(next: ActivityRecord) {
-        setRecord(next);
+        if (next.settings.platform !== "klook") throw new Error("此工作區僅支援 Klook 活動。");
+        setRecord({ ...next, settings: next.settings });
         setActivityBaseline(JSON.stringify(next.settings));
     }
 

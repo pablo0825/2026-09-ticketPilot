@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { parseTicketPlusActivity } from "./ticketPlusActivity.js";
+import type { TicketPlusActivitySettings } from "./ticketPlusActivity.js";
 import { mkdir, readFile, readdir, rename, writeFile, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -68,7 +70,8 @@ const activitySchema = z
     .strict()
     .transform(({ platform, ...settings }) => ({ platform, ...normalizeActivity(settings) }));
 
-export type ActivitySettings = z.infer<typeof activitySchema>;
+export type KlookActivitySettings = z.infer<typeof activitySchema>;
+export type ActivitySettings = KlookActivitySettings | TicketPlusActivitySettings;
 
 export interface ActivityRecord {
     schemaVersion: 1 | 3; // 來源檔案版本；settings 一律為已驗證的新格式。
@@ -77,7 +80,16 @@ export interface ActivityRecord {
     settings: ActivitySettings;
 }
 
+export type KlookActivityRecord = ActivityRecord & { settings: KlookActivitySettings };
+
+export function requireKlookActivity(settings: ActivitySettings): asserts settings is KlookActivitySettings {
+    if (settings.platform !== "klook") throw new Error("TicketPlus 購票與模擬流程尚未實作。");
+}
+
 export function parseActivity(value: unknown): ActivitySettings {
+    if (value && typeof value === "object" && "platform" in value && value.platform === "ticketplus") {
+        return parseTicketPlusActivity(value);
+    }
     if (value && typeof value === "object" && "platform" in value && value.platform !== "klook") {
         throw new Error("尚未支援此購票平台，目前只支援 Klook。");
     }
@@ -91,7 +103,7 @@ export function parseActivity(value: unknown): ActivitySettings {
 
 // 活動設定只轉換購票目標，金額由使用者在付款前確認。
 export function toPurchaseConfig(settings: ActivitySettings): PurchaseConfig {
-    if (settings.platform !== "klook") throw new Error("尚未支援此購票平台，目前只支援 Klook。");
+    requireKlookActivity(settings);
     return {
         eventUrl: settings.eventUrl,
         fallbackMode: settings.fallbackMode,
@@ -165,6 +177,9 @@ export class ActivityStore {
         const settings = parseActivity(value);
         if (id !== undefined) {
             const previous = await this.load(id); // 修改不能偷偷建立另一個 ID。
+            if (previous.settings.platform !== settings.platform) {
+                throw new Error("不能變更既有活動的平台，請另建活動。");
+            }
             if (previous.schemaVersion === 1) await this.backupLegacy(id);
         }
 

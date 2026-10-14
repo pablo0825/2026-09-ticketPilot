@@ -1,6 +1,6 @@
 import { PurchaseRuns } from "./purchaseRuns.js";
 import { loadContactDetails, saveContactDetails, validateContactDetails } from "../config/contact.config.js";
-import { parseActivity, projectRoot } from "../config/activityStore.js";
+import { requireKlookActivity, parseActivity, projectRoot } from "../config/activityStore.js";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -189,8 +189,10 @@ export async function startLocalServer(
 
                 // 確認使用者看過的設定，和存檔內容一致
                 const expectedActivity = parseActivity(input.expectedActivity);
+                requireKlookActivity(expectedActivity);
                 const expectedContact = validateContactDetails(input.expectedContact);
                 const activity = await store.load(input.activityId);
+                requireKlookActivity(activity.settings);
                 const contact = await loadContactDetails(contactPath);
                 if (
                     JSON.stringify(activity.settings) !== JSON.stringify(expectedActivity) ||
@@ -266,6 +268,7 @@ export async function startLocalServer(
                 notAccepted = () => !runs.hasRequest(requestId);
 
                 const activity = await store.load(input.activityId);
+                requireKlookActivity(activity.settings);
                 if (purchases.busy()) throw new Error("購票流程仍占用瀏覽器。");
                 json(response, 200, runs.start(input.requestId, activity.settings, input.contact));
                 return;

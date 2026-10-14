@@ -1,4 +1,4 @@
-import type { ActivityRecord, ActivitySettings } from "../../../../config/activityStore.js";
+import type { ActivityRecord, KlookActivityRecord } from "../../../../config/activityStore.js";
 import type { ContactDetails } from "../../../../config/contact.config.js";
 import type { PurchaseSnapshot } from "../../../purchaseRuns.js";
 import type { ActivityDraft } from "./formModel.js";
@@ -13,7 +13,7 @@ interface PendingRequest {
 }
 
 export async function startPurchase(
-    record: ActivityRecord,
+    record: KlookActivityRecord,
     activity: ActivityDraft,
     contact: ContactDetails,
     onSaved: (record: ActivityRecord) => void,
