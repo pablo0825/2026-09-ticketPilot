@@ -237,7 +237,13 @@ export class PurchaseRuns {
         if (record.fingerprintVersion !== 4 && record.fingerprintVersion !== 5) return "舊版執行紀錄";
         // 舊 TicketPlus 紀錄依原單目標形狀比對，純格式轉換不算設定變更。
         if (record.fingerprintVersion === 4 && activity.settings.platform === "ticketplus") {
-            if (activity.settings.targets.length !== 1 || activity.settings.saleSchedule) return "設定已更新";
+            if (
+                activity.settings.targets.length !== 1 ||
+                activity.settings.saleSchedule ||
+                activity.settings.maxRunMinutes !== undefined
+            ) {
+                return "設定已更新";
+            }
             const legacyHash = createHash("sha256")
                 .update(JSON.stringify(singleTicketPlusSelection(activity.settings)))
                 .digest("hex");
@@ -269,7 +275,10 @@ export class PurchaseRuns {
 
         // 同一個請求重送時，回傳原本的結果
         const legacyFingerprint =
-            activity.platform === "ticketplus" && activity.targets.length === 1 && !activity.saleSchedule
+            activity.platform === "ticketplus" &&
+            activity.targets.length === 1 &&
+            !activity.saleSchedule &&
+            activity.maxRunMinutes === undefined
                 ? createHash("sha256")
                       .update(JSON.stringify({ activity: singleTicketPlusSelection(activity) }))
                       .digest("hex")

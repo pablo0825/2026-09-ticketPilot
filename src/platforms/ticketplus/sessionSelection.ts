@@ -208,7 +208,7 @@ export async function selectTicketPlusSession(
         const button = sessionButton(page, settings, target);
         if (
             (await control.read(() => button.count())) !== 1 ||
-            !(await control.read(() => button.isEnabled({ timeout: clickTimeout })))
+            !(await control.read(() => button.isEnabled({ timeout: Math.min(clickTimeout, control.remainingMs()) })))
         ) {
             throw new TicketPlusSessionError(stage, "button-unavailable");
         }
@@ -221,7 +221,7 @@ export async function selectTicketPlusSession(
         control.check();
         stage = "after-click-attempt";
         reason = "click-failed";
-        await button.click({ timeout: clickTimeout });
+        await button.click({ timeout: Math.min(clickTimeout, control.remainingMs()) });
         control.check();
         reason = "read-failed";
         return await waitForSelection(page, settings, arrivalTimeout, interval, control);

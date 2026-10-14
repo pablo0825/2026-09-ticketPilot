@@ -1,3 +1,4 @@
+import type { TicketPlusStopReason } from "../platforms/ticketplus/runControl.js";
 import { TicketPlusRunControl, TicketPlusStopError } from "../platforms/ticketplus/runControl.js";
 import { chromium } from "playwright";
 import type { BrowserContext, Page } from "playwright";
@@ -29,13 +30,14 @@ export type TicketPlusRunResult =
           reason: "startup-stopped" | "login-stopped" | "session-selection-stopped" | "ticket-selection-stopped";
           progress: Readonly<SubmissionProgress>;
           priorityFailure?: PriorityReason;
-          stopReason?: "user-stop";
+          stopReason?: TicketPlusStopReason;
           sessionFailure?: { reason: SessionEntryReason; stage: SessionEntryStage };
       };
 export interface TicketPlusRunOptions {
     // 回呼必須合作取消並清理監聽，不能只讓外層提早返回。
     waitForLogin: (page: Page, signal?: AbortSignal) => Promise<void>;
     signal?: AbortSignal;
+    deadlineNow?: () => number;
     onEvent?: (event: TicketPlusRunEvent) => void | Promise<void>;
     onBrowser?: (context: BrowserContext) => void;
     lease?: PurchaseLease;
@@ -58,7 +60,7 @@ export async function runTicketPlus(
     const activity = parseTicketPlusActivity(input);
     const settings = ticketPlusSessionSelection(activity);
     if (typeof options.waitForLogin !== "function") throw new Error("TicketPlus 需要人工登入交接。");
-    const control = new TicketPlusRunControl(options.signal);
+    const control = new TicketPlusRunControl(options.signal, options.deadlineNow);
     if (options.signal?.aborted && !options.lease) {
         return {
             outcome: "stopped",
@@ -120,6 +122,7 @@ export async function runTicketPlus(
         await options.waitForLogin(page, options.signal);
         control.check();
         if (page.isClosed()) throw new Error("購票頁已關閉。");
+        control.startDeadline(activity.maxRunMinutes);
         report("selecting-session");
         const session = await selectTicketPlusSession(page, settings, {}, control);
         report("selecting-tickets");
@@ -139,9 +142,16 @@ export async function runTicketPlus(
             control,
         );
     } catch (error) {
-        const stopped = error instanceof TicketPlusStopError || options.signal?.aborted;
-        if (stopped) {
-            const result = stoppedSubmissionResult(new TicketPlusStopError(), progress);
+        let stopError = error instanceof TicketPlusStopError ? error : undefined;
+        if (!stopError) {
+            try {
+                control.check();
+            } catch (caught) {
+                if (caught instanceof TicketPlusStopError) stopError = caught;
+            }
+        }
+        if (stopError) {
+            const result = stoppedSubmissionResult(stopError, progress);
             return result;
         }
         if (progress.submitAttempted || progress.failure) return stoppedSubmissionResult(error, progress);

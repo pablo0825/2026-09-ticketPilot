@@ -36,10 +36,11 @@ const activitySchema = z
         ...activityIdentity,
         targets: z.array(targetSchema).min(1),
         saleSchedule: scheduleSchema.optional(),
+        maxRunMinutes: z.number().int().min(1).max(1440).optional(),
     })
     .strict();
 const invalidSettings =
-    "TicketPlus 活動設定格式錯誤，請檢查活動網址、名稱、日期、時間、票種、張數，以及開賣時間與提前秒數。";
+    "TicketPlus 活動設定格式錯誤，請檢查活動網址、名稱、日期、時間、票種、張數、開賣時間與提前秒數，以及最長執行時間（1～1440 整數分鐘）。";
 
 export type TicketPlusActivitySettings = z.infer<typeof activitySchema>;
 export type TicketPlusSelection = z.infer<typeof selectionSchema>;
@@ -59,8 +60,11 @@ export function parseTicketPlusSelection(value: unknown): TicketPlusSelection {
     return result.data;
 }
 
-// 舊執行紀錄的單目標投影；不得丟棄多順位或排程以比對歷史指紋。
+// 舊執行紀錄的單目標投影；不得丟棄多順位、排程或期限以比對歷史指紋。
 export function singleTicketPlusSelection(settings: TicketPlusActivitySettings): TicketPlusSelection {
+    if (settings.maxRunMinutes !== undefined) {
+        throw new TicketPlusCapabilityError("TicketPlus 最長執行時間不能投影成舊版單目標紀錄。");
+    }
     if (settings.saleSchedule) {
         throw new TicketPlusCapabilityError("TicketPlus 開賣等待與提前刷新尚未接通；設定可保存，但本次不會啟動購票。");
     }

@@ -1,3 +1,4 @@
+import type { TicketPlusStopReason } from "./runControl.js";
 import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
 import type { Page } from "playwright";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
@@ -12,7 +13,7 @@ import type {
 } from "./ticketSubmission.js";
 
 interface ResultProgress {
-    stopReason?: "user-stop";
+    stopReason?: TicketPlusStopReason;
     progress: Readonly<SubmissionProgress>;
 }
 export type TicketPlusSubmissionResult =
@@ -37,7 +38,9 @@ export function stoppedSubmissionResult(
         error instanceof TicketPlusSubmissionError
             ? error.reason
             : error instanceof TicketPlusStopError
-              ? "user-stopped"
+              ? error.stopReason === "time-limit"
+                  ? "time-limit"
+                  : "user-stopped"
               : "unexpected-error";
     const stopReason =
         error instanceof TicketPlusSubmissionError

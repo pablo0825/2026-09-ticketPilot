@@ -1,3 +1,4 @@
+import type { TicketPlusStopReason } from "./runControl.js";
 import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
 import type { Page } from "playwright";
 import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
@@ -19,6 +20,7 @@ export interface TicketSubmissionOptions {
 }
 export type SubmissionReason =
     | "user-stopped"
+    | "time-limit"
     | "invalid-input"
     | "invalid-options"
     | "unexpected-route"
@@ -45,7 +47,7 @@ export class TicketPlusSubmissionError extends Error {
     constructor(
         public readonly reason: SubmissionReason,
         public readonly progress: Readonly<SubmissionProgress>,
-        public readonly stopReason?: "user-stop",
+        public readonly stopReason?: TicketPlusStopReason,
     ) {
         super(`TicketPlus 選票提交停止（${reason}），不會刷新或重新提交。`);
         this.name = "TicketPlusSubmissionError";
@@ -91,15 +93,18 @@ function notifyProgress(context: Submission): void {
 function stop(context: Submission, reason: SubmissionReason): TicketPlusSubmissionError {
     return new TicketPlusSubmissionError(reason, { ...context.progress });
 }
-function remaining(context: Submission, deadline: number): number {
+function localRemaining(context: Submission, deadline: number): number {
     context.control.check();
     const value = Math.min(context.deadline, deadline) - performance.now();
     if (value <= 0) throw stop(context, "wait-timeout");
     return value;
 }
+function remaining(context: Submission, deadline: number): number {
+    return Math.min(localRemaining(context, deadline), context.control.remainingMs());
+}
 async function readBounded<T>(context: Submission, deadline: number, read: () => Promise<T>): Promise<T> {
     // 只對唯讀工作設外層期限；逾時後停止，不另開下一個讀取。
-    const timeout = Math.min(remaining(context, deadline), context.options.readTimeoutMs);
+    const timeout = Math.min(localRemaining(context, deadline), context.options.readTimeoutMs);
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
         const value = await context.control.read(() =>
@@ -398,11 +403,19 @@ export async function submitTicketPlusSelection(
         const initialDeadline = await submitOnce(page, context, deadline);
         return await waitForInformation(page, context, initialDeadline);
     } catch (error) {
-        if (error instanceof TicketPlusStopError || control.signal?.aborted) {
+        let stopError = error instanceof TicketPlusStopError ? error : undefined;
+        if (!stopError) {
+            try {
+                control.check();
+            } catch (caught) {
+                if (caught instanceof TicketPlusStopError) stopError = caught;
+            }
+        }
+        if (stopError) {
             throw new TicketPlusSubmissionError(
-                "user-stopped",
+                stopError.stopReason === "time-limit" ? "time-limit" : "user-stopped",
                 { ...(context?.progress ?? emptySubmissionProgress()) },
-                "user-stop",
+                stopError.stopReason,
             );
         }
         if (error instanceof TicketPlusSubmissionError) throw error;

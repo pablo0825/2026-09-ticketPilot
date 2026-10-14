@@ -70,7 +70,7 @@ function stop(context: Adjustment, reason: QuantityReason): TicketPlusQuantityEr
     );
 }
 
-function remaining(context: Adjustment, deadline = context.deadline): number {
+function localRemaining(context: Adjustment, deadline = context.deadline): number {
     context.control.check();
     const now = performance.now();
     if (now >= context.deadline) throw stop(context, "operation-timeout");
@@ -78,9 +78,13 @@ function remaining(context: Adjustment, deadline = context.deadline): number {
     return Math.min(context.deadline, deadline) - now;
 }
 
+function remaining(context: Adjustment, deadline = context.deadline): number {
+    return Math.min(localRemaining(context, deadline), context.control.remainingMs());
+}
+
 // 僅包裝唯讀查詢；不能用此方式中止 click，避免逾時後仍產生點擊。
 async function readBeforeDeadline<T>(context: Adjustment, deadline: number, read: () => Promise<T>): Promise<T> {
-    const timeout = remaining(context, deadline);
+    const timeout = localRemaining(context, deadline);
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
         const result = await context.control.read(() =>
