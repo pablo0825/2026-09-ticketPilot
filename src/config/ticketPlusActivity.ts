@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validateSaleSchedule } from "../core/purchaseValidation.js";
 
 function isCalendarDate(value: string): boolean {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -24,8 +25,21 @@ const targetSchema = z
     })
     .strict();
 const selectionSchema = z.object({ ...activityIdentity, target: targetSchema }).strict();
-const activitySchema = z.object({ ...activityIdentity, targets: z.array(targetSchema).min(1) }).strict();
-const invalidSettings = "TicketPlus 活動設定格式錯誤，請檢查活動網址、名稱、日期、時間、票種與張數。";
+const scheduleSchema = z
+    .object({
+        saleAt: z.string(),
+        advanceSeconds: z.union([z.literal(1), z.literal(2)]),
+    })
+    .strict();
+const activitySchema = z
+    .object({
+        ...activityIdentity,
+        targets: z.array(targetSchema).min(1),
+        saleSchedule: scheduleSchema.optional(),
+    })
+    .strict();
+const invalidSettings =
+    "TicketPlus 活動設定格式錯誤，請檢查活動網址、名稱、日期、時間、票種、張數，以及開賣時間與提前秒數。";
 
 export type TicketPlusActivitySettings = z.infer<typeof activitySchema>;
 export type TicketPlusSelection = z.infer<typeof selectionSchema>;
@@ -34,6 +48,7 @@ export class TicketPlusCapabilityError extends Error {}
 export function parseTicketPlusActivity(value: unknown): TicketPlusActivitySettings {
     const result = activitySchema.safeParse(value);
     if (!result.success) throw new Error(invalidSettings);
+    if (result.data.saleSchedule) validateSaleSchedule(result.data.saleSchedule);
     return result.data;
 }
 
@@ -44,8 +59,11 @@ export function parseTicketPlusSelection(value: unknown): TicketPlusSelection {
     return result.data;
 }
 
-// 多順位目前可保存；執行策略接通前必須在任何啟動副作用之前拒絕。
+// 僅產生目前可執行的單次目標；未接通的順位／排程不能在轉換時被忽略。
 export function singleTicketPlusSelection(settings: TicketPlusActivitySettings): TicketPlusSelection {
+    if (settings.saleSchedule) {
+        throw new TicketPlusCapabilityError("TicketPlus 開賣等待與提前刷新尚未接通；設定可保存，但本次不會啟動購票。");
+    }
     if (settings.targets.length !== 1) {
         throw new TicketPlusCapabilityError(
             "TicketPlus 多順位執行尚未接通；目前只能啟動單一順位，不會只執行第一順位。",

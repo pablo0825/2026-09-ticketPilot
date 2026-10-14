@@ -230,7 +230,7 @@ TicketPlus worker 的 `waitForLogin` 先安裝接收器與頁面 close/crash 監
 
 ## API 啟動與人工登入交接
 
-`POST /api/purchase` 與 `PurchaseRuns.start()` 已依平台分流。兩平台均核對 expectedActivity 與已保存設定；Klook 保留聯絡資料驗證、v4 的 `{activity, contact}` 指紋及開賣時間檢查。TicketPlus 不讀取聯絡資料檔、不接受 expectedContact（含 null）、內部 start 也拒絕非 undefined 的 contact，不向 worker 傳 contact；指紋為 `{activity}`，不新增開賣設定。
+`POST /api/purchase` 與 `PurchaseRuns.start()` 已依平台分流。兩平台均核對 expectedActivity 與已保存設定；Klook 保留聯絡資料驗證、v4 的 `{activity, contact}` 指紋及開賣時間檢查。TicketPlus 不讀取聯絡資料檔、不接受 expectedContact（含 null）、內部 start 也拒絕非 undefined 的 contact，不向 worker 傳 contact；指紋為 `{activity}`，排程設定可保存但尚不能啟動，詳見下方排程設定章節。
 
 同 requestId 先查既有紀錄再檢查占用，相同條件回原結果，改平台／活動／設定拒絕。模擬仍只支援 Klook。經 API 可開啟 TicketPlus 瀏覽器並停在 login-ready；GUI 按鈕與設定表單尚未接入。
 
@@ -248,8 +248,26 @@ TicketPlus 活動設定只接受 `targets: [{date, time, ticketType, quantity}, 
 
 舊 target 活動檔會列入 invalidFiles；load、同 ID 更新和刪除均拒絕，CLI 舊 JSON 也不能啟動。需要自行將檔案中的 target 物件改成 targets 陣列；程式不自動改寫或刪除私人檔案。活動檔容器仍為 schemaVersion 3。
 
-本階段只準備設定，尚未實作候補切換：可保存多順位，但 CLI、API 新啟動及 runner 在建立占用／啟動瀏覽器前明確拒絕多順位，不會默取第一筆。既有單順位仍可購票。DOM 模組改接 `TicketPlusSelection` 單次目標，runner 明確選出後交付；不是讓各模組自行決定順位。提交售完／失敗關閉彈窗後仍停止，unknown 不重送。開賣時間尚未加入，本版仍拒絕 saleSchedule。
+本階段只準備設定，尚未實作候補切換：可保存多順位，但 CLI、API 新啟動及 runner 在建立占用／啟動瀏覽器前明確拒絕多順位，不會默取第一筆。既有單順位仍可購票。DOM 模組改接 `TicketPlusSelection` 單次目標，runner 明確選出後交付；不是讓各模組自行決定順位。提交售完／失敗關閉彈窗後仍停止，unknown 不重送。開賣與提前刷新設定可保存，但執行尚未接通，規則見下節。
 
-TicketPlus 新請求使用 fingerprintVersion 5，Klook 保持 v4。重送舊 TicketPlus v4 請求時，僅單順位設定能投影成原 target 格式核對舊 hash；吻合返回原結果，不建立新程序或占用。不改寫歷史請求，活動 settingsHash 同樣依來源版本核對，單純格式轉換不會變成「設定已更新」。新請求先檢查歷史去重，再檢查本階段能力限制。
+TicketPlus 新請求使用 fingerprintVersion 5，Klook 保持 v4。重送舊 TicketPlus v4 請求時，僅無排程的單順位設定能投影成原 target 格式核對舊 hash；吻合返回原結果，不建立新程序或占用。不改寫歷史請求，活動 settingsHash 同樣依來源版本核對，單純格式轉換不會變成「設定已更新」。新請求先檢查歷史去重，再檢查本階段能力限制。
 
 驗證保留舊單目標頁面 fixture，另外使用手寫舊活動／執行紀錄及固定舊 hash，核對只讀不改檔、同 ID 保存、新設定重播舊請求、舊設定輸入拒絕、改張數／加順位拒絕舊請求，以及多順位拒絕時零啟動。所有購票流程驗證使用本機攔截頁面，沒有實站購票。
+
+
+## 開賣與提前刷新設定（尚未執行）
+
+TicketPlus 可選填 `saleSchedule`，其中 `saleAt` 與 `advanceSeconds` 皆必填。例：
+
+```json
+"saleSchedule": {
+    "saleAt": "2026-10-20T12:00:00+08:00",
+    "advanceSeconds": 1
+}
+```
+
+`advanceSeconds` 只接受數字 1 或 2，不自動補值；立即執行則省略整個 saleSchedule。saleAt 要包含秒與 +08:00 且日期存在，可以保存過去時間；演出日期／時間保持獨立。共用時間驗證不改 Klook 的預設秒數或刷新策略。
+
+本階段沒有等待、倒數、刷新或 GUI 新欄位。CLI/API/runner 新啟動若帶排程，在新占用、worker、瀏覽器之前明確拒絕，不會忽略時間立即購票。新請求仍先辨識既有紀錄，再檢查能力；活動列表可讀排程，不把不可執行誤當無效設定。
+
+無排程 v5 指紋維持原樣；排程兩欄均納入 v5 指紋與活動狀態比對。v4 舊單目標投影僅允許無排程，避免把新時間或提前秒數丟掉。固定 v4/v5 歷史指紋、真實存檔重讀與各入口零啟動測試驗證此契約；實際刷新時點的行為與測試留待後續。

@@ -22,7 +22,7 @@ export async function loadTicketPlusCliSettings(args: string[]) {
         return parseTicketPlusActivity(input);
     } catch {
         throw new TicketPlusCliInputError(
-            "TicketPlus 活動設定格式錯誤，請檢查活動網址、名稱、日期、時間、票種與張數。",
+            "TicketPlus 活動設定格式錯誤，請檢查活動網址、名稱、日期、時間、票種、張數，以及開賣時間與提前秒數。",
         );
     }
 }
