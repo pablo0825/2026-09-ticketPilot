@@ -211,3 +211,19 @@ Chrome 使用獨立持久目錄，WEBDRIVER_EXPERIMENT 僅值為 1 時開啟既�
 啟動錯誤區分購票占用尚未解除、占用建立失敗、占用驗證失敗、設定與互動終端問題；未知例外只顯示固定訊息，不轉印原始錯誤。占用存在不代表已確認原程序或瀏覽器仍存活，CLI 不自行判定殘留鎖、更不清鎖。
 
 選場次停止保留 `TicketPlusSessionError` 的 reason 與 before-click／after-click-attempt，CLI 顯示中文原因、需要核對的設定，以及是否已嘗試立即購買。停用按鈕不等同尚未開賣或售完，已嘗試點擊也不表示尚未操作過活動頁。此變更只改善診斷，不新增開賣等待、重按或刷新。
+
+## Worker 與狀態格式準備
+
+`purchaseWorker.ts` 依平台呼叫既有 runner。TicketPlus 不驗證 Klook 聯絡資料，顯式傳遞 WEBDRIVER_EXPERIMENT；Klook 保留原本聯絡資料驗證、遮罩及提交判定。`PurchaseRuns.start()`、公開購票 API 與模擬入口仍拒絕 TicketPlus，本階段沒有 GUI 啟動或登入確認 API，也不改請求指紋。
+
+TicketPlus worker 的 `waitForLogin` 先安裝接收器與頁面 close/crash 監聽，再回報 `ticketplus / login-ready` 及本次隨機 confirmationId。父端可用 `{type: "confirm-ticketplus-login", confirmationId}` 確認一次；提早、錯 ID、錯型別、重複或等待結束後的訊息不會啟動選票。`waiting-for-login` 只是進度，不代表接收器已就緒。確認不是登入成功判定，正式場次模組仍重新核對頁面。CLI 的 Enter 交接維持原樣。
+
+本機層新增 TicketPlus 專用事件，不修改 Klook core 狀態或模擬事件。worker 只送必要事件及固定結果訊息，提交嘗試先記錄再通知；information-ready 映射到新的同名終態，rejected/stopped 映射 failed，unknown 保留 unknown。完整 information 頁面物件不送入 IPC。CLI 與 worker 共用 application 層的純訊息函式，保留場次停止的具體原因。
+
+主服務接收、磁碟 schema、可關閉資格及共用結果文案已準備接受 information-ready；新 TicketPlus 事件／結果不當成 Klook 狀態。到資料頁後仍保留瀏覽器與占用，瀏覽器關閉後才 finished；父服務失聯仍直接終止程序，不解除異常占用。
+
+### 本階段驗證範圍
+
+跨程序測試直接 fork 正式 worker，測試 bootstrap 只替換 browser launch，連到測試父程序持有的本機 Chromium，全部網站請求攔截，不使用私人 profile。fixture 固定活動、場次、票種與導向，獨立保存實際點擊／網路計數，驗证交接、排隊、明確失敗、未知提交、關頁/crash、失聯、環境開關與鎖收尾；不以假 runner 回傳成功作唯一判斷。
+
+另外獨立準備磁碟紀錄驗證新狀態讀取與最小畫面呈現，重跑 Klook 生命週期及平台啟動保護。由於內部啟動保護仍保留，本階段不宣稱「PurchaseRuns.start → TicketPlus worker」完整整合已驗證；該項及 API/GUI 人工交接留待下一階段。未執行實站購票。

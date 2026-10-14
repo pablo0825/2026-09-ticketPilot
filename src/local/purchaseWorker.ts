@@ -1,3 +1,4 @@
+import { runTicketPlusWorker } from "./ticketPlusWorker.js";
 import { runPurchase } from "../app/runPurchase.js";
 import { parseActivity, toPurchaseConfig } from "../config/activityStore.js";
 import { validateContactDetails } from "../config/contact.config.js";
@@ -10,7 +11,22 @@ import { PurchaseStop } from "../core/purchaseStop.js";
 let finished = false;
 process.once("disconnect", () => process.exit(finished ? 0 : 1));
 
-process.once("message", async (input: { activity: unknown; contact: unknown; lease: PurchaseLease }) => {
+// 控制訊息不能消耗唯一一次啟動機會；開始後不接受第二份設定。
+function receiveStart(message: unknown): void {
+    if (
+        !message ||
+        typeof message !== "object" ||
+        "type" in message ||
+        !("activity" in message) ||
+        !("lease" in message)
+    )
+        return;
+    process.removeListener("message", receiveStart);
+    void startWorker(message as { activity: unknown; contact?: unknown; lease: PurchaseLease });
+}
+process.on("message", receiveStart);
+
+async function startWorker(input: { activity: unknown; contact?: unknown; lease: PurchaseLease }): Promise<void> {
     let context: BrowserContext | undefined;
     let closed: Promise<void> = Promise.resolve();
     let submitted = false;
@@ -31,44 +47,62 @@ process.once("message", async (input: { activity: unknown; contact: unknown; lea
         }
     });
 
+    const onBrowser = (browser: BrowserContext) => {
+        context = browser;
+        closed = new Promise(resolve => browser.once("close", () => resolve()));
+        process.send?.({ type: "browser", open: true });
+        browser.once("close", () => process.send?.({ type: "browser", open: false }));
+    };
     try {
-        // 檢查設定與聯絡資料
-        const config = toPurchaseConfig(parseActivity(input.activity));
-        const contact = validateContactDetails(input.contact);
+        // 平台分流在聯絡資料驗證之前，Klook 保留原驗證與提交處理。
+        const activity = parseActivity(input.activity);
+        if (activity.platform === "ticketplus") {
+            const result = await runTicketPlusWorker(
+                activity,
+                input.lease,
+                onBrowser,
+                event => {
+                    process.send?.({ type: "event", event });
+                },
+                () => {
+                    submitted = true;
+                },
+            );
+            settled = true;
+            process.send?.({ type: "result", ...result });
+        } else {
+            const config = toPurchaseConfig(activity);
+            const contact = validateContactDetails(input.contact);
 
-        // 把事件傳回主服務，並隱藏紀錄裡的個資
-        const privateValues = Object.values(contact).filter(value => value.length > 1);
-        const sendEvent = (event: RunEvent) => {
-            // 必須在提交前就標記；runPurchase.ts 的 submitAndVerifyPayment 在 contactForm.submit() 前回報 CONTACT_SUBMISSION。
-            // 若調整回報順序，提交結果不明時會被誤判為「未提交」。
-            if (event.type === "state" && event.state === "CONTACT_SUBMISSION") submitted = true;
-            // 個資不進 IPC 日誌；原始 Playwright error/stdout 也不轉送。
-            if (event.type === "log") {
-                let message = event.message;
-                for (const value of privateValues) message = message.split(value).join("[個資已隱藏]");
-                event = { type: "log", message };
-            }
-            process.send?.({ type: "event", event });
-        };
+            // 把事件傳回主服務，並隱藏紀錄裡的個資
+            const privateValues = Object.values(contact).filter(value => value.length > 1);
+            const sendEvent = (event: RunEvent) => {
+                // 必須在提交前就標記；runPurchase.ts 的 submitAndVerifyPayment 在 contactForm.submit() 前回報 CONTACT_SUBMISSION。
+                // 若調整回報順序，提交結果不明時會被誤判為「未提交」。
+                if (event.type === "state" && event.state === "CONTACT_SUBMISSION") submitted = true;
+                // 個資不進 IPC 日誌；原始 Playwright error/stdout 也不轉送。
+                if (event.type === "log") {
+                    let message = event.message;
+                    for (const value of privateValues) message = message.split(value).join("[個資已隱藏]");
+                    event = { type: "log", message };
+                }
+                process.send?.({ type: "event", event });
+            };
 
-        // 執行購票，並回報瀏覽器開關
-        await runPurchase(config, contact, {
-            lease: input.lease,
-            onEvent: sendEvent,
-            onBrowser: browser => {
-                context = browser;
-                closed = new Promise(resolve => browser.once("close", () => resolve()));
-                process.send?.({ type: "browser", open: true });
-                browser.once("close", () => process.send?.({ type: "browser", open: false }));
-            },
-        });
+            // 執行購票，並回報瀏覽器開關
+            await runPurchase(config, contact, {
+                lease: input.lease,
+                onEvent: sendEvent,
+                onBrowser,
+            });
 
-        settled = true;
-        process.send?.({
-            type: "result",
-            outcome: "payment-ready",
-            message: "已核對付款頁，請到購票瀏覽器手動付款。關閉該瀏覽器後才可開始下一場。",
-        });
+            settled = true;
+            process.send?.({
+                type: "result",
+                outcome: "payment-ready",
+                message: "已核對付款頁，請到購票瀏覽器手動付款。關閉該瀏覽器後才可開始下一場。",
+            });
+        }
     } catch (error) {
         const message = submitted
             ? "已嘗試提交，結果需人工確認；請檢查原頁面及訂單，不會重送。"
@@ -86,4 +120,4 @@ process.once("message", async (input: { activity: unknown; contact: unknown; lea
         finished = !error;
         process.disconnect?.();
     });
-});
+}

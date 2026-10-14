@@ -9,7 +9,20 @@ export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, n
 
     // 執行中：依目前狀態顯示提示
     if (run.status === "running") {
-        if (state === "WAITING_FOR_LOGIN") {
+        const ticketPlusEvent = run.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
+        if (run.platform === "ticketplus" && ticketPlusEvent?.type === "ticketplus") {
+            const stage = ticketPlusEvent.stage;
+            if (stage === "login-ready" || stage === "waiting-for-login") {
+                title = "等待人工登入確認";
+                instruction = "請到購票瀏覽器手動登入；確認交接後才會開始選票，不會自動偵測登入。";
+            } else if (stage === "queue") {
+                title = "排隊中";
+                instruction = "等待 TicketPlus 處理，請保留購票頁面；程式不會刷新或重送。";
+            } else if (stage === "submitting") {
+                title = "提交並等待網站處理";
+                instruction = "正在核對選票並進行一次提交流程，等待填寫資料頁；不會重送。";
+            }
+        } else if (state === "WAITING_FOR_LOGIN") {
             title = "請手動登入";
             instruction = "請到購票瀏覽器完成登入，完成後會自動繼續。";
         } else if (state === "QUEUE_COUNTDOWN") {
@@ -47,7 +60,12 @@ export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, n
             ending = "購票程序已結束，請先確認訂單狀態，再決定是否購買下一場。";
         }
 
-        if (run.status === "payment-ready") {
+        if (run.status === "information-ready") {
+            title = "已到填寫資料頁";
+            instruction = run.browserOpen
+                ? "本階段完成，請到購票瀏覽器人工接手填寫資料與後續流程；程式未操作條款或付款。" + ending
+                : "購票瀏覽器已關閉；本程式只核對到填寫資料頁，未核對付款結果。" + ending;
+        } else if (run.status === "payment-ready") {
             title = "已到付款頁";
             if (run.browserOpen) {
                 instruction = "請到購票瀏覽器手動完成付款。完成後請關閉該瀏覽器，才能開始下一場。";
@@ -84,6 +102,7 @@ export function eventLogs(events: PurchaseSnapshot["events"], truncated: boolean
         else if (event.type === "target")
             message = `嘗試順位 ${event.index}/${event.total}：${event.date} ${event.time}／${event.area}／${event.quantity} 張`;
         else if (event.type === "recovery") message = `恢復額度：排隊 ${event.queue}/1；預留 ${event.reservation}/1`;
+        else if (event.type === "ticketplus") message = `TicketPlus 階段：${event.stage}`;
         else return [];
         return [new Date(item.at).toLocaleTimeString("zh-TW", { timeZone: "Asia/Taipei" }) + "  " + message];
     });

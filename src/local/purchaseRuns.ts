@@ -14,7 +14,8 @@ import {
 import { validateContactDetails } from "../config/contact.config.js";
 import { validateSaleSchedule } from "../core/purchaseValidation.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
-import type { RunEvent } from "../core/logger.js";
+import { ticketPlusEventSchema } from "./purchaseEvents.js";
+import type { PurchaseEvent } from "./purchaseEvents.js";
 
 export interface PurchaseSnapshot {
     platform: ActivitySettings["platform"] | null; // 外部占用沒有足夠資訊可辨識平台。
@@ -22,12 +23,12 @@ export interface PurchaseSnapshot {
     requestId: string;
     activityName: string;
     saleAt?: string;
-    status: "running" | "payment-ready" | "failed" | "unknown" | "interrupted";
+    status: "running" | "payment-ready" | "information-ready" | "failed" | "unknown" | "interrupted";
     canCloseBrowser?: boolean;
     browserOpen: boolean;
     occupied: boolean;
     message: string;
-    events: { sequence: number; at: string; event: RunEvent }[];
+    events: { sequence: number; at: string; event: PurchaseEvent }[];
     historyTruncated: boolean;
 }
 
@@ -108,7 +109,14 @@ export class PurchaseRuns {
                         requestId: z.literal(id),
                         activityName: z.string(),
                         saleAt: z.string().optional(),
-                        status: z.enum(["running", "payment-ready", "failed", "unknown", "interrupted"]),
+                        status: z.enum([
+                            "running",
+                            "payment-ready",
+                            "information-ready",
+                            "failed",
+                            "unknown",
+                            "interrupted",
+                        ]),
                         browserOpen: z.boolean(),
                         occupied: z.boolean(),
                         message: z.string(),
@@ -118,9 +126,12 @@ export class PurchaseRuns {
                                 z.object({
                                     sequence: z.number().int(),
                                     at: z.string(),
-                                    event: z
-                                        .object({ type: z.enum(["state", "log", "target", "recovery"]) })
-                                        .passthrough(),
+                                    event: z.union([
+                                        z
+                                            .object({ type: z.enum(["state", "log", "target", "recovery"]) })
+                                            .passthrough(),
+                                        ticketPlusEventSchema,
+                                    ]),
                                 }),
                             )
                             .max(300),
@@ -128,6 +139,14 @@ export class PurchaseRuns {
                 })
                 .safeParse(record);
             if (!valid.success) throw new Error("Invalid run record");
+            const platform = valid.data.snapshot.platform ?? "klook";
+            if (
+                platform !== "ticketplus" &&
+                (valid.data.snapshot.status === "information-ready" ||
+                    valid.data.snapshot.events.some(item => item.event.type === "ticketplus"))
+            ) {
+                throw new Error("Invalid platform event or result");
+            }
 
             // 已知舊格式沒有平台，當時只有 Klook；保留原事件與指紋內容。
             return { ...record, snapshot: { ...record.snapshot, platform: valid.data.snapshot.platform ?? "klook" } };
@@ -173,7 +192,7 @@ export class PurchaseRuns {
             canCloseBrowser:
                 !!this.child?.connected &&
                 this.current.snapshot.browserOpen &&
-                ["payment-ready", "failed", "unknown"].includes(this.current.snapshot.status),
+                ["payment-ready", "information-ready", "failed", "unknown"].includes(this.current.snapshot.status),
         };
     }
 
@@ -317,11 +336,16 @@ export class PurchaseRuns {
         // 接收子程序回報的事件、瀏覽器狀態與結果
         child.on("message", (value: any) => {
             try {
-                if (value?.type === "event" && ["state", "log", "target", "recovery"].includes(value.event?.type)) {
+                const ticketPlusEvent = ticketPlusEventSchema.safeParse(value?.event);
+                if (
+                    value?.type === "event" &&
+                    (["state", "log", "target", "recovery"].includes(value.event?.type) ||
+                        (record.snapshot.platform === "ticketplus" && ticketPlusEvent.success))
+                ) {
                     record.snapshot.events.push({
                         sequence: (record.snapshot.events.at(-1)?.sequence ?? 0) + 1,
                         at: new Date().toISOString(),
-                        event: value.event,
+                        event: ticketPlusEvent.success ? ticketPlusEvent.data : value.event,
                     });
                     if (record.snapshot.events.length > 300) {
                         record.snapshot.events.shift();
@@ -329,7 +353,12 @@ export class PurchaseRuns {
                     }
                 } else if (value?.type === "browser") {
                     record.snapshot.browserOpen = value.open === true;
-                } else if (value?.type === "result" && ["payment-ready", "failed", "unknown"].includes(value.outcome)) {
+                } else if (
+                    value?.type === "result" &&
+                    (["failed", "unknown"].includes(value.outcome) ||
+                        (record.snapshot.platform === "klook" && value.outcome === "payment-ready") ||
+                        (record.snapshot.platform === "ticketplus" && value.outcome === "information-ready"))
+                ) {
                     record.snapshot.status = value.outcome;
                     record.snapshot.message = value.message;
                 } else if (value?.type === "finished") {
