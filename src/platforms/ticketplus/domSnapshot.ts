@@ -113,6 +113,80 @@ export async function readTicketPlusDom(page: Page) {
             };
         });
 
+        // 彈窗採局部可見性規則，不改變既有票種／場次的判讀。
+        const modal = {
+            visible(element: Element): boolean {
+                if (!element.getClientRects().length) return false;
+                for (let node: Element | null = element; node; node = node.parentElement) {
+                    const style = getComputedStyle(node);
+                    if (
+                        style.display === "none" ||
+                        style.visibility === "hidden" ||
+                        style.visibility === "collapse" ||
+                        style.opacity === "0" ||
+                        node.hasAttribute("hidden")
+                    )
+                        return false;
+                }
+                return true;
+            },
+            message(element: Element): string {
+                const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+                const parts: string[] = [];
+                while (walker.nextNode()) {
+                    const parent = walker.currentNode.parentElement;
+                    if (
+                        parent &&
+                        !parent.closest('button, [role="button"], script, style, [aria-hidden="true"]') &&
+                        modal.visible(parent)
+                    ) {
+                        parts.push(walker.currentNode.textContent ?? "");
+                    }
+                }
+                return parts.join("").replace(/[\s，。！!：:]/g, "");
+            },
+        };
+        const candidates = Array.from(document.querySelectorAll('[role="dialog"], .v-dialog, .v-dialog__content'));
+        const active = candidates.filter(element => modal.visible(element) && text(element).length > 0);
+        const contents = active.filter(element => !active.some(other => other !== element && element.contains(other)));
+        const messages: Record<string, "sold-out" | "purchase-failed"> = {
+            購票失敗: "purchase-failed",
+            您選擇的票種已售完: "sold-out",
+            已售完: "sold-out",
+            別人搶先一步: "purchase-failed",
+            已無可配座位: "purchase-failed",
+            本活動有限制購票總張數: "purchase-failed",
+            已被購買: "purchase-failed",
+            無法購票: "purchase-failed",
+        };
+        const dialogs = contents.map(element => {
+            const message = modal.message(element);
+            const key = Object.hasOwn(messages, message)
+                ? message
+                : message.startsWith("購票失敗")
+                  ? message.slice(4)
+                  : "";
+            const failure = Object.hasOwn(messages, key) ? messages[key] : undefined;
+            const kind: "failure" | "queue" | "unknown" = failure
+                ? "failure"
+                : message === "排隊購票中請稍候" && all(element, 'h3, [role="heading"][aria-level="3"]').length === 1
+                  ? "queue"
+                  : "unknown";
+            const dismissNames = all(element, 'button, [role="button"]')
+                .filter(modal.visible)
+                .filter(enabled)
+                .map(text)
+                .filter(value => ["我知道了", "知道了", "確定", "OK", "Ok"].includes(value));
+            // 只有白名單訊息回傳固定 key，未知文字與個資不離開瀏覽器。
+            return {
+                index: candidates.indexOf(element),
+                kind,
+                failure,
+                messageKey: failure ? message : undefined,
+                dismissNames,
+            };
+        });
+
         // 個資在瀏覽器內轉成布林值，絕不將原始值帶回執行程序。
         const contact = ["姓名", "phone_field", "電子郵件"].map(label =>
             all(document, 'input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])')
@@ -143,6 +217,7 @@ export async function readTicketPlusDom(page: Page) {
                 location.search || location.hash || new URL(location.href).username || new URL(location.href).password,
             ),
             queueCount,
+            dialogs,
             activity,
             identities,
             tickets,

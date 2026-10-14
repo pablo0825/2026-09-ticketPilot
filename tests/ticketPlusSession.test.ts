@@ -266,13 +266,13 @@ test("TicketPlus 場次：受控延遲導頁，只點一次，不 mock reader", 
     );
 });
 
-test("TicketPlus 場次：click 自動等待被遮罩阻擋時不 force、不改點", { timeout: 15_000 }, async () => {
+test("TicketPlus 場次：未知彈窗在點擊前停止，隱藏殘留不阻擋", { timeout: 15_000 }, async () => {
     await withPage(
         async page => {
             await rejectsEntry(
                 selectTicketPlusSession(page, settings, { ...options, clickTimeoutMs: 100 }),
-                "after-click-attempt",
-                "click-failed",
+                "before-click",
+                "unexpected-page",
             );
             assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
         },

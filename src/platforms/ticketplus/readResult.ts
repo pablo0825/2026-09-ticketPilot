@@ -1,7 +1,13 @@
 import type { TicketPlusDom } from "./domSnapshot.js";
 
 export type UnknownReason =
-    "unsupported-url" | "page-changed" | "read-failed" | "conflicting-page" | "incomplete-data" | "ambiguous-data";
+    | "blocking-dialog"
+    | "unsupported-url"
+    | "page-changed"
+    | "read-failed"
+    | "conflicting-page"
+    | "incomplete-data"
+    | "ambiguous-data";
 export interface UnknownPage {
     kind: "unknown";
     reason: UnknownReason;

@@ -12,7 +12,16 @@ import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 import type { InformationPage } from "./informationPage.js";
 import type { CheckoutPage } from "./checkoutPage.js";
 
+export interface OrderFailurePage extends PageIdentity {
+    kind: "order-failure";
+    failure: "sold-out" | "purchase-failed";
+    dialogIndex: number;
+    messageKey: string;
+    dismissNames: string[];
+}
+
 export type TicketPlusPage =
+    | OrderFailurePage
     | ActivityPage
     | TicketSelectionPage
     | InformationPage
@@ -26,6 +35,37 @@ function classifyPage(dom: TicketPlusDom): TicketPlusPage {
     const activity = /^\/activity\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
     const order = /^\/(order|confirm|checkout)\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
     if (!activity && !order) return unknownPage("unsupported-url");
+
+    // 僅同 order 頁可辨識失敗；資料頁帶彈窗不能誤報抵達成功。
+    if (dom.dialogs.length > 0) {
+        const failures = dom.dialogs.filter(dialog => dialog.kind === "failure");
+        const queues = dom.dialogs.filter(dialog => dialog.kind === "queue");
+        if (failures.length > 1 || queues.length > 1) return unknownPage("ambiguous-data");
+        if (dom.dialogs.some(dialog => dialog.kind === "unknown")) return unknownPage("blocking-dialog");
+        if (!order || order[1] !== "order") return unknownPage("conflicting-page");
+        if (failures.length === 1) {
+            if (
+                dom.activity.length ||
+                dom.information.headingCount ||
+                dom.information.terms.length ||
+                dom.paymentButtons.length ||
+                dom.checkoutStepCount ||
+                dom.checkout.length
+            ) {
+                return unknownPage("conflicting-page");
+            }
+            const failure = failures[0]!;
+            return {
+                kind: "order-failure",
+                eventId: order[2]!,
+                sessionId: order[3]!,
+                failure: failure.failure!,
+                dialogIndex: failure.index,
+                messageKey: failure.messageKey!,
+                dismissNames: failure.dismissNames,
+            };
+        }
+    }
 
     // 排隊只適用 order；其他跨頁標記並存時保守回報衝突。
     const hasInformation = dom.information.headingCount > 0 || dom.information.terms.length > 0;

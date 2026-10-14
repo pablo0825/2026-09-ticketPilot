@@ -65,7 +65,7 @@ API、worker、runner、GUI、Klook 程式與 TicketPlus 啟動保護維持原�
 測試 expected 手寫，不呼叫正式 parser 產生答案，也不 mock reader。
 保留既有 TicketPlus 設定與啟動保護測試。
 
-未實作：登入判斷、更新票數、提交與排隊等待、條款勾選、個資正確性核對、付款核對成功判定、錯誤彈窗恢復、生命週期、API 啟動分流。
+未實作：登入判斷、更新票數、條款勾選、個資正確性核對、付款核對成功判定、錯誤彈窗恢復、生命週期、API 啟動分流。
 未確認：多場次實站版型、購買上限、排隊過期、其他活动實名／問卷／選位要求。
 
 ## 活動頁選擇場次
@@ -144,3 +144,46 @@ fixture 不取得 production target，expected 手寫，張數另以 fixture 的
 延遲 ack 測試會先觀察到至少一次等待讀取，才釋放第一個更新，並檢查 ack 前第二 click 不存在。
 下一步與更新票數有獨立計數，應始終為零。
 以上異常與多張數案例為本機防禦測試；未實站驗證限購、庫存含義、超額提示或延遲更新規則。
+
+## 選票提交、排隊等待與失敗彈窗
+
+`ticketSubmission.ts` 的 `submitTicketPlusSelection(page, settings, selection, options)` 接收前一步選票快照。
+設定與快照先複製核對，再重新讀頁面。目標票種完整且唯一、張數符合、其他票種零張、活動與場次一致，才允許下一步。
+下一步限定在目標票種／張數的選票結構，排除資料頁與排隊標題，並固定當次按鈕節點；換頁不會重新解析成另一頁同名按鈕。
+單次呼叫最多一次提交嘗試、一次關閉嘗試，兩個額度在各自 click 前消耗。此模組尚未接入 runner/API，不保證跨呼叫去重。
+
+提交後同活動／場次的 order、confirm 才允許等待。暫時 incomplete-data、page-changed、read-failed 可等待；錯網址、頁面衝突、歧義、關閉頁面或卡住讀取均停止。
+排隊消失回選票時，票種／張數仍須符合；不重送、不重新加票。進入同場次 information 才回傳，僅代表辨識到資料頁；聯絡欄位可缺漏，不代表個資或預留票數已核對。
+
+預設 preflightTimeoutMs=5000、submitWaitMs=10000、queueWaitMs=600000、totalTimeoutMs=615000、clickTimeoutMs=3000、closeTimeoutMs=3000、readTimeoutMs=2000、pollIntervalMs=500。
+總期限在輸入驗證時建立，初始提交期限從 click 嘗試前起算。首次看到 queue 才建立排隊期限，之後消失／再現不重設；所有期限取剩餘總時間限制。
+關閉期限從失敗處理起算，也受總期限限制。唯讀 Promise.race 逾時會結束本次操作，不再啟動新讀取；click 使用 Playwright 自身 timeout，不用外部 race。
+
+### 失敗彈窗的證據範圍
+
+本次彈窗結構與文案參考 [tickets_hunter 9e2d1061 的實作](https://github.com/bouob/tickets_hunter/blob/9e2d1061b48706076943b1059616347c389df809/src/platforms/ticketplus.py#L1363-L1531)，**尚未在本次實站操作中觀察失敗彈窗**。
+本機 fixture 是依上游重建的防禦案例，不是實站 HTML。正式接通前仍須複核排隊外框、失敗訊息與關閉效果。
+支援 `[role="dialog"]`、`.v-dialog`、`.v-dialog__content` 內可見內容；空外框、透明或隱藏祖先不算可操作彈窗。
+同一巢狀彈窗取有內容的最內層候選；如果按鈕位於外層而無法唯一定位，停止不向外猜。兩個獨立失敗彈窗或附加未知彈窗均停止。
+
+訊息只在彈窗內讀取，排除按鈕文字；去除空白與常見標點後採完整白名單比對，允許「購票失敗」加另一條白名單訊息的組合。
+「您選擇的票種已售完」「已售完」分類 sold-out；「購票失敗」「別人搶先一步」「已無可配座位」「本活動有限制購票總張數」「已被購買」「無法購票」分類 purchase-failed。
+不套用上游寬鬆全文 includes；新增前後說明、問句或未知文案回 blocking-dialog。系統忙碌、請稍候不能稱售完。
+沒有失敗時，只接受已觀察的完整排隊標題作為排隊彈窗內容；其他結構保守阻擋。未知自訂 overlay 可能不在這些 selector 內，不能宣稱完整偵測。
+
+失敗狀態只適用 order。提交前已有彈窗就停止，不關閉；提交後僅同場次允許關閉。confirm 與彈窗並存不報成功。
+同 order 的明確失敗優先於排隊；固定分類與 messageKey 回傳，不帶出未知彈窗全文或個資。
+關閉只能使用該彈窗內唯一可見且啟用的「我知道了」「知道了」「確定」「OK」「Ok」。沒有候選、重複、模糊名稱或目標變動都停止。
+點擊前重讀快照，固定彈窗及按鈕節點，原始內容比對僅留在瀏覽器內；不 force、不補按。
+讀取與點擊不是原子操作：同一節點在最後瞬間被網站改用途的競態仍無法完全排除。
+
+偵測失敗後永不轉回成功。重新核對時已確認彈窗消失才記 disappeared（未嘗試關閉）；無法定位或核對則保守回報未確認；點後重讀確認沒有失敗或未知彈窗，且仍是同 order 的選票／排隊頁才記 confirmed。
+只看到舊節點 detached 不算成功，重建相同失敗彈窗仍等待至期限；關閉導頁或無法確認時維持 unconfirmed，不重試。
+`TicketPlusSubmissionError` 記固定 reason 及 progress：submitAttempted、dismissAttempted、sawQueue、failure、dismissal。
+所有失敗結果均停止。關閉後不 reload、不按更新票數、不換候補、不點資料頁下一步。
+
+### 本機驗證
+
+`ticketPlusSubmission.test.ts` 使用獨立 click counter 與 route request 次數，固定場次與固定 handler，不從正式 failure 常數產生預期答案，不用正式 reader 作唯一裁判。
+資料頁下一步刻意啟用；測最後核對後換頁、排隊消失／再現、失敗與排隊共存、巢狀外框、隱藏殘留、兩彈窗歧義、關閉逾時與替換、晚到更新、無刷新重送。
+共用 reader 增加 blocking-dialog／order-failure 後，既有場次的可見未知彈窗改為點擊前停止；隱藏彈窗仍不阻擋。張數調整遇新失敗狀態也是零操作停止。
