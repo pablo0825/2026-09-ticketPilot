@@ -24,3 +24,7 @@ diagnostics/
 
 # GUI 本機活動設定
 local-data/
+
+# TicketPlus 專用登入與本機設定
+browser-profile-ticketplus/
+ticketplus.local.json

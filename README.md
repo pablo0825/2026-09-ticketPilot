@@ -78,3 +78,17 @@ npm run gui
 使用期間保留終端機視窗。若網頁沒有自動開啟，複製終端機顯示的本機網址到瀏覽器即可。使用完畢後，先關閉購票 Chrome，再於終端機按 `Ctrl+C` 結束工具。
 
 > Windows PowerShell 若提示 `npm.ps1` 無法執行，請改用 `npm.cmd`，例如 `npm.cmd ci`、`npm.cmd run gui`。
+
+## TicketPlus CLI（目前到填寫資料頁）
+
+先複製 `ticketplus.example.json` 為 `ticketplus.local.json`，填入活動網址、活動名稱、日期、時間、完整票種名稱與張數，再執行：
+
+```bash
+WEBDRIVER_EXPERIMENT=1 npm run start:ticketplus -- --config ./ticketplus.local.json
+```
+
+在新開的 Chrome 手動登入，停在設定的活動頁，再回終端機按 Enter 開始。程式選場次、調整張數、提交一次並等待；到同場次填寫資料頁即停止，保留瀏覽器供人工接手，不填資料、不勾條款、不操作付款。明確購票失敗／已售完會嘗試關閉已辨識的彈窗後停止；結果不明不重送，也不刷新或換候補。
+
+此入口不需要 Klook 聯絡資料，尚未接通 TicketPlus GUI／API／worker。`WEBDRIVER_EXPERIMENT=1` 是選用的瀏覽器參數開關，與 Klook 用法相同。TicketPlus 使用獨立的 `browser-profile-ticketplus/` 保存登入；該目錄與本機設定均不納入版本控制。
+
+操作結束請關閉購票 Chrome，流程與瀏覽器都結束後才釋放與 Klook 共用的購票占用。程序異常中斷可能留下占用，請先人工確認瀏覽器及訂單狀態，不要直接重跑。登入等待時 Ctrl+C 會取消交接並保留瀏覽器供檢查。

@@ -13,7 +13,8 @@
     "build:gui": "vite build",
     "pretest": "npm run build:gui",
     "pregui": "npm run build:gui",
-    "test:gui": "npm run build:gui && node --import tsx --test tests/*gui*.test.ts tests/react*.test.ts tests/activityHome.test.ts tests/fourStepFlow.test.ts tests/queueSettings.test.ts tests/runStatus.test.ts tests/platformHome.test.ts"
+    "test:gui": "npm run build:gui && node --import tsx --test tests/*gui*.test.ts tests/react*.test.ts tests/activityHome.test.ts tests/fourStepFlow.test.ts tests/queueSettings.test.ts tests/runStatus.test.ts tests/platformHome.test.ts",
+    "start:ticketplus": "tsx src/ticketPlusMain.ts"
   },
   "keywords": [],
   "author": "",
