@@ -36,7 +36,7 @@ const activityRecord = {
     schemaVersion: 3,
     id: activityId,
     updatedAt: "2026-10-14T00:00:00.000Z",
-    settings: legacy,
+    settings: canonical,
 };
 const oldRun = {
     fingerprintVersion: 4,
@@ -58,7 +58,7 @@ const oldRun = {
 
 test("多順位解析：保持順序與重複值、第二筆也驗證，舊輸入不改動", () => {
     const before = structuredClone(legacy);
-    assert.deepEqual(parseTicketPlusActivity(legacy), canonical);
+    assert.throws(() => parseTicketPlusActivity(legacy), /格式錯誤/);
     assert.deepEqual(legacy, before);
     assert.deepEqual(parseTicketPlusActivity(multiple), multiple);
     const reversed = { ...canonical, targets: [second, canonical.targets[0]!] };
@@ -76,7 +76,7 @@ test("多順位解析：保持順序與重複值、第二筆也驗證，舊輸�
     assert.throws(() => parseTicketPlusSelection(multiple), /格式錯誤/);
 });
 
-test("舊活動只讀不改檔；保存才轉新格式，保留 ID 與多順位順序", async () => {
+test("活動只讀不改檔；保存保留 ID 與多順位順序", async () => {
     const dir = await mkdtemp(join(tmpdir(), "tp-format-"));
     try {
         const file = join(dir, activityId + ".json");
@@ -106,17 +106,16 @@ test("舊 TP v4 請求與活動狀態：等價單順位重播原結果，改設�
         await mkdir(join(dir, "events"));
         await writeFile(join(dir, "events", activityId + ".json"), JSON.stringify(activityRecord));
         const runs = new PurchaseRuns(dir, new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url));
-        for (const input of [legacy, canonical]) {
-            const result = runs.start(requestId, input, undefined, activityId);
-            assert.equal(result.id, "123-old-run");
-            assert.equal(result.status, "unknown");
-        }
+        const result = runs.start(requestId, canonical, undefined, activityId);
+        assert.equal(result.id, "123-old-run");
+        assert.equal(result.status, "unknown");
         assert.equal(runs.activityStatus(await store.load(activityId)), "已執行");
         assert.equal(runs.activityStatus(await store.save(canonical, activityId)), "已執行");
         for (const input of [multiple, { ...canonical, targets: [{ ...legacy.target, quantity: 3 }] }]) {
             assert.throws(() => runs.start(requestId, input, undefined, activityId), /更換設定/);
             assert.equal(runs.activityStatus(await store.save(input, activityId)), "設定已更新");
         }
+        assert.throws(() => runs.start(requestId, legacy, undefined, activityId), /格式錯誤/);
         assert(!runs.busy());
         assert(!purchaseOccupied(dir));
         assert.equal(await readFile(file, "utf8"), original);
@@ -161,7 +160,7 @@ test("多順位 CLI／runner 拒絕在開瀏覽器前，訊息明確而非默取
     }
 });
 
-test("API 可保存多順位但啟動零副作用；舊 expectedActivity 可比對新單順位並重播舊紀錄", async () => {
+test("API 可保存多順位但啟動零副作用；新單順位可重播舊紀錄", async () => {
     const dir = await mkdtemp(join(tmpdir(), "tp-api-compat-"));
     const runtime = join(dir, "runtime");
     const store = new ActivityStore(join(dir, "events"));
@@ -184,11 +183,12 @@ test("API 可保存多順位但啟動零副作用；舊 expectedActivity 可比�
                 body: JSON.stringify(value),
             });
         await store.save(canonical, activityId);
-        for (const expectedActivity of [legacy, canonical]) {
-            const response = await post("/api/purchase", { requestId, activityId, expectedActivity });
-            assert.equal(response.status, 200);
-            assert.equal((await response.json()).id, "123-old-run");
-        }
+        const replay = await post("/api/purchase", { requestId, activityId, expectedActivity: canonical });
+        assert.equal(replay.status, 200);
+        assert.equal((await replay.json()).id, "123-old-run");
+        const obsolete = await post("/api/purchase", { requestId, activityId, expectedActivity: legacy });
+        assert.equal(obsolete.status, 400);
+        assert.equal((await obsolete.json()).notAccepted, false);
         const savedResponse = await post("/api/activities", multiple);
         assert.equal(savedResponse.status, 201);
         const saved = await savedResponse.json();
@@ -207,6 +207,51 @@ test("API 可保存多順位但啟動零副作用；舊 expectedActivity 可比�
         await assert.rejects(readFile(join(runtime, "worker-starts.txt")), { code: "ENOENT" });
     } finally {
         await service.close();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test("舊 target 活動檔列為無效且不能更新／刪除，原始檔保持不變", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "tp-obsolete-"));
+    try {
+        const file = join(dir, activityId + ".json");
+        const original = JSON.stringify({ ...activityRecord, settings: legacy });
+        await writeFile(file, original);
+        const store = new ActivityStore(dir);
+        assert.deepEqual(await store.list(), { activities: [], invalidFiles: 1 });
+        await assert.rejects(store.load(activityId), /格式錯誤/);
+        await assert.rejects(store.save(canonical, activityId), /格式錯誤/);
+        await assert.rejects(store.remove(activityId), /格式錯誤/);
+        assert.equal(await readFile(file, "utf8"), original);
+    } finally {
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test("舊 target 不能從 CLI 或 runner 啟動，內部單次 Selection 仍合法", async t => {
+    const dir = await mkdtemp(join(tmpdir(), "tp-obsolete-cli-"));
+    const input = Object.assign(new PassThrough(), { isTTY: true });
+    const output = new PassThrough();
+    const launch = t.mock.method(chromium, "launchPersistentContext", async () => {
+        throw new Error("must not launch");
+    });
+    try {
+        const file = join(dir, "settings.json");
+        await writeFile(file, JSON.stringify(legacy));
+        await assert.rejects(runTicketPlusCli(["--config", file], { input, output }), /格式錯誤/);
+        await assert.rejects(
+            runTicketPlus(legacy as never, {
+                waitForLogin: async () => {
+                    assert.fail("must not login");
+                },
+            }),
+            /格式錯誤/,
+        );
+        assert.equal(launch.mock.callCount(), 0);
+        assert.deepEqual(parseTicketPlusSelection(legacy), legacy);
+    } finally {
+        input.destroy();
+        output.destroy();
         await rm(dir, { recursive: true, force: true });
     }
 });

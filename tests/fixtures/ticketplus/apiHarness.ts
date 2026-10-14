@@ -10,7 +10,7 @@ export const apiActivity = {
     platform: "ticketplus",
     eventUrl: "https://ticketplus.com.tw/activity/event-fixture",
     eventName: "2026孿生姐妹之夜之鬼迷心竅",
-    target: { date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 },
+    targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 }],
 };
 export async function apiHarness(mode = "success") {
     const directory = await mkdtemp(join(tmpdir(), "ticketplus-api-flow-"));

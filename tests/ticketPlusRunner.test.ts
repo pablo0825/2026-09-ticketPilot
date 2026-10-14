@@ -8,15 +8,15 @@ import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
 import { runTicketPlus } from "../src/app/runTicketPlus.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../src/app/purchaseLock.js";
-import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
+import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
 import { activity } from "./fixtures/ticketplus/pages.js";
 import { readyInformation, readyOrder, failureDialog } from "./fixtures/ticketplus/submissionPage.js";
 
-const settings: TicketPlusSelection = {
+const settings: TicketPlusActivitySettings = {
     platform: "ticketplus",
     eventUrl: "https://ticketplus.com.tw/activity/event-fixture",
     eventName: "2026孿生姐妹之夜之鬼迷心竅",
-    target: { date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 },
+    targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 }],
 };
 async function setup(context: BrowserContext, rejected: boolean) {
     const requests: string[] = [];

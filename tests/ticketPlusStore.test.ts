@@ -16,7 +16,7 @@ const ticketplus = {
     platform: "ticketplus",
     eventUrl: "https://ticketplus.com.tw/activity/0233a891800ffaa343bf8bff73d390e8",
     eventName: "TicketPlus 測試活動",
-    target: { date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 1 },
+    targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 1 }],
 };
 const canonical = {
     platform: "ticketplus",
@@ -61,10 +61,15 @@ test("混合平台設定可存取；無效更新與跨平台覆寫保留原檔",
         assert.throws(() => activityForm(parseTicketPlusActivity(ticketplus)), /僅支援 Klook/);
 
         // 失敗更新不得修改檔案，合法更新保留活動識別碼
-        await assert.rejects(store.save({ ...ticketplus, target: { ...ticketplus.target, quantity: 0 } }, saved.id));
+        await assert.rejects(
+            store.save({ ...ticketplus, targets: [{ ...ticketplus.targets[0]!, quantity: 0 }] }, saved.id),
+        );
         await assert.rejects(store.save(klook, saved.id), /不能變更/);
         assert.equal(await readFile(path, "utf8"), raw);
-        const updated = await store.save({ ...ticketplus, target: { ...ticketplus.target, quantity: 2 } }, saved.id);
+        const updated = await store.save(
+            { ...ticketplus, targets: [{ ...ticketplus.targets[0]!, quantity: 2 }] },
+            saved.id,
+        );
         assert.equal(updated.id, saved.id);
         assert.deepEqual((await store.load(saved.id)).settings, {
             ...canonical,

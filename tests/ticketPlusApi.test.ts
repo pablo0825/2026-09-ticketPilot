@@ -41,7 +41,10 @@ test(
                     (
                         await h.request("/api/purchase", {
                             ...input,
-                            expectedActivity: { ...apiActivity, target: { ...apiActivity.target, quantity: 3 } },
+                            expectedActivity: {
+                                ...apiActivity,
+                                targets: [{ ...apiActivity.targets[0]!, quantity: 3 }],
+                            },
                         })
                     ).status,
                     400,
@@ -69,7 +72,8 @@ test(
                 );
                 assert.equal(persisted.snapshot.platform, "ticketplus");
                 assert.equal(persisted.fingerprintVersion, 5);
-                const { target, ...identity } = apiActivity;
+                const { targets, ...identity } = apiActivity;
+                const target = targets[0]!;
                 const canonicalRetry = await h.request("/api/purchase", {
                     ...input,
                     expectedActivity: { ...identity, targets: [target] },

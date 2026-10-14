@@ -398,7 +398,7 @@ test("Klook 清單略過 TicketPlus，載入回應若變成其他平台也不能
             platform: "ticketplus",
             eventUrl: "https://ticketplus.com.tw/activity/fixture",
             eventName: "TicketPlus 列表隔離測試",
-            target: { date: "2026-11-21", time: "19:30", ticketType: "預售票", quantity: 1 },
+            targets: [{ date: "2026-11-21", time: "19:30", ticketType: "預售票", quantity: 1 }],
         });
         await page.goto(url);
         await page.locator("#selectKlook").click();

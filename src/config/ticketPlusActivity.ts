@@ -25,7 +25,6 @@ const targetSchema = z
     .strict();
 const selectionSchema = z.object({ ...activityIdentity, target: targetSchema }).strict();
 const activitySchema = z.object({ ...activityIdentity, targets: z.array(targetSchema).min(1) }).strict();
-const inputSchema = z.union([activitySchema, selectionSchema]);
 const invalidSettings = "TicketPlus 活動設定格式錯誤，請檢查活動網址、名稱、日期、時間、票種與張數。";
 
 export type TicketPlusActivitySettings = z.infer<typeof activitySchema>;
@@ -33,12 +32,9 @@ export type TicketPlusSelection = z.infer<typeof selectionSchema>;
 export class TicketPlusCapabilityError extends Error {}
 
 export function parseTicketPlusActivity(value: unknown): TicketPlusActivitySettings {
-    const result = inputSchema.safeParse(value);
+    const result = activitySchema.safeParse(value);
     if (!result.success) throw new Error(invalidSettings);
-    const settings = result.data;
-    if ("targets" in settings) return settings;
-    const { target, ...identity } = settings;
-    return { ...identity, targets: [target] };
+    return result.data;
 }
 
 // DOM 模組只接受明確的單次目標，不能自行取多順位清單的第一筆。

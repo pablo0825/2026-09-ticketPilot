@@ -3,7 +3,7 @@ import type { BrowserContext, Page } from "playwright";
 import { join } from "node:path";
 import { projectRoot } from "../config/activityStore.js";
 import { parseTicketPlusActivity, singleTicketPlusSelection } from "../config/ticketPlusActivity.js";
-import type { TicketPlusActivitySettings, TicketPlusSelection } from "../config/ticketPlusActivity.js";
+import type { TicketPlusActivitySettings } from "../config/ticketPlusActivity.js";
 import { acquirePurchaseLease, releasePurchaseLease, verifyPurchaseLease } from "./purchaseLock.js";
 import type { PurchaseLease } from "./purchaseLock.js";
 import type { SessionEntryReason, SessionEntryStage } from "../platforms/ticketplus/sessionSelection.js";
@@ -45,7 +45,7 @@ function notify(options: TicketPlusRunOptions, event: TicketPlusRunEvent): void 
 }
 
 export async function runTicketPlus(
-    input: TicketPlusActivitySettings | TicketPlusSelection,
+    input: TicketPlusActivitySettings,
     options: TicketPlusRunOptions,
 ): Promise<TicketPlusRunResult> {
     // 所有啟動輸入先驗證，錯誤時不取得占用或開啟瀏覽器。

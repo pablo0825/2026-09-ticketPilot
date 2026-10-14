@@ -242,12 +242,14 @@ TicketPlus worker 的 `waitForLogin` 先安裝接收器與頁面 close/crash 監
 
 成功流程停在 information-ready，沒有勾條款或操作資料頁下一步；失敗／售完及未知提交沿用原結果、不重試。流程結束後使用既有 close-browser API 關窗收尾。驗證涵蓋正式 API 到資料頁、確認競態、歷史紀錄失效與寫入故障；IPC 故障採邊界注入，未執行實站購票。
 
-## 多順位設定準備與舊格式相容
+## 多順位設定與歷史紀錄相容
 
-TicketPlus 設定輸出統一為 `targets: [{date, time, ticketType, quantity}, ...]`，順序與重複目標均保留。舊 `target` 可從活動檔、CLI JSON 或 API 輸入，讀入時轉成一筆 `targets`；兩者並存、空清單或任一順位無效均拒絕。只讀舊檔不覆寫，明確保存時才寫新格式且保留活動 ID。活動檔容器仍為 schemaVersion 3；相容性是新版讀舊版，舊程式不能讀新的 targets 格式。
+TicketPlus 活動設定只接受 `targets: [{date, time, ticketType, quantity}, ...]`，順序與重複目標均保留。舊 `target` 活動設定不再接受，兩者並存、空清單或任一順位無效均拒絕。內部 `TicketPlusSelection.target` 表示一次 DOM 操作的目標，仍保留。
+
+舊 target 活動檔會列入 invalidFiles；load、同 ID 更新和刪除均拒絕，CLI 舊 JSON 也不能啟動。需要自行將檔案中的 target 物件改成 targets 陣列；程式不自動改寫或刪除私人檔案。活動檔容器仍為 schemaVersion 3。
 
 本階段只準備設定，尚未實作候補切換：可保存多順位，但 CLI、API 新啟動及 runner 在建立占用／啟動瀏覽器前明確拒絕多順位，不會默取第一筆。既有單順位仍可購票。DOM 模組改接 `TicketPlusSelection` 單次目標，runner 明確選出後交付；不是讓各模組自行決定順位。提交售完／失敗關閉彈窗後仍停止，unknown 不重送。開賣時間尚未加入，本版仍拒絕 saleSchedule。
 
 TicketPlus 新請求使用 fingerprintVersion 5，Klook 保持 v4。重送舊 TicketPlus v4 請求時，僅單順位設定能投影成原 target 格式核對舊 hash；吻合返回原結果，不建立新程序或占用。不改寫歷史請求，活動 settingsHash 同樣依來源版本核對，單純格式轉換不會變成「設定已更新」。新請求先檢查歷史去重，再檢查本階段能力限制。
 
-驗證保留舊單目標頁面 fixture，另外使用手寫舊活動／執行紀錄及固定舊 hash，核對只讀不改檔、同 ID 保存、新舊 API 設定等價、改張數／加順位拒絕舊請求，以及多順位拒絕時零啟動。所有購票流程驗證使用本機攔截頁面，沒有實站購票。
+驗證保留舊單目標頁面 fixture，另外使用手寫舊活動／執行紀錄及固定舊 hash，核對只讀不改檔、同 ID 保存、新設定重播舊請求、舊設定輸入拒絕、改張數／加順位拒絕舊請求，以及多順位拒絕時零啟動。所有購票流程驗證使用本機攔截頁面，沒有實站購票。

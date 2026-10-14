@@ -60,7 +60,7 @@ test("TicketPlus 狀態準備：新紀錄可重讀、資料頁不誤報付款、
                         platform: "ticketplus",
                         eventUrl: "https://ticketplus.com.tw/activity/fixture",
                         eventName: "測試活動",
-                        target: { date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 },
+                        targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 }],
                     },
                     undefined,
                 ),
