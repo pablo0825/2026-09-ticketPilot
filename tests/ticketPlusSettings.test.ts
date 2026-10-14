@@ -1,0 +1,155 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { parseTicketPlusActivity } from "../src/config/ticketPlusActivity.js";
+import { parseActivity } from "../src/config/activityStore.js";
+
+function validActivity() {
+    return {
+        platform: "ticketplus",
+        eventUrl: "https://ticketplus.com.tw/activity/0233a891800ffaa343bf8bff73d390e8",
+        eventName: "2026孿生姐妹之夜之鬼迷心竅",
+        target: { date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 1 },
+    };
+}
+
+test("TicketPlus 設定保留單一目標，整理名稱外側空白但不修改輸入", () => {
+    // 準備帶有空白的名稱並保留原始輸入
+    const input = validActivity();
+    input.eventName = "  音樂會 A  B  ";
+    input.target.ticketType = "  預售票 A  區  ";
+    const before = structuredClone(input);
+
+    // 確認只整理外側空白，保留內部文字
+    const parsed = parseTicketPlusActivity(input);
+    assert.deepEqual(parsed, {
+        platform: "ticketplus",
+        eventUrl: "https://ticketplus.com.tw/activity/0233a891800ffaa343bf8bff73d390e8",
+        eventName: "音樂會 A  B",
+        target: { date: "2026-10-30", time: "20:00", ticketType: "預售票 A  區", quantity: 1 },
+    });
+    // 確認解析與後續修改都不影響原始輸入
+    assert.deepEqual(input, before);
+    parsed.target.quantity = 2;
+    assert.equal(input.target.quantity, 1);
+});
+
+test("TicketPlus 僅接受活動網址，不將單一樣本的 ID 格式當成全站限制", () => {
+    // 接受活動入口與允許的結尾斜線
+    for (const eventUrl of [
+        validActivity().eventUrl,
+        validActivity().eventUrl + "/",
+        "https://ticketplus.com.tw/activity/event_ABC-123",
+    ]) {
+        assert.equal(parseTicketPlusActivity({ ...validActivity(), eventUrl }).eventUrl, eventUrl);
+    }
+
+    // 拒絕其他來源、非活動頁及額外網址成分
+    for (const eventUrl of [
+        "http://ticketplus.com.tw/activity/abc",
+        "https://ticketplus.com.tw.evil.example/activity/abc",
+        "https://www.ticketplus.com.tw/activity/abc",
+        "https://user:password@ticketplus.com.tw/activity/abc",
+        "https://ticketplus.com.tw@evil.example/activity/abc",
+        "https://ticketplus.com.tw:443/activity/abc",
+        "https://ticketplus.com.tw:8443/activity/abc",
+        "https://ticketplus.com.tw/activity/",
+        "https://ticketplus.com.tw/activity/abc/extra",
+        "https://ticketplus.com.tw/other/../activity/abc",
+        "https://ticketplus.com.tw/activity/abc?source=test",
+        "https://ticketplus.com.tw/activity/abc#buy",
+        "https://ticketplus.com.tw/order/abc/session",
+        "https://ticketplus.com.tw/confirm/abc/session",
+        "https://ticketplus.com.tw/checkout/abc/session",
+        "not a URL",
+    ]) {
+        assert.throws(() => parseTicketPlusActivity({ ...validActivity(), eventUrl }), /TicketPlus/, eventUrl);
+    }
+});
+
+test("TicketPlus 驗證真實日期與完整時間，不要求日期必須在未來", () => {
+    // 接受有效日期，拒絕格式正確但不存在的日期
+    for (const date of ["2028-02-29", "2000-02-29", "2020-01-01"]) {
+        const input = validActivity();
+        input.target.date = date;
+        assert.equal(parseTicketPlusActivity(input).target.date, date);
+    }
+    for (const date of [
+        "2026-02-29",
+        "2026-02-30",
+        "1900-02-29",
+        "2026-04-31",
+        "2026-13-01",
+        "2026-01-00",
+        "2026-1-01",
+        "",
+    ]) {
+        const input = validActivity();
+        input.target.date = date;
+        assert.throws(() => parseTicketPlusActivity(input), /TicketPlus/, date);
+    }
+
+    // 檢查時間邊界與固定格式
+    for (const time of ["00:00", "23:59"]) {
+        const input = validActivity();
+        input.target.time = time;
+        assert.equal(parseTicketPlusActivity(input).target.time, time);
+    }
+    for (const time of ["24:00", "19:60", "9:30", "20:00:00", " 20:00", ""]) {
+        const input = validActivity();
+        input.target.time = time;
+        assert.throws(() => parseTicketPlusActivity(input), /TicketPlus/, time);
+    }
+});
+
+test("TicketPlus 張數只接受正安全整數，不猜測網站限購上限", () => {
+    for (const quantity of [1, 5, Number.MAX_SAFE_INTEGER]) {
+        const input = validActivity();
+        input.target.quantity = quantity;
+        assert.equal(parseTicketPlusActivity(input).target.quantity, quantity);
+    }
+    for (const quantity of [0, -1, 1.5, "2", null, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+        const input = validActivity();
+        assert.throws(() => parseTicketPlusActivity({ ...input, target: { ...input.target, quantity } }), /TicketPlus/);
+    }
+});
+
+test("TicketPlus 缺少必填欄位、未知平台及不適用欄位均拒絕", () => {
+    // 逐一移除必填欄位，確認沒有偷偷補預設值
+    for (const field of ["platform", "eventUrl", "eventName", "target"]) {
+        const input: Record<string, unknown> = validActivity();
+        delete input[field];
+        assert.throws(() => parseTicketPlusActivity(input), /TicketPlus/, field);
+    }
+    for (const field of ["date", "time", "ticketType", "quantity"]) {
+        const input = validActivity();
+        const target: Record<string, unknown> = { ...input.target };
+        delete target[field];
+        assert.throws(() => parseTicketPlusActivity({ ...input, target }), /TicketPlus/, field);
+    }
+
+    // 拒絕其他平台、空白名稱及不適用欄位
+    for (const patch of [
+        { platform: "klook" },
+        { platform: "unknown" },
+        { eventName: " \n " },
+        { adjacent: false },
+        { queueEnabled: true },
+        { targets: [] },
+    ]) {
+        assert.throws(() => parseTicketPlusActivity({ ...validActivity(), ...patch }), /TicketPlus/);
+    }
+    for (const patch of [{ ticketType: " \n " }, { area: "A區" }, { adjacent: false }, { bundle: "套票" }]) {
+        const input = validActivity();
+        assert.throws(() => parseTicketPlusActivity({ ...input, target: { ...input.target, ...patch } }), /TicketPlus/);
+    }
+    // 拒絕錯誤的整體資料結構
+    for (const input of [null, undefined, [], "ticketplus", { ...validActivity(), target: [] }]) {
+        assert.throws(() => parseTicketPlusActivity(input), /TicketPlus/);
+    }
+});
+
+test("合法 TicketPlus 模型尚未開放給既有活動入口", () => {
+    const input = validActivity();
+    assert.equal(parseTicketPlusActivity(input).platform, "ticketplus");
+    assert.throws(() => parseActivity(input), /目前只支援 Klook/);
+});
