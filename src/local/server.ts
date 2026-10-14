@@ -163,6 +163,21 @@ export async function startLocalServer(
                 return;
             }
 
+            if (request.method === "POST" && url.pathname === "/api/purchase/confirm-login") {
+                const input = await body(request);
+                if (
+                    Object.keys(input).length !== 2 ||
+                    typeof input.runId !== "string" ||
+                    !input.runId.trim() ||
+                    typeof input.confirmationId !== "string"
+                ) {
+                    throw new Error("登入確認請求格式錯誤。");
+                }
+                // 此回應不是新的購票啟動，不使用 notAccepted 授權另開一輪。
+                json(response, 200, await purchases.confirmLogin(input.runId, input.confirmationId));
+                return;
+            }
+
             if (request.method === "POST" && url.pathname === "/api/purchase/close-browser") {
                 const input = await body(request);
                 if (Object.keys(input).some(key => key !== "runId") || typeof input.runId !== "string") {

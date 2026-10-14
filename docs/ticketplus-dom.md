@@ -228,10 +228,16 @@ TicketPlus worker 的 `waitForLogin` 先安裝接收器與頁面 close/crash 監
 
 另外獨立準備磁碟紀錄驗證新狀態讀取與最小畫面呈現，重跑 Klook 生命週期及平台啟動保護。由於內部啟動保護仍保留，本階段不宣稱「PurchaseRuns.start → TicketPlus worker」完整整合已驗證；該項及 API/GUI 人工交接留待下一階段。未執行實站購票。
 
-## API 啟動（登入交接端點尚待接入）
+## API 啟動與人工登入交接
 
 `POST /api/purchase` 與 `PurchaseRuns.start()` 已依平台分流。兩平台均核對 expectedActivity 與已保存設定；Klook 保留聯絡資料驗證、v4 的 `{activity, contact}` 指紋及開賣時間檢查。TicketPlus 不讀取聯絡資料檔、不接受 expectedContact（含 null）、內部 start 也拒絕非 undefined 的 contact，不向 worker 傳 contact；指紋為 `{activity}`，不新增開賣設定。
 
-同 requestId 先查既有紀錄再檢查占用，相同條件回原結果，改平台／活動／設定拒絕。模擬仍只支援 Klook。本 commit 經 API 可開啟 TicketPlus 瀏覽器並停在 login-ready，但沒有登入確認 HTTP 端點或 GUI 按鈕；需手動關閉購票頁取消等待，再透過既有關窗 API 收尾。
+同 requestId 先查既有紀錄再檢查占用，相同條件回原結果，改平台／活動／設定拒絕。模擬仍只支援 Klook。經 API 可開啟 TicketPlus 瀏覽器並停在 login-ready；GUI 按鈕與設定表單尚未接入。
 
 本機整合測試使用正式 API、主服務及 worker，全部網站請求攔截，核對等待期間零購票操作、並行開始與重送僅一個 worker、無聯絡檔／損壞聯絡檔均可啟動、模擬與不符設定仍拒絕、關窗後釋放占用。Klook 舊 v4 指紋以固定常數紀錄驗證，不使用新版計算函式生成預期結果。
+
+`GET /api/purchase` 與 SSE 的 snapshot 只有現行 TicketPlus worker 已公告 login-ready、仍連線且正在等待時，才提供 `loginConfirmation: {confirmationId}`。人工登入後，以相同 token／來源防護呼叫 `POST /api/purchase/confirm-login`，body 僅包含 `{runId, confirmationId}`；runId 使用 snapshot.id（包含時間前綴），不能使用開始請求的 requestId。這不是網站登入成功判定，後續仍核對活動、場次與選票資料。
+
+確認資格先消耗、保存嘗試紀錄，再傳送一次 IPC；並行或重複確認拒絕。傳送回呼成功回 `status: "sent"`，只代表送出，應繼續讀取狀態。IPC 錯誤、斷線或 5 秒逾時不恢復資格、不自動重送；確認 API 不回 notAccepted，也不能因此另開購票。紀錄寫入失敗時不傳送並終止 worker，保留事故占用。舊磁碟事件或服務重啟不能恢復確認資格。
+
+成功流程停在 information-ready，沒有勾條款或操作資料頁下一步；失敗／售完及未知提交沿用原結果、不重試。流程結束後使用既有 close-browser API 關窗收尾。驗證涵蓋正式 API 到資料頁、確認競態、歷史紀錄失效與寫入故障；IPC 故障採邊界注入，未執行實站購票。

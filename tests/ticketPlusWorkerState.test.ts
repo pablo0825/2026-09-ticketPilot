@@ -98,3 +98,31 @@ test("TicketPlus 專用交接進度與事件 schema：不套用 Klook 自動登�
     );
     assert.equal(ticketPlusEventSchema.safeParse({ type: "ticketplus", stage: "payment-ready" }).success, false);
 });
+
+test("重啟時舊 login-ready 與磁碟確認資格不能恢復人工交接", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-login-history-"));
+    const confirmationId = "e3098c26-c2dc-4e96-bccc-d581f79f9ce4";
+    try {
+        await mkdir(join(directory, "runs"));
+        await writeFile(
+            join(directory, "runs", requestId + ".json"),
+            JSON.stringify({
+                ...record,
+                snapshot: {
+                    ...record.snapshot,
+                    status: "running",
+                    browserOpen: true,
+                    events: [record.snapshot.events[0]],
+                    loginConfirmation: { confirmationId },
+                },
+            }),
+        );
+        const runs = new PurchaseRuns(directory);
+        assert.equal(runs.snapshot()!.status, "interrupted");
+        assert.equal(runs.snapshot()!.loginConfirmation, undefined);
+        assert.equal(runs.snapshot()!.canCloseBrowser, false);
+        await assert.rejects(runs.confirmLogin(record.snapshot.id, confirmationId), /失效/);
+    } finally {
+        await rm(directory, { recursive: true, force: true });
+    }
+});

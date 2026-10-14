@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { apiHarness, apiActivity } from "./fixtures/ticketplus/apiHarness.js";
 import { purchaseOccupied } from "../src/app/purchaseLock.js";
 
-// 本 commit 只接啟動；正式 API 仍沒有登入確認入口。
+// 不確認登入的啟動案例，必須停住等待人工交接。
 test(
     "TicketPlus API：無聯絡資料／損壞聯絡檔均能啟動，重送僅一個worker，停在登入交接",
     { timeout: 40_000 },
@@ -49,7 +49,7 @@ test(
                 assert.equal(
                     (await h.request("/api/purchase/confirm-login", { runId: run.id, confirmationId: randomUUID() }))
                         .status,
-                    404,
+                    400,
                 );
                 assert.equal((await h.request("/api/purchase", input)).status, 200);
                 assert.equal(await readFile(h.report + ".starts", "utf8"), "started\n");

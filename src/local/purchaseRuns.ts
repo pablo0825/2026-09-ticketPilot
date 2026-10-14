@@ -9,6 +9,7 @@ import { validateContactDetails } from "../config/contact.config.js";
 import { validateSaleSchedule } from "../core/purchaseValidation.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
 import { ticketPlusEventSchema } from "./purchaseEvents.js";
+import { sendLoginConfirmation } from "./sendLoginConfirmation.js";
 import type { PurchaseEvent } from "./purchaseEvents.js";
 
 export interface PurchaseSnapshot {
@@ -19,6 +20,7 @@ export interface PurchaseSnapshot {
     saleAt?: string;
     status: "running" | "payment-ready" | "information-ready" | "failed" | "unknown" | "interrupted";
     canCloseBrowser?: boolean;
+    loginConfirmation?: { confirmationId: string }; // 僅現行 worker 的即時交接資格，不從磁碟恢復。
     browserOpen: boolean;
     occupied: boolean;
     message: string;
@@ -50,6 +52,7 @@ export class PurchaseRuns {
     private current?: Record;
     private latestByActivity = new Map<string, Record>();
     private child?: ChildProcess;
+    private login?: { child: ChildProcess; record: Record; confirmationId: string; consumed: boolean };
     private listeners = new Set<() => void>();
     private directory: string;
 
@@ -183,6 +186,7 @@ export class PurchaseRuns {
         return {
             ...structuredClone(this.current.snapshot),
             occupied: purchaseOccupied(this.root) || !!this.child,
+            loginConfirmation: this.loginAvailable() ? { confirmationId: this.login!.confirmationId } : undefined,
             canCloseBrowser:
                 !!this.child?.connected &&
                 this.current.snapshot.browserOpen &&
@@ -300,6 +304,7 @@ export class PurchaseRuns {
             stdio: ["ignore", "ignore", "ignore", "ipc"],
         });
         this.child = child;
+        this.login = undefined;
         this.attachWorker(child, record);
 
         // 傳送設定給子程序
@@ -333,6 +338,66 @@ export class PurchaseRuns {
         return previous.snapshot.id === current?.id
             ? current
             : { ...previous.snapshot, occupied: this.busy(), canCloseBrowser: false };
+    }
+
+    private loginAvailable(): boolean {
+        const login = this.login;
+        return Boolean(
+            login &&
+            !login.consumed &&
+            login.child === this.child &&
+            login.child.connected &&
+            login.record === this.current &&
+            login.record.snapshot.platform === "ticketplus" &&
+            login.record.snapshot.status === "running" &&
+            login.record.snapshot.browserOpen,
+        );
+    }
+
+    async confirmLogin(
+        runId: string,
+        confirmationId: string,
+    ): Promise<{ status: "sent"; message: string; run: PurchaseSnapshot }> {
+        // 比對本輪即時資格，不能使用磁碟中的歷史 login-ready 或其他程序。
+        const login = this.login;
+        if (
+            !this.loginAvailable() ||
+            !login ||
+            runId !== login.record.snapshot.id ||
+            confirmationId !== login.confirmationId ||
+            !z.string().uuid().safeParse(confirmationId).success
+        ) {
+            throw new Error("登入確認尚未就緒、已送出或已失效，請查看目前執行狀態。");
+        }
+
+        // 先消耗並留下嘗試紀錄，再傳送；任何失敗都不能重新啟用確認資格。
+        login.consumed = true;
+        const events = login.record.snapshot.events;
+        events.push({
+            sequence: (events.at(-1)?.sequence ?? 0) + 1,
+            at: new Date().toISOString(),
+            event: { type: "log", message: "已開始傳送人工登入確認，後續請查看執行狀態。" },
+        });
+        if (events.length > 300) {
+            events.shift();
+            login.record.snapshot.historyTruncated = true;
+        }
+        try {
+            this.save(login.record);
+        } catch {
+            login.child.kill();
+            this.notify();
+            throw new Error("執行紀錄寫入失敗，未傳送登入確認；請檢查原流程，不會自動重跑。");
+        }
+        this.notify();
+
+        // 只等待有界的 IPC 傳送，不占住 API 直到整個購票流程結束。
+        await sendLoginConfirmation(login.child, confirmationId);
+        return { status: "sent", message: "已送出登入確認，請查看後續執行狀態。", run: this.snapshot()! };
+    }
+
+    private invalidateLogin(child: ChildProcess): void {
+        if (this.login?.child === child) this.login.consumed = true;
     }
 
     // 接收子程序回報；結束時依是否正常完成更新紀錄。
@@ -375,14 +440,43 @@ export class PurchaseRuns {
                 }
 
                 this.save(record);
+                // 事件成功落盤後才開放交接；同一輪只接受第一次 ready，不因重複事件恢復資格。
+                if (child === this.child && record === this.current && record.snapshot.platform === "ticketplus") {
+                    if (
+                        value.type === "event" &&
+                        ticketPlusEvent.success &&
+                        ticketPlusEvent.data.stage === "login-ready" &&
+                        !this.login &&
+                        record.snapshot.status === "running" &&
+                        record.snapshot.browserOpen &&
+                        child.connected
+                    ) {
+                        this.login = {
+                            child,
+                            record,
+                            confirmationId: ticketPlusEvent.data.confirmationId,
+                            consumed: false,
+                        };
+                    } else if (
+                        value.type === "result" ||
+                        (value.type === "browser" && !value.open) ||
+                        (value.type === "event" &&
+                            ticketPlusEvent.success &&
+                            ticketPlusEvent.data.stage !== "login-ready")
+                    ) {
+                        this.invalidateLogin(child);
+                    }
+                }
                 this.notify();
             } catch {
+                this.invalidateLogin(child);
                 child.kill();
             }
         });
 
         // 子程序結束時，更新並儲存紀錄
         const ended = (code: number | null) => {
+            this.invalidateLogin(child);
             this.child = undefined;
             if (code !== 0 || !clean) {
                 record.snapshot.status = "interrupted";
@@ -400,7 +494,12 @@ export class PurchaseRuns {
             }
         };
 
+        child.once("disconnect", () => {
+            this.invalidateLogin(child);
+            this.notify();
+        });
         child.once("error", () => {
+            this.invalidateLogin(child);
             clean = false;
         });
         child.once("close", ended);
