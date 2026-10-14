@@ -1,3 +1,4 @@
+import { ticketPlusResultMessage } from "../src/cli/ticketPlus.js";
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -209,6 +210,37 @@ test("TicketPlus runner：瀏覽器先關閉也等流程結束才解鎖", async 
         assert(!purchaseOccupied(dir));
     } finally {
         resume();
+        launch.mock.restore();
+        await browser.close();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus runner：活動不符保留具體原因，CLI 指出設定欄位且不點擊", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ticketplus-mismatch-"));
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    const requests = await setup(context, false);
+    const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+    try {
+        const result = await runTicketPlus(
+            { ...settings, eventName: "不同活動" },
+            {
+                lease: acquirePurchaseLease(dir),
+                waitForLogin: async () => {},
+            },
+        );
+        assert.equal(result.outcome, "stopped");
+        assert("sessionFailure" in result);
+        assert.deepEqual(result.sessionFailure, { reason: "activity-mismatch", stage: "before-click" });
+        assert.match(ticketPlusResultMessage(result), /eventName 與 eventUrl/);
+        assert.match(ticketPlusResultMessage(result), /尚未嘗試點擊立即購買/);
+        assert.deepEqual(requests, ["/activity/event-fixture"]);
+        assert.equal(await context.pages()[0]!.evaluate(() => sessionStorage.getItem("counts")), null);
+        assert(purchaseOccupied(dir));
+        await context.close();
+        assert(!purchaseOccupied(dir));
+    } finally {
         launch.mock.restore();
         await browser.close();
         await rm(dir, { recursive: true, force: true });

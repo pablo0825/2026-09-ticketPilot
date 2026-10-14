@@ -1,3 +1,4 @@
+import { TicketPlusCliInputError, ticketPlusSessionMessage } from "./ticketPlusMessages.js";
 import { readFile } from "node:fs/promises";
 import { parseTicketPlusActivity } from "../config/ticketPlusActivity.js";
 import { runTicketPlus } from "../app/runTicketPlus.js";
@@ -9,14 +10,20 @@ export const ticketPlusUsage =
     "用法：npm run start:ticketplus -- --config ./ticketplus.local.json\n可加 WEBDRIVER_EXPERIMENT=1；流程只到填寫資料頁。";
 export async function loadTicketPlusCliSettings(args: string[]) {
     if (args.length !== 2 || args[0] !== "--config" || !args[1] || args[1].startsWith("--"))
-        throw new Error(ticketPlusUsage);
+        throw new TicketPlusCliInputError(ticketPlusUsage);
     let input: unknown;
     try {
         input = JSON.parse(await readFile(args[1], "utf8"));
     } catch {
-        throw new Error("無法讀取 TicketPlus 設定，請確認檔案存在且為 JSON。");
+        throw new TicketPlusCliInputError("無法讀取 TicketPlus 設定，請確認檔案存在且為 JSON。");
     }
-    return parseTicketPlusActivity(input);
+    try {
+        return parseTicketPlusActivity(input);
+    } catch {
+        throw new TicketPlusCliInputError(
+            "TicketPlus 活動設定格式錯誤，請檢查活動網址、名稱、日期、時間、票種與張數。",
+        );
+    }
 }
 export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
     if (result.outcome === "information-ready")
@@ -32,6 +39,7 @@ export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
                   : "彈窗關閉未確認";
         return `${reason}，${dismissal}。流程停止，不刷新、不切換候補。`;
     }
+    if ("sessionFailure" in result && result.sessionFailure) return ticketPlusSessionMessage(result.sessionFailure);
     return `流程已停止（${result.reason}），尚未嘗試選票提交。請檢查購票瀏覽器；不會自動重跑。`;
 }
 function eventMessage(event: TicketPlusRunEvent): string | undefined {
@@ -60,7 +68,11 @@ export async function runTicketPlusCli(
     }
     // 錯誤設定與非互動終端在瀏覽器／占用鎖之前拒絕，不讀 Klook 聯絡資料。
     const settings = await loadTicketPlusCliSettings(args);
-    requireTicketPlusTerminal(terminal.input);
+    try {
+        requireTicketPlusTerminal(terminal.input);
+    } catch {
+        throw new TicketPlusCliInputError("需要可互動的終端機，請勿使用管線自動送入 Enter。");
+    }
     terminal.output.write(`WEBDRIVER_EXPERIMENT：${environment.WEBDRIVER_EXPERIMENT === "1" ? "開啟" : "關閉"}\n`);
     let closed: Promise<void> = Promise.resolve();
     const result = await runTicketPlus(settings, {

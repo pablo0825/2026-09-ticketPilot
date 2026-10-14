@@ -6,7 +6,8 @@ import { parseTicketPlusActivity } from "../config/ticketPlusActivity.js";
 import type { TicketPlusActivitySettings } from "../config/ticketPlusActivity.js";
 import { acquirePurchaseLease, releasePurchaseLease, verifyPurchaseLease } from "./purchaseLock.js";
 import type { PurchaseLease } from "./purchaseLock.js";
-import { selectTicketPlusSession } from "../platforms/ticketplus/sessionSelection.js";
+import type { SessionEntryReason, SessionEntryStage } from "../platforms/ticketplus/sessionSelection.js";
+import { TicketPlusSessionError, selectTicketPlusSession } from "../platforms/ticketplus/sessionSelection.js";
 import { selectTicketPlusTickets } from "../platforms/ticketplus/ticketQuantity.js";
 import { runTicketPlusSubmission, stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
 import type { TicketPlusSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
@@ -25,6 +26,7 @@ export type TicketPlusRunResult =
           outcome: "stopped";
           reason: "startup-stopped" | "login-stopped" | "session-selection-stopped" | "ticket-selection-stopped";
           progress: Readonly<SubmissionProgress>;
+          sessionFailure?: { reason: SessionEntryReason; stage: SessionEntryStage };
       };
 export interface TicketPlusRunOptions {
     waitForLogin: (page: Page) => Promise<void>;
@@ -106,6 +108,14 @@ export async function runTicketPlus(
         });
     } catch (error) {
         if (progress.submitAttempted || progress.failure) return stoppedSubmissionResult(error, progress);
+        if ((stage as TicketPlusStage) === "selecting-session" && error instanceof TicketPlusSessionError) {
+            return {
+                outcome: "stopped",
+                reason: "session-selection-stopped",
+                sessionFailure: { reason: error.reason, stage: error.stage },
+                progress: Object.freeze(emptySubmissionProgress()),
+            };
+        }
         const reason =
             stage === "starting"
                 ? "startup-stopped"
