@@ -227,3 +227,11 @@ TicketPlus worker 的 `waitForLogin` 先安裝接收器與頁面 close/crash 監
 跨程序測試直接 fork 正式 worker，測試 bootstrap 只替換 browser launch，連到測試父程序持有的本機 Chromium，全部網站請求攔截，不使用私人 profile。fixture 固定活動、場次、票種與導向，獨立保存實際點擊／網路計數，驗证交接、排隊、明確失敗、未知提交、關頁/crash、失聯、環境開關與鎖收尾；不以假 runner 回傳成功作唯一判斷。
 
 另外獨立準備磁碟紀錄驗證新狀態讀取與最小畫面呈現，重跑 Klook 生命週期及平台啟動保護。由於內部啟動保護仍保留，本階段不宣稱「PurchaseRuns.start → TicketPlus worker」完整整合已驗證；該項及 API/GUI 人工交接留待下一階段。未執行實站購票。
+
+## API 啟動（登入交接端點尚待接入）
+
+`POST /api/purchase` 與 `PurchaseRuns.start()` 已依平台分流。兩平台均核對 expectedActivity 與已保存設定；Klook 保留聯絡資料驗證、v4 的 `{activity, contact}` 指紋及開賣時間檢查。TicketPlus 不讀取聯絡資料檔、不接受 expectedContact（含 null）、內部 start 也拒絕非 undefined 的 contact，不向 worker 傳 contact；指紋為 `{activity}`，不新增開賣設定。
+
+同 requestId 先查既有紀錄再檢查占用，相同條件回原結果，改平台／活動／設定拒絕。模擬仍只支援 Klook。本 commit 經 API 可開啟 TicketPlus 瀏覽器並停在 login-ready，但沒有登入確認 HTTP 端點或 GUI 按鈕；需手動關閉購票頁取消等待，再透過既有關窗 API 收尾。
+
+本機整合測試使用正式 API、主服務及 worker，全部網站請求攔截，核對等待期間零購票操作、並行開始與重送僅一個 worker、無聯絡檔／損壞聯絡檔均可啟動、模擬與不符設定仍拒絕、關窗後釋放占用。Klook 舊 v4 指紋以固定常數紀錄驗證，不使用新版計算函式生成預期結果。

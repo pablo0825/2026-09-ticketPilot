@@ -189,16 +189,19 @@ export async function startLocalServer(
 
                 // 確認使用者看過的設定，和存檔內容一致
                 const expectedActivity = parseActivity(input.expectedActivity);
-                requireKlookActivity(expectedActivity);
-                const expectedContact = validateContactDetails(input.expectedContact);
                 const activity = await store.load(input.activityId);
-                requireKlookActivity(activity.settings);
-                const contact = await loadContactDetails(contactPath);
-                if (
-                    JSON.stringify(activity.settings) !== JSON.stringify(expectedActivity) ||
-                    JSON.stringify(contact) !== JSON.stringify(expectedContact)
-                ) {
+                if (JSON.stringify(activity.settings) !== JSON.stringify(expectedActivity)) {
                     throw new Error("活動或聯絡資料已變更，請重新載入、儲存並確認摘要。");
+                }
+                let contact;
+                if (activity.settings.platform === "klook") {
+                    const expectedContact = validateContactDetails(input.expectedContact);
+                    contact = await loadContactDetails(contactPath);
+                    if (JSON.stringify(contact) !== JSON.stringify(expectedContact)) {
+                        throw new Error("活動或聯絡資料已變更，請重新載入、儲存並確認摘要。");
+                    }
+                } else if ("expectedContact" in input) {
+                    throw new Error("TicketPlus 本階段不接受聯絡資料。");
                 }
 
                 // 沒有模擬在執行，才開始購票

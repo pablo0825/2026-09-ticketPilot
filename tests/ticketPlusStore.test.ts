@@ -69,15 +69,15 @@ test("混合平台設定可存取；無效更新與跨平台覆寫保留原檔",
     }
 });
 
-test("合法 TicketPlus 在購票與模擬管理入口拒絕，不建立占用或請求紀錄", async () => {
+test("TicketPlus 拒絕誤傳聯絡資料，模擬仍拒絕，不建立占用或請求紀錄", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticketplus-start-"));
     const purchases = new PurchaseRuns(dir, new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url));
     const simulation = new SimulationRuns();
     try {
-        // 無論聯絡資料有效與否，都先回報平台流程尚未實作
-        for (const details of [contact, undefined, {}]) {
+        // 購票拒絕不適用的聯絡資料；模擬仍不支援 TicketPlus
+        for (const details of [contact, null, {}]) {
             const id = randomUUID();
-            assert.throws(() => purchases.start(id, ticketplus, details), /TicketPlus.*尚未實作/);
+            assert.throws(() => purchases.start(id, ticketplus, details), /不接受聯絡資料/);
             assert.throws(() => simulation.start(id, ticketplus, details), /TicketPlus.*尚未實作/);
             assert.equal(purchases.hasRequest(id), false);
             assert.equal(simulation.hasRequest(id), false);
@@ -97,7 +97,7 @@ test("合法 TicketPlus 在購票與模擬管理入口拒絕，不建立占用�
     }
 });
 
-test("HTTP 可儲存 TicketPlus，但缺少或損壞 Klook 個資時仍明確拒絕啟動", async () => {
+test("HTTP 可儲存 TicketPlus；模擬仍拒絕，購票拒絕誤傳聯絡資料", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticketplus-api-"));
     const runtime = join(dir, "runtime");
     const contactPath = join(dir, "contact.json");
@@ -128,7 +128,12 @@ test("HTTP 可儲存 TicketPlus，但缺少或損壞 Klook 個資時仍明確拒
             for (const endpoint of ["purchase", "simulation"]) {
                 const input =
                     endpoint === "purchase"
-                        ? { requestId: randomUUID(), activityId: created.id, expectedActivity: ticketplus }
+                        ? {
+                              requestId: randomUUID(),
+                              activityId: created.id,
+                              expectedActivity: ticketplus,
+                              expectedContact: null,
+                          }
                         : { requestId: randomUUID(), activityId: created.id };
                 const response = await fetch(service.url + "/api/" + endpoint, {
                     method: "POST",
@@ -137,7 +142,7 @@ test("HTTP 可儲存 TicketPlus，但缺少或損壞 Klook 個資時仍明確拒
                 });
                 assert.equal(response.status, 400);
                 const error = await response.json();
-                assert.match(error.error, /TicketPlus.*尚未實作/);
+                assert.match(error.error, endpoint === "purchase" ? /不接受聯絡資料/ : /TicketPlus.*尚未實作/);
                 assert.equal(error.notAccepted, true);
             }
         }

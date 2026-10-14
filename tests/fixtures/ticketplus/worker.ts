@@ -1,12 +1,14 @@
 import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
-import { writeFile } from "node:fs/promises";
+import { writeFile, readFile } from "node:fs/promises";
+import { appendFileSync, watchFile, unwatchFile } from "node:fs";
 import { activity } from "./pages.js";
 import { readyOrder, readyInformation, failureDialog, queueDialog } from "./submissionPage.js";
 
 // 只替換瀏覽器環境，正式 worker、runner、DOM 模組與設定解析均照常執行。
 let context: BrowserContext | undefined;
 const report = process.env.FIXTURE_REPORT!;
+appendFileSync(report + ".starts", "started\n");
 const mode = process.env.FIXTURE_MODE ?? "success";
 const counts = { session: 0, plus: 0, submit: 0, dismiss: 0, information: 0, other: 0, terms: 0 };
 const requests: string[] = [];
@@ -77,6 +79,13 @@ chromium.launchPersistentContext = async (_profile, options) => {
     return context;
 };
 
+// 動態載入正式入口前暫存啟動訊息，避免測試 bootstrap 的 import await 吃掉立即啟動。
+const starts: unknown[] = [];
+const bufferStart = (input: unknown) => {
+    if (input && typeof input === "object" && "activity" in input && "lease" in input && !("type" in input))
+        starts.push(input);
+};
+process.on("message", bufferStart);
 // 測試控制頁面生命週期，與正式登入確認及關閉指令分開。
 process.on("message", async (input: any) => {
     if (input?.type === "fixture-close-page") await context?.pages()[0]?.close();
@@ -92,5 +101,19 @@ process.on("message", async (input: any) => {
         process.send?.({ type: "fixture-snapshot", counts, requests });
     }
 });
+// API 整合測試透過檔案操作測試頁面，不增加正式服務的控制入口。
+const control = report + ".control";
+watchFile(control, { interval: 20, persistent: false }, async () => {
+    const action = await readFile(control, "utf8").catch(() => "");
+    if (action === "stop-worker") process.exit(1);
+    if (action === "close-page")
+        await context
+            ?.pages()[0]
+            ?.close()
+            .catch(() => {});
+});
+process.once("exit", () => unwatchFile(control));
 await import("../../../src/local/purchaseWorker.js");
+process.removeListener("message", bufferStart);
+for (const start of starts) process.emit("message", start as never);
 process.send?.({ type: "fixture-ready" });

@@ -4,13 +4,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import {
-    requireKlookActivity,
-    parseActivity,
-    projectRoot,
-    type ActivityRecord,
-    type ActivitySettings,
-} from "../config/activityStore.js";
+import { parseActivity, projectRoot, type ActivityRecord, type ActivitySettings } from "../config/activityStore.js";
 import { validateContactDetails } from "../config/contact.config.js";
 import { validateSaleSchedule } from "../core/purchaseValidation.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
@@ -243,10 +237,18 @@ export class PurchaseRuns {
         }
 
         const activity = parseActivity(activityInput);
-        requireKlookActivity(activity);
-        const contact = validateContactDetails(contactInput);
+        if (activity.platform === "ticketplus" && contactInput !== undefined) {
+            throw new Error("TicketPlus 本階段不接受聯絡資料。");
+        }
+        const contact = activity.platform === "klook" ? validateContactDetails(contactInput) : undefined;
         const fingerprint = createHash("sha256")
-            .update(JSON.stringify({ activity: fingerprintSettings(activity), contact }))
+            .update(
+                JSON.stringify(
+                    activity.platform === "klook"
+                        ? { activity: fingerprintSettings(activity), contact }
+                        : { activity: fingerprintSettings(activity) },
+                ),
+            )
             .digest("hex");
 
         // 同一個請求重送時，回傳原本的結果
@@ -255,7 +257,11 @@ export class PurchaseRuns {
 
         // 確認沒有占用，且還沒超過開賣等待期限
         if (this.busy()) throw new Error("已有購票程序或瀏覽器占用，請先關閉原購票瀏覽器。");
-        if (activity.saleSchedule && Date.now() >= validateSaleSchedule(activity.saleSchedule) + 120_000) {
+        if (
+            activity.platform === "klook" &&
+            activity.saleSchedule &&
+            Date.now() >= validateSaleSchedule(activity.saleSchedule) + 120_000
+        ) {
             throw new Error("開賣等待時間已過，請更新時間或選擇立即開始。");
         }
 
@@ -270,7 +276,7 @@ export class PurchaseRuns {
                 id: `${Date.now()}-${randomUUID()}`,
                 requestId,
                 activityName: activity.eventName,
-                saleAt: activity.saleSchedule?.saleAt,
+                ...(activity.platform === "klook" ? { saleAt: activity.saleSchedule?.saleAt } : {}),
                 status: "running",
                 browserOpen: false,
                 occupied: true,
@@ -297,7 +303,8 @@ export class PurchaseRuns {
         this.attachWorker(child, record);
 
         // 傳送設定給子程序
-        child.send(structuredClone({ activity, contact, lease }), error => {
+        const workerInput = activity.platform === "klook" ? { activity, contact, lease } : { activity, lease };
+        child.send(structuredClone(workerInput), error => {
             if (error) child.kill();
         });
 

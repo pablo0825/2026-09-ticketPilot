@@ -37,7 +37,7 @@ const record = {
     },
 };
 
-test("TicketPlus 狀態準備：新紀錄可重讀、資料頁不誤報付款、內部啟動仍受保護", async () => {
+test("TicketPlus 狀態準備：新紀錄可重讀、資料頁不誤報付款、相同請求不能換設定", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ticketplus-worker-state-"));
     try {
         await mkdir(join(directory, "runs"));
@@ -64,7 +64,7 @@ test("TicketPlus 狀態準備：新紀錄可重讀、資料頁不誤報付款、
                     },
                     undefined,
                 ),
-            /尚未實作/,
+            /同一開始請求不能更換設定/,
         );
         assert.equal(runs.busy(), false);
         // 平台錯置及不合法新事件不能被當作可繼續的舊紀錄。

@@ -337,3 +337,40 @@ for (const version of [undefined, 2, 3]) {
         }
     });
 }
+
+test("Klook 固定 v4 指紋相容：重送舊請求直接讀回，不建立占用或 fork", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "klook-fixed-v4-"));
+    const requestId = "6f117b18-7761-4527-961f-9284f0fa82df";
+    try {
+        await mkdir(join(dir, "runs"));
+        // 在本次改動前的 {activity,contact} 格式獨立計算並固定；不以待測 helper 生成。
+        await writeFile(
+            join(dir, "runs", requestId + ".json"),
+            JSON.stringify({
+                fingerprintVersion: 4,
+                fingerprint: "640918dec9d41418fa481e531e2ee3082da44a8f46a4995e8bba64a2139e62f0",
+                snapshot: {
+                    platform: "klook",
+                    id: "1-fixed-v4",
+                    requestId,
+                    activityName: "Fixture",
+                    status: "payment-ready",
+                    browserOpen: false,
+                    occupied: false,
+                    message: "舊結果",
+                    events: [],
+                    historyTruncated: false,
+                },
+            }),
+        );
+        // 不存在的 worker：錯誤地 fork 將不能成功，另檢查鎖與結果 ID。
+        const runs = new PurchaseRuns(dir, new URL("./fixtures/does-not-exist.ts", import.meta.url));
+        const result = runs.start(requestId, activity, contact);
+        assert.equal(result.id, "1-fixed-v4");
+        assert.equal(result.status, "payment-ready");
+        assert.equal(runs.busy(), false);
+        assert.equal(purchaseOccupied(dir), false);
+    } finally {
+        await rm(dir, { recursive: true, force: true });
+    }
+});
