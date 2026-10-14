@@ -206,6 +206,7 @@ test("執行中返回平台首頁仍接收狀態，不能在 Klook 再開另一�
         const initial = {
             id: "running",
             requestId: randomUUID(),
+            platform: "klook",
             activityName: "占用中",
             status: "running",
             occupied: true,
@@ -255,6 +256,7 @@ test("平台列隨流程更新，僅進行中或待人工確認可查看；導�
         const purchase = {
             id: "purchase",
             requestId: randomUUID(),
+            platform: "klook",
             activityName: "狀態測試",
             status: "running",
             occupied: true,
@@ -348,6 +350,7 @@ test("點擊品牌返回前確認聯絡草稿，關閉瀏覽器期間兩種狀�
         // 根層與 Klook 狀態頁共用關閉中的禁止離開條件
         const run = {
             id: "closing",
+            platform: "klook",
             activityName: "關閉測試",
             status: "payment-ready",
             occupied: true,
@@ -411,5 +414,43 @@ test("Klook 清單略過 TicketPlus，載入回應若變成其他平台也不能
         });
         assert.equal(await page.locator("#step1").isVisible(), false);
         assert.equal(await page.locator("#home").isVisible(), true);
+    });
+});
+
+test("執行狀態依平台歸屬，外部未知占用不標成 Klook", async () => {
+    await fixture(async (page, url) => {
+        // TicketPlus 紀錄只提供查看，不開放購票入口
+        const purchase = {
+            id: "platform-record",
+            requestId: randomUUID(),
+            platform: "ticketplus",
+            activityName: "平台紀錄",
+            status: "unknown",
+            occupied: false,
+            browserOpen: false,
+            events: [],
+            historyTruncated: false,
+            message: "結果不明",
+        };
+        const feed = await snapshotFeed(page, "/api/purchase/events", purchase);
+        await page.goto(url);
+        const klookRow = page.getByRole("row").filter({ hasText: "Klook" });
+        const ticketplusRow = page.getByRole("row").filter({ hasText: "TicketPlus" });
+        await ticketplusRow.getByRole("button", { name: "查看狀態" }).waitFor();
+        assert.equal(await klookRow.getByRole("button", { name: "查看狀態" }).count(), 0);
+        assert.equal(await ticketplusRow.getByRole("button", { name: "進入平台" }).count(), 0);
+        await ticketplusRow.getByRole("button", { name: "查看狀態" }).click();
+        await eventually(async () => assert.match(await page.locator("#logs").innerText(), /購票平台：TicketPlus/));
+
+        // 未知占用在平台表格外呈現，仍能查看原因
+        await page.locator("#brandHome").click();
+        feed.publish({ ...purchase, platform: null, status: "interrupted", occupied: true });
+        await eventually(async () =>
+            assert.match(await page.locator("#platformHome").innerText(), /平台未知的購票程序/),
+        );
+        assert.equal(await klookRow.getByRole("button", { name: "查看狀態" }).count(), 0);
+        assert.equal(await ticketplusRow.getByRole("button", { name: "查看狀態" }).count(), 0);
+        await page.locator("#platformViewRun").click();
+        await eventually(async () => assert.match(await page.locator("#logs").innerText(), /購票平台：未知/));
     });
 });

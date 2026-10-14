@@ -17,6 +17,7 @@ import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
 import type { RunEvent } from "../core/logger.js";
 
 export interface PurchaseSnapshot {
+    platform: ActivitySettings["platform"] | null; // 外部占用沒有足夠資訊可辨識平台。
     id: string;
     requestId: string;
     activityName: string;
@@ -102,6 +103,7 @@ export class PurchaseRuns {
                         .strict()
                         .optional(),
                     snapshot: z.object({
+                        platform: z.enum(["klook", "ticketplus"]).optional(),
                         id: z.string(),
                         requestId: z.literal(id),
                         activityName: z.string(),
@@ -127,7 +129,8 @@ export class PurchaseRuns {
                 .safeParse(record);
             if (!valid.success) throw new Error("Invalid run record");
 
-            return record;
+            // 已知舊格式沒有平台，當時只有 Klook；保留原事件與指紋內容。
+            return { ...record, snapshot: { ...record.snapshot, platform: valid.data.snapshot.platform ?? "klook" } };
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
             throw new Error("執行紀錄無法讀取，請先人工檢查。");
@@ -147,22 +150,22 @@ export class PurchaseRuns {
     }
 
     snapshot(): PurchaseSnapshot | null {
-        // 沒有本服務的紀錄時，檢查是否被其他購票程序占用
-        if (!this.current) {
-            return purchaseOccupied(this.root)
-                ? {
-                      id: "",
-                      requestId: "",
-                      activityName: "其他購票程序",
-                      status: "interrupted",
-                      browserOpen: false,
-                      occupied: true,
-                      message: "CLI 或上次購票仍占用瀏覽器，請先檢查原流程。",
-                      events: [],
-                      historyTruncated: false,
-                  }
-                : null;
+        // 沒有紀錄時才合成未知平台；已有紀錄須保留事故細節供人工確認。
+        if (!this.current && purchaseOccupied(this.root)) {
+            return {
+                platform: null,
+                id: "",
+                requestId: "",
+                activityName: "其他購票程序",
+                status: "interrupted",
+                browserOpen: false,
+                occupied: true,
+                message: "CLI 或上次購票仍占用瀏覽器，請先檢查原流程。",
+                events: [],
+                historyTruncated: false,
+            };
         }
+        if (!this.current) return null;
 
         return {
             ...structuredClone(this.current.snapshot),
@@ -228,7 +231,7 @@ export class PurchaseRuns {
             .digest("hex");
 
         // 同一個請求重送時，回傳原本的結果
-        const previous = this.previousResult(requestId, activityId, fingerprint);
+        const previous = this.previousResult(requestId, activityId, fingerprint, activity.platform);
         if (previous) return previous;
 
         // 確認沒有占用，且還沒超過開賣等待期限
@@ -244,6 +247,7 @@ export class PurchaseRuns {
             fingerprint,
             ...(activityId ? { activity: { id: activityId, settingsHash: settingsHash(activity) } } : {}),
             snapshot: {
+                platform: activity.platform,
                 id: `${Date.now()}-${randomUUID()}`,
                 requestId,
                 activityName: activity.eventName,
@@ -287,6 +291,7 @@ export class PurchaseRuns {
         requestId: string,
         activityId: string | undefined,
         fingerprint: string,
+        platform: ActivitySettings["platform"],
     ): PurchaseSnapshot | undefined {
         const previous = this.read(requestId);
         if (!previous) return undefined;
@@ -294,11 +299,13 @@ export class PurchaseRuns {
         if (previous.fingerprintVersion !== 4) {
             throw new Error("舊版開始請求結果需人工確認，請檢查原流程與訂單；不會重新啟動。");
         }
+        if (previous.snapshot.platform !== platform) throw new Error("同一開始請求不能更換平台。");
         if (previous.activity && previous.activity.id !== activityId) throw new Error("同一開始請求不能更換活動。");
         if (previous.fingerprint !== fingerprint) throw new Error("同一開始請求不能更換設定。");
 
-        return previous.snapshot.id === this.current?.snapshot.id
-            ? this.snapshot()!
+        const current = this.snapshot();
+        return previous.snapshot.id === current?.id
+            ? current
             : { ...previous.snapshot, occupied: this.busy(), canCloseBrowser: false };
     }
 

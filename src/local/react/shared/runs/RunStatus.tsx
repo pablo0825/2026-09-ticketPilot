@@ -27,6 +27,7 @@ export function RunStatus({ displayed, canClose, closing, onClose, onCopy }: Pro
         ({ title, instruction } = purchaseStatus(run, closing, now));
         const recordedAt = run.events[0]?.at;
         logs =
+            `購票平台：${run.platform === "klook" ? "Klook" : run.platform === "ticketplus" ? "TicketPlus" : "未知"}\n` +
             `本次活動：${run.activityName}\n` +
             (recordedAt
                 ? `紀錄起始時間：${new Date(recordedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}\n`

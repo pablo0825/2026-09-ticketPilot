@@ -33,6 +33,7 @@ export function App() {
                     disabled={!runs.ready || runs.closing}
                     status={runs.ready ? platformStatus.label : "載入中…"}
                     canViewRun={platformStatus.kind !== null}
+                    runPlatform={platformStatus.kind === "simulation" ? "klook" : (runs.purchase?.platform ?? null)}
                     onKlook={() => {
                         setMessage("");
                         setPage("klook");
