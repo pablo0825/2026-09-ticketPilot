@@ -1,4 +1,5 @@
-import { activityReadiness, selectionReadiness } from "./pageReadiness.js";
+import type { SubmittedSelectionTarget } from "./submissionValidation.js";
+import { activityReadiness, selectionReadiness, informationReadiness } from "./pageReadiness.js";
 import type { PageReadiness, SelectionEntryTarget } from "./pageReadiness.js";
 import type { Page } from "playwright";
 import { inspectActivityLoading } from "./activityLoading.js";
@@ -38,7 +39,6 @@ export interface TicketPlusPageDiagnostic {
     readiness?: PageReadiness;
     routeKind?: "activity" | "order" | "confirm" | "checkout" | "other";
     unknownReason?: UnknownPage["reason"];
-    selectionTransition?: SelectionTransitionCheck;
     emptyActivityLoading?: boolean;
     activityLoading?: ActivityLoading;
     activityFields?: ReturnType<typeof diagnoseActivityFields>;
@@ -63,64 +63,7 @@ export interface TicketPlusPageDiagnostic {
     };
 }
 
-export interface SelectionTransitionTarget extends PageIdentity {
-    eventName: string;
-    date: string;
-    time: string;
-    ticketType: string;
-    quantity: number;
-}
-
-type SelectionTransitionCheck =
-    "verified" | "mixed-markers" | "incomplete-selection" | "identity-mismatch" | "selection-mismatch";
-
-function inspectSelectionTransition(
-    dom: TicketPlusDom,
-    identity: PageIdentity,
-    target: SelectionTransitionTarget,
-): SelectionTransitionCheck {
-    // 只接受純選票殘留，不能忽略排隊、彈窗或已出現的資料／付款內容。
-    if (
-        dom.activity.length ||
-        dom.queueCount ||
-        dom.dialogs.length ||
-        dom.information.headingCount ||
-        dom.information.terms.length ||
-        dom.information.contact.some(fields => fields.length > 0) ||
-        dom.paymentButtons.length ||
-        dom.checkoutStepCount ||
-        dom.checkout.length
-    ) {
-        return "mixed-markers";
-    }
-
-    // 完整解析殘留選票資料，再核對本次提交的活動與場次。
-    const selection = parseTicketSelectionPage(dom, identity);
-    if (selection.kind !== "ticket-selection") return "incomplete-selection";
-    if (
-        selection.eventId !== target.eventId ||
-        selection.sessionId !== target.sessionId ||
-        selection.eventName !== target.eventName ||
-        selection.date !== target.date ||
-        selection.time !== target.time
-    ) {
-        return "identity-mismatch";
-    }
-
-    // 目標票種唯一且張數相符，其他票種必須維持零張。
-    const matches = selection.tickets.filter(ticket => ticket.name === target.ticketType);
-    if (
-        matches.length !== 1 ||
-        matches[0]!.saleStatus !== "selling" ||
-        matches[0]!.selectedQuantity !== target.quantity ||
-        selection.tickets.some(ticket => ticket !== matches[0] && ticket.selectedQuantity !== 0)
-    ) {
-        return "selection-mismatch";
-    }
-    return "verified";
-}
-
-function classifyPage(dom: TicketPlusDom, selectionTarget?: SelectionTransitionTarget): TicketPlusPage {
+function classifyPage(dom: TicketPlusDom): TicketPlusPage {
     // 網址採明確白名單，不接受其他站台、額外路徑或不明參數。
     if (dom.origin !== "https://ticketplus.com.tw" || dom.extraUrlParts) return unknownPage("unsupported-url");
     const activity = /^\/activity\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
@@ -177,15 +120,6 @@ function classifyPage(dom: TicketPlusDom, selectionTarget?: SelectionTransitionT
         if (dom.queueCount === 1) return { kind: "queue", ...identity };
         return parseTicketSelectionPage(dom, identity);
     }
-    // 僅提交後等待可提供目標；一般 reader 不放寬 confirm 路徑的選票殘留。
-    if (
-        order![1] === "confirm" &&
-        dom.tickets.length > 0 &&
-        selectionTarget &&
-        inspectSelectionTransition(dom, identity, selectionTarget) === "verified"
-    ) {
-        return unknownPage("selection-transition");
-    }
     if (dom.queueCount || dom.tickets.length) return unknownPage("conflicting-page");
     if (order![1] === "confirm") {
         // 資料頁可以有摘要列，但付款操作標記仍屬衝突。
@@ -206,27 +140,25 @@ function diagnosticRouteKind(pathname: string): TicketPlusPageDiagnostic["routeK
 interface PageObservationOptions {
     onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void;
     entryTarget?: SelectionEntryTarget;
-    selectionTarget?: SelectionTransitionTarget;
+    submissionTarget?: SubmittedSelectionTarget;
     activityName?: string;
     activityTarget?: ActivityLoadingTarget;
 }
 
-export interface ActivityObservation {
+export interface PageObservation {
     page: TicketPlusPage;
     loading: ActivityLoading;
     readiness: PageReadiness;
 }
 
-// 既有 reader 保留分類與呼叫介面，不因活動載入證據放寬解析。
+// 一般 reader 只回傳嚴格分類，不啟用各階段等待判斷。
 export async function readTicketPlusPage(
     page: Page,
     onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void,
-    selectionTarget?: SelectionTransitionTarget,
     activityName?: string,
 ): Promise<TicketPlusPage> {
     const observation = await readPageObservation(page, {
         onDiagnostic,
-        selectionTarget,
         activityName,
     });
     return observation.page;
@@ -237,7 +169,7 @@ export async function readTicketPlusActivityObservation(
     page: Page,
     target: ActivityLoadingTarget,
     onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void,
-): Promise<ActivityObservation> {
+): Promise<PageObservation> {
     return readPageObservation(page, { onDiagnostic, activityName: target.eventName, activityTarget: target });
 }
 
@@ -246,12 +178,21 @@ export async function readTicketPlusSelectionObservation(
     page: Page,
     target: SelectionEntryTarget,
     onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void,
-): Promise<ActivityObservation> {
+): Promise<PageObservation> {
     return readPageObservation(page, { onDiagnostic, entryTarget: target, activityName: target.eventName });
 }
 
-async function readPageObservation(page: Page, options: PageObservationOptions): Promise<ActivityObservation> {
-    const { onDiagnostic, entryTarget, selectionTarget, activityName, activityTarget } = options;
+// 提交後入口只提供等待與核對結果，不執行任何操作。
+export async function readTicketPlusInformationObservation(
+    page: Page,
+    target: SubmittedSelectionTarget,
+    onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void,
+): Promise<PageObservation> {
+    return readPageObservation(page, { onDiagnostic, submissionTarget: target });
+}
+
+async function readPageObservation(page: Page, options: PageObservationOptions): Promise<PageObservation> {
+    const { onDiagnostic, entryTarget, submissionTarget, activityName, activityTarget } = options;
     // 沿用同一份快照判讀，不為診斷重讀頁面。
     let snapshot: TicketPlusDom | undefined;
     let result: TicketPlusPage;
@@ -266,7 +207,7 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
         ) {
             result = unknownPage("page-changed");
         } else {
-            result = classifyPage(snapshot, selectionTarget);
+            result = classifyPage(snapshot);
         }
     } catch {
         result = unknownPage("read-failed");
@@ -288,23 +229,15 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
         ? activityReadiness(snapshot, result, activityTarget)
         : entryTarget
           ? selectionReadiness(snapshot, result, entryTarget)
-          : { status: "stop", reason: "not-requested" };
+          : submissionTarget
+            ? informationReadiness(snapshot, result, submissionTarget)
+            : { status: "stop", reason: "not-requested" };
 
     // 只保留分類與計數，不帶出網址、頁面文字或個資。
     if (onDiagnostic) {
         const diagnostic: TicketPlusPageDiagnostic = { pageKind: result.kind };
-        if (activityTarget || entryTarget) diagnostic.readiness = readiness;
+        if (activityTarget || entryTarget || submissionTarget) diagnostic.readiness = readiness;
         if (result.kind === "unknown") diagnostic.unknownReason = result.reason;
-        if (snapshot && selectionTarget && snapshot.tickets.length > 0) {
-            const confirm = /^\/confirm\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?$/.exec(snapshot.pathname);
-            if (confirm) {
-                diagnostic.selectionTransition = inspectSelectionTransition(
-                    snapshot,
-                    { eventId: confirm[1]!, sessionId: confirm[2]! },
-                    selectionTarget,
-                );
-            }
-        }
         if (snapshot && activityName !== undefined) {
             diagnostic.activityFields = diagnoseActivityFields(snapshot, activityName);
             diagnostic.emptyActivityLoading = loading === "empty";

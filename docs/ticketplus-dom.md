@@ -539,3 +539,11 @@ GUI 最長執行時間改為必填，接受 10～1440 整數分鐘。新活動�
 本節取代上方活動殘留及重複標題過渡規則。入場等待改用同快照 `readiness`，一般 reader 不再接受活動過渡目標、不再合併同名標題，也不產生 `activity-transition`。同活動 activity/order 路徑內，活動與選票內容的缺漏或重疊可以 pending；原始分類仍保留 incomplete/ambiguous/conflicting，等待不會讓這些頁面變成合法選票頁。
 
 彈窗、排隊、聯絡資料、條款、資料頁標題、摘要及付款標記先停止。明確非目標標題、完整活動的目標場次錯誤／歧義、完整選票身分不符仍拒絕；只有嚴格解析及原活動／日期時間核對通過才回傳選票頁。每次觀測前後核對網址，共用原入場期限，不補點、不刷新。診斷以 readiness 固定原因與原始 activityFields 取代 activityTransition，保留原標題及欄位計數而不輸出文字。提交後、更新票數與順位流程未變。
+
+## 統一等待：提交後資料頁
+
+本節取代上方選票殘留過渡規則。一般 reader 移除 selectionTarget 與 `selection-transition`，三個專用觀測入口均回傳 `PageObservation`，使用同一次 DOM 的嚴格分類與 readiness。提交後同場次 order/confirm 的選票殘留、空白、重複或資料頁內容重疊可 bounded pending；資料頁仍須原嚴格 parser 通過才能完成，摘要列原有允許規則不變。
+
+原本選票核對抽為 `matchesSubmittedSelection`，提交前及提交後完整殘留資料共用同樣的活動、場次、日期時間、唯一票種、selling、目標張數與其他票種零張規則。即使在 confirm 或混合頁面，完整資料不符也立即停止，診斷為 selection-mismatch，不會等它消失再誤報成功。未知彈窗、不能辨識的排隊內容、活動列及付款操作標記仍停止。
+
+已辨識的 queue/order-failure 沿用既有處理與額度；排隊期限仍只建立一次，其他 pending 不延長期限。提交前兩次核對、一次提交、一次失敗關閉上限、手動停止與全程期限保留。更新票數及順位程式未更動。readiness 固定狀態與原因取代 selectionTransition，原 phase、routeKind、markers 與 informationControls 保留，不記錄個資。驗證為本地攔截路由測試，未重新購票或提交。

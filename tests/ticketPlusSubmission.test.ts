@@ -4,6 +4,7 @@ import { runTicketPlusSubmission, stoppedSubmissionResult } from "../src/platfor
 import { ticketPlusResultMessage } from "../src/app/ticketPlusPresentation.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import type { TestContext } from "node:test";
 import { chromium } from "playwright";
 import type { Page, ElementHandle } from "playwright";
@@ -552,15 +553,16 @@ test("TicketPlus 提交診斷：保留資料頁拒絕條件並傳到結果訊息
                     if (location.pathname.startsWith("/confirm/")) document.body.insertAdjacentHTML("beforeend", extra);
                 });
             }, item.extra);
-            const error = await failure(submit(page));
-            assert.equal(error.reason, "unexpected-page");
+            const error = await failure(submit(page, { submitWaitMs: 300 }));
+            if (item.reason === "ambiguous-data") assert(["wait-timeout", "read-timeout"].includes(error.reason));
+            else assert.equal(error.reason, "unexpected-page");
             assert.equal(error.diagnostic?.phase, "after-submit");
             assert.equal(error.diagnostic?.page?.unknownReason, item.reason);
             assert.equal(error.diagnostic?.page?.informationControls?.nextButtons, 1);
             const result = stoppedSubmissionResult(error);
             assert.equal(result.outcome, "unknown");
             const message = ticketPlusResultMessage(result);
-            assert.match(message, /unexpected-page/);
+            assert(message.includes(error.reason));
             assert(message.includes(item.reason));
             assert.match(message, /不會重送/);
             assert.doesNotMatch(message, /PRIVATE_DIALOG|event-fixture|session-B|https:/);
@@ -724,32 +726,36 @@ test("TicketPlus 提交過渡：排隊後的殘留仍沿用期限，逾時保留
         assert(["wait-timeout", "read-timeout"].includes(result.reason));
         assert.equal(result.progress.sawQueue, true);
         assert.equal(result.diagnostic?.page?.routeKind, "confirm");
-        assert.equal(result.diagnostic?.page?.unknownReason, "selection-transition");
-        assert.equal(result.diagnostic?.page?.selectionTransition, "verified");
+        assert.equal(result.diagnostic?.page?.unknownReason, "conflicting-page");
+        assert.deepEqual(result.diagnostic?.page?.readiness, { status: "pending", reason: "information-not-ready" });
         assert(performance.now() - started < 2_000);
         assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
     });
 });
 
-test("TicketPlus 提交過渡：活動、票種、張數不符及混合畫面仍立即停止", { timeout: 30_000 }, async () => {
-    const cases = [
+test("TicketPlus 提交過渡：活動、票種、張數不符及危險畫面仍立即停止", { timeout: 30_000 }, async () => {
+    const mismatches = [
         readyOrder.replace(settings.eventName, "其他活動"),
         readyOrder.replace("2026-10-30", "2026-10-31"),
         readyOrder.replace("20:00", "21:00"),
         readyOrder.replace("預售票", "其他票種"),
         readyOrder.replace("<div>2</div>", "<div>1</div>"),
         readyOrder.replace("<div>0</div>", "<div>1</div>"),
-        readyOrder.replace("<div>2</div>", "<div>?</div>"),
         readyOrder + presale,
+    ];
+    const blockers = [
         readyOrder + queueDialog,
         readyOrder + '<div role="dialog">提示</div>',
-        readyOrder + "<div>聯絡人資訊</div>",
-        readyOrder + '<label>姓名<input value="PRIVATE_CONTACT"></label>',
         readyOrder + "<button>前往付款</button>",
         readyOrder + '<div class="stepText checkedStep">付款結帳</div>',
-        readyOrder + summary,
     ];
-    for (const html of cases) {
+    const cases = [
+        ...mismatches
+            .flatMap(html => [html, html + "<div>聯絡人資訊</div>" + summary])
+            .map(html => ({ html, reason: "selection-mismatch" })),
+        ...blockers.map(html => ({ html, reason: "unexpected-page" })),
+    ];
+    for (const { html, reason } of cases) {
         await withPage("stay", async page => {
             await installConfirmTransition(page, html);
             let waits = 0;
@@ -769,7 +775,7 @@ test("TicketPlus 提交過渡：活動、票種、張數不符及混合畫面仍
             );
             assert.equal(result.outcome, "unknown");
             assert("reason" in result);
-            assert.equal(result.reason, "unexpected-page");
+            assert.equal(result.reason, reason);
             assert.equal(waits, 0);
             assert.doesNotMatch(JSON.stringify(result.diagnostic), /PRIVATE_CONTACT|其他活動|session-B/);
             assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
@@ -838,5 +844,86 @@ test("TicketPlus 提交過渡：排隊結束後殘留選票，再抵達資料頁
         assert.equal(result.progress.sawQueue, true);
         assert.equal(waits, 2);
         assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+    });
+});
+
+test("TicketPlus 提交等待：殘缺票數與資料重疊到期限，不重送", { timeout: 15_000 }, async () => {
+    for (const html of [
+        readyOrder.replace("<div>2</div>", "<div>?</div>"),
+        readyOrder + "<div>聯絡人資訊</div>",
+        readyOrder + '<label>姓名<input value="PRIVATE_CONTACT"></label>',
+        readyOrder + summary,
+    ]) {
+        await withPage("stay", async page => {
+            await installConfirmTransition(page, html);
+            const error = await failure(submit(page, { submitWaitMs: 300 }));
+            assert(["wait-timeout", "read-timeout"].includes(error.reason));
+            assert.deepEqual(error.diagnostic?.page?.readiness, { status: "pending", reason: "information-not-ready" });
+            assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+        });
+    }
+});
+
+test("TicketPlus 提交等待：獨立回應讓選票與資料重疊結束，資料頁零操作", { timeout: 15_000 }, async () => {
+    await withPage("stay", async page => {
+        let release!: () => void;
+        let requested!: () => void;
+        const gate = new Promise<void>(resolve => {
+            release = resolve;
+        });
+        const request = new Promise<void>(resolve => {
+            requested = resolve;
+        });
+        await page.route("**/information-content", async route => {
+            requested();
+            await gate;
+            await route.fulfill({ contentType: "text/html; charset=utf-8", body: readyInformation });
+        });
+        await installConfirmTransition(page, readyOrder + "<div>聯絡人資訊</div>" + summary);
+        await page.evaluate(() => {
+            document.addEventListener(
+                "click",
+                () => {
+                    void fetch("/information-content")
+                        .then(response => response.text())
+                        .then(html => {
+                            document.body.innerHTML = html;
+                        });
+                },
+                { once: true },
+            );
+        });
+        let settled = false;
+        const outcome = submit(page).then(
+            value => {
+                settled = true;
+                return { value };
+            },
+            error => {
+                settled = true;
+                return { error };
+            },
+        );
+        try {
+            await Promise.race([
+                request,
+                outcome.then(result => {
+                    if ("error" in result) throw result.error;
+                    assert.fail("網站回應尚未放行卻提早完成");
+                }),
+            ]);
+            await delay(250);
+            assert.equal(settled, false);
+            assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+            release();
+            const result = await outcome;
+            if ("error" in result) throw result.error;
+            assert.equal(result.value.kind, "information");
+            assert.equal(result.value.sessionId, "session-B");
+            assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+        } finally {
+            release();
+            await outcome;
+        }
     });
 });

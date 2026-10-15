@@ -6,7 +6,6 @@ export type UnknownReason =
     | "page-changed"
     | "read-failed"
     | "conflicting-page"
-    | "selection-transition"
     | "incomplete-data"
     | "ambiguous-data";
 export interface UnknownPage {

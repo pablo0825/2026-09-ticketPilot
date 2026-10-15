@@ -1,9 +1,11 @@
+import { matchesSubmittedSelection } from "./submissionValidation.js";
+import type { SubmittedSelectionTarget } from "./submissionValidation.js";
 import type { TicketPlusStopReason } from "./runControl.js";
 import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
 import type { Page } from "playwright";
 import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
-import { readTicketPlusPage } from "./pageState.js";
+import { readTicketPlusPage, readTicketPlusInformationObservation } from "./pageState.js";
 import type { OrderFailurePage, TicketPlusPage, TicketPlusPageDiagnostic } from "./pageState.js";
 import type { InformationPage } from "./informationPage.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
@@ -159,29 +161,23 @@ async function snapshot(
     page: Page,
     context: Submission,
     deadline: number,
-    allowSelectionTransition = false,
+    waitingForInformation = false,
 ): Promise<TicketPlusPage> {
+    // 嚴格分類與等待判斷共用一次讀取，診斷不參與決策。
     checkRoute(page, context);
     const phase = submissionPhase(context);
-    const value = await readBounded(context, deadline, () =>
-        readTicketPlusPage(
-            page,
-            diagnostic => {
-                context.diagnostic = { phase, page: diagnostic };
-            },
-            allowSelectionTransition
-                ? {
-                      eventId: context.selected.eventId,
-                      sessionId: context.selected.sessionId,
-                      eventName: context.settings.eventName,
-                      date: context.settings.target.date,
-                      time: context.settings.target.time,
-                      ticketType: context.settings.target.ticketType,
-                      quantity: context.settings.target.quantity,
-                  }
-                : undefined,
-        ),
-    );
+    const onDiagnostic = (diagnostic: TicketPlusPageDiagnostic) => {
+        context.diagnostic = { phase, page: diagnostic };
+    };
+    const observation = await readBounded(context, deadline, async () => {
+        if (waitingForInformation) {
+            return readTicketPlusInformationObservation(page, submissionTarget(context), onDiagnostic);
+        }
+        return { page: await readTicketPlusPage(page, onDiagnostic), readiness: undefined };
+    });
+
+    // 讀取後再核對網址與場次，避免切頁期間誤認抵達。
+    const value = observation.page;
     checkRoute(page, context);
     if (
         value.kind !== "unknown" &&
@@ -192,25 +188,30 @@ async function snapshot(
         context.diagnostic = { ...context.diagnostic, phase, routeFailure: "snapshot-identity-mismatch" };
         throw stop(context, "unexpected-route");
     }
+
+    // 只有提交後等待會帶入判斷；其他核對維持嚴格頁面分類。
+    if (observation.readiness?.status === "stop") {
+        throw stop(
+            context,
+            observation.readiness.reason === "selection-mismatch" ? "selection-mismatch" : "unexpected-page",
+        );
+    }
     return value;
+}
+function submissionTarget(context: Submission): SubmittedSelectionTarget {
+    return {
+        eventId: context.selected.eventId,
+        sessionId: context.selected.sessionId,
+        eventName: context.settings.eventName,
+        date: context.settings.target.date,
+        time: context.settings.target.time,
+        ticketType: context.settings.target.ticketType,
+        quantity: context.settings.target.quantity,
+    };
 }
 function verifySelection(context: Submission, value: TicketPlusPage): asserts value is TicketSelectionPage {
     if (value.kind !== "ticket-selection") throw stop(context, "unexpected-page");
-    const { settings, selected } = context;
-    const matches = value.tickets.filter(ticket => ticket.name === settings.target.ticketType);
-    if (
-        value.eventId !== selected.eventId ||
-        value.sessionId !== selected.sessionId ||
-        value.eventName !== settings.eventName ||
-        value.date !== settings.target.date ||
-        value.time !== settings.target.time ||
-        matches.length !== 1 ||
-        matches[0]!.saleStatus !== "selling" ||
-        matches[0]!.selectedQuantity !== settings.target.quantity ||
-        value.tickets.some(ticket => ticket !== matches[0] && ticket.selectedQuantity !== 0)
-    ) {
-        throw stop(context, "selection-mismatch");
-    }
+    if (!matchesSubmittedSelection(value, submissionTarget(context))) throw stop(context, "selection-mismatch");
 }
 function xpathLiteral(value: string): string {
     if (!value.includes("'")) return `'${value}'`;
@@ -394,11 +395,6 @@ async function waitForInformation(page: Page, context: Submission, initialDeadli
             }
         } else if (value.kind === "ticket-selection") {
             verifySelection(context, value);
-        } else if (
-            value.kind !== "unknown" ||
-            !["incomplete-data", "page-changed", "read-failed", "selection-transition"].includes(value.reason)
-        ) {
-            throw stop(context, "unexpected-page");
         }
         await pause(context, deadline);
     }

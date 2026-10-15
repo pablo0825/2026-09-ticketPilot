@@ -1,3 +1,6 @@
+import { parseTicketSelectionPage } from "./ticketSelectionPage.js";
+import { matchesSubmittedSelection } from "./submissionValidation.js";
+import type { SubmittedSelectionTarget } from "./submissionValidation.js";
 import { parseActivityPage } from "./activityPage.js";
 import { readEventDetails } from "./readResult.js";
 import type { TicketPlusDom } from "./domSnapshot.js";
@@ -96,4 +99,50 @@ export function selectionReadiness(
         }
     }
     return { status: "pending", reason: "selection-not-ready" };
+}
+
+export function informationReadiness(
+    dom: TicketPlusDom | undefined,
+    result: TicketPlusPage,
+    target: SubmittedSelectionTarget,
+): PageReadiness {
+    // 網址仍須同場次；排隊與失敗沿用原本分支及額度。
+    if (!dom) return { status: "pending", reason: "read-failed" };
+    const route = /^\/(order|confirm)\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
+    if (
+        dom.origin !== "https://ticketplus.com.tw" ||
+        dom.extraUrlParts ||
+        route?.[2] !== target.eventId ||
+        route[3] !== target.sessionId
+    ) {
+        return { status: "stop", reason: "route-mismatch" };
+    }
+    if (result.kind === "queue" || result.kind === "order-failure") {
+        return { status: "pending", reason: result.kind };
+    }
+    if (
+        dom.dialogs.length ||
+        dom.queueCount ||
+        dom.activity.length ||
+        dom.paymentButtons.length ||
+        dom.checkoutStepCount
+    ) {
+        return { status: "stop", reason: "conflicting-content" };
+    }
+
+    // 即使資料與選票內容重疊，完整的殘留選票資料仍須符合本次提交。
+    const details = readEventDetails(dom);
+    if (
+        details &&
+        (details.eventName !== target.eventName || details.date !== target.date || details.time !== target.time)
+    ) {
+        return { status: "stop", reason: "selection-mismatch" };
+    }
+    const selection = parseTicketSelectionPage(dom, { eventId: route[2]!, sessionId: route[3]! });
+    if (selection.kind === "ticket-selection" && !matchesSubmittedSelection(selection, target)) {
+        return { status: "stop", reason: "selection-mismatch" };
+    }
+    return result.kind === "information"
+        ? { status: "ready", reason: "information-parsed" }
+        : { status: "pending", reason: "information-not-ready" };
 }

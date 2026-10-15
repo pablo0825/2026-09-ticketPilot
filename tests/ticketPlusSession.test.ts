@@ -397,11 +397,23 @@ test("TicketPlus 場次：未知或矛盾按鈕與同時段預售重複列皆零
     ] as const) {
         await withPage(
             async page => {
-                await rejectsEntry(
-                    selectTicketPlusSession(page, settings, { ...options, activityReadyTimeoutMs: 300 }),
-                    "before-click",
-                    reason,
-                );
+                const result = selectTicketPlusSession(page, settings, { ...options, activityReadyTimeoutMs: 300 });
+                if (reason === "activity-ready-timeout") {
+                    await assert.rejects(result, error => {
+                        assert(error instanceof TicketPlusSessionError);
+                        assert.equal(error.stage, "before-click");
+                        // 期限可能落在最後讀取中；兩種結果都須證明先等待而非立即拒絕。
+                        assert(["activity-ready-timeout", "read-failed"].includes(error.reason));
+                        assert.equal(error.diagnostic?.check, "page-state");
+                        if (error.diagnostic?.check !== "page-state") return false;
+                        assert.equal(error.diagnostic.snapshot.readiness?.status, "pending");
+                        assert(error.diagnostic.activityWait!.elapsedMs >= 250);
+                        assert(error.diagnostic.activityWait!.observations > 1);
+                        return true;
+                    });
+                } else {
+                    await rejectsEntry(result, "before-click", reason);
+                }
                 assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
             },
             { html },
