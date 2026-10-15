@@ -17,7 +17,7 @@ export function PlatformHome({ disabled, status, canViewRun, runPlatform, onKloo
             <table className="platform-table" aria-label="購票平台">
                 <thead>
                     <tr>
-                        <th scope="col">購票平台</th>
+                        <th scope="col">平台名稱</th>
                         <th scope="col">目前狀態</th>
                         <th scope="col">操作</th>
                     </tr>
