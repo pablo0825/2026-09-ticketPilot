@@ -13,8 +13,7 @@ interface Props {
 export function PlatformHome({ disabled, status, canViewRun, runPlatform, onKlook, onTicketPlus, onViewRun }: Props) {
     return (
         <section id="platformHome" className="card">
-            <h2>選擇購票平台</h2>
-            <p>進入平台後，選擇活動並設定購票順位。</p>
+            <h2>購票平台</h2>
             <table className="platform-table" aria-label="購票平台">
                 <thead>
                     <tr>
