@@ -314,7 +314,10 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                         <PurchaseSummary
                             settings={record?.settings}
                             reason={startReason}
-                            hideReason={Boolean(record) && activityDirty}
+                            hideReason={
+                                (Boolean(record) && activityDirty) ||
+                                startReason === "開賣時間必須包含日期、秒與台灣時區 +08:00。"
+                            }
                             disabled={blocked}
                             onStart={() => void action(start)}
                             confirmed={confirmed}

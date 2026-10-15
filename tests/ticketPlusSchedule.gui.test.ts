@@ -312,6 +312,7 @@ test("TicketPlus 執行設定：空白時間與非法期限不保存不啟動", 
     await fixture(async (h, page, record, requests) => {
         await setTime(page, "");
         await page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ }).check();
+        assert.equal(await page.getByText("開賣時間必須包含日期、秒與台灣時區 +08:00。", { exact: true }).count(), 0);
         assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
         await setTime(page, "2026-12-01T12:34:56");
         for (const value of ["", "9", "-1", "10.5", "1441"]) {
