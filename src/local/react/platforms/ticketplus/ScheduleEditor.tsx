@@ -12,7 +12,7 @@ interface Props {
 export function ScheduleEditor({ form, disabled, saveDisabled, activityDirty, onChange, onSave }: Props) {
     return (
         <div>
-            <h3>開始時間</h3>
+            <h3>執行設定</h3>
             <label>
                 執行方式
                 <select

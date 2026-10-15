@@ -46,7 +46,7 @@ async function edit(page: Page) {
 
 async function review(page: Page) {
     await page.getByRole("button", { name: "② 確認與開始", exact: true }).click();
-    await page.getByRole("region", { name: "購票前確認" }).waitFor();
+    await page.getByRole("region", { name: "本次活動摘要" }).waitFor();
 }
 
 function starts(requests: RequestLog) {
@@ -74,7 +74,7 @@ test("TicketPlus 啟動 GUI：保存摘要到真 API、人工交接及資料頁�
         await page.evaluate(key => sessionStorage.setItem(key, "klook-independent-marker"), klookPendingKey);
         await edit(page);
         await review(page);
-        const summary = await page.getByRole("region", { name: "購票前確認" }).innerText();
+        const summary = await page.getByRole("region", { name: "本次活動摘要" }).innerText();
         for (const value of ["2026孿生姐妹之夜之鬼迷心竅", "2026-10-30", "20:00", "預售票", "2", "填寫資料頁"])
             assert(summary.includes(value));
         await page.getByRole("button", { name: "開始購票", exact: true }).evaluate(button => {
@@ -97,6 +97,42 @@ test("TicketPlus 啟動 GUI：保存摘要到真 API、人工交接及資料頁�
             "klook-independent-marker",
         );
     });
+});
+
+test("TicketPlus 摘要：逐列呈現順位對應與活動連結，手機版表格可捲動", async () => {
+    await fixture(
+        async (_h, page, _record, requests) => {
+            await edit(page);
+            await review(page);
+            const table = page.getByRole("region", { name: "購票順位", exact: true });
+            const rows = table.locator("tbody tr");
+            assert.deepEqual(await rows.nth(0).getByRole("cell").allTextContents(), [
+                "1",
+                "2026-10-30",
+                "20:00",
+                "預售票",
+                "2",
+            ]);
+            assert.deepEqual(await rows.nth(1).getByRole("cell").allTextContents(), [
+                "2",
+                "2026-10-31",
+                "18:30",
+                "學生票",
+                "1",
+            ]);
+            const link = page.getByRole("link", { name: apiActivity.eventUrl, exact: true });
+            assert.equal(await link.getAttribute("href"), apiActivity.eventUrl);
+            assert.equal(await link.getAttribute("rel"), "noopener noreferrer");
+            await page.setViewportSize({ width: 390, height: 844 });
+            assert.equal(await table.evaluate(element => getComputedStyle(element).overflowX), "auto");
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+            assert.equal(starts(requests).length, 0);
+        },
+        {
+            ...apiActivity,
+            targets: [...apiActivity.targets, { date: "2026-10-31", time: "18:30", ticketType: "學生票", quantity: 1 }],
+        },
+    );
 });
 
 test("TicketPlus 啟動 GUI：未保存修改與新增草稿都不能啟動", async () => {
@@ -336,10 +372,10 @@ test("TicketPlus 啟動 GUI：同活動但不同設定的 pending 不能換成�
 test("TicketPlus 步驟 GUI：保存後前進，未保存修改禁止啟動，重新保存使用新張數", { timeout: 30_000 }, async () => {
     await fixture(async (h, page, record, requests) => {
         await edit(page);
-        assert.equal(await page.getByRole("region", { name: "購票前確認" }).count(), 0);
+        assert.equal(await page.getByRole("region", { name: "本次活動摘要" }).count(), 0);
         await page.getByLabel("張數", { exact: true }).fill("1");
         await page.getByRole("button", { name: "儲存活動", exact: true }).click();
-        await page.getByRole("region", { name: "購票前確認" }).waitFor();
+        await page.getByRole("region", { name: "本次活動摘要" }).waitFor();
         assert.equal(
             await page.getByRole("button", { name: "② 確認與開始", exact: true }).getAttribute("aria-current"),
             "step",
@@ -348,12 +384,20 @@ test("TicketPlus 步驟 GUI：保存後前進，未保存修改禁止啟動，�
         await page.getByLabel("張數", { exact: true }).fill("2");
         await review(page);
         assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
-        assert.match(await page.getByRole("region", { name: "購票前確認" }).innerText(), /1 張/);
+        assert.deepEqual(
+            await page
+                .getByRole("region", { name: "購票順位", exact: true })
+                .locator("tbody tr")
+                .first()
+                .getByRole("cell")
+                .allTextContents(),
+            ["1", "2026-10-30", "20:00", "預售票", "1"],
+        );
         assert.equal(starts(requests).length, 0);
         await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
         assert.equal(await page.getByLabel("張數", { exact: true }).inputValue(), "2");
         await page.getByRole("button", { name: "儲存活動", exact: true }).click();
-        await page.getByRole("region", { name: "購票前確認" }).waitFor();
+        await page.getByRole("region", { name: "本次活動摘要" }).waitFor();
         const saved = await (await h.request("/api/activities/" + record.id)).json();
         assert.equal(saved.settings.targets[0].quantity, 2);
         await page.getByRole("button", { name: "開始購票", exact: true }).click();
@@ -440,7 +484,7 @@ test("TicketPlus 開賣核心 GUI：已保存僅等待設定可啟動，呈現�
     await fixture(async (h, page, _record, requests) => {
         await edit(page);
         await review(page);
-        const summary = await page.getByRole("region", { name: "購票前確認" }).innerText();
+        const summary = await page.getByRole("region", { name: "本次活動摘要" }).innerText();
         assert.match(summary, /僅等待，不刷新/);
         assert.doesNotMatch(summary, /undefined|人工登入確認後開始計時/);
         assert.match(summary, /開始選場次前/);
