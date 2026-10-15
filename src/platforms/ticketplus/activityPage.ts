@@ -40,3 +40,32 @@ export function parseActivityPage(dom: TicketPlusDom, eventId: string): Activity
     }
     return { kind: "activity", eventId, eventName, sessions };
 }
+
+// 僅描述既有快照的欄位完整性，不回傳文字或參與流程判斷。
+export function diagnoseActivityFields(dom: TicketPlusDom, expectedName: string) {
+    // 標題保留數量與比對結果，區分缺少、空白及非目標標題。
+    const headings = {
+        count: dom.activityNames.length,
+        nonEmptyCount: dom.activityNames.filter(name => Boolean(name)).length,
+        matchingCount: dom.activityNames.filter(name => name === expectedName).length,
+    };
+
+    // 日期正規化與格式檢查沿用 parser，缺少或重複欄位不視為有效。
+    const rows = dom.activity.map(row => {
+        const date = single(row.dates)?.replace(/\([一二三四五六日]\)$/, "");
+        const time = single(row.times);
+        const button = single(row.saleButtons);
+        return {
+            names: row.names.length,
+            nameNonEmpty: Boolean(single(row.names)),
+            dates: row.dates.length,
+            dateValid: date !== undefined && validDate(date),
+            times: row.times.length,
+            timeValid: time !== undefined && validTime(time),
+            buttons: row.saleButtons.length,
+            knownButtonText: button !== undefined && ["立即購買", "尚未開賣"].includes(button.text),
+            buttonEnabled: button?.enabled ?? null,
+        };
+    });
+    return { headings, rows };
+}

@@ -1053,3 +1053,48 @@ test("TicketPlus 活動載入：複核退回空白可等待，且不重設初次
         );
     }
 });
+
+test("TicketPlus 點擊前診斷：缺時間仍立即停止，保留欄位與等待統計", async () => {
+    await withPage(
+        async page => {
+            let waits = 0;
+            class ObservedControl extends TicketPlusRunControl {
+                override async wait(): Promise<void> {
+                    waits++;
+                }
+            }
+            await assert.rejects(selectTicketPlusSession(page, settings, options, new ObservedControl()), error => {
+                assert(error instanceof TicketPlusSessionError);
+                assert.equal(error.stage, "before-click");
+                assert.equal(error.reason, "unexpected-page");
+                assert.equal(error.diagnostic?.check, "page-state");
+                if (error.diagnostic?.check !== "page-state") return false;
+                const { snapshot, activityWait } = error.diagnostic;
+                assert.equal(snapshot.unknownReason, "incomplete-data");
+                assert.equal(snapshot.emptyActivityLoading, false);
+                assert.deepEqual(snapshot.activityFields, {
+                    headings: { count: 1, nonEmptyCount: 1, matchingCount: 1 },
+                    rows: [
+                        {
+                            names: 1,
+                            nameNonEmpty: true,
+                            dates: 1,
+                            dateValid: true,
+                            times: 0,
+                            timeValid: false,
+                            buttons: 1,
+                            knownButtonText: true,
+                            buttonEnabled: true,
+                        },
+                    ],
+                });
+                assert.equal(activityWait?.observations, 1);
+                assert.doesNotMatch(JSON.stringify(error.diagnostic), /孿生|PRIVATE|https:|event-fixture/);
+                return true;
+            });
+            assert.equal(waits, 0);
+            assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
+        },
+        { html: heading + rowB.replace("21:00", "PRIVATE_TIME") },
+    );
+});

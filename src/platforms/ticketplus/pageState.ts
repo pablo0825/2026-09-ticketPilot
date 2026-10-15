@@ -1,7 +1,7 @@
 import type { Page } from "playwright";
 import { readTicketPlusDom } from "./domSnapshot.js";
 import type { TicketPlusDom } from "./domSnapshot.js";
-import { parseActivityPage } from "./activityPage.js";
+import { diagnoseActivityFields, parseActivityPage } from "./activityPage.js";
 import { parseTicketSelectionPage } from "./ticketSelectionPage.js";
 import { parseInformationPage } from "./informationPage.js";
 import { parseCheckoutPage } from "./checkoutPage.js";
@@ -35,6 +35,7 @@ export interface TicketPlusPageDiagnostic {
     unknownReason?: UnknownPage["reason"];
     selectionTransition?: SelectionTransitionCheck;
     emptyActivityLoading?: boolean;
+    activityFields?: ReturnType<typeof diagnoseActivityFields>;
     activityTransition?: ActivityTransitionDiagnostic & {
         headingCount: number;
         matchingHeadingCount: number;
@@ -342,6 +343,7 @@ export async function readTicketPlusPage(
             }
         }
         if (snapshot && activityName !== undefined) {
+            diagnostic.activityFields = diagnoseActivityFields(snapshot, activityName);
             // 使用同份快照確認空白載入，不把缺欄位的場次或跨頁內容當成載入。
             diagnostic.emptyActivityLoading =
                 result.kind === "unknown" &&

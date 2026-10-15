@@ -459,3 +459,108 @@ test("TicketPlus 路徑診斷：只輸出類型，不輸出路徑或參數", asy
         }
     });
 });
+
+test("TicketPlus 活動欄位診斷：同快照描述缺少、空白、歧義與格式，不改分類", async () => {
+    await withPage(async page => {
+        const row = (content: string) => `<div class="sesstion-item">${content}</div>`;
+        const name = '<div class="font-weight-bold is-word-break">PRIVATE_SESSION</div>';
+        const date = "<div>2026-10-30(五)</div>";
+        const time = "<div>20:00</div>";
+        const button = "<button>立即購買</button>";
+        const valid = {
+            names: 1,
+            nameNonEmpty: true,
+            dates: 1,
+            dateValid: true,
+            times: 1,
+            timeValid: true,
+            buttons: 1,
+            knownButtonText: true,
+            buttonEnabled: true,
+        };
+        const cases = [
+            { body: row(name + date + time + button), expected: valid },
+            { body: row(date + time + button), expected: { ...valid, names: 0, nameNonEmpty: false } },
+            {
+                body: row(name.replace("PRIVATE_SESSION", "") + date + time + button),
+                expected: { ...valid, nameNonEmpty: false },
+            },
+            { body: row(name + time + button), expected: { ...valid, dates: 0, dateValid: false } },
+            { body: row(name + "<div>2026-02-30</div>" + time + button), expected: { ...valid, dateValid: false } },
+            {
+                body: row(name + "<div>2026/10/30</div>" + time + button),
+                expected: { ...valid, dates: 0, dateValid: false },
+            },
+            { body: row(name + date + button), expected: { ...valid, times: 0, timeValid: false } },
+            { body: row(name + date + "<div>25:61</div>" + button), expected: { ...valid, timeValid: false } },
+            {
+                body: row(name + date + time),
+                expected: { ...valid, buttons: 0, knownButtonText: false, buttonEnabled: null },
+            },
+            {
+                body: row(name + date + time + "<button>PRIVATE_BUTTON</button>"),
+                expected: { ...valid, knownButtonText: false },
+            },
+            {
+                body: row(name + date + time + "<button disabled>尚未開賣</button>"),
+                expected: { ...valid, buttonEnabled: false },
+            },
+            {
+                body: row(name + name + date + date + time + time + button + button),
+                expected: {
+                    names: 2,
+                    nameNonEmpty: false,
+                    dates: 2,
+                    dateValid: false,
+                    times: 2,
+                    timeValid: false,
+                    buttons: 2,
+                    knownButtonText: false,
+                    buttonEnabled: null,
+                },
+            },
+        ];
+        for (const item of cases) {
+            await show(page, activityUrl, `<h1>${event.eventName}</h1>${item.body}`);
+            const baseline = await readTicketPlusPage(page);
+            let fields;
+            const observed = await readTicketPlusPage(
+                page,
+                diagnostic => {
+                    fields = diagnostic.activityFields;
+                },
+                undefined,
+                undefined,
+                event.eventName,
+            );
+            assert.deepEqual(observed, baseline);
+            assert.deepEqual(fields, {
+                headings: { count: 1, nonEmptyCount: 1, matchingCount: 1 },
+                rows: [item.expected],
+            });
+            assert.doesNotMatch(JSON.stringify(fields), /PRIVATE|孿生|https:|2026|20:00/);
+        }
+        for (const [html, expected] of [
+            ["", { count: 0, nonEmptyCount: 0, matchingCount: 0 }],
+            ['<h1 style="min-height:20px"></h1>', { count: 1, nonEmptyCount: 0, matchingCount: 0 }],
+            ["<h1>PRIVATE_HEADING</h1>", { count: 1, nonEmptyCount: 1, matchingCount: 0 }],
+            [
+                `<h1>${event.eventName}</h1><h1>${event.eventName}</h1>`,
+                { count: 2, nonEmptyCount: 2, matchingCount: 2 },
+            ],
+        ] as const) {
+            await show(page, activityUrl, html);
+            let fields;
+            await readTicketPlusPage(
+                page,
+                diagnostic => {
+                    fields = diagnostic.activityFields;
+                },
+                undefined,
+                undefined,
+                event.eventName,
+            );
+            assert.deepEqual(fields, { headings: expected, rows: [] });
+        }
+    });
+});
