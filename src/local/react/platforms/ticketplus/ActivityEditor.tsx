@@ -59,10 +59,7 @@ export function ActivityEditor({ form, saved, disabled, onChange, onSave }: Prop
                 />
             </label>
             <div className="section-title">
-                <div>
-                    <h2>購票順位</h2>
-                    <p>由上往下嘗試，票種名稱需與頁面一致。</p>
-                </div>
+                <h2>購票順位</h2>
                 <button
                     type="button"
                     id="add"
@@ -73,11 +70,11 @@ export function ActivityEditor({ form, saved, disabled, onChange, onSave }: Prop
                     新增順位
                 </button>
             </div>
-            <p>目前購票流程只支援同日期、同時間的多順位；儲存不會啟動購票，請另行核對摘要並開始。</p>
             {sessions.size > 1 && <p role="status">此設定含不同場次，可以儲存，但目前無法啟動購票。</p>}
             <div id="targets">
                 {form.targets.map((target, index) => (
                     <div className="target-row" key={target.key} role="group" aria-label={`順位 ${index + 1}`}>
+                        <h3>順位 {index + 1}</h3>
                         <div className="target-fields">
                             <label>
                                 演出日期
@@ -127,7 +124,6 @@ export function ActivityEditor({ form, saved, disabled, onChange, onSave }: Prop
                             </label>
                         </div>
                         <div className="target-tools">
-                            <strong className="position">順位 {index + 1}</strong>
                             <button
                                 type="button"
                                 className="secondary"
