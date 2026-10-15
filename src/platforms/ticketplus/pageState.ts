@@ -34,6 +34,7 @@ export interface TicketPlusPageDiagnostic {
     unknownReason?: UnknownPage["reason"];
     activityTransition?: ActivityTransitionDiagnostic & {
         headingCount: number;
+        matchingHeadingCount: number;
         rows: { names: number; dates: number; times: number; buttons: number; knownButtonText: boolean }[];
     };
     markers?: {
@@ -94,8 +95,13 @@ function inspectActivityTransition(
         return { result: "mixed-markers" };
     }
 
+    // 過渡時允許同活動標題重複，但每個標題都必須完全符合目標。
+    const repeatedTargetHeading =
+        dom.activityNames.length > 1 && dom.activityNames.every(name => name === target.eventName);
+    const activityDom = repeatedTargetHeading ? { ...dom, activityNames: [target.eventName] } : dom;
+
     // 以同份快照核對活動及唯一目標場次，不依殘留列數猜測身分。
-    const activity = parseActivityPage(dom, eventId);
+    const activity = parseActivityPage(activityDom, eventId);
     if (activity.kind !== "activity") return { result: "activity-unreadable", activityReadReason: activity.reason };
     if (activity.eventName !== target.eventName) return { result: "event-name-mismatch" };
     const matches = activity.sessions.filter(session => session.date === target.date && session.time === target.time);
@@ -213,6 +219,7 @@ export async function readTicketPlusPage(
                     ? inspectActivityTransition(snapshot, order[1]!, transitionTarget)
                     : { result: "not-order-route" as const }),
                 headingCount: snapshot.activityNames.length,
+                matchingHeadingCount: snapshot.activityNames.filter(name => name === transitionTarget.eventName).length,
                 rows: snapshot.activity.map(row => ({
                     names: row.names.length,
                     dates: row.dates.length,

@@ -669,3 +669,80 @@ test("TicketPlus 過渡診斷：指出驗證失敗條件，不放寬停止規則
         );
     }
 });
+
+test("TicketPlus 入場過渡：兩個相同目標標題可等待，仍只點一次", { timeout: 15_000 }, async () => {
+    await withPage(
+        async page => {
+            let observed = false;
+            class TransitionControl extends TicketPlusRunControl {
+                override async wait(milliseconds: number): Promise<void> {
+                    if (page.url().includes("/order/")) {
+                        observed = true;
+                        assert.deepEqual(await readTicketPlusPage(page), {
+                            kind: "unknown",
+                            reason: "conflicting-page",
+                        });
+                        await page.setContent(orderB);
+                    }
+                    await super.wait(milliseconds);
+                }
+            }
+            const result = await selectTicketPlusSession(page, settings, options, new TransitionControl());
+            assert.equal(observed, true);
+            assert.equal(result.sessionId, "session-B");
+            assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+        },
+        { orderB: heading + rowB + `<h1>${eventName}</h1>` },
+    );
+});
+
+test("TicketPlus 入場過渡：重複標題持續存在仍逾時，保留原標題數量", { timeout: 15_000 }, async () => {
+    await withPage(
+        async page => {
+            await assert.rejects(
+                selectTicketPlusSession(page, settings, { ...options, arrivalTimeoutMs: 300 }),
+                error => {
+                    assert(error instanceof TicketPlusSessionError);
+                    assert.equal(error.reason, "arrival-timeout");
+                    assert.equal(error.diagnostic?.check, "page-state");
+                    if (error.diagnostic?.check !== "page-state") return false;
+                    const transition = error.diagnostic.snapshot.activityTransition;
+                    assert.equal(transition?.result, "verified");
+                    assert.equal(transition?.headingCount, 2);
+                    assert.equal(transition?.matchingHeadingCount, 2);
+                    return true;
+                },
+            );
+            assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+        },
+        { orderB: heading + rowB + `<h1>${eventName}</h1>` },
+    );
+});
+
+test("TicketPlus 重複標題：非目標標題、重複場次與點擊前歧義仍停止", { timeout: 20_000 }, async () => {
+    for (const html of [
+        heading + rowB + "<h1>其他活動</h1>",
+        heading + rowB + "<h1> </h1>",
+        heading + rowB + rowB + `<h1>${eventName}</h1>`,
+        heading + rowB + `<h1>${eventName}</h1><div role="dialog">提示</div>`,
+    ]) {
+        await withPage(
+            async page => {
+                await rejectsEntry(
+                    selectTicketPlusSession(page, settings, options),
+                    "after-click-attempt",
+                    "unexpected-page",
+                );
+                assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+            },
+            { orderB: html },
+        );
+    }
+    await withPage(
+        async page => {
+            await rejectsEntry(selectTicketPlusSession(page, settings, options), "before-click", "unexpected-page");
+            assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
+        },
+        { html: activity + `<h1>${eventName}</h1>` },
+    );
+});
