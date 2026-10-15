@@ -67,7 +67,9 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
     useEffect(() => {
         let current = true;
         void refreshList().catch(error => {
-            if (active.current && current) setMessage((error as Error).message);
+            if (active.current && current) {
+                setMessage(`${(error as Error).message} 請返回平台首頁後重新進入。`);
+            }
         });
         return () => {
             current = false;
@@ -160,7 +162,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                 setMessage("活動已儲存，尚未啟動購票。" + warning);
             }
         } catch {
-            if (active.current) setMessage("活動已儲存，但列表重新載入失敗；可按重新載入列表再試。");
+            if (active.current) setMessage("活動已儲存，但列表重新載入失敗；請返回平台首頁後重新進入。");
         }
     }
 
@@ -178,7 +180,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
         try {
             await refreshList();
         } catch {
-            if (active.current) setMessage("活動已刪除，但列表重新載入失敗。");
+            if (active.current) setMessage("活動已刪除，但列表重新載入失敗；請返回平台首頁後重新進入。");
         }
     }
 
@@ -202,7 +204,6 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
     return (
         <>
             <AppHeader disabled={locked} onHome={() => leave("platforms")} />
-            <h2>TicketPlus 活動設定</h2>
             <div id="message" role="alert">
                 {message}
             </div>
@@ -236,16 +237,13 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                 </>
             ) : (
                 <>
-                    <div className="section-title">
-                        <button className="secondary" disabled={locked} onClick={() => void action(refreshList)}>
-                            重新載入列表
-                        </button>
-                        {hasRun && (
+                    {hasRun && (
+                        <div className="section-title">
                             <button className="secondary" disabled={locked} onClick={onViewRun}>
                                 查看目前狀態
                             </button>
-                        )}
-                    </div>
+                        </div>
+                    )}
                     <ActivityList
                         activities={activities}
                         disabled={blocked}
