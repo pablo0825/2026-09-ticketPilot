@@ -844,3 +844,212 @@ test("TicketPlus 活動網址過渡：不同標題、重複場次與混合標記
         );
     }
 });
+
+test("TicketPlus 活動載入：空白與正確標題等待後才點一次，記錄觀測與耗時", async () => {
+    for (const html of ["<main>載入中</main>", heading]) {
+        await withPage(
+            async page => {
+                let waits = 0;
+                const reports: { elapsedMs: number; observations: number }[] = [];
+                class LoadingControl extends TicketPlusRunControl {
+                    override async wait(milliseconds: number): Promise<void> {
+                        assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
+                        waits++;
+                        await page.evaluate(content => {
+                            document.body.innerHTML = content;
+                        }, activity);
+                        await super.wait(milliseconds);
+                    }
+                }
+                const result = await selectTicketPlusSession(
+                    page,
+                    settings,
+                    {
+                        ...options,
+                        activityPollIntervalMs: 20,
+                        onActivityWait: report => reports.push(report),
+                    },
+                    new LoadingControl(),
+                );
+                assert.equal(result.sessionId, "session-B");
+                assert.equal(waits, 1);
+                assert.equal(reports.length, 1);
+                assert.equal(reports[0]!.observations, 3);
+                assert(reports[0]!.elapsedMs >= 20);
+                assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+            },
+            { html },
+        );
+    }
+});
+
+test("TicketPlus 活動載入：持續空白有固定期限與診斷，不點擊", async () => {
+    await withPage(
+        async page => {
+            const reports: { elapsedMs: number; observations: number }[] = [];
+            const started = performance.now();
+            await assert.rejects(
+                selectTicketPlusSession(page, settings, {
+                    ...options,
+                    activityReadyTimeoutMs: 300,
+                    activityPollIntervalMs: 30,
+                    onActivityWait: report => reports.push(report),
+                }),
+                error => {
+                    assert(error instanceof TicketPlusSessionError);
+                    assert.equal(error.stage, "before-click");
+                    assert(["activity-ready-timeout", "read-failed"].includes(error.reason));
+                    assert.equal(error.diagnostic?.check, "page-state");
+                    if (error.diagnostic?.check === "page-state") {
+                        assert.equal(error.diagnostic.snapshot.emptyActivityLoading, true);
+                        assert.deepEqual(error.diagnostic.activityWait, reports[0]);
+                    }
+                    return true;
+                },
+            );
+            assert.equal(reports.length, 1);
+            assert(reports[0]!.observations >= 2);
+            assert(reports[0]!.elapsedMs >= 290);
+            assert(performance.now() - started < 2000);
+            assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
+        },
+        { html: "<main>載入中</main>" },
+    );
+});
+
+test("TicketPlus 活動載入：錯標題、歧義、殘缺場次和跨頁標記不等待", async () => {
+    for (const html of [
+        "<h1>其他活動</h1>",
+        heading + heading,
+        heading + '<div class="sesstion-item"></div>',
+        '<div role="dialog">未知提示</div>',
+        '<label>姓名<input value="PRIVATE"></label>',
+        "<button>下一步</button>",
+        "<button>前往付款</button>",
+        fixture.order,
+    ]) {
+        await withPage(
+            async page => {
+                let waits = 0;
+                class ObservedControl extends TicketPlusRunControl {
+                    override async wait(): Promise<void> {
+                        waits++;
+                    }
+                }
+                await rejectsEntry(
+                    selectTicketPlusSession(page, settings, options, new ObservedControl()),
+                    "before-click",
+                    "unexpected-page",
+                );
+                assert.equal(waits, 0);
+                assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
+            },
+            { html },
+        );
+    }
+});
+
+test("TicketPlus 活動載入：等待中取消或換活動，不點擊", async () => {
+    for (const stop of [true, false]) {
+        await withPage(
+            async page => {
+                const abort = new AbortController();
+                let waits = 0;
+                class LoadingControl extends TicketPlusRunControl {
+                    override async wait(milliseconds: number): Promise<void> {
+                        waits++;
+                        if (stop) abort.abort();
+                        else await page.evaluate(() => history.replaceState({}, "", "/activity/other"));
+                        await super.wait(milliseconds);
+                    }
+                }
+                await assert.rejects(
+                    selectTicketPlusSession(
+                        page,
+                        settings,
+                        {
+                            ...options,
+                            activityPollIntervalMs: 10,
+                        },
+                        new LoadingControl(abort.signal),
+                    ),
+                    error => {
+                        if (stop) assert(error instanceof TicketPlusStopError);
+                        else {
+                            assert(error instanceof TicketPlusSessionError);
+                            assert.equal(error.reason, "activity-mismatch");
+                        }
+                        return true;
+                    },
+                );
+                assert.equal(waits, 1);
+                assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
+            },
+            { html: "<main>載入中</main>" },
+        );
+    }
+});
+
+test("TicketPlus 活動載入：複核退回空白可等待，且不重設初次期限", async () => {
+    for (const completes of [true, false]) {
+        await withPage(
+            async page => {
+                let waits = 0;
+                let blanked = false;
+                class RecheckControl extends TicketPlusRunControl {
+                    override async read<T>(read: () => Promise<T>): Promise<T> {
+                        const result = await super.read(read);
+                        // 真按鈕啟用核對完成後模擬網站重新渲染；不替 reader 偽造答案。
+                        if (result === true && !blanked) {
+                            blanked = true;
+                            await page.evaluate(() => {
+                                document.body.innerHTML = "載入中";
+                            });
+                        }
+                        return result;
+                    }
+                    override async wait(milliseconds: number): Promise<void> {
+                        waits++;
+                        if (waits === 1) {
+                            await super.wait(400);
+                            await page.evaluate(content => {
+                                document.body.innerHTML = content;
+                            }, activity);
+                        } else {
+                            if (completes)
+                                await page.evaluate(content => {
+                                    document.body.innerHTML = content;
+                                }, activity);
+                            await super.wait(milliseconds);
+                        }
+                    }
+                }
+                const started = performance.now();
+                const pending = selectTicketPlusSession(
+                    page,
+                    settings,
+                    {
+                        ...options,
+                        activityReadyTimeoutMs: 600,
+                        activityPollIntervalMs: 20,
+                    },
+                    new RecheckControl(),
+                );
+                if (completes) {
+                    assert.equal((await pending).sessionId, "session-B");
+                    assert.equal(waits, 2);
+                } else {
+                    await assert.rejects(pending, error => {
+                        assert(error instanceof TicketPlusSessionError);
+                        assert(["activity-ready-timeout", "read-failed"].includes(error.reason));
+                        return true;
+                    });
+                    assert(performance.now() - started < 850);
+                }
+                assert.equal(blanked, true);
+                assert.deepEqual(await counts(page), { A: 0, B: completes ? 1 : 0, tab: 0, other: 0 });
+            },
+            { html: "載入中" },
+        );
+    }
+});

@@ -34,6 +34,7 @@ export interface TicketPlusPageDiagnostic {
     routeKind?: "activity" | "order" | "confirm" | "checkout" | "other";
     unknownReason?: UnknownPage["reason"];
     selectionTransition?: SelectionTransitionCheck;
+    emptyActivityLoading?: boolean;
     activityTransition?: ActivityTransitionDiagnostic & {
         headingCount: number;
         matchingHeadingCount: number;
@@ -284,6 +285,7 @@ export async function readTicketPlusPage(
     onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void,
     transitionTarget?: ActivityTransitionTarget,
     selectionTarget?: SelectionTransitionTarget,
+    activityName?: string,
 ): Promise<TicketPlusPage> {
     // 沿用同一份快照判讀，不為診斷重讀頁面。
     let snapshot: TicketPlusDom | undefined;
@@ -338,6 +340,26 @@ export async function readTicketPlusPage(
                     selectionTarget,
                 );
             }
+        }
+        if (snapshot && activityName !== undefined) {
+            // 使用同份快照確認空白載入，不把缺欄位的場次或跨頁內容當成載入。
+            diagnostic.emptyActivityLoading =
+                result.kind === "unknown" &&
+                result.reason === "incomplete-data" &&
+                diagnosticRouteKind(snapshot.pathname) === "activity" &&
+                snapshot.activity.length === 0 &&
+                (snapshot.activityNames.length === 0 ||
+                    (snapshot.activityNames.length === 1 && snapshot.activityNames[0] === activityName)) &&
+                snapshot.tickets.length === 0 &&
+                snapshot.queueCount === 0 &&
+                snapshot.dialogs.length === 0 &&
+                snapshot.information.headingCount === 0 &&
+                snapshot.information.terms.length === 0 &&
+                snapshot.information.contact.every(fields => fields.length === 0) &&
+                snapshot.nextButtons.length === 0 &&
+                snapshot.paymentButtons.length === 0 &&
+                snapshot.checkoutStepCount === 0 &&
+                snapshot.checkout.length === 0;
         }
         if (snapshot) {
             diagnostic.routeKind = diagnosticRouteKind(snapshot.pathname);

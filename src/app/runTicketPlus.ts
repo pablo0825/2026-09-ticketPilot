@@ -42,7 +42,10 @@ export type TicketPlusStage =
     | "selecting-session"
     | TicketPlusCycleStage;
 export type TicketPlusRunEvent =
-    { type: "stage"; stage: TicketPlusStage } | TicketPlusCycleEvent | { type: "lease-release-failed" };
+    | { type: "stage"; stage: TicketPlusStage }
+    | { type: "activity-wait"; elapsedMs: number; observations: number }
+    | TicketPlusCycleEvent
+    | { type: "lease-release-failed" };
 export type TicketPlusRunResult =
     | TicketPlusSubmissionResult
     | TicketPlusCycleResult
@@ -161,7 +164,12 @@ export async function runTicketPlus(
         // 登入與開賣等待不消耗購票期限；之後各階段共用同一期限。
         control.startDeadline(activity.maxRunMinutes);
         report("selecting-session");
-        const session = await selectTicketPlusSession(page, settings, {}, control);
+        const session = await selectTicketPlusSession(
+            page,
+            settings,
+            { onActivityWait: summary => notify(options, { type: "activity-wait", ...summary }) },
+            control,
+        );
         // 同輪候補由獨立模組編排；本次結果與歷史提交不混用。
         return await runTicketPlusCycle(page, activity, session, control, event => {
             if (event.type === "stage") stage = event.stage;

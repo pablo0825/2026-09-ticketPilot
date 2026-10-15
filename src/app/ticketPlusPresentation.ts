@@ -7,6 +7,7 @@ import type {
 } from "../platforms/ticketplus/sessionSelection.js";
 
 const sessionReasons: Record<SessionEntryReason, string> = {
+    "activity-ready-timeout": "等待活動頁載入逾時，尚未取得完整場次",
     "invalid-settings": "活動設定無效，請檢查活動網址、名稱及場次日期時間",
     "invalid-options": "場次操作的等待時間設定無效",
     "unexpected-page": "目前頁面不是可辨識的預期頁面，請確認登入狀態、活動頁及是否有彈窗",
@@ -122,6 +123,8 @@ function resultMessage(result: TicketPlusRunResult): string {
     return `流程已停止（${result.reason}）。${prior}請檢查購票瀏覽器；不會自動重跑。`;
 }
 export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | undefined {
+    if (event.type === "activity-wait")
+        return `活動頁核對等待：${event.elapsedMs} 毫秒，共觀測 ${event.observations} 次。`;
     if (event.type === "lease-release-failed") return "無法釋放購票占用，請人工檢查；不會自動解除。";
     if (event.type === "attempt-reset") {
         return event.submissionAttempts > 0 ? "前次提交已確認售完且重新選票核對通過，檢查本輪剩餘順位。" : undefined;

@@ -82,3 +82,11 @@ test("場次診斷會出現在使用者訊息，既有停止說明維持不變",
     assert.match(message, /不會再次點擊/);
     assert.match(message, /尚未嘗試選票提交/);
 });
+
+test("活動頁等待紀錄呈現耗時與觀測次數", async () => {
+    const { ticketPlusEventMessage } = await import("../src/app/ticketPlusPresentation.js");
+    assert.equal(
+        ticketPlusEventMessage({ type: "activity-wait", elapsedMs: 1250, observations: 7 }),
+        "活動頁核對等待：1250 毫秒，共觀測 7 次。",
+    );
+});
