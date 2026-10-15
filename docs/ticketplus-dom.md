@@ -547,3 +547,11 @@ GUI 最長執行時間改為必填，接受 10～1440 整數分鐘。新活動�
 原本選票核對抽為 `matchesSubmittedSelection`，提交前及提交後完整殘留資料共用同樣的活動、場次、日期時間、唯一票種、selling、目標張數與其他票種零張規則。即使在 confirm 或混合頁面，完整資料不符也立即停止，診斷為 selection-mismatch，不會等它消失再誤報成功。未知彈窗、不能辨識的排隊內容、活動列及付款操作標記仍停止。
 
 已辨識的 queue/order-failure 沿用既有處理與額度；排隊期限仍只建立一次，其他 pending 不延長期限。提交前兩次核對、一次提交、一次失敗關閉上限、手動停止與全程期限保留。更新票數及順位程式未更動。readiness 固定狀態與原因取代 selectionTransition，原 phase、routeKind、markers 與 informationControls 保留，不記錄個資。驗證為本地攔截路由測試，未重新購票或提交。
+
+## 讀取失敗診斷與近期觀測
+
+讀取器仍以原本的 read-failed 回報例外，不變更 readiness、停止或重試條件。新增 readFailure 固定欄位：step（read-url-before、capture-dom、read-url-after、validate-url、classify-page）、category（navigation-interrupted、page-closed、target-closed、other-read-error）、pageClosed、routeBefore、routeAfter、urlChanged。路徑僅保存 activity/order/confirm/checkout/other 類型，不輸出網址、錯誤訊息、stack、HTML 或欄位值。未知頁面狀態／無法取得的網址記為 null。
+
+分類以 page.isClosed 與明確的執行環境銷毀／目標關閉錯誤訊息為依據，其他錯誤不猜測成載入。navigation-interrupted 表示讀取執行環境中斷的線索，不能單憑分類證明使用者刷新；同網址重新載入可能仍為 urlChanged=false。失敗後只額外取得本機 Page 狀態，不再擷取 DOM；診斷取得失敗不能取代原錯誤結果。外層讀取截止計時器仍沿原流程，不能把尚未回傳的觀測編造為讀取器例外。
+
+場次選擇失敗診斷增加 recentObservations，保存本次場次選擇最近八筆已完成觀測，含連續編號、相對初次活動核對的 elapsedMs、before-click/after-click-attempt 階段、嚴格分類與 readiness，讀取失敗時另含 readFailure。截斷舊筆不重設編號；既有 activityWait 耗時與總觀測次數不變。摘要只使用既有 callback 資料，未增加輪詢、延長期限或授予操作資格。提交後讀取錯誤亦透過原 page 診斷帶出 readFailure，近期摘要限定場次選擇。

@@ -1,3 +1,5 @@
+import { diagnoseReadFailure, diagnosticRouteKind } from "./readFailure.js";
+import type { ReadFailureDiagnostic, ReadStep } from "./readFailure.js";
 import type { SubmittedSelectionTarget } from "./submissionValidation.js";
 import { activityReadiness, selectionReadiness, informationReadiness } from "./pageReadiness.js";
 import type { PageReadiness, SelectionEntryTarget } from "./pageReadiness.js";
@@ -39,6 +41,7 @@ export interface TicketPlusPageDiagnostic {
     readiness?: PageReadiness;
     routeKind?: "activity" | "order" | "confirm" | "checkout" | "other";
     unknownReason?: UnknownPage["reason"];
+    readFailure?: ReadFailureDiagnostic;
     emptyActivityLoading?: boolean;
     activityLoading?: ActivityLoading;
     activityFields?: ReturnType<typeof diagnoseActivityFields>;
@@ -129,14 +132,6 @@ function classifyPage(dom: TicketPlusDom): TicketPlusPage {
     return hasInformation ? unknownPage("conflicting-page") : parseCheckoutPage(dom, identity);
 }
 
-function diagnosticRouteKind(pathname: string): TicketPlusPageDiagnostic["routeKind"] {
-    if (/^\/activity\/[A-Za-z0-9_-]+\/?$/.test(pathname)) return "activity";
-    for (const kind of ["order", "confirm", "checkout"] as const) {
-        if (new RegExp(`^/${kind}/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/?$`).test(pathname)) return kind;
-    }
-    return "other";
-}
-
 interface PageObservationOptions {
     onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void;
     entryTarget?: SelectionEntryTarget;
@@ -196,10 +191,17 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
     // 沿用同一份快照判讀，不為診斷重讀頁面。
     let snapshot: TicketPlusDom | undefined;
     let result: TicketPlusPage;
+    let step: ReadStep = "read-url-before";
+    let before: string | undefined;
+    let after: string | undefined;
+    let readFailure: ReadFailureDiagnostic | undefined;
     try {
-        const before = page.url();
+        before = page.url();
+        step = "capture-dom";
         snapshot = await readTicketPlusDom(page);
-        const after = page.url();
+        step = "read-url-after";
+        after = page.url();
+        step = "validate-url";
         if (
             before !== after ||
             new URL(after).origin !== snapshot.origin ||
@@ -207,9 +209,11 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
         ) {
             result = unknownPage("page-changed");
         } else {
+            step = "classify-page";
             result = classifyPage(snapshot);
         }
-    } catch {
+    } catch (error) {
+        readFailure = diagnoseReadFailure(error, page, step, before, after);
         result = unknownPage("read-failed");
     }
 
@@ -236,6 +240,7 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
     // 只保留分類與計數，不帶出網址、頁面文字或個資。
     if (onDiagnostic) {
         const diagnostic: TicketPlusPageDiagnostic = { pageKind: result.kind };
+        if (readFailure) diagnostic.readFailure = readFailure;
         if (activityTarget || entryTarget || submissionTarget) diagnostic.readiness = readiness;
         if (result.kind === "unknown") diagnostic.unknownReason = result.reason;
         if (snapshot && activityName !== undefined) {

@@ -27,8 +27,23 @@ export type SessionEntryReason =
     | "read-failed";
 
 export type SessionDiagnostic =
-    | { check: "page-state"; snapshot: TicketPlusPageDiagnostic; activityWait?: ActivityWaitDiagnostic }
+    | {
+          check: "page-state";
+          snapshot: TicketPlusPageDiagnostic;
+          activityWait?: ActivityWaitDiagnostic;
+          recentObservations?: RecentObservation[];
+      }
     | { check: "arrival-route"; reason: "origin-mismatch" | "extra-url-parts" | "path-mismatch" };
+
+export interface RecentObservation {
+    observation: number;
+    elapsedMs: number;
+    stage: SessionEntryStage;
+    pageKind: TicketPlusPageDiagnostic["pageKind"];
+    unknownReason?: TicketPlusPageDiagnostic["unknownReason"];
+    readiness?: TicketPlusPageDiagnostic["readiness"];
+    readFailure?: TicketPlusPageDiagnostic["readFailure"];
+}
 
 export class TicketPlusSessionError extends Error {
     constructor(
@@ -290,8 +305,21 @@ export async function selectTicketPlusSession(
             /* 診斷通知不控制購票。 */
         }
     };
+    const recentObservations: RecentObservation[] = [];
+    let observed = 0;
     const onDiagnostic = (snapshot: TicketPlusPageDiagnostic) => {
-        diagnostic = { check: "page-state", snapshot };
+        // 僅摘要既有觀測，最多保留八筆；不重讀頁面也不參與等待決策。
+        recentObservations.push({
+            observation: ++observed,
+            elapsedMs: activityWait ? Math.round(performance.now() - activityWait.started) : 0,
+            stage,
+            pageKind: snapshot.pageKind,
+            ...(snapshot.unknownReason ? { unknownReason: snapshot.unknownReason } : {}),
+            ...(snapshot.readiness ? { readiness: { ...snapshot.readiness } } : {}),
+            ...(snapshot.readFailure ? { readFailure: { ...snapshot.readFailure } } : {}),
+        });
+        if (recentObservations.length > 8) recentObservations.shift();
+        diagnostic = { check: "page-state", snapshot, recentObservations: [...recentObservations] };
     };
     try {
         // 複製並驗證設定，操作途中不受呼叫端修改設定影響。

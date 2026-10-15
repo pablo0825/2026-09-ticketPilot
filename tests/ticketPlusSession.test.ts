@@ -1202,3 +1202,58 @@ test("TicketPlus 入場等待：獨立回應結束活動與選票重疊後才完
         },
     );
 });
+
+test("近期觀測診斷：獨立故障注入保留最後八筆，讀取中斷仍立即停止且零點擊", async () => {
+    await withPage(
+        async page => {
+            const originalEvaluate = page.evaluate.bind(page);
+            let captures = 0;
+            // 在第十二次 DOM 讀取注入例外；不根據正式程式回傳或設定產生故障。
+            page.evaluate = (async (...args: Parameters<Page["evaluate"]>) => {
+                captures++;
+                if (captures === 12) throw new Error("Execution context was destroyed, private@example.com");
+                return originalEvaluate(...args);
+            }) as Page["evaluate"];
+            try {
+                await assert.rejects(
+                    selectTicketPlusSession(page, settings, {
+                        ...options,
+                        activityReadyTimeoutMs: 5_000,
+                        activityPollIntervalMs: 1,
+                    }),
+                    error => {
+                        assert(error instanceof TicketPlusSessionError);
+                        assert.equal(error.stage, "before-click");
+                        assert.equal(error.reason, "unexpected-page");
+                        assert.equal(error.diagnostic?.check, "page-state");
+                        if (error.diagnostic?.check !== "page-state") return false;
+                        const history = error.diagnostic.recentObservations!;
+                        assert.equal(history.length, 8);
+                        assert.deepEqual(
+                            history.map(item => item.observation),
+                            [5, 6, 7, 8, 9, 10, 11, 12],
+                        );
+                        assert(history.every(item => item.stage === "before-click"));
+                        assert(history.slice(0, -1).every(item => item.readiness?.status === "pending"));
+                        assert(
+                            history.every(
+                                (item, index) => index === 0 || item.elapsedMs >= history[index - 1]!.elapsedMs,
+                            ),
+                        );
+                        assert.equal(history.at(-1)?.readiness?.status, "stop");
+                        assert.equal(history.at(-1)?.readFailure?.category, "navigation-interrupted");
+                        assert.equal(history.at(-1)?.readFailure?.step, "capture-dom");
+                        assert.equal(error.diagnostic.activityWait?.observations, 12);
+                        assert(!JSON.stringify(error.diagnostic).includes("private@example.com"));
+                        return true;
+                    },
+                );
+                assert.equal(captures, 12);
+            } finally {
+                page.evaluate = originalEvaluate;
+            }
+            assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
+        },
+        { html: "<h1></h1>" },
+    );
+});
