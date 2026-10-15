@@ -3,6 +3,8 @@ import { test } from "node:test";
 import {
     activityForm,
     activityInput,
+    executionForm,
+    executionInput,
     draftFingerprint,
     ticketPlusRecord,
 } from "../src/local/react/platforms/ticketplus/formModel.js";
@@ -21,7 +23,6 @@ test("TicketPlus 表單：明列儲存欄位，保留唯讀排程與跨場次設
     const form = activityForm(settings);
     form.eventName = " 修改活動 ";
     form.targets.push({ key: "UI-ONLY", date: "2026-11-23", time: "19:00", ticketType: " B區 ", quantity: "3" });
-    form.maxRunMinutes = "";
     assert.deepEqual(activityInput(form, settings), {
         platform: "ticketplus",
         eventName: "修改活動",
@@ -31,28 +32,29 @@ test("TicketPlus 表單：明列儲存欄位，保留唯讀排程與跨場次設
             { date: "2026-11-23", time: "19:00", ticketType: "B區", quantity: 3 },
         ],
         saleSchedule: { saleAt: "2026-11-01T12:00:00+08:00", advanceSeconds: 2 },
+        maxRunMinutes: 10,
     });
     assert.equal(settings.maxRunMinutes, 10);
 });
 
-test("TicketPlus 表單：空白期限省略、上下限接受，其餘數值拒絕", () => {
-    const form = activityForm(settings);
+test("TicketPlus 執行設定：空白期限省略、上下限接受，其餘數值拒絕", () => {
+    const form = executionForm(settings);
     for (const text of ["", "  "]) {
         form.maxRunMinutes = text;
-        assert(!("maxRunMinutes" in activityInput(form)));
+        assert(!("maxRunMinutes" in executionInput(form, settings)));
     }
     for (const minutes of [1, 1440]) {
         form.maxRunMinutes = String(minutes);
-        assert.equal(activityInput(form).maxRunMinutes, minutes);
+        assert.equal(executionInput(form, settings).maxRunMinutes, minutes);
     }
     for (const text of ["0", "-1", "1.5", "1441", "NaN", "abc"]) {
         form.maxRunMinutes = text;
-        assert.throws(() => activityInput(form), /最長執行時間/);
+        assert.throws(() => executionInput(form, settings), /最長執行時間/);
     }
-    form.maxRunMinutes = "";
+    const activity = activityForm(settings);
     for (const quantity of ["", "0", "-1", "1.5", "abc", "9007199254740992"]) {
-        form.targets[0]!.quantity = quantity;
-        assert.throws(() => activityInput(form), /張數/);
+        activity.targets[0]!.quantity = quantity;
+        assert.throws(() => activityInput(activity), /張數/);
     }
 });
 

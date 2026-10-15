@@ -14,18 +14,19 @@ export interface ActivityForm {
     eventName: string;
     eventUrl: string;
     targets: TargetDraft[];
-    maxRunMinutes: string;
 }
 
-export interface ScheduleForm {
+export interface ExecutionForm {
     mode: "now" | "scheduled";
     saleAt: string;
     advanceSeconds?: 1 | 2;
+    maxRunMinutes: string;
 }
 
-export function scheduleForm(settings?: TicketPlusActivitySettings): ScheduleForm {
+export function executionForm(settings?: TicketPlusActivitySettings): ExecutionForm {
     const schedule = settings?.saleSchedule;
     return {
+        maxRunMinutes: settings?.maxRunMinutes === undefined ? "" : String(settings.maxRunMinutes),
         mode: schedule ? "scheduled" : "now",
         saleAt: schedule?.saleAt.slice(0, 19) ?? "",
         ...(schedule?.advanceSeconds !== undefined ? { advanceSeconds: schedule.advanceSeconds } : {}),
@@ -36,15 +37,23 @@ function withSeconds(value: string): string {
     return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) ? value + ":00" : value;
 }
 
-export function scheduleFingerprint(form: ScheduleForm): string {
-    return JSON.stringify({ mode: form.mode, saleAt: withSeconds(form.saleAt), advanceSeconds: form.advanceSeconds });
+export function executionFingerprint(form: ExecutionForm): string {
+    return JSON.stringify({
+        mode: form.mode,
+        saleAt: withSeconds(form.saleAt),
+        advanceSeconds: form.advanceSeconds,
+        maxRunMinutes: form.maxRunMinutes,
+    });
 }
 
 // 時間輸入固定視為台灣時間，不經過瀏覽器所在時區轉換。
-export function scheduleInput(form: ScheduleForm, saved: TicketPlusActivitySettings): TicketPlusActivitySettings {
-    const { saleSchedule: _previous, ...activity } = saved;
+export function executionInput(form: ExecutionForm, saved: TicketPlusActivitySettings): TicketPlusActivitySettings {
+    const { saleSchedule: _previous, maxRunMinutes: _previousMinutes, ...activity } = saved;
+    const minutes = form.maxRunMinutes.trim() ? positiveInteger(form.maxRunMinutes, "最長執行時間") : undefined;
+    if (minutes !== undefined && minutes > 1440) throw new Error("最長執行時間必須為 1～1440 整數分鐘。");
     return parseTicketPlusActivity({
         ...activity,
+        ...(minutes === undefined ? {} : { maxRunMinutes: minutes }),
         ...(form.mode === "scheduled"
             ? {
                   saleSchedule: {
@@ -69,7 +78,6 @@ export function activityForm(settings?: TicketPlusActivitySettings): ActivityFor
             key: crypto.randomUUID(),
             quantity: String(target.quantity),
         })) ?? [emptyTarget()],
-        maxRunMinutes: settings?.maxRunMinutes === undefined ? "" : String(settings.maxRunMinutes),
     };
 }
 
@@ -78,7 +86,6 @@ export function draftFingerprint(form: ActivityForm): string {
     return JSON.stringify({
         eventName: form.eventName,
         eventUrl: form.eventUrl,
-        maxRunMinutes: form.maxRunMinutes,
         targets: form.targets.map(({ key: _key, ...target }) => target),
     });
 }
@@ -91,7 +98,7 @@ function positiveInteger(value: string, label: string): number {
 }
 
 export function activityInput(form: ActivityForm, saved?: TicketPlusActivitySettings): TicketPlusActivitySettings {
-    // 明列 TicketPlus 欄位；隱藏的排程完整保留，不做時區轉換。
+    // 明列 TicketPlus 欄位；已保存的執行設定完整保留，不做時區轉換。
     const settings: TicketPlusActivitySettings = {
         platform: "ticketplus",
         eventName: form.eventName.trim(),
@@ -102,13 +109,9 @@ export function activityInput(form: ActivityForm, saved?: TicketPlusActivitySett
             ticketType: target.ticketType.trim(),
             quantity: positiveInteger(target.quantity, `順位 ${index + 1} 的張數`),
         })),
+        ...(saved?.maxRunMinutes === undefined ? {} : { maxRunMinutes: saved.maxRunMinutes }),
         ...(saved?.saleSchedule ? { saleSchedule: { ...saved.saleSchedule } } : {}),
     };
-    if (form.maxRunMinutes.trim()) {
-        const minutes = positiveInteger(form.maxRunMinutes, "最長執行時間");
-        if (minutes > 1440) throw new Error("最長執行時間必須為 1～1440 整數分鐘。");
-        settings.maxRunMinutes = minutes;
-    }
     return parseTicketPlusActivity(settings);
 }
 

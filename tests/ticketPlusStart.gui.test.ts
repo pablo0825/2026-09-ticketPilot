@@ -49,6 +49,11 @@ async function review(page: Page) {
     await page.getByRole("region", { name: "本次活動摘要" }).waitFor();
 }
 
+async function confirmStart(page: Page) {
+    const checkbox = page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ });
+    if (await checkbox.isEnabled()) await checkbox.check();
+}
+
 function starts(requests: RequestLog) {
     return requests.filter(request => request.path === "/api/purchase" && request.method === "POST");
 }
@@ -77,12 +82,14 @@ test("TicketPlus 啟動 GUI：保存摘要到真 API、人工交接及資料頁�
         const summary = await page.getByRole("region", { name: "本次活動摘要" }).innerText();
         for (const value of ["2026孿生姐妹之夜之鬼迷心竅", "2026-10-30", "20:00", "預售票", "2", "填寫資料頁"])
             assert(summary.includes(value));
+        await confirmStart(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).evaluate(button => {
             (button as HTMLButtonElement).click();
             (button as HTMLButtonElement).click();
         });
         await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
         await verifyInformation(h, page);
+        assert.equal(requests.filter(request => request.method === "PUT").length, 0, "執行設定未變更時不應重新保存");
         assert.equal(starts(requests).length, 1);
         assert.deepEqual(Object.keys(starts(requests)[0]!.body).sort(), [
             "activityId",
@@ -180,6 +187,7 @@ test("TicketPlus 啟動 GUI：別頁修改保存設定後，真後端拒絕舊�
             body: JSON.stringify({ ...apiActivity, targets: [{ ...apiActivity.targets[0], quantity: 3 }] }),
         });
         assert.equal(response.status, 200);
+        await confirmStart(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).click();
         await eventually(async () =>
             assert.match(await page.locator("#message").innerText(), /設定.*變更|設定.*不同|重新.*確認|設定.*不一致/),
@@ -201,6 +209,7 @@ test("TicketPlus 啟動 GUI：真接受後回應遺失，重載查詢原請求�
         });
         await edit(page);
         await review(page);
+        await confirmStart(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).click();
         const ready = await h.until(run => Boolean(run?.loginConfirmation));
         await eventually(async () => assert(await page.evaluate(key => sessionStorage.getItem(key), pendingKey)));
@@ -248,6 +257,7 @@ test("TicketPlus 啟動 GUI：開始回應晚於 SSE，導覽保留最新登入�
         try {
             await edit(page);
             await review(page);
+            await confirmStart(page);
             await page.getByRole("button", { name: "開始購票", exact: true }).click();
             const ready = await h.until(run => Boolean(run?.loginConfirmation));
             await eventually(async () =>
@@ -307,6 +317,7 @@ test(
             });
             await edit(page);
             await review(page);
+            await confirmStart(page);
             await page.getByRole("button", { name: "開始購票", exact: true }).click();
             await eventually(async () =>
                 assert.match(await page.locator("#message").innerText(), /失敗|fetch|確認|連線/i),
@@ -314,6 +325,7 @@ test(
             await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
             assert(await page.getByLabel("票種名稱").isDisabled());
             await review(page);
+            await confirmStart(page);
             await page.getByRole("button", { name: "開始購票", exact: true }).click();
             await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
             await verifyInformation(h, page);
@@ -338,6 +350,7 @@ test("TicketPlus 啟動 GUI：另一活動的 pending 不允許改用新設定�
         });
         await edit(page);
         await review(page);
+        await confirmStart(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).click();
         await eventually(async () => assert.match(await page.locator("#message").innerText(), /不能更換活動或設定/));
         assert.equal(starts(requests).length, 0);
@@ -362,6 +375,7 @@ test("TicketPlus 啟動 GUI：同活動但不同設定的 pending 不能換成�
         });
         await edit(page);
         await review(page);
+        await confirmStart(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).click();
         await eventually(async () => assert.match(await page.locator("#message").innerText(), /不能更換活動或設定/));
         assert.equal(starts(requests).length, 0);
@@ -400,6 +414,7 @@ test("TicketPlus 步驟 GUI：保存後前進，未保存修改禁止啟動，�
         await page.getByRole("region", { name: "本次活動摘要" }).waitFor();
         const saved = await (await h.request("/api/activities/" + record.id)).json();
         assert.equal(saved.settings.targets[0].quantity, 2);
+        await confirmStart(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).click();
         await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
         await verifyInformation(h, page);
@@ -420,6 +435,7 @@ test(
                 await page.getByRole("button", { name: "③ 執行狀態", exact: true }).click();
                 await page.getByText("尚未開始", { exact: true }).waitFor();
                 await review(page);
+                await confirmStart(page);
                 await page.getByRole("button", { name: "開始購票", exact: true }).click();
                 await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
                 const run = await h.snapshot();
@@ -485,9 +501,10 @@ test("TicketPlus 開賣核心 GUI：已保存僅等待設定可啟動，呈現�
         await edit(page);
         await review(page);
         const summary = await page.getByRole("region", { name: "本次活動摘要" }).innerText();
-        assert.match(summary, /僅等待，不刷新/);
+        assert.match(summary, /僅等待開賣，不刷新/);
         assert.doesNotMatch(summary, /undefined|人工登入確認後開始計時/);
         assert.match(summary, /開始選場次前/);
+        await confirmStart(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).click();
         await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
         await eventually(async () => assert.match(await page.locator("#status").innerText(), /等待開賣/));

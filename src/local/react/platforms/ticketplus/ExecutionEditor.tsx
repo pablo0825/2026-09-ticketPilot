@@ -1,15 +1,13 @@
-import type { ScheduleForm } from "./formModel.js";
+import type { ExecutionForm } from "./formModel.js";
 
 interface Props {
-    form: ScheduleForm;
+    form: ExecutionForm;
     disabled: boolean;
-    saveDisabled: boolean;
     activityDirty: boolean;
-    onChange: (form: ScheduleForm) => void;
-    onSave: () => void;
+    onChange: (form: ExecutionForm) => void;
 }
 
-export function ScheduleEditor({ form, disabled, saveDisabled, activityDirty, onChange, onSave }: Props) {
+export function ExecutionEditor({ form, disabled, activityDirty, onChange }: Props) {
     return (
         <div>
             <h3>執行設定</h3>
@@ -20,7 +18,9 @@ export function ScheduleEditor({ form, disabled, saveDisabled, activityDirty, on
                     disabled={disabled}
                     onChange={event =>
                         onChange(
-                            event.target.value === "now" ? { mode: "now", saleAt: "" } : { ...form, mode: "scheduled" },
+                            event.target.value === "now"
+                                ? { mode: "now", saleAt: "", maxRunMinutes: form.maxRunMinutes }
+                                : { ...form, mode: "scheduled" },
                         )
                     }
                 >
@@ -47,7 +47,13 @@ export function ScheduleEditor({ form, disabled, saveDisabled, activityDirty, on
                                 type="button"
                                 className="secondary"
                                 disabled={disabled}
-                                onClick={() => onChange({ mode: "scheduled", saleAt: form.saleAt })}
+                                onClick={() =>
+                                    onChange({
+                                        mode: "scheduled",
+                                        saleAt: form.saleAt,
+                                        maxRunMinutes: form.maxRunMinutes,
+                                    })
+                                }
                             >
                                 改為僅等待開賣
                             </button>
@@ -57,10 +63,22 @@ export function ScheduleEditor({ form, disabled, saveDisabled, activityDirty, on
                     )}
                 </>
             )}
-            {activityDirty && <p role="status">活動與順位有未儲存修改，請先到第一步儲存，再儲存開始設定。</p>}
-            <button type="button" className="secondary" disabled={disabled || saveDisabled} onClick={onSave}>
-                儲存開始設定
-            </button>
+            <label>
+                最長執行時間（分鐘，選填）
+                <input
+                    id="maxRunMinutes"
+                    type="number"
+                    min="1"
+                    max="1440"
+                    step="1"
+                    disabled={disabled}
+                    value={form.maxRunMinutes}
+                    onChange={event => onChange({ ...form, maxRunMinutes: event.target.value })}
+                />
+            </label>
+            <p>從開始選場次前計時，人工登入與開賣等待不計入。留空不設全程期限，各操作仍有自己的逾時限制。</p>
+            <p>按「開始購票」時會先保存執行設定，再啟動購票瀏覽器。</p>
+            {activityDirty && <p role="status">活動與順位有未儲存修改，請先到第一步儲存。</p>}
         </div>
     );
 }

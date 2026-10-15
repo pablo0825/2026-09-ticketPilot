@@ -13,14 +13,14 @@ import {
     activityInput,
     draftFingerprint,
     ticketPlusRecord,
-    scheduleForm,
-    scheduleFingerprint,
-    scheduleInput,
+    executionForm,
+    executionFingerprint,
+    executionInput,
 } from "./formModel.js";
-import type { TicketPlusActivityRecord, ScheduleForm } from "./formModel.js";
+import type { TicketPlusActivityRecord, ExecutionForm } from "./formModel.js";
 import { ticketPlusSessionSelection } from "../../../../config/ticketPlusActivity.js";
 import { PurchaseSummary } from "./PurchaseSummary.js";
-import { ScheduleEditor } from "./ScheduleEditor.js";
+import { ExecutionEditor } from "./ExecutionEditor.js";
 import { findPendingStart, hasPendingStart, startPurchase } from "./startPurchase.js";
 
 interface Props {
@@ -48,8 +48,9 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
     const [record, setRecord] = useState<TicketPlusActivityRecord | null>(null);
     const [form, setForm] = useState(activityForm);
     const [baseline, setBaseline] = useState(() => draftFingerprint(form));
-    const [schedule, setSchedule] = useState(scheduleForm);
-    const [scheduleBaseline, setScheduleBaseline] = useState(() => scheduleFingerprint(schedule));
+    const [execution, setExecution] = useState(executionForm);
+    const [executionBaseline, setExecutionBaseline] = useState(() => executionFingerprint(execution));
+    const [confirmed, setConfirmed] = useState(false);
     const [editing, setEditing] = useState(false);
     const [step, setStep] = useState<Step>("activity");
     const [startedRunId, setStartedRunId] = useState<string | null>(null);
@@ -102,12 +103,16 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
     const locked = busy || runs.closing;
     const blocked = locked || !initialized || !runs.ready || occupied;
     const activityDirty = editing && draftFingerprint(form) !== baseline;
-    const scheduleDirty = editing && scheduleFingerprint(schedule) !== scheduleBaseline;
-    const dirty = activityDirty || scheduleDirty;
-    let startReason = !record ? "請先儲存活動設定。" : dirty ? "有尚未儲存的修改，請先儲存再開始。" : "";
+    const executionDirty = editing && executionFingerprint(execution) !== executionBaseline;
+    const dirty = activityDirty || executionDirty;
+    let startReason = !record
+        ? "請先儲存活動設定。"
+        : activityDirty
+          ? "活動與順位有尚未儲存的修改，請先儲存再開始。"
+          : "";
     if (record && !startReason) {
         try {
-            ticketPlusSessionSelection(record.settings);
+            ticketPlusSessionSelection(executionInput(execution, record.settings));
         } catch (error) {
             startReason = (error as Error).message;
         }
@@ -161,9 +166,10 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
         setRecord(next);
         setForm(nextForm);
         setBaseline(draftFingerprint(nextForm));
-        const nextSchedule = scheduleForm(next?.settings);
-        setSchedule(nextSchedule);
-        setScheduleBaseline(scheduleFingerprint(nextSchedule));
+        const nextExecution = executionForm(next?.settings);
+        setExecution(nextExecution);
+        setExecutionBaseline(executionFingerprint(nextExecution));
+        setConfirmed(false);
         setEditing(true);
         setStep("activity");
         setStartedRunId(null);
@@ -187,23 +193,23 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
         );
         const next = ticketPlusRecord(response, record?.id);
         if (!active.current) return;
-        await acceptSaved(next, scheduleDirty ? schedule : undefined);
+        await acceptSaved(next, executionDirty ? execution : undefined);
     }
 
-    async function saveSchedule() {
-        // 開始設定只修改已保存的活動；不代存或丟棄第一步的草稿。
-        if (blocked || hasPendingStart() || activityDirty || !record) return;
-        const settings = scheduleInput(schedule, record.settings);
-        const response = await api<unknown>("/api/activities/" + record.id, "PUT", settings, record.updatedAt);
-        const next = ticketPlusRecord(response, record.id);
+    function acceptExecutionSaved(next: TicketPlusActivityRecord) {
+        // 立即接受新版本；啟動不依賴活動列表刷新成功。
         if (!active.current) return;
-        await acceptSaved(next);
+        setRecord(next);
+        const nextExecution = executionForm(next.settings);
+        setExecution(nextExecution);
+        setExecutionBaseline(executionFingerprint(nextExecution));
+        setActivities(previous => previous.map(item => (item.id === next.id ? { ...item, ...next } : item)));
     }
 
-    async function acceptSaved(next: TicketPlusActivityRecord, retainedSchedule?: ScheduleForm) {
+    async function acceptSaved(next: TicketPlusActivityRecord, retainedExecution?: ExecutionForm) {
         // 保存成功先接受 ID 與新版本；後續列表失敗不能造成第二次新增。
         openRecord(next);
-        if (retainedSchedule) setSchedule(retainedSchedule);
+        if (retainedExecution) setExecution(retainedExecution);
         setActivities(previous => [
             { ...next, executionStatus: "待重新載入" },
             ...previous.filter(item => item.id !== next.id),
@@ -239,9 +245,10 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
     }
 
     async function start() {
-        if (blocked || startReason || !record) return;
+        if (blocked || startReason || !record || !confirmed) return;
         const previousId = runs.purchase?.id;
-        const result = await startPurchase(record);
+        const candidate = executionInput(execution, record.settings);
+        const result = await startPurchase(record, candidate, acceptExecutionSaved);
         if (!active.current) return;
         runs.showAccepted(result, previousId);
         setStartedRunId(result.id);
@@ -296,7 +303,10 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                             form={form}
                             saved={record?.settings}
                             disabled={blocked || pendingStart}
-                            onChange={setForm}
+                            onChange={next => {
+                                setForm(next);
+                                setConfirmed(false);
+                            }}
                             onSave={() => void action(save)}
                         />
                     )}
@@ -306,14 +316,17 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                             reason={startReason}
                             disabled={blocked}
                             onStart={() => void action(start)}
+                            confirmed={confirmed}
+                            onConfirm={setConfirmed}
                         >
-                            <ScheduleEditor
-                                form={schedule}
+                            <ExecutionEditor
+                                form={execution}
                                 disabled={blocked || pendingStart}
-                                saveDisabled={!record || activityDirty || !scheduleDirty}
                                 activityDirty={activityDirty}
-                                onChange={setSchedule}
-                                onSave={() => void action(saveSchedule)}
+                                onChange={next => {
+                                    setExecution(next);
+                                    setConfirmed(false);
+                                }}
                             />
                         </PurchaseSummary>
                     )}

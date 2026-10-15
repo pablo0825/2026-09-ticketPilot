@@ -7,9 +7,11 @@ interface Props {
     disabled: boolean;
     onStart: () => void;
     children?: ReactNode;
+    confirmed: boolean;
+    onConfirm: (confirmed: boolean) => void;
 }
 
-export function PurchaseSummary({ settings, reason, disabled, onStart, children }: Props) {
+export function PurchaseSummary({ settings, reason, disabled, onStart, children, confirmed, onConfirm }: Props) {
     return (
         <section className="card" aria-label="本次活動摘要">
             <h2>本次活動摘要</h2>
@@ -51,25 +53,20 @@ export function PurchaseSummary({ settings, reason, disabled, onStart, children 
                             </tbody>
                         </table>
                     </div>
-                    <p>
-                        最長執行時間：
-                        {settings.maxRunMinutes === undefined ? "未設定全程期限" : `${settings.maxRunMinutes} 分鐘`}
-                        （開始選場次前計時，人工登入與開賣等待不計入）
-                    </p>
-                    {settings.saleSchedule && (
-                        <p>
-                            開賣時間：{settings.saleSchedule.saleAt}；
-                            {settings.saleSchedule.advanceSeconds === undefined
-                                ? "僅等待，不刷新；已過時間則立即繼續。"
-                                : `提前刷新 ${settings.saleSchedule.advanceSeconds} 秒（尚未支援執行）。`}
-                        </p>
-                    )}
                 </div>
             )}
             {children}
-            <p>流程終點：填寫資料頁。後續資料、條款與付款由你手動處理。</p>
+            <label className="check">
+                <input
+                    type="checkbox"
+                    disabled={disabled}
+                    checked={confirmed}
+                    onChange={event => onConfirm(event.target.checked)}
+                />
+                我已確認活動、順位與張數，並了解程式會停在填寫資料頁，後續由我手動處理。
+            </label>
             {reason && <p role="status">{reason}</p>}
-            <button type="button" disabled={disabled || Boolean(reason)} onClick={onStart}>
+            <button type="button" disabled={disabled || Boolean(reason) || !confirmed} onClick={onStart}>
                 開始購票
             </button>
         </section>

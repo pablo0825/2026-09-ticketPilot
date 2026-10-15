@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFile } from "node:fs/promises";
 import { chromium, type Page } from "playwright";
 import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
 import { eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
@@ -49,13 +50,26 @@ async function setTime(page: Page, time: string) {
     await page.getByLabel(timeLabel, { exact: true }).fill(time.endsWith(":00") ? time.slice(0, -3) : time);
 }
 
-async function save(page: Page) {
-    const response = page.waitForResponse(
-        response => response.request().method() === "PUT" && response.url().includes("/api/activities/"),
+async function start(page: Page) {
+    await page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ }).check();
+    await page.getByRole("button", { name: "開始購票", exact: true }).click();
+}
+
+async function rejectStart(page: Page) {
+    await page.route("**/api/purchase", route =>
+        route.request().method() === "POST"
+            ? route.fulfill({ status: 400, json: { error: "測試明確拒絕啟動", notAccepted: true } })
+            : route.continue(),
     );
-    await page.getByRole("button", { name: "儲存開始設定", exact: true }).click();
-    assert.equal((await response).status(), 200);
-    await eventually(async () => assert(await page.getByRole("button", { name: "開始購票", exact: true }).isEnabled()));
+}
+
+async function rejectedSave(page: Page) {
+    const response = page.waitForResponse(
+        response => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/purchase",
+    );
+    await start(page);
+    assert.equal((await response).status(), 400);
+    await eventually(async () => assert.match(await page.locator("#message").innerText(), /測試明確拒絕啟動/));
 }
 
 function starts(requests: RequestLog) {
@@ -71,10 +85,10 @@ test("TicketPlus 排程 GUI：非台灣時區保存到秒，真 worker 到時間
         const time = taiwanTime(Date.now() + 12_000);
         await setTime(page, time);
         assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
-        await save(page);
+        await start(page);
+        await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
         const saved = await (await h.request("/api/activities/" + record.id)).json();
         assert.deepEqual(saved.settings.saleSchedule, { saleAt: time + "+08:00" });
-        await page.getByRole("button", { name: "開始購票", exact: true }).click();
         await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
         await eventually(async () => assert.match(await page.locator("#status").innerText(), /等待開賣/));
         assert.equal((await h.counts()).counts.session, 0);
@@ -91,8 +105,7 @@ test("TicketPlus 排程 GUI：非台灣時區保存到秒，真 worker 到時間
 test("TicketPlus 排程 GUI：等待中停止，倒數及切步驟不重啟，執行占用禁止改時間", { timeout: 25_000 }, async () => {
     await fixture(async (h, page, _record, requests) => {
         await setTime(page, taiwanTime(Date.now() + 60_000));
-        await save(page);
-        await page.getByRole("button", { name: "開始購票", exact: true }).click();
+        await start(page);
         await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
         await eventually(async () => assert.match(await page.locator("#status").innerText(), /等待開賣/));
         await review(page);
@@ -108,45 +121,53 @@ test("TicketPlus 排程 GUI：等待中停止，倒數及切步驟不重啟，�
     });
 });
 
-test("TicketPlus 排程 GUI：活動草稿與時間草稿各自保存，不互相覆蓋，立即開始移除排程", async () => {
-    await fixture(async (h, page, record, requests) => {
-        await setTime(page, "2026-12-01T12:34:56");
-        const dialog = page.waitForEvent("dialog");
-        const leave = page.locator("#homeButton").click();
-        await (await dialog).dismiss();
-        await leave;
-        assert.equal(await page.getByLabel(timeLabel, { exact: true }).inputValue(), "2026-12-01T12:34:56");
-        await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
-        await page.getByLabel("張數", { exact: true }).fill("1");
-        await review(page);
-        assert(await page.getByRole("button", { name: "儲存開始設定", exact: true }).isDisabled());
-        assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
-        await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
-        assert.equal(await page.getByLabel("張數", { exact: true }).inputValue(), "1");
-        await page.getByRole("button", { name: "儲存活動", exact: true }).click();
-        await page.getByLabel(timeLabel, { exact: true }).waitFor();
-        assert.equal(await page.getByLabel(timeLabel, { exact: true }).inputValue(), "2026-12-01T12:34:56");
-        let saved = await (await h.request("/api/activities/" + record.id)).json();
-        assert.equal(saved.settings.targets[0].quantity, 1);
-        assert.equal(saved.settings.saleSchedule, undefined, "儲存活動不可偷偷儲存時間草稿");
-        await save(page);
-        saved = await (await h.request("/api/activities/" + record.id)).json();
-        assert.equal(saved.settings.targets[0].quantity, 1);
-        assert.deepEqual(saved.settings.saleSchedule, { saleAt: "2026-12-01T12:34:56+08:00" });
-        await page.locator("#homeButton").click();
-        await page.getByRole("button", { name: "編輯活動", exact: true }).click();
-        await review(page);
-        assert.equal(await page.getByLabel(timeLabel, { exact: true }).inputValue(), "2026-12-01T12:34:56");
-        await page.getByRole("combobox", { name: /執行方式/ }).selectOption({ label: "立即開始" });
-        await save(page);
-        saved = await (await h.request("/api/activities/" + record.id)).json();
-        assert.equal(saved.settings.saleSchedule, undefined);
-        assert.equal(saved.settings.targets[0].quantity, 1);
-        assert.equal(starts(requests).length, 0);
-    });
+test("TicketPlus 執行設定：活動與執行草稿隔離，活動保存保留原期限，修改需重新確認", async () => {
+    await fixture(
+        async (h, page, record, requests) => {
+            await setTime(page, "2026-12-01T12:34:56");
+            await page.getByLabel("最長執行時間（分鐘，選填）").fill("15");
+            const dialog = page.waitForEvent("dialog");
+            const leave = page.locator("#homeButton").click();
+            await (await dialog).dismiss();
+            await leave;
+            assert.equal(await page.getByLabel(timeLabel, { exact: true }).inputValue(), "2026-12-01T12:34:56");
+            assert.equal(await page.getByLabel("最長執行時間（分鐘，選填）").inputValue(), "15");
+            const checkbox = page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ });
+            await checkbox.check();
+            await page.getByLabel("最長執行時間（分鐘，選填）").fill("20");
+            assert.equal(await checkbox.isChecked(), false);
+            await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+            assert.equal(await page.getByLabel("最長執行時間（分鐘，選填）").count(), 0);
+            await page.getByLabel("張數", { exact: true }).fill("1");
+            await review(page);
+            await checkbox.check();
+            assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
+            await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+            await page.getByRole("button", { name: "儲存活動", exact: true }).click();
+            await page.getByLabel(timeLabel, { exact: true }).waitFor();
+            assert.equal(await page.getByLabel(timeLabel, { exact: true }).inputValue(), "2026-12-01T12:34:56");
+            assert.equal(await page.getByLabel("最長執行時間（分鐘，選填）").inputValue(), "20");
+            let saved = await (await h.request("/api/activities/" + record.id)).json();
+            assert.equal(saved.settings.targets[0].quantity, 1);
+            assert.equal(saved.settings.maxRunMinutes, 10);
+            assert.equal(saved.settings.saleSchedule, undefined);
+            await rejectStart(page);
+            await rejectedSave(page);
+            saved = await (await h.request("/api/activities/" + record.id)).json();
+            assert.equal(saved.settings.maxRunMinutes, 20);
+            assert.deepEqual(saved.settings.saleSchedule, { saleAt: "2026-12-01T12:34:56+08:00" });
+            assert.deepEqual(starts(requests)[0]!.body.expectedActivity, saved.settings);
+            await page.locator("#homeButton").click();
+            await page.getByRole("button", { name: "編輯活動", exact: true }).click();
+            await review(page);
+            assert.equal(await page.getByLabel(timeLabel, { exact: true }).inputValue(), "2026-12-01T12:34:56");
+            assert.equal(await page.getByLabel("最長執行時間（分鐘，選填）").inputValue(), "20");
+        },
+        { ...apiActivity, maxRunMinutes: 10 },
+    );
 });
 
-test("TicketPlus 排程 GUI：版本衝突保留時間草稿，不覆蓋別頁設定也不啟動", async () => {
+test("TicketPlus 執行設定：真版本衝突保留草稿，不覆蓋別頁也不啟動", async () => {
     await fixture(async (h, page, record, requests) => {
         await setTime(page, "2026-12-01T12:34:56");
         const changed = await fetch(h.url + "/api/activities/" + record.id, {
@@ -155,60 +176,73 @@ test("TicketPlus 排程 GUI：版本衝突保留時間草稿，不覆蓋別頁�
             body: JSON.stringify({ ...apiActivity, targets: [{ ...apiActivity.targets[0], quantity: 3 }] }),
         });
         assert.equal(changed.status, 200);
-        const response = page.waitForResponse(response => response.request().method() === "PUT");
-        await page.getByRole("button", { name: "儲存開始設定", exact: true }).click();
-        const rejected = await response;
-        assert.equal(rejected.status(), 400);
-        assert.match(await rejected.text(), /其他分頁修改/);
+        await start(page);
+        await eventually(async () => assert.match(await page.locator("#message").innerText(), /其他分頁修改/));
         assert.equal(await page.getByLabel(timeLabel, { exact: true }).inputValue(), "2026-12-01T12:34:56");
-        assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
         const saved = await (await h.request("/api/activities/" + record.id)).json();
         assert.equal(saved.settings.targets[0].quantity, 3);
         assert.equal(saved.settings.saleSchedule, undefined);
         assert.equal(starts(requests).length, 0);
+        assert.equal(await h.snapshot(), null);
     });
 });
 
-test("TicketPlus 排程 GUI：舊提前刷新設定普通保存仍保留，明確改為僅等待才移除", async () => {
-    const schedule = { saleAt: "2026-12-01T12:34:56+08:00", advanceSeconds: 2 };
+test("TicketPlus 執行設定：明確清除舊提前刷新與期限，使用修改後候選啟動", async () => {
     await fixture(
         async (h, page, record, requests) => {
+            const checkbox = page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ });
+            await checkbox.check();
             assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
-            await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
-            await page.getByLabel("張數", { exact: true }).fill("1");
-            await page.getByRole("button", { name: "儲存活動", exact: true }).click();
-            await page.getByRole("button", { name: "改為僅等待開賣", exact: true }).waitFor();
-            let saved = await (await h.request("/api/activities/" + record.id)).json();
-            assert.deepEqual(saved.settings.saleSchedule, schedule);
             await page.getByRole("button", { name: "改為僅等待開賣", exact: true }).click();
-            assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
-            await save(page);
-            saved = await (await h.request("/api/activities/" + record.id)).json();
-            assert.deepEqual(saved.settings.saleSchedule, { saleAt: schedule.saleAt });
-            assert.equal(saved.settings.targets[0].quantity, 1);
-            assert.equal(starts(requests).length, 0);
+            await page.getByLabel("最長執行時間（分鐘，選填）").fill("");
+            await start(page);
+            await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
+            const saved = await (await h.request("/api/activities/" + record.id)).json();
+            assert.deepEqual(saved.settings.saleSchedule, { saleAt: "2026-12-01T12:34:56+08:00" });
+            assert.equal(saved.settings.maxRunMinutes, undefined);
+            assert.deepEqual(starts(requests)[0]!.body.expectedActivity, saved.settings);
         },
-        { ...apiActivity, saleSchedule: schedule },
+        { ...apiActivity, maxRunMinutes: 10, saleSchedule: { saleAt: "2026-12-01T12:34:56+08:00", advanceSeconds: 2 } },
     );
 });
 
-test("TicketPlus 排程 GUI：啟動結果不明的 pending 保留設定，不允許修改排程", async () => {
+test("TicketPlus 執行設定：真保存後回應遺失，不啟動且保留輸入", async () => {
+    await fixture(async (h, page, record, requests) => {
+        await page.route("**/api/activities/" + record.id, async route => {
+            if (route.request().method() !== "PUT") return route.continue();
+            const response = await route.fetch();
+            assert.equal(response.status(), 200);
+            await route.abort("failed");
+        });
+        await setTime(page, "2026-12-01T12:34:56");
+        await start(page);
+        await eventually(async () => assert.match(await page.locator("#message").innerText(), /失敗|連線|fetch/i));
+        const saved = await (await h.request("/api/activities/" + record.id)).json();
+        assert.deepEqual(saved.settings.saleSchedule, { saleAt: "2026-12-01T12:34:56+08:00" });
+        assert.equal(await page.getByLabel(timeLabel, { exact: true }).inputValue(), "2026-12-01T12:34:56");
+        assert.equal(starts(requests).length, 0);
+        assert.equal(await h.snapshot(), null);
+    });
+});
+
+test("TicketPlus 執行設定：啟動結果不明保留設定，重試不再次保存", async () => {
     await fixture(async (h, page, record, requests) => {
         await setTime(page, "2026-12-01T12:34:56");
-        await save(page);
         await page.route("**/api/purchase", route =>
             route.request().method() === "POST" ? route.abort("failed") : route.continue(),
         );
-        await page.getByRole("button", { name: "開始購票", exact: true }).click();
-        await eventually(async () =>
-            assert(await page.evaluate(() => sessionStorage.getItem("ticketpilot-ticketplus-purchase-request"))),
-        );
+        await start(page);
         await eventually(async () => assert.match(await page.locator("#message").innerText(), /失敗|確認|連線|fetch/i));
         assert(await page.getByRole("combobox", { name: /執行方式/ }).isDisabled());
         assert(await page.getByLabel(timeLabel, { exact: true }).isDisabled());
+        assert(await page.getByLabel("最長執行時間（分鐘，選填）").isDisabled());
+        const first = starts(requests)[0]!.body.requestId;
+        await page.getByRole("button", { name: "開始購票", exact: true }).click();
+        await eventually(async () => assert.equal(starts(requests).length, 2));
+        assert.equal(starts(requests)[1]!.body.requestId, first);
+        assert.equal(requests.filter(request => request.method === "PUT").length, 1);
         const saved = await (await h.request("/api/activities/" + record.id)).json();
         assert.deepEqual(saved.settings.saleSchedule, { saleAt: "2026-12-01T12:34:56+08:00" });
-        assert.equal(starts(requests).length, 1);
         assert.equal(await h.snapshot(), null);
     });
 });
@@ -243,12 +277,14 @@ test("TicketPlus 排程 GUI：倒數跨過零只更新文字，不自行啟動�
     });
 });
 
-test("TicketPlus 排程 GUI：空白時間保留草稿，不保存也不啟動", async () => {
+test("TicketPlus 執行設定：空白時間與非法期限不保存不啟動", async () => {
     await fixture(async (h, page, record, requests) => {
         await setTime(page, "");
-        await page.getByRole("button", { name: "儲存開始設定", exact: true }).click();
-        await eventually(async () => assert.match(await page.locator("#message").innerText(), /時間|日期/));
-        assert.equal(await page.getByLabel(timeLabel, { exact: true }).inputValue(), "");
+        await page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ }).check();
+        assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
+        await setTime(page, "2026-12-01T12:34:56");
+        await page.getByLabel("最長執行時間（分鐘，選填）").fill("-1");
+        await page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ }).check();
         assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
         assert.equal(requests.filter(request => request.method === "PUT").length, 0);
         assert.equal(starts(requests).length, 0);
@@ -257,23 +293,61 @@ test("TicketPlus 排程 GUI：空白時間保留草稿，不保存也不啟動",
     });
 });
 
-test("TicketPlus 排程 GUI：保存成功後列表失敗仍接受新版本，下一次保存更新同一筆", async () => {
+test("TicketPlus 執行設定：保存後啟動被拒仍接受新版本，再改立即開始可保存", async () => {
     await fixture(async (h, page, record, requests) => {
-        await page.route("**/api/activities", route =>
-            route.request().method() === "GET"
-                ? route.fulfill({ status: 500, json: { error: "列表暫時無法讀取" } })
-                : route.continue(),
-        );
+        await rejectStart(page);
         await setTime(page, "2026-12-01T12:34:56");
-        await save(page);
-        await eventually(async () => assert.match(await page.locator("#message").innerText(), /已儲存.*列表.*失敗/));
-        await page.getByLabel(timeLabel, { exact: true }).fill("2026-12-02T12:34:57");
-        await save(page);
+        await page.getByLabel("最長執行時間（分鐘，選填）").fill("15");
+        await rejectedSave(page);
+        await page.getByRole("combobox", { name: /執行方式/ }).selectOption({ label: "立即開始" });
+        assert.equal(await page.getByLabel("最長執行時間（分鐘，選填）").inputValue(), "15");
+        await rejectedSave(page);
         const saved = await (await h.request("/api/activities/" + record.id)).json();
-        assert.deepEqual(saved.settings.saleSchedule, { saleAt: "2026-12-02T12:34:57+08:00" });
-        const list = await (await h.request("/api/activities")).json();
-        assert.equal(list.activities.length, 1);
+        assert.equal(saved.settings.saleSchedule, undefined);
+        assert.equal(saved.settings.maxRunMinutes, 15);
         assert.equal(requests.filter(request => request.method === "PUT").length, 2);
-        assert.equal(starts(requests).length, 0);
+        assert.equal(starts(requests).length, 2);
+        assert.deepEqual(starts(requests)[1]!.body.expectedActivity, saved.settings);
+        assert.equal(await h.snapshot(), null);
+    });
+});
+
+test("TicketPlus 執行設定：保存回應延遲時連點只保存一次並啟動一個真 worker", async () => {
+    await fixture(async (h, page, record, requests) => {
+        let release!: () => void;
+        let entered!: () => void;
+        const gate = new Promise<void>(resolve => {
+            release = resolve;
+        });
+        const reached = new Promise<void>(resolve => {
+            entered = resolve;
+        });
+        await page.route("**/api/activities/" + record.id, async route => {
+            if (route.request().method() !== "PUT") return route.continue();
+            const response = await route.fetch();
+            assert.equal(response.status(), 200);
+            entered();
+            await gate;
+            await route.fulfill({ response });
+        });
+        try {
+            await page.getByLabel("最長執行時間（分鐘，選填）").fill("15");
+            await page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ }).check();
+            await page.getByRole("button", { name: "開始購票", exact: true }).evaluate(button => {
+                (button as HTMLButtonElement).click();
+                (button as HTMLButtonElement).click();
+            });
+            await reached;
+            assert(await page.getByLabel("最長執行時間（分鐘，選填）").isDisabled());
+            assert.equal(starts(requests).length, 0);
+            release();
+            await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
+            assert.equal(requests.filter(request => request.method === "PUT").length, 1);
+            assert.equal(starts(requests).length, 1);
+            assert.equal(starts(requests)[0]!.body.expectedActivity.maxRunMinutes, 15);
+            assert.equal(await readFile(h.report + ".starts", "utf8"), "started\n");
+        } finally {
+            release();
+        }
     });
 });

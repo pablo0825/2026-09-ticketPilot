@@ -1,8 +1,10 @@
 import type { PurchaseSnapshot } from "../../../purchaseRuns.js";
-import { ticketPlusSessionSelection } from "../../../../config/ticketPlusActivity.js";
+import { parseTicketPlusActivity, ticketPlusSessionSelection } from "../../../../config/ticketPlusActivity.js";
+import type { TicketPlusActivitySettings } from "../../../../config/ticketPlusActivity.js";
 import { api } from "../../shared/api.js";
 import type { ApiError } from "../../shared/api.js";
 import type { TicketPlusActivityRecord } from "./formModel.js";
+import { ticketPlusRecord } from "./formModel.js";
 
 const pendingKey = "ticketpilot-ticketplus-purchase-request";
 interface PendingRequest {
@@ -60,10 +62,15 @@ export async function findPendingStart(): Promise<PurchaseSnapshot> {
     return current;
 }
 
-export async function startPurchase(record: TicketPlusActivityRecord): Promise<PurchaseSnapshot> {
-    // 摘要與請求使用已保存的同一份設定，不在啟動時偷偷儲存草稿。
-    ticketPlusSessionSelection(record.settings);
-    const signature = JSON.stringify(record.settings);
+export async function startPurchase(
+    record: TicketPlusActivityRecord,
+    candidate: TicketPlusActivitySettings,
+    onSaved: (record: TicketPlusActivityRecord) => void,
+): Promise<PurchaseSnapshot> {
+    // 核對本次設定；上一筆結果未明時，不得先覆寫活動或建立新請求。
+    const settings = parseTicketPlusActivity(candidate);
+    ticketPlusSessionSelection(settings);
+    const signature = JSON.stringify(settings);
     let pending = readPending();
     if (pending && (pending.activityId !== record.id || pending.signature !== signature)) {
         throw new Error("上一筆 TicketPlus 啟動結果尚待確認，不能更換活動或設定；請先查看待確認的啟動結果。");
@@ -78,6 +85,20 @@ export async function startPurchase(record: TicketPlusActivityRecord): Promise<P
         }
         if (current?.occupied) throw new Error("目前仍有購票占用，原啟動結果尚待確認；不會另開購票流程。");
     } else {
+        // 先保存執行設定並接受新版本，再送出購票請求。
+        if (JSON.stringify(record.settings) !== signature) {
+            let response: unknown;
+            try {
+                response = await api<unknown>("/api/activities/" + record.id, "PUT", settings, record.updatedAt);
+            } catch (error) {
+                throw new Error(`未能確認執行設定已保存：${(error as Error).message}。尚未啟動購票，請重新核對設定。`);
+            }
+            const saved = ticketPlusRecord(response, record.id);
+            if (JSON.stringify(saved.settings) !== signature) {
+                throw new Error("保存回應與本次設定不符，請重新核對；尚未啟動購票。");
+            }
+            onSaved(saved);
+        }
         pending = { version: 1, requestId: crypto.randomUUID(), activityId: record.id, signature };
         sessionStorage.setItem(pendingKey, JSON.stringify(pending));
     }
@@ -87,7 +108,7 @@ export async function startPurchase(record: TicketPlusActivityRecord): Promise<P
         const result = await api<PurchaseSnapshot>("/api/purchase", "POST", {
             requestId: pending.requestId,
             activityId: pending.activityId,
-            expectedActivity: record.settings,
+            expectedActivity: settings,
         });
         if (!acceptedRun(result, pending)) throw new Error("無法核對啟動回應，請查看待確認的啟動結果。");
         sessionStorage.removeItem(pendingKey);

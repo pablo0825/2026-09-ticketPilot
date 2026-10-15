@@ -109,7 +109,7 @@ test("TicketPlus GUI：真表單重排複製保存與重載，兩平台同名活
         await third.getByRole("button", { name: "上移" }).click();
         await page.getByRole("group", { name: "順位 1", exact: true }).getByRole("button", { name: "移除" }).click();
         await page.getByRole("group", { name: "順位 1", exact: true }).getByRole("button", { name: "下移" }).click();
-        await page.getByLabel("最長執行時間（分鐘，選填）").fill("15");
+        assert.equal(await page.getByLabel("最長執行時間（分鐘，選填）").count(), 0);
         await page.getByRole("button", { name: "儲存活動" }).click();
         await page.getByRole("alert").filter({ hasText: "活動已儲存" }).waitFor();
         const saved = (await h.store.list()).activities.find(record => record.settings.eventName === "新活動")!;
@@ -121,7 +121,6 @@ test("TicketPlus GUI：真表單重排複製保存與重載，兩平台同名活
                 { date: "2026-11-23", time: "19:00", ticketType: "B區", quantity: 2 },
                 { date: "2026-11-23", time: "19:00", ticketType: "C區", quantity: 3 },
             ],
-            maxRunMinutes: 15,
         });
         await page
             .getByRole("button", { name: "② 確認與開始", exact: true })
@@ -149,12 +148,12 @@ test("TicketPlus GUI：真表單重排複製保存與重載，兩平台同名活
     });
 });
 
-test("TicketPlus GUI：唯讀排程保留、期限清空省略，跨場次保存但提示限制", async () => {
+test("TicketPlus GUI：活動保存保留原排程與期限，跨場次保存但提示限制", async () => {
     await fixture(async h => {
         const { page } = h;
         await page.getByRole("button", { name: "編輯活動" }).click();
         await page.getByRole("note").filter({ hasText: settings.saleSchedule.saleAt }).waitFor();
-        await page.locator("#maxRunMinutes").fill("");
+        assert.equal(await page.locator("#maxRunMinutes").count(), 0);
         await page.getByRole("button", { name: "複製" }).click();
         await page.getByRole("group", { name: "順位 2", exact: true }).getByLabel("演出日期").fill("2026-11-23");
         await page.getByRole("status").filter({ hasText: "此設定含不同場次" }).waitFor();
@@ -162,7 +161,7 @@ test("TicketPlus GUI：唯讀排程保留、期限清空省略，跨場次保存
         await page.getByRole("alert").filter({ hasText: "活動已儲存" }).waitFor();
         const saved = (await disk(h, h.id)).settings;
         assert.deepEqual(saved.saleSchedule, { saleAt: "2026-11-01T12:00:00+08:00", advanceSeconds: 2 });
-        assert(!("maxRunMinutes" in saved));
+        assert.equal(saved.maxRunMinutes, 10);
         assert.deepEqual(
             saved.targets.map((target: any) => target.date),
             ["2026-11-22", "2026-11-23"],

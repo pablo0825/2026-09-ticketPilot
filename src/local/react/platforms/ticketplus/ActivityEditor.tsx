@@ -179,20 +179,6 @@ export function ActivityEditor({ form, saved, disabled, onChange, onSave }: Prop
                     </div>
                 ))}
             </div>
-            <label>
-                最長執行時間（分鐘，選填）
-                <input
-                    id="maxRunMinutes"
-                    type="number"
-                    min="1"
-                    max="1440"
-                    step="1"
-                    disabled={disabled}
-                    value={form.maxRunMinutes}
-                    onChange={e => change({ maxRunMinutes: e.target.value })}
-                />
-            </label>
-            <p>從開始選場次前計時，人工登入與開賣等待不計入。留空不設全程期限，各操作仍有自己的逾時限制。</p>
             {saved?.saleSchedule && (
                 <div role="note">
                     <h3>已保存的開賣設定（唯讀）</h3>
