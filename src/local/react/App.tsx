@@ -69,6 +69,7 @@ export function App() {
                 <>
                     <RunStatus
                         displayed={runs.displayed}
+                        loginHandoff={runs.loginHandoff}
                         closing={runs.closing}
                         canClose={
                             runs.displayed?.kind === "purchase" &&

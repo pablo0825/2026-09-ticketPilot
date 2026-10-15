@@ -13,8 +13,10 @@ export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, n
         if (run.platform === "ticketplus" && ticketPlusEvent?.type === "ticketplus") {
             const stage = ticketPlusEvent.stage;
             if (stage === "login-ready" || stage === "waiting-for-login") {
-                title = "等待人工登入確認";
-                instruction = "請到購票瀏覽器手動登入；確認交接後才會開始選票，不會自動偵測登入。";
+                title = run.loginConfirmation ? "等待人工登入確認" : "等待登入交接狀態";
+                instruction = run.loginConfirmation
+                    ? "請到購票瀏覽器手動登入；確認交接後才會開始選票，不會自動偵測登入。"
+                    : "目前沒有可操作的登入確認資格，請查看後續狀態；不會自動確認或重送。";
             } else if (stage === "queue") {
                 title = "排隊中";
                 instruction = "等待 TicketPlus 處理，請保留購票頁面；程式不會刷新或重送。";

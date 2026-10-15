@@ -8,9 +8,10 @@ interface Props {
     closing: boolean;
     onClose: () => void;
     onCopy: (text: string) => void;
+    loginHandoff?: { available: boolean; message: string; onConfirm: () => void };
 }
 
-export function RunStatus({ displayed, canClose, closing, onClose, onCopy }: Props) {
+export function RunStatus({ displayed, canClose, closing, onClose, onCopy, loginHandoff }: Props) {
     const [now, setNow] = useState(Date.now());
     const logElement = useRef<HTMLPreElement>(null);
     const followLog = useRef(true);
@@ -50,6 +51,15 @@ export function RunStatus({ displayed, canClose, closing, onClose, onCopy }: Pro
         <div className="card">
             <h2 id="status">{title}</h2>
             <p id="instruction">{instruction}</p>
+            {loginHandoff?.available && (
+                <div>
+                    <p>請在購票瀏覽器完成登入，並停在設定的活動頁，再確認繼續。</p>
+                    <button type="button" onClick={loginHandoff.onConfirm}>
+                        我已登入，開始選票
+                    </button>
+                </div>
+            )}
+            {loginHandoff?.message && <p role="status">{loginHandoff.message}</p>}
             <button id="closeBrowser" className="secondary" hidden={!canClose} disabled={closing} onClick={onClose}>
                 {closing ? "關閉中…" : "關閉購票瀏覽器"}
             </button>
