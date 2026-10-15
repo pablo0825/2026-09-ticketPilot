@@ -314,6 +314,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                         <PurchaseSummary
                             settings={record?.settings}
                             reason={startReason}
+                            hideReason={Boolean(record) && activityDirty}
                             disabled={blocked}
                             onStart={() => void action(start)}
                             confirmed={confirmed}
@@ -322,7 +323,6 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                             <ExecutionEditor
                                 form={execution}
                                 disabled={blocked || pendingStart}
-                                activityDirty={activityDirty}
                                 onChange={next => {
                                     setExecution(next);
                                     setConfirmed(false);

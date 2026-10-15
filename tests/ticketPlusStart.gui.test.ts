@@ -149,11 +149,17 @@ test("TicketPlus 啟動 GUI：未保存修改與新增草稿都不能啟動", as
         await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
         await page.getByLabel("票種名稱").fill("另一票種");
         await review(page);
+        await confirmStart(page);
+        const summary = await page.getByRole("region", { name: "活動摘要" }).innerText();
+        assert.doesNotMatch(summary, /活動與順位有.*修改/);
+        assert.equal(requests.filter(request => request.method === "PUT").length, 0);
         assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
         page.once("dialog", dialog => dialog.accept());
         await page.locator("#homeButton").click();
         await page.getByRole("button", { name: "新增活動", exact: true }).click();
+        await page.getByLabel("活動名稱", { exact: true }).fill("尚未儲存的新活動");
         await page.getByRole("button", { name: "② 確認與開始", exact: true }).click();
+        assert.equal(await page.getByText("請先儲存活動設定。", { exact: true }).count(), 1);
         const start = page.getByRole("button", { name: "開始購票", exact: true });
         assert((await start.count()) === 0 || (await start.isDisabled()));
         assert.equal(starts(requests).length, 0);
@@ -500,7 +506,7 @@ test("TicketPlus 開賣核心 GUI：未填提前秒數採 1 秒，可啟動且�
         await edit(page);
         await review(page);
         const summary = await page.getByRole("region", { name: "活動摘要" }).innerText();
-        assert.match(summary, /提前 1 秒刷新活動頁/);
+        assert.equal(await page.getByRole("combobox", { name: "提前刷新", exact: true }).inputValue(), "1");
         assert.doesNotMatch(summary, /undefined|人工登入確認後開始計時/);
         assert.equal(await page.getByLabel("最長執行時間（分鐘，選填）").inputValue(), "10");
         await confirmStart(page);

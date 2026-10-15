@@ -389,7 +389,7 @@ test("TicketPlus 執行設定：已保存提前 2 秒可啟動且原設定不被
         saleSchedule: { saleAt: "2026-12-01T12:34:56+08:00", advanceSeconds: 2 },
     };
     await fixture(async (h, page, record, requests) => {
-        assert.match(await page.getByRole("region", { name: "活動摘要" }).innerText(), /提前 2 秒刷新活動頁/);
+        assert.equal(await page.getByRole("combobox", { name: advanceLabel }).inputValue(), "2");
         await start(page);
         await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
         const saved = await (await h.request("/api/activities/" + record.id)).json();
@@ -440,5 +440,32 @@ test("TicketPlus 提前刷新 GUI：修改取消確認、切步驟保留草稿�
         await rejectedSave(page);
         assert.equal(starts(requests)[1]!.body.expectedActivity.saleSchedule, undefined);
         assert.equal((await (await h.request("/api/activities/" + record.id)).json()).settings.saleSchedule, undefined);
+    });
+});
+
+test("TicketPlus 開賣欄位：寬畫面並排、窄畫面堆疊，移除策略說明", async () => {
+    await fixture(async (_h, page) => {
+        await page.getByRole("combobox", { name: /執行方式/ }).selectOption("scheduled");
+        const time = page.getByLabel(timeLabel, { exact: true });
+        const advance = page.getByRole("combobox", { name: advanceLabel });
+        await page.setViewportSize({ width: 1280, height: 900 });
+        const wideTime = await time.boundingBox();
+        const wideAdvance = await advance.boundingBox();
+        assert(wideTime && wideAdvance);
+        assert(Math.abs(wideTime.y - wideAdvance.y) < 2);
+        assert(wideTime.x + wideTime.width < wideAdvance.x);
+        assert(wideTime.width > wideAdvance.width * 1.5);
+
+        await page.setViewportSize({ width: 390, height: 844 });
+        const narrowTime = await time.boundingBox();
+        const narrowAdvance = await advance.boundingBox();
+        assert(narrowTime && narrowAdvance);
+        assert(narrowAdvance.y > narrowTime.y + narrowTime.height);
+        assert(Math.abs(narrowTime.x - narrowAdvance.x) < 2);
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+        assert.doesNotMatch(
+            await page.getByRole("region", { name: "活動摘要" }).innerText(),
+            /秒刷新活動頁|間隔至少 3 秒/,
+        );
     });
 });

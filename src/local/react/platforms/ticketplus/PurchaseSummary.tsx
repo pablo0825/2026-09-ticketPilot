@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 interface Props {
     settings?: TicketPlusActivitySettings;
     reason: string;
+    hideReason: boolean;
     disabled: boolean;
     onStart: () => void;
     children?: ReactNode;
@@ -11,7 +12,16 @@ interface Props {
     onConfirm: (confirmed: boolean) => void;
 }
 
-export function PurchaseSummary({ settings, reason, disabled, onStart, children, confirmed, onConfirm }: Props) {
+export function PurchaseSummary({
+    settings,
+    reason,
+    hideReason,
+    disabled,
+    onStart,
+    children,
+    confirmed,
+    onConfirm,
+}: Props) {
     return (
         <section className="card" aria-label="活動摘要">
             <h2>活動摘要</h2>
@@ -64,7 +74,7 @@ export function PurchaseSummary({ settings, reason, disabled, onStart, children,
                 />
                 我已確認活動、順位與張數，並了解程式會停在填寫資料頁，後續由我手動處理。
             </label>
-            {reason && <p role="status">{reason}</p>}
+            {reason && !hideReason && <p role="status">{reason}</p>}
             <button type="button" disabled={disabled || Boolean(reason) || !confirmed} onClick={onStart}>
                 開始購票
             </button>

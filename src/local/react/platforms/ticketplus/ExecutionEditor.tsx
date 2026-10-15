@@ -3,11 +3,10 @@ import type { ExecutionForm } from "./formModel.js";
 interface Props {
     form: ExecutionForm;
     disabled: boolean;
-    activityDirty: boolean;
     onChange: (form: ExecutionForm) => void;
 }
 
-export function ExecutionEditor({ form, disabled, activityDirty, onChange }: Props) {
+export function ExecutionEditor({ form, disabled, onChange }: Props) {
     return (
         <div>
             <h2>執行設定</h2>
@@ -29,7 +28,7 @@ export function ExecutionEditor({ form, disabled, activityDirty, onChange }: Pro
                 </select>
             </label>
             {form.mode === "scheduled" && (
-                <>
+                <div className="ticketplus-sale-fields">
                     <label>
                         開賣時間（台灣 UTC+8）
                         <input
@@ -56,11 +55,7 @@ export function ExecutionEditor({ form, disabled, activityDirty, onChange }: Pro
                             <option value="2">2 秒</option>
                         </select>
                     </label>
-                    <p>
-                        提前 {form.advanceSeconds ?? 1} 秒刷新活動頁；開賣後目標場次仍尚未開賣時，間隔至少 3
-                        秒再次刷新，最多等待至開賣後 2 分鐘。
-                    </p>
-                </>
+                </div>
             )}
             <label>
                 最長執行時間（分鐘，選填）
@@ -75,7 +70,6 @@ export function ExecutionEditor({ form, disabled, activityDirty, onChange }: Pro
                     onChange={event => onChange({ ...form, maxRunMinutes: event.target.value })}
                 />
             </label>
-            {activityDirty && <p role="status">活動與順位有未儲存修改，請先到第一步儲存。</p>}
         </div>
     );
 }

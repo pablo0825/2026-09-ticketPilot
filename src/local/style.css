@@ -129,6 +129,11 @@ footer {
     grid-template-columns: 1.2fr 1fr 1.2fr 0.7fr;
     gap: 10px;
 }
+.ticketplus-sale-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    column-gap: 16px;
+}
 .ticketplus-target-title {
     margin-top: 0;
 }
@@ -182,6 +187,9 @@ div[hidden] {
     display: none;
 }
 @media (max-width: 760px) {
+    .ticketplus-sale-fields {
+        grid-template-columns: minmax(0, 1fr);
+    }
     main {
         padding: 0 12px;
     }
