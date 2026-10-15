@@ -19,12 +19,14 @@ export async function runTicketPlusWorker(
     onBrowser: (context: BrowserContext) => void,
     sendEvent: (event: PurchaseEvent) => void,
     onSubmitAttempt: () => void,
+    signal?: AbortSignal,
 ): Promise<TicketPlusWorkerResult> {
     // 提交標記先於通知保存；外圍錯誤不能把已嘗試提交改成未提交。
     let progress = emptySubmissionProgress();
     try {
         const result = await runTicketPlus(activity, {
             lease,
+            signal,
             webdriverExperiment: process.env.WEBDRIVER_EXPERIMENT === "1",
             onBrowser,
             waitForLogin: (page, signal) =>

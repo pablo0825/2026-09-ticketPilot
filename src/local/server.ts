@@ -163,6 +163,15 @@ export async function startLocalServer(
                 return;
             }
 
+            if (request.method === "POST" && url.pathname === "/api/purchase/stop") {
+                const input = await body(request);
+                if (Object.keys(input).length !== 1 || typeof input.runId !== "string" || !input.runId.trim()) {
+                    throw new Error("停止請求格式錯誤。");
+                }
+                json(response, 200, await purchases.stop(input.runId));
+                return;
+            }
+
             if (request.method === "POST" && url.pathname === "/api/purchase/confirm-login") {
                 const input = await body(request);
                 if (

@@ -32,6 +32,24 @@ async function startWorker(input: { activity: unknown; contact?: unknown; lease:
     let submitted = false;
     let settled = false;
     let closing = false;
+    const controller = new AbortController();
+    let ticketPlus = false;
+
+    // 同步準備停止接收器，啟動瀏覽器期間也能記住停止要求。
+    const receiveStop = (message: unknown) => {
+        if (
+            ticketPlus &&
+            !settled &&
+            message &&
+            typeof message === "object" &&
+            "type" in message &&
+            message.type === "stop-ticketplus" &&
+            Object.keys(message).length === 1
+        ) {
+            controller.abort();
+        }
+    };
+    process.on("message", receiveStop);
 
     // 收到關閉指令時，關閉購票瀏覽器
     process.on("message", async (message: unknown) => {
@@ -56,6 +74,7 @@ async function startWorker(input: { activity: unknown; contact?: unknown; lease:
     try {
         // 平台分流在聯絡資料驗證之前，Klook 保留原驗證與提交處理。
         const activity = parseActivity(input.activity);
+        ticketPlus = activity.platform === "ticketplus";
         if (activity.platform === "ticketplus") {
             const result = await runTicketPlusWorker(
                 activity,
@@ -67,6 +86,7 @@ async function startWorker(input: { activity: unknown; contact?: unknown; lease:
                 () => {
                     submitted = true;
                 },
+                controller.signal,
             );
             settled = true;
             process.send?.({ type: "result", ...result });
@@ -112,6 +132,8 @@ async function startWorker(input: { activity: unknown; contact?: unknown; lease:
 
         settled = true;
         process.send?.({ type: "result", outcome: submitted ? "unknown" : "failed", message });
+    } finally {
+        process.off("message", receiveStop);
     }
 
     // 等瀏覽器關閉後，才通知主服務結束

@@ -93,6 +93,6 @@ WEBDRIVER_EXPERIMENT=1 npm run start:ticketplus -- --config ./ticketplus.local.j
 
 可選填 `maxRunMinutes`（1～1440 的整數分鐘），從人工登入交接完成後開始計算，選場次、選票、提交與排隊共用同一期限；未填則維持各階段原有逾時限制。到期停止後續自動操作，保留瀏覽器與提交結果供人工確認，不代表取消網站端請求。各階段原有較短的等待上限仍有效。GUI 輸入欄位尚未接入。
 
-此入口不需要 Klook 聯絡資料；API／worker 已接通，TicketPlus GUI 尚未接通。`WEBDRIVER_EXPERIMENT=1` 是選用的瀏覽器參數開關，與 Klook 用法相同。TicketPlus 使用獨立的 `browser-profile-ticketplus/` 保存登入；該目錄與本機設定均不納入版本控制。
+此入口不需要 Klook 聯絡資料；API／worker 已接通，支援以本輪 runId 呼叫 `POST /api/purchase/stop` 要求停止；須等執行結果確認收尾，送出要求不代表已停止。TicketPlus GUI 尚未接通。`WEBDRIVER_EXPERIMENT=1` 是選用的瀏覽器參數開關，與 Klook 用法相同。TicketPlus 使用獨立的 `browser-profile-ticketplus/` 保存登入；該目錄與本機設定均不納入版本控制。
 
 操作結束請關閉購票 Chrome，流程與瀏覽器都結束後才釋放與 Klook 共用的購票占用。程序異常中斷可能留下占用，請先人工確認瀏覽器及訂單狀態，不要直接重跑。登入等待時 Ctrl+C 會取消交接並保留瀏覽器供檢查。

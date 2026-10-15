@@ -10,6 +10,7 @@ import { validateSaleSchedule } from "../core/purchaseValidation.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
 import { singleTicketPlusSelection, ticketPlusSessionSelection } from "../config/ticketPlusActivity.js";
 import { ticketPlusEventSchema } from "./purchaseEvents.js";
+import { sendTicketPlusStop } from "./sendTicketPlusStop.js";
 import { sendLoginConfirmation } from "./sendLoginConfirmation.js";
 import type { PurchaseEvent } from "./purchaseEvents.js";
 
@@ -21,6 +22,8 @@ export interface PurchaseSnapshot {
     saleAt?: string;
     status: "running" | "payment-ready" | "information-ready" | "failed" | "unknown" | "interrupted";
     canCloseBrowser?: boolean;
+    canStop?: boolean;
+    stopRequest?: { status: "sending" | "sent" | "unconfirmed" };
     loginConfirmation?: { confirmationId: string }; // 僅現行 worker 的即時交接資格，不從磁碟恢復。
     browserOpen: boolean;
     occupied: boolean;
@@ -54,6 +57,7 @@ export class PurchaseRuns {
     private latestByActivity = new Map<string, Record>();
     private child?: ChildProcess;
     private login?: { child: ChildProcess; record: Record; confirmationId: string; consumed: boolean };
+    private stopRequest?: { child: ChildProcess; record: Record; status: "sending" | "sent" | "unconfirmed" };
     private listeners = new Set<() => void>();
     private directory: string;
 
@@ -150,7 +154,12 @@ export class PurchaseRuns {
             }
 
             // 已知舊格式沒有平台，當時只有 Klook；保留原事件與指紋內容。
-            return { ...record, snapshot: { ...record.snapshot, platform: valid.data.snapshot.platform ?? "klook" } };
+            const snapshot = { ...record.snapshot, platform: valid.data.snapshot.platform ?? "klook" };
+            delete snapshot.canStop;
+            delete snapshot.stopRequest;
+            delete snapshot.loginConfirmation;
+            delete snapshot.canCloseBrowser;
+            return { ...record, snapshot };
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
             throw new Error("執行紀錄無法讀取，請先人工檢查。");
@@ -190,6 +199,8 @@ export class PurchaseRuns {
         return {
             ...structuredClone(this.current.snapshot),
             occupied: purchaseOccupied(this.root) || !!this.child,
+            canStop: this.stopAvailable(),
+            stopRequest: this.stopRequest?.record === this.current ? { status: this.stopRequest.status } : undefined,
             loginConfirmation: this.loginAvailable() ? { confirmationId: this.login!.confirmationId } : undefined,
             canCloseBrowser:
                 !!this.child?.connected &&
@@ -333,6 +344,7 @@ export class PurchaseRuns {
         });
         this.child = child;
         this.login = undefined;
+        this.stopRequest = undefined;
         this.attachWorker(child, record);
 
         // 傳送設定給子程序
@@ -371,11 +383,75 @@ export class PurchaseRuns {
             : { ...previous.snapshot, occupied: this.busy(), canCloseBrowser: false };
     }
 
+    private stopAvailable(): boolean {
+        return Boolean(
+            this.child?.connected &&
+            this.current?.snapshot.platform === "ticketplus" &&
+            this.current.snapshot.status === "running" &&
+            this.stopRequest?.record !== this.current,
+        );
+    }
+
+    async stop(runId: string): Promise<{
+        status: "sending" | "sent" | "unconfirmed";
+        message: string;
+        run: PurchaseSnapshot;
+    }> {
+        // 只控制本服務的現行執行；同一輪已提出的要求不再次傳送。
+        const record = this.current;
+        if (!record || record.snapshot.id !== runId) {
+            throw new Error("執行紀錄已變更，請重新查看目前狀態。");
+        }
+        const existing = this.stopRequest;
+        if (existing?.record === record) return this.stopResponse(existing);
+        const child = this.child;
+        if (!this.stopAvailable() || !child) {
+            throw new Error("目前沒有可停止的 TicketPlus 執行，請查看目前狀態。");
+        }
+
+        // 先固定要求並封鎖登入；停止傳送不能依賴磁碟寫入成功。
+        const request = { child, record, status: "sending" as "sending" | "sent" | "unconfirmed" };
+        this.stopRequest = request;
+        this.invalidateLogin(child);
+        this.notify();
+
+        // 傳送完成只更新要求狀態，購票結果仍由 worker 回報。
+        try {
+            await sendTicketPlusStop(child);
+            request.status = "sent";
+        } catch {
+            request.status = "unconfirmed";
+        }
+        if (this.current === record && this.child === child) this.notify();
+        return this.stopResponse(request);
+    }
+
+    private stopResponse(request: NonNullable<PurchaseRuns["stopRequest"]>) {
+        const { status, record } = request;
+        const messages = {
+            sending: "正在傳送停止要求，請查看後續執行狀態。",
+            sent: "已送出停止要求，尚不代表流程已停止；請查看後續執行狀態。",
+            unconfirmed: "停止要求傳送結果未確認，請檢查目前流程；不會自動重送。",
+        };
+        const run =
+            this.current === record
+                ? this.snapshot()!
+                : {
+                      ...structuredClone(record.snapshot),
+                      occupied: this.busy(),
+                      canStop: false,
+                      canCloseBrowser: false,
+                      stopRequest: { status },
+                  };
+        return { status, message: messages[status], run };
+    }
+
     private loginAvailable(): boolean {
         const login = this.login;
         return Boolean(
             login &&
             !login.consumed &&
+            this.stopRequest?.record !== login.record &&
             login.child === this.child &&
             login.child.connected &&
             login.record === this.current &&
@@ -478,6 +554,7 @@ export class PurchaseRuns {
                         ticketPlusEvent.success &&
                         ticketPlusEvent.data.stage === "login-ready" &&
                         !this.login &&
+                        this.stopRequest?.record !== record &&
                         record.snapshot.status === "running" &&
                         record.snapshot.browserOpen &&
                         child.connected

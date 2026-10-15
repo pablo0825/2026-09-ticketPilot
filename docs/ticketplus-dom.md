@@ -284,3 +284,16 @@ TicketPlus 可選填 `maxRunMinutes`，只接受 1～1440 的整數分鐘。未�
 到期後不開始新操作，保留 submitAttempted、排隊、失敗與彈窗處理事實：提交前為 stopped，提交後未確認為 unknown，已辨識失敗為 rejected。已核對到 information-ready 的結果不被稍晚到期覆寫；停止後晚到的頁面也不追認為成功。瀏覽器與購票占用仍保留，流程已結束且瀏覽器關閉後才釋放；到期不是取消網站訂單。
 
 本次只接入期限核心與既有設定／執行入口，不新增 GUI 欄位、停止 API、重試、刷新或付款操作。驗證使用可控時鐘與本地 DOM，檢查跨階段期限、實際點擊次數、在途操作收尾及舊紀錄相容性，不進行實站購票。
+
+
+## 手動停止 API 與 worker
+
+`POST /api/purchase/stop` 僅接受 `{runId}`，沿用本機 token 與來源防護。runId 是本輪 snapshot.id，不是開始請求 requestId。只控制本服務目前持有且仍連線、執行中的 TicketPlus worker；不要求 browserOpen，因此啟動瀏覽器途中也可提出停止。Klook、歷史紀錄或其他輪次不能使用這個入口。
+
+GET／SSE 的 `canStop` 與 `stopRequest: {status}` 由本輪記憶體狀態產生，不從磁碟恢復。首次接受停止先固定請求並封鎖登入資格，再傳送一次 IPC；並行或重複請求沿用既有狀態，不重送。晚到的 login-ready 不重新開放登入確認。若登入確認已先送出，停止只能阻止後續操作，不能撤回先前動作。API 修改請求仍依序處理，停止不是立即搶占。
+
+停止請求狀態為 sending、sent 或 unconfirmed。sent 只代表 IPC 傳送完成；錯誤、斷線或逾時為傳送未確認，可能稍後送達，不能據此恢復登入、重送或另開購票。購票 status 仍由 worker 終局回報決定，停止 API 的回覆不能覆蓋已核對的 information-ready、已提交的 unknown 或已知失敗。
+
+worker 在開始非同步工作前安裝 TicketPlus 停止接收器，透過 AbortController 傳入現有 runner；登入等待、DOM 讀取及在途操作沿用停止核心。runner 結束後移除停止接收器，保留人工 close-browser 通道。停止不主動關閉瀏覽器、不取消網站訂單、不提早釋放購票占用；正常收尾仍須流程與瀏覽器都結束。
+
+停止請求不新增寫盤前置條件，以免磁碟失敗阻擋停止。最終事件與結果仍遵守既有保存／異常政策；若紀錄寫入失敗導致程序被終止，不能宣稱合作式停止已完成或結果已保存，也不能承諾異常時瀏覽器一定保留。本次不新增 GUI 按鈕、重試或刷新。

@@ -5,6 +5,7 @@ import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID, createHash } from "node:crypto";
+import { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { chromium } from "playwright";
 import { acquirePurchaseLease, purchaseOccupied, releasePurchaseLease } from "../src/app/purchaseLock.js";
@@ -371,6 +372,49 @@ test("Klook 固定 v4 指紋相容：重送舊請求直接讀回，不建立占�
         assert.equal(runs.busy(), false);
         assert.equal(purchaseOccupied(dir), false);
     } finally {
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus 停止入口不控制正在執行的 Klook worker", async t => {
+    const dir = await mkdtemp(join(tmpdir(), "klook-stop-boundary-"));
+    const runs = new PurchaseRuns(dir, worker);
+    const originalEmit = ChildProcess.prototype.emit;
+    let stops = 0;
+    let checkStop: Promise<void> | undefined;
+    let spawned = () => {};
+    const ready = new Promise<void>(resolve => {
+        spawned = resolve;
+    });
+    try {
+        // 在 spawn 當下檢查，避免輪詢等待耗掉 fixture 的執行時間。
+        t.mock.method(ChildProcess.prototype, "emit", function (this: ChildProcess, event: string, ...args: any[]) {
+            if (event === "spawn") {
+                assert.equal(this.connected, true);
+                const originalSend = this.send;
+                t.mock.method(this, "send", function (this: ChildProcess, message: any, ...sendArgs: any[]) {
+                    if (message?.type === "stop-ticketplus") stops++;
+                    return Reflect.apply(originalSend, this, [message, ...sendArgs]);
+                });
+                assert.equal(runs.snapshot()!.status, "running");
+                assert.equal(runs.snapshot()!.canStop, false);
+                checkStop = assert.rejects(runs.stop(runs.snapshot()!.id));
+                spawned();
+            }
+            return Reflect.apply(originalEmit, this, [event, ...args]);
+        });
+        const started = runs.start(randomUUID(), { ...activity, eventName: "HOLD_WAIT" }, contact);
+        await ready;
+        await checkStop;
+        assert.equal(stops, 0);
+        await until(() => runs.snapshot()?.status === "payment-ready");
+        await runs.closeBrowser(started.id);
+        await until(() => !runs.busy());
+    } finally {
+        t.mock.restoreAll();
+        if (runs.snapshot()?.canCloseBrowser) await runs.closeBrowser(runs.snapshot()!.id);
+        await until(() => !runs.busy());
+        runs.close();
         await rm(dir, { recursive: true, force: true });
     }
 });

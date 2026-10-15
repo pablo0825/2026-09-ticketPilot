@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
-import { writeFile, readFile } from "node:fs/promises";
+import { writeFile, readFile, rename } from "node:fs/promises";
 import { appendFileSync, watchFile, unwatchFile } from "node:fs";
 import { activity } from "./pages.js";
 import { readyOrder, readyInformation, failureDialog, queueDialog } from "./submissionPage.js";
@@ -12,11 +12,15 @@ appendFileSync(report + ".starts", "started\n");
 const mode = process.env.FIXTURE_MODE ?? "success";
 const counts = { session: 0, plus: 0, submit: 0, dismiss: 0, information: 0, other: 0, terms: 0 };
 const requests: string[] = [];
+let releaseLaunch: (() => void) | undefined;
 const submissions: { name: string; quantity: number }[][] = [];
 let flush = Promise.resolve();
 function save() {
     const json = JSON.stringify({ counts, requests, submissions });
-    flush = flush.then(() => writeFile(report, json));
+    flush = flush.then(async () => {
+        await writeFile(report + ".tmp", json);
+        await rename(report + ".tmp", report);
+    });
     return flush;
 }
 chromium.launchPersistentContext = async (_profile, options) => {
@@ -24,6 +28,10 @@ chromium.launchPersistentContext = async (_profile, options) => {
         report + ".options",
         JSON.stringify({ args: options?.args, channel: options?.channel, profile: _profile }),
     );
+    if (mode === "held-launch")
+        await new Promise<void>(resolve => {
+            releaseLaunch = resolve;
+        });
     const browser = await chromium.connect(process.env.FIXTURE_BROWSER_ENDPOINT!);
     context = await browser.newContext();
     // 正式 persistent context 會帶有初始分頁。
@@ -63,7 +71,11 @@ chromium.launchPersistentContext = async (_profile, options) => {
                     location.assign("/order/event-fixture/session-B");
                 } else if (button.querySelector(".mdi-plus")) {
                     const value = button.parentElement!.querySelector("div")!;
-                    value.textContent = String(Number(value.textContent) + 1);
+                    if (mode === "held-plus") {
+                        (window as any).releaseFixturePlus = () => {
+                            value.textContent = String(Number(value.textContent) + 1);
+                        };
+                    } else value.textContent = String(Number(value.textContent) + 1);
                     await (window as any).recordFixture("plus");
                 } else if (button.dataset.fixture === "dismiss") {
                     document.querySelector(".v-dialog__content")!.remove();
@@ -93,7 +105,12 @@ chromium.launchPersistentContext = async (_profile, options) => {
 // 動態載入正式入口前暫存啟動訊息，避免測試 bootstrap 的 import await 吃掉立即啟動。
 const starts: unknown[] = [];
 const bufferStart = (input: unknown) => {
-    if (input && typeof input === "object" && "activity" in input && "lease" in input && !("type" in input))
+    if (
+        input &&
+        typeof input === "object" &&
+        (("activity" in input && "lease" in input && !("type" in input)) ||
+            ("type" in input && input.type === "stop-ticketplus"))
+    )
         starts.push(input);
 };
 process.on("message", bufferStart);
@@ -117,6 +134,14 @@ const control = report + ".control";
 watchFile(control, { interval: 20, persistent: false }, async () => {
     const action = await readFile(control, "utf8").catch(() => "");
     if (action === "stop-worker") process.exit(1);
+    if (action === "release-launch") releaseLaunch?.();
+    if (action === "release-queue")
+        await context?.pages()[0]?.goto("https://ticketplus.com.tw/confirm/event-fixture/session-B");
+    if (action === "release-plus") {
+        await context?.pages()[0]?.evaluate(() => (window as any).releaseFixturePlus?.());
+        await save();
+        await writeFile(report + ".released", "yes");
+    }
     if (action === "close-page")
         await context
             ?.pages()[0]
