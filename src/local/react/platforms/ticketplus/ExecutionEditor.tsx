@@ -10,7 +10,7 @@ interface Props {
 export function ExecutionEditor({ form, disabled, activityDirty, onChange }: Props) {
     return (
         <div>
-            <h3>執行設定</h3>
+            <h2>執行設定</h2>
             <label>
                 執行方式
                 <select
@@ -76,8 +76,6 @@ export function ExecutionEditor({ form, disabled, activityDirty, onChange }: Pro
                     onChange={event => onChange({ ...form, maxRunMinutes: event.target.value })}
                 />
             </label>
-            <p>從開始選場次前計時，人工登入與開賣等待不計入。留空不設全程期限，各操作仍有自己的逾時限制。</p>
-            <p>按「開始購票」時會先保存執行設定，再啟動購票瀏覽器。</p>
             {activityDirty && <p role="status">活動與順位有未儲存修改，請先到第一步儲存。</p>}
         </div>
     );

@@ -288,7 +288,7 @@ test("TicketPlus GUI：保存成功但重載失敗仍保留 ID，再編輯以 PU
             await h.page.getByRole("button", { name: "② 確認與開始", exact: true }).getAttribute("aria-current"),
             "step",
         );
-        assert.match(await h.page.getByRole("region", { name: "本次活動摘要" }).innerText(), /新活動/);
+        assert.match(await h.page.getByRole("region", { name: "活動摘要" }).innerText(), /新活動/);
         await h.page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
         await h.page.locator("#eventName").fill("再次編輯");
         await h.page.getByRole("button", { name: "儲存活動" }).click();

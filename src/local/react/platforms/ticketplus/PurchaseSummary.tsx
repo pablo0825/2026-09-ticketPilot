@@ -13,9 +13,8 @@ interface Props {
 
 export function PurchaseSummary({ settings, reason, disabled, onStart, children, confirmed, onConfirm }: Props) {
     return (
-        <section className="card" aria-label="本次活動摘要">
-            <h2>本次活動摘要</h2>
-            <p>以下為已保存的設定；請核對後再開始。開始後需到購票瀏覽器手動登入，再回來確認選票。</p>
+        <section className="card" aria-label="活動摘要">
+            <h2>活動摘要</h2>
             {settings && (
                 <div id="summary">
                     <div className="summary-field">

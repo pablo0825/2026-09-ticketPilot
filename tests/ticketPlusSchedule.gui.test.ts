@@ -42,7 +42,7 @@ async function fixture(
 
 async function review(page: Page) {
     await page.getByRole("button", { name: "② 確認與開始", exact: true }).click();
-    await page.getByRole("region", { name: "本次活動摘要" }).waitFor();
+    await page.getByRole("region", { name: "活動摘要" }).waitFor();
 }
 
 async function setTime(page: Page, time: string) {
