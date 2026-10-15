@@ -21,9 +21,11 @@ import type { PriorityReason } from "../platforms/ticketplus/ticketPriority.js";
 import { stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
 import type { TicketPlusSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
 import { emptySubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
+import { waitForTicketPlusSale } from "../platforms/ticketplus/saleWait.js";
 import type { SubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
 
-export type TicketPlusStage = "starting" | "waiting-for-login" | "selecting-session" | TicketPlusCycleStage;
+export type TicketPlusStage =
+    "starting" | "waiting-for-login" | "waiting-for-sale" | "selecting-session" | TicketPlusCycleStage;
 export type TicketPlusRunEvent =
     { type: "stage"; stage: TicketPlusStage } | TicketPlusCycleEvent | { type: "lease-release-failed" };
 export type TicketPlusRunResult =
@@ -31,7 +33,12 @@ export type TicketPlusRunResult =
     | TicketPlusCycleResult
     | {
           outcome: "stopped";
-          reason: "startup-stopped" | "login-stopped" | "session-selection-stopped" | "ticket-selection-stopped";
+          reason:
+              | "startup-stopped"
+              | "login-stopped"
+              | "sale-wait-stopped"
+              | "session-selection-stopped"
+              | "ticket-selection-stopped";
           progress: Readonly<SubmissionProgress>;
           priorityFailure?: PriorityReason;
           stopReason?: TicketPlusStopReason;
@@ -42,6 +49,7 @@ export interface TicketPlusRunOptions {
     waitForLogin: (page: Page, signal?: AbortSignal) => Promise<void>;
     signal?: AbortSignal;
     deadlineNow?: () => number;
+    saleNow?: () => number;
     onEvent?: (event: TicketPlusRunEvent) => void | Promise<void>;
     onBrowser?: (context: BrowserContext) => void;
     lease?: PurchaseLease;
@@ -126,6 +134,11 @@ export async function runTicketPlus(
         await options.waitForLogin(page, options.signal);
         control.check();
         if (page.isClosed()) throw new Error("購票頁已關閉。");
+        if (activity.saleSchedule) {
+            report("waiting-for-sale");
+            await waitForTicketPlusSale(page, activity.saleSchedule.saleAt, control, options.saleNow);
+        }
+        // 登入與開賣等待不消耗購票期限；之後各階段共用同一期限。
         control.startDeadline(activity.maxRunMinutes);
         report("selecting-session");
         const session = await selectTicketPlusSession(page, settings, {}, control);
@@ -163,9 +176,11 @@ export async function runTicketPlus(
                 ? "startup-stopped"
                 : stage === "waiting-for-login"
                   ? "login-stopped"
-                  : stage === "selecting-session"
-                    ? "session-selection-stopped"
-                    : "ticket-selection-stopped";
+                  : stage === "waiting-for-sale"
+                    ? "sale-wait-stopped"
+                    : stage === "selecting-session"
+                      ? "session-selection-stopped"
+                      : "ticket-selection-stopped";
         return {
             outcome: "stopped",
             reason,

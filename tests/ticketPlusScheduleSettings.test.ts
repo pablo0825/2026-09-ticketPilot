@@ -57,9 +57,12 @@ function record(hashes: (typeof historyHashes)[number]) {
     };
 }
 
-test("排程設定：必填 1／2 秒、完整台灣時間，允許過去時間且不改演出時間", () => {
+test("排程設定：省略提前秒數代表僅等待，完整台灣時間且不改演出時間", () => {
     assert.deepEqual(parseTicketPlusActivity(activity), activity);
     assert.equal("saleSchedule" in parseTicketPlusActivity(activity), false);
+    assert.deepEqual(parseTicketPlusActivity({ ...activity, saleSchedule: { saleAt: schedule.saleAt } }).saleSchedule, {
+        saleAt: schedule.saleAt,
+    });
     for (const advanceSeconds of [1, 2] as const) {
         const input = { ...activity, saleSchedule: { saleAt: "2020-02-29T00:00:00+08:00", advanceSeconds } };
         const before = structuredClone(input);
@@ -69,7 +72,6 @@ test("排程設定：必填 1／2 秒、完整台灣時間，允許過去時間�
     for (const bad of [
         null,
         {},
-        { saleAt: schedule.saleAt },
         { advanceSeconds: 1 },
         ...[0, 3, -1, 1.5, "1", null].map(advanceSeconds => ({ ...schedule, advanceSeconds })),
         ...[
@@ -105,10 +107,7 @@ test("排程不被舊指紋投影丟掉；無排程 v4／v5 指紋及原紀錄�
                 const scheduled = { ...activity, saleSchedule: { ...schedule, advanceSeconds } };
                 assert.throws(() => runs.start(requestId, scheduled, undefined, activityId), /更換設定/);
                 assert.equal(runs.activityStatus({ ...saved, settings: scheduled }), "設定已更新");
-                assert.throws(
-                    () => runs.start(randomUUID(), scheduled, undefined, activityId),
-                    /開賣等待與提前刷新尚未接通/,
-                );
+                assert.throws(() => runs.start(randomUUID(), scheduled, undefined, activityId), /提前刷新尚未接通/);
             }
             assert.equal(await readFile(file, "utf8"), original);
             assert.deepEqual(await readdir(join(dir, "runs")), [requestId + ".json"]);
@@ -136,7 +135,7 @@ test("排程 CLI 可讀設定但啟動前拒絕；runner 不取得占用或開�
             await writeFile(file, JSON.stringify(settings));
             assert.deepEqual(await loadTicketPlusCliSettings(["--config", file]), settings);
             await assert.rejects(runTicketPlusCli(["--config", file], { input, output }), error => {
-                assert.match(ticketPlusStartupMessage(error), /開賣等待與提前刷新尚未接通/);
+                assert.match(ticketPlusStartupMessage(error), /提前刷新尚未接通/);
                 return true;
             });
             await assert.rejects(
@@ -146,7 +145,7 @@ test("排程 CLI 可讀設定但啟動前拒絕；runner 不取得占用或開�
                     },
                     lease: { path: join(dir, "missing.lock"), token: "invalid" } as never,
                 }),
-                /開賣等待與提前刷新尚未接通/,
+                /提前刷新尚未接通/,
             );
         }
         assert.equal(launch.mock.callCount(), 0);
@@ -208,7 +207,7 @@ test("API 排程可保存重讀；提前秒數與時間皆比對，拒絕啟動�
             });
             assert.equal(response.status, 400);
             const error = await response.json();
-            assert.match(error.error, expectedActivity === twoSeconds ? /開賣等待與提前刷新尚未接通/ : /已變更/);
+            assert.match(error.error, expectedActivity === twoSeconds ? /提前刷新尚未接通/ : /已變更/);
             assert.equal(error.notAccepted, true);
         }
         assert.equal((await request("/api/activities")).status, 200);

@@ -219,3 +219,39 @@ test("TicketPlus 全程期限：真實受遮罩點擊縮短期限，收尾後解
         await site.cleanup();
     }
 });
+
+test("TicketPlus 開賣等待：等待跨過一分鐘不耗期限，到點後同一期限仍可阻止提交", { timeout: 20_000 }, async () => {
+    const site = await fixture("direct");
+    let deadlineClock = 0;
+    let saleClock = Date.parse("2026-10-30T11:59:59+08:00");
+    const stages: string[] = [];
+    try {
+        const result = await runTicketPlus(
+            { ...settings, saleSchedule: { saleAt: "2026-10-30T12:00:00+08:00" } },
+            {
+                lease: acquirePurchaseLease(site.directory),
+                deadlineNow: () => deadlineClock,
+                saleNow: () => saleClock,
+                waitForLogin: async () => {},
+                onEvent: event => {
+                    if (event.type !== "stage") return;
+                    stages.push(event.stage);
+                    if (event.stage === "waiting-for-sale") {
+                        setTimeout(() => {
+                            deadlineClock = 120_000;
+                            saleClock += 1000;
+                        }, 100);
+                    }
+                    if (event.stage === "submitting") deadlineClock += 60_000;
+                },
+            },
+        );
+        assert(stages.includes("waiting-for-sale"));
+        assert(stages.indexOf("waiting-for-sale") < stages.indexOf("selecting-session"));
+        assert.equal(result.outcome, "stopped");
+        assert.equal(result.stopReason, "time-limit");
+        assert.deepEqual(await site.counts(), { session: 1, plus: 2, submit: 0, dismiss: 0, other: 0 });
+    } finally {
+        await site.cleanup();
+    }
+});

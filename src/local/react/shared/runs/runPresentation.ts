@@ -32,8 +32,11 @@ export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, n
             if (stage === "login-ready" || stage === "waiting-for-login") {
                 title = run.loginConfirmation ? "等待人工登入確認" : "等待登入交接狀態";
                 instruction = run.loginConfirmation
-                    ? "請到購票瀏覽器手動登入；確認交接後才會開始選票，不會自動偵測登入。"
+                    ? "請到購票瀏覽器手動登入；確認交接後依執行設定繼續，不會自動偵測登入。"
                     : "目前沒有可操作的登入確認資格，請查看後續狀態；不會自動確認或重送。";
+            } else if (stage === "waiting-for-sale") {
+                title = "等待開賣";
+                instruction = `等待指定開賣時間${run.saleAt ? `：${run.saleAt}` : ""}；到時間後開始選場次，不刷新頁面。已過時間則立即繼續。`;
             } else if (stage === "queue") {
                 title = "排隊中";
                 instruction = "等待 TicketPlus 處理，請保留購票頁面；程式不會刷新或重送。";

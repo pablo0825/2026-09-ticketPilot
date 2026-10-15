@@ -98,7 +98,7 @@ test("TicketPlus 專用交接進度與事件 schema：不套用 Klook 自動登�
         Date.now(),
     );
     assert.equal(available.title, "等待人工登入確認");
-    assert.match(available.instruction, /確認交接後才會開始選票/);
+    assert.match(available.instruction, /確認交接後依執行設定繼續/);
     assert.equal(ticketPlusEventSchema.safeParse({ type: "ticketplus", stage: "login-ready" }).success, false);
     assert.equal(
         ticketPlusEventSchema.safeParse({ type: "ticketplus", stage: "queue", privateData: "secret" }).success,

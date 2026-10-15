@@ -26,8 +26,16 @@ export function PurchaseSummary({ settings, reason, disabled, onStart }: Props) 
                     <p>
                         最長執行時間：
                         {settings.maxRunMinutes === undefined ? "未設定全程期限" : `${settings.maxRunMinutes} 分鐘`}
-                        （人工登入確認後開始計時）
+                        （開始選場次前計時，人工登入與開賣等待不計入）
                     </p>
+                    {settings.saleSchedule && (
+                        <p>
+                            開賣時間：{settings.saleSchedule.saleAt}；
+                            {settings.saleSchedule.advanceSeconds === undefined
+                                ? "僅等待，不刷新；已過時間則立即繼續。"
+                                : `提前刷新 ${settings.saleSchedule.advanceSeconds} 秒（尚未支援執行）。`}
+                        </p>
+                    )}
                 </>
             )}
             <p>流程終點：填寫資料頁。後續資料、條款與付款由你手動處理。</p>

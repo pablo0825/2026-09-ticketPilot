@@ -79,6 +79,8 @@ export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
                 : `順位核對未通過（${result.priorityFailure}），不能據此判定售完`;
         return `${detail}。${prior}不刷新或重跑。`;
     }
+    if (result.reason === "sale-wait-stopped")
+        return "開賣等待已中斷，尚未選場次或提交選票。請檢查購票瀏覽器；不會自動重跑。";
     return `流程已停止（${result.reason}）。${prior}請檢查購票瀏覽器；不會自動重跑。`;
 }
 export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | undefined {
@@ -90,6 +92,7 @@ export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | unde
         return {
             starting: "啟動 TicketPlus 購票瀏覽器。",
             "waiting-for-login": "等待人工登入交接。",
+            "waiting-for-sale": "等待指定開賣時間；到時間後開始選場次，不刷新頁面。已過時間則立即繼續。",
             "selecting-session": "核對活動並選擇場次。",
             "selecting-tickets": "核對票種並調整張數。",
             submitting: "核對選票並提交，等待資料頁。",

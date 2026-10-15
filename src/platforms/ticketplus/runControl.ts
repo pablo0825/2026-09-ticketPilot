@@ -17,7 +17,7 @@ export class TicketPlusRunControl {
         private readonly now = () => performance.now(),
     ) {}
 
-    // 登入交接後啟動一次；換階段不能重設整趟期限。
+    // 開始選場次前啟動一次；換階段不能重設整趟期限。
     startDeadline(minutes?: number): void {
         this.check();
         if (this.started) throw new Error("TicketPlus 全程期限已啟動。");

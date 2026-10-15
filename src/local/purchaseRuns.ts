@@ -241,6 +241,10 @@ export class PurchaseRuns {
 
         // 只有本服務持有的現行 worker 能代表仍在執行，舊紀錄不推測續跑。
         if (record === this.current && this.child && record.snapshot.status === "running") {
+            if (record.snapshot.platform === "ticketplus") {
+                const event = record.snapshot.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
+                return event?.type === "ticketplus" && event.stage === "waiting-for-sale" ? "等待開賣" : "執行中";
+            }
             const state = record.snapshot.events.filter(item => item.event.type === "state").at(-1)?.event;
             return state?.type === "state" && state.state === "WAITING_FOR_SALE" ? "等待開賣" : "執行中";
         }
@@ -319,7 +323,7 @@ export class PurchaseRuns {
                 id: `${Date.now()}-${randomUUID()}`,
                 requestId,
                 activityName: activity.eventName,
-                ...(activity.platform === "klook" ? { saleAt: activity.saleSchedule?.saleAt } : {}),
+                ...(activity.saleSchedule ? { saleAt: activity.saleSchedule.saleAt } : {}),
                 status: "running",
                 browserOpen: false,
                 occupied: true,

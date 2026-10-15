@@ -433,3 +433,25 @@ test(
         );
     },
 );
+
+test("TicketPlus 開賣核心 GUI：已保存僅等待設定可啟動，呈現等待且可手動停止", { timeout: 25_000 }, async () => {
+    const saleAt = new Date(Date.now() + 8 * 3600_000 + 60_000).toISOString().slice(0, 19) + "+08:00";
+    const scheduled = { ...apiActivity, saleSchedule: { saleAt }, maxRunMinutes: 10 };
+    await fixture(async (h, page, _record, requests) => {
+        await edit(page);
+        await review(page);
+        const summary = await page.getByRole("region", { name: "購票前確認" }).innerText();
+        assert.match(summary, /僅等待，不刷新/);
+        assert.doesNotMatch(summary, /undefined|人工登入確認後開始計時/);
+        assert.match(summary, /開始選場次前/);
+        await page.getByRole("button", { name: "開始購票", exact: true }).click();
+        await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
+        await eventually(async () => assert.match(await page.locator("#status").innerText(), /等待開賣/));
+        assert.deepEqual(starts(requests)[0]!.body.expectedActivity, scheduled);
+        assert.equal((await h.counts()).counts.session, 0);
+        await page.getByRole("button", { name: "停止購票", exact: true }).click();
+        await h.until(run => run?.status === "failed");
+        await eventually(async () => assert.match(await page.locator("#status").innerText(), /購票已停止/));
+        assert.equal((await h.counts()).counts.submit, 0);
+    }, scheduled);
+});

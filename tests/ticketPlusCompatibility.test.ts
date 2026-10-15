@@ -70,7 +70,7 @@ test("多順位解析：保持順序與重複值、第二筆也驗證，舊輸�
         { ...canonical, targets: [] },
         { ...multiple, targets: [legacy.target, { ...second, quantity: 0 }] },
         { ...multiple, targets: [legacy.target, { ...second, date: "2026-02-30" }] },
-        { ...canonical, saleSchedule: { saleAt: "2026-10-30T12:00:00+08:00" } },
+        { ...canonical, saleSchedule: { saleAt: "2026-10-30T12:00:00+08:00", advanceSeconds: 0 } },
     ])
         assert.throws(() => parseTicketPlusActivity(bad), /格式錯誤/);
     assert.throws(() => parseTicketPlusSelection(multiple), /格式錯誤/);

@@ -192,14 +192,17 @@ export function ActivityEditor({ form, saved, disabled, onChange, onSave }: Prop
                     onChange={e => change({ maxRunMinutes: e.target.value })}
                 />
             </label>
-            <p>從人工登入交接完成後開始計時。留空不設全程期限，各操作仍有自己的逾時限制。</p>
+            <p>從開始選場次前計時，人工登入與開賣等待不計入。留空不設全程期限，各操作仍有自己的逾時限制。</p>
             {saved?.saleSchedule && (
                 <div role="note">
                     <h3>已保存的開賣設定（唯讀）</h3>
                     <p>
-                        開賣時間：{saved.saleSchedule.saleAt}；提前刷新：{saved.saleSchedule.advanceSeconds} 秒。
+                        開賣時間：{saved.saleSchedule.saleAt}；
+                        {saved.saleSchedule.advanceSeconds === undefined
+                            ? "僅等待開賣，不刷新頁面。"
+                            : `提前刷新：${saved.saleSchedule.advanceSeconds} 秒（尚未支援執行）。`}
                     </p>
-                    <p>此次儲存會保留原設定。開賣等待與提前刷新尚未接通，帶此設定的活動目前無法啟動購票。</p>
+                    <p>此次儲存會保留原設定。僅等待模式已過開賣時間則立即繼續；提前刷新模式目前無法啟動購票。</p>
                 </div>
             )}
             <footer>
