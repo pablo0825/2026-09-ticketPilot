@@ -6,10 +6,11 @@ interface Props {
     canViewRun: boolean;
     runPlatform: PurchaseSnapshot["platform"];
     onKlook: () => void;
+    onTicketPlus: () => void;
     onViewRun: () => void;
 }
 
-export function PlatformHome({ disabled, status, canViewRun, runPlatform, onKlook, onViewRun }: Props) {
+export function PlatformHome({ disabled, status, canViewRun, runPlatform, onKlook, onTicketPlus, onViewRun }: Props) {
     return (
         <section id="platformHome" className="card">
             <h2>選擇購票平台</h2>
@@ -48,20 +49,23 @@ export function PlatformHome({ disabled, status, canViewRun, runPlatform, onKloo
                     </tr>
                     <tr>
                         <th scope="row">TicketPlus</th>
-                        <td>{canViewRun && runPlatform === "ticketplus" ? status : "尚未支援"}</td>
+                        <td>{canViewRun && runPlatform === "ticketplus" ? status : "可進入設定"}</td>
                         <td>
-                            {canViewRun && runPlatform === "ticketplus" ? (
-                                <button
-                                    id="platformViewRun"
-                                    className="secondary"
-                                    disabled={disabled}
-                                    onClick={onViewRun}
-                                >
-                                    查看狀態
+                            <div className="platform-actions">
+                                <button id="selectTicketPlus" disabled={disabled} onClick={onTicketPlus}>
+                                    進入平台
                                 </button>
-                            ) : (
-                                "—"
-                            )}
+                                {canViewRun && runPlatform === "ticketplus" && (
+                                    <button
+                                        id="platformViewRun"
+                                        className="secondary"
+                                        disabled={disabled}
+                                        onClick={onViewRun}
+                                    >
+                                        查看狀態
+                                    </button>
+                                )}
+                            </div>
                         </td>
                     </tr>
                 </tbody>

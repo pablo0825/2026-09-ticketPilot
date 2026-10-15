@@ -1,5 +1,6 @@
 import { AppHeader } from "./shared/AppHeader.js";
 import { useState } from "react";
+import { TicketPlusWorkspace } from "./platforms/ticketplus/TicketPlusWorkspace.js";
 import { KlookWorkspace } from "./platforms/klook/KlookWorkspace.js";
 import { PlatformHome } from "./pages/PlatformHome.js";
 import { platformRunStatus } from "./shared/runs/runPresentation.js";
@@ -9,7 +10,7 @@ import { useRunStatus } from "./shared/runs/useRunStatus.js";
 export function App() {
     // 全域狀態不隨平台工作區的切換而重建
     const [message, setMessage] = useState("");
-    const [page, setPage] = useState<"platforms" | "klook" | "run">("platforms");
+    const [page, setPage] = useState<"platforms" | "klook" | "ticketplus" | "run">("platforms");
     const runs = useRunStatus(setMessage);
     const platformStatus = platformRunStatus(runs.purchase, runs.simulation);
 
@@ -22,8 +23,8 @@ export function App() {
     // 頁面只負責導覽，真正啟動仍經過平台與後端驗證
     return (
         <main>
-            {page !== "klook" && <AppHeader disabled={runs.closing} onHome={showPlatforms} />}
-            {page !== "klook" && (
+            {page !== "klook" && page !== "ticketplus" && <AppHeader disabled={runs.closing} onHome={showPlatforms} />}
+            {page !== "klook" && page !== "ticketplus" && (
                 <div id="message" role="alert">
                     {message}
                 </div>
@@ -38,6 +39,10 @@ export function App() {
                         setMessage("");
                         setPage("klook");
                     }}
+                    onTicketPlus={() => {
+                        setMessage("");
+                        setPage("ticketplus");
+                    }}
                     onViewRun={() => {
                         if (!platformStatus.kind) return;
                         runs.showResult(platformStatus.kind);
@@ -47,6 +52,18 @@ export function App() {
             )}
             {page === "klook" && (
                 <KlookWorkspace message={message} setMessage={setMessage} runs={runs} onExit={showPlatforms} />
+            )}
+            {page === "ticketplus" && (
+                <TicketPlusWorkspace
+                    message={message}
+                    setMessage={setMessage}
+                    runs={runs}
+                    onExit={showPlatforms}
+                    onViewRun={() => {
+                        runs.showCurrent();
+                        setPage("run");
+                    }}
+                />
             )}
             {page === "run" && (
                 <>

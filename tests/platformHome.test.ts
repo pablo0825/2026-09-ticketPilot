@@ -58,7 +58,7 @@ async function openEditor(page: Page) {
     await page.locator("#step1").waitFor();
 }
 
-test("平台首頁不讀 Klook 個資；TicketPlus 無請求，個資損壞可返回首頁", async () => {
+test("平台首頁不讀 Klook 個資；TicketPlus 提供設定入口，個資損壞可返回首頁", async () => {
     await fixture(async (page, url) => {
         let contactReads = 0;
         let writes = 0;
@@ -72,8 +72,8 @@ test("平台首頁不讀 Klook 個資；TicketPlus 無請求，個資損壞可�
         assert.equal(await page.locator("#platformHomeButton").count(), 0);
         assert.equal(contactReads, 0);
         const ticketPlus = page.getByRole("row").filter({ hasText: "TicketPlus" });
-        assert.match(await ticketPlus.innerText(), /尚未支援/);
-        assert.equal(await ticketPlus.getByRole("button").count(), 0);
+        assert.match(await ticketPlus.innerText(), /可進入設定/);
+        assert.equal(await ticketPlus.getByRole("button", { name: "進入平台" }).count(), 1);
         await eventually(async () => assert.equal(await page.locator("#platformStatus").innerText(), "可使用"));
         assert.equal(await page.locator("#platformViewRun").count(), 0);
         await page.setViewportSize({ width: 1280, height: 900 });
@@ -419,7 +419,7 @@ test("Klook 清單略過 TicketPlus，載入回應若變成其他平台也不能
 
 test("執行狀態依平台歸屬，外部未知占用不標成 Klook", async () => {
     await fixture(async (page, url) => {
-        // TicketPlus 紀錄只提供查看，不開放購票入口
+        // TicketPlus 可進入設定，既有執行紀錄仍可從正確平台查看
         const purchase = {
             id: "platform-record",
             requestId: randomUUID(),
@@ -438,7 +438,7 @@ test("執行狀態依平台歸屬，外部未知占用不標成 Klook", async ()
         const ticketplusRow = page.getByRole("row").filter({ hasText: "TicketPlus" });
         await ticketplusRow.getByRole("button", { name: "查看狀態" }).waitFor();
         assert.equal(await klookRow.getByRole("button", { name: "查看狀態" }).count(), 0);
-        assert.equal(await ticketplusRow.getByRole("button", { name: "進入平台" }).count(), 0);
+        assert.equal(await ticketplusRow.getByRole("button", { name: "進入平台" }).count(), 1);
         await ticketplusRow.getByRole("button", { name: "查看狀態" }).click();
         await eventually(async () => assert.match(await page.locator("#logs").innerText(), /購票平台：TicketPlus/));
 
