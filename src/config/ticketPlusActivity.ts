@@ -46,6 +46,21 @@ export type TicketPlusActivitySettings = z.infer<typeof activitySchema>;
 export type TicketPlusSelection = z.infer<typeof selectionSchema>;
 export class TicketPlusCapabilityError extends Error {}
 
+export const ticketPlusDefaultRunMinutes = 10;
+
+// 舊設定仍原樣讀取；只有新的購票啟動必須提供完整期限。
+export function validateTicketPlusRunSettings(settings: TicketPlusActivitySettings): void {
+    const minutes = settings.maxRunMinutes;
+    if (
+        minutes === undefined ||
+        !Number.isInteger(minutes) ||
+        minutes < ticketPlusDefaultRunMinutes ||
+        minutes > 1440
+    ) {
+        throw new TicketPlusCapabilityError("最長執行時間必須填寫 10～1440 的整數分鐘。");
+    }
+}
+
 export function parseTicketPlusActivity(value: unknown): TicketPlusActivitySettings {
     const result = activitySchema.safeParse(value);
     if (!result.success) throw new Error(invalidSettings);

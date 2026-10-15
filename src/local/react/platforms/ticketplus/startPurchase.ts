@@ -1,5 +1,9 @@
 import type { PurchaseSnapshot } from "../../../purchaseRuns.js";
-import { parseTicketPlusActivity, ticketPlusSessionSelection } from "../../../../config/ticketPlusActivity.js";
+import {
+    parseTicketPlusActivity,
+    ticketPlusSessionSelection,
+    validateTicketPlusRunSettings,
+} from "../../../../config/ticketPlusActivity.js";
 import type { TicketPlusActivitySettings } from "../../../../config/ticketPlusActivity.js";
 import { api } from "../../shared/api.js";
 import type { ApiError } from "../../shared/api.js";
@@ -85,6 +89,7 @@ export async function startPurchase(
         }
         if (current?.occupied) throw new Error("目前仍有購票占用，原啟動結果尚待確認；不會另開購票流程。");
     } else {
+        validateTicketPlusRunSettings(settings);
         // 先保存執行設定並接受新版本，再送出購票請求。
         if (JSON.stringify(record.settings) !== signature) {
             let response: unknown;

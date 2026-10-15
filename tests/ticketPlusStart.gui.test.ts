@@ -508,7 +508,7 @@ test("TicketPlus 開賣核心 GUI：未填提前秒數採 1 秒，可啟動且�
         const summary = await page.getByRole("region", { name: "活動摘要" }).innerText();
         assert.equal(await page.getByRole("combobox", { name: "提前刷新", exact: true }).inputValue(), "1");
         assert.doesNotMatch(summary, /undefined|人工登入確認後開始計時/);
-        assert.equal(await page.getByLabel("最長執行時間（分鐘，選填）").inputValue(), "10");
+        assert.equal(await page.getByLabel("最長執行時間（分鐘）").inputValue(), "10");
         await confirmStart(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).click();
         await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
@@ -520,4 +520,86 @@ test("TicketPlus 開賣核心 GUI：未填提前秒數採 1 秒，可啟動且�
         await eventually(async () => assert.match(await page.locator("#status").innerText(), /購票已停止/));
         assert.equal((await h.counts()).counts.submit, 0);
     }, scheduled);
+});
+
+for (const minutes of [undefined, 5]) {
+    test(`TicketPlus 舊待確認期限 ${minutes ?? "缺值"}：只查原結果，不保存預設值或另啟 worker`, async () => {
+        const { maxRunMinutes: _duration, ...base } = apiActivity;
+        const legacy = minutes === undefined ? base : { ...base, maxRunMinutes: minutes };
+        await fixture(async (h, page, record, requests) => {
+            const pending = {
+                version: 1,
+                requestId: "legacy-duration-pending",
+                activityId: record.id,
+                signature: JSON.stringify(legacy),
+            };
+            await page.evaluate(({ key, value }) => sessionStorage.setItem(key, JSON.stringify(value)), {
+                key: pendingKey,
+                value: pending,
+            });
+            await edit(page);
+            await review(page);
+            assert(await page.getByLabel("最長執行時間（分鐘）").isDisabled());
+            const beforeGets = requests.filter(
+                request => request.path === "/api/purchase" && request.method === "GET",
+            ).length;
+            await page.getByRole("button", { name: "查看待確認的啟動結果", exact: true }).click();
+            await eventually(async () => assert.match(await page.locator("#message").innerText(), /無法核對.*保留/));
+            assert(
+                requests.filter(request => request.path === "/api/purchase" && request.method === "GET").length >
+                    beforeGets,
+            );
+            assert.deepEqual(await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!), pendingKey), pending);
+            assert.equal(requests.filter(request => request.method === "PUT").length, 0);
+            assert.equal(starts(requests).length, 0);
+            assert.equal(await h.snapshot(), null);
+            assert.deepEqual((await (await h.request("/api/activities/" + record.id)).json()).settings, legacy);
+            await assert.rejects(readFile(h.report + ".starts", "utf8"), { code: "ENOENT" });
+        }, legacy);
+    });
+}
+
+test("TicketPlus 舊缺值 pending：接受原結果後解除待確認，不補寫 10 或再送啟動", async () => {
+    const { maxRunMinutes: _duration, ...legacy } = apiActivity;
+    await fixture(async (h, page, record, requests) => {
+        const pending = {
+            version: 1,
+            requestId: "accepted-legacy-request",
+            activityId: record.id,
+            signature: JSON.stringify(legacy),
+        };
+        await page.evaluate(({ key, value }) => sessionStorage.setItem(key, JSON.stringify(value)), {
+            key: pendingKey,
+            value: pending,
+        });
+        await edit(page);
+        await review(page);
+        // 模擬升級前已接受的舊流程狀態；驗證 GUI 查詢交接，不模擬新的啟動成功。
+        const accepted = {
+            id: "accepted-legacy-run",
+            requestId: pending.requestId,
+            platform: "ticketplus",
+            activityId: record.id,
+            activityName: legacy.eventName,
+            status: "information-ready",
+            browserOpen: false,
+            occupied: false,
+            message: "已到填寫資料頁",
+            events: [],
+            historyTruncated: false,
+        };
+        await page.route("**/api/purchase", route => {
+            assert.equal(route.request().method(), "GET");
+            return route.fulfill({ json: accepted });
+        });
+        await page.getByRole("button", { name: "查看待確認的啟動結果", exact: true }).click();
+        await eventually(async () =>
+            assert.equal(await page.evaluate(key => sessionStorage.getItem(key), pendingKey), null),
+        );
+        await eventually(async () => assert.equal(await page.locator("#status").innerText(), "已到填寫資料頁"));
+        assert.equal(requests.filter(request => request.method === "PUT").length, 0);
+        assert.equal(starts(requests).length, 0);
+        assert.deepEqual((await (await h.request("/api/activities/" + record.id)).json()).settings, legacy);
+        await assert.rejects(readFile(h.report + ".starts", "utf8"), { code: "ENOENT" });
+    }, legacy);
 });

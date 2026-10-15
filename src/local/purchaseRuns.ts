@@ -8,7 +8,11 @@ import { parseActivity, projectRoot, type ActivityRecord, type ActivitySettings 
 import { validateContactDetails } from "../config/contact.config.js";
 import { validateSaleSchedule } from "../core/purchaseValidation.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
-import { singleTicketPlusSelection, ticketPlusSessionSelection } from "../config/ticketPlusActivity.js";
+import {
+    singleTicketPlusSelection,
+    ticketPlusSessionSelection,
+    validateTicketPlusRunSettings,
+} from "../config/ticketPlusActivity.js";
 import { ticketPlusEventSchema } from "./purchaseEvents.js";
 import { sendTicketPlusStop } from "./sendTicketPlusStop.js";
 import { sendLoginConfirmation } from "./sendLoginConfirmation.js";
@@ -303,7 +307,10 @@ export class PurchaseRuns {
                 : undefined;
         const previous = this.previousResult(requestId, activityId, fingerprint, activity.platform, legacyFingerprint);
         if (previous) return previous;
-        if (activity.platform === "ticketplus") ticketPlusSessionSelection(activity);
+        if (activity.platform === "ticketplus") {
+            ticketPlusSessionSelection(activity);
+            validateTicketPlusRunSettings(activity);
+        }
 
         // 確認沒有占用，且還沒超過開賣等待期限
         if (this.busy()) throw new Error("已有購票程序或瀏覽器占用，請先關閉原購票瀏覽器。");

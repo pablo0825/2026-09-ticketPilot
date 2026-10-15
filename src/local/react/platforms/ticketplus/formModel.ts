@@ -1,4 +1,8 @@
-import { parseTicketPlusActivity } from "../../../../config/ticketPlusActivity.js";
+import {
+    parseTicketPlusActivity,
+    ticketPlusDefaultRunMinutes,
+    validateTicketPlusRunSettings,
+} from "../../../../config/ticketPlusActivity.js";
 import type { TicketPlusActivitySettings } from "../../../../config/ticketPlusActivity.js";
 import type { ActivityRecord } from "../../../../config/activityStore.js";
 
@@ -26,7 +30,7 @@ export interface ExecutionForm {
 export function executionForm(settings?: TicketPlusActivitySettings): ExecutionForm {
     const schedule = settings?.saleSchedule;
     return {
-        maxRunMinutes: settings?.maxRunMinutes === undefined ? "" : String(settings.maxRunMinutes),
+        maxRunMinutes: String(settings?.maxRunMinutes ?? ticketPlusDefaultRunMinutes),
         mode: schedule ? "scheduled" : "now",
         saleAt: schedule?.saleAt.slice(0, 19) ?? "",
         ...(schedule?.advanceSeconds !== undefined ? { advanceSeconds: schedule.advanceSeconds } : {}),
@@ -49,11 +53,11 @@ export function executionFingerprint(form: ExecutionForm): string {
 // 時間輸入固定視為台灣時間，不經過瀏覽器所在時區轉換。
 export function executionInput(form: ExecutionForm, saved: TicketPlusActivitySettings): TicketPlusActivitySettings {
     const { saleSchedule: _previous, maxRunMinutes: _previousMinutes, ...activity } = saved;
-    const minutes = form.maxRunMinutes.trim() ? positiveInteger(form.maxRunMinutes, "最長執行時間") : undefined;
-    if (minutes !== undefined && minutes > 1440) throw new Error("最長執行時間必須為 1～1440 整數分鐘。");
+    const minutes = positiveInteger(form.maxRunMinutes, "最長執行時間");
+    validateTicketPlusRunSettings({ ...saved, maxRunMinutes: minutes });
     return parseTicketPlusActivity({
         ...activity,
-        ...(minutes === undefined ? {} : { maxRunMinutes: minutes }),
+        maxRunMinutes: minutes,
         ...(form.mode === "scheduled"
             ? {
                   saleSchedule: {

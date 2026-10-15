@@ -10,7 +10,7 @@ async function scheduledLogin(h: Harness, seconds = 7) {
     // 儲存並啟動真正 worker，再人工交接；時間輸入獨立由測試建立。
     const saleTime = Math.ceil(Date.now() / 1000) * 1000 + seconds * 1000;
     const saleAt = new Date(saleTime + 8 * 3600_000).toISOString().slice(0, 19) + "+08:00";
-    const settings = { ...apiActivity, saleSchedule: { saleAt }, maxRunMinutes: 1 };
+    const settings = { ...apiActivity, saleSchedule: { saleAt }, maxRunMinutes: 10 };
     const saved = await (await h.request("/api/activities", settings)).json();
     const requestId = randomUUID();
     const body = { requestId, activityId: saved.id, expectedActivity: settings };

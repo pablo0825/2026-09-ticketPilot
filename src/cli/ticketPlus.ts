@@ -1,6 +1,10 @@
 import { TicketPlusCliInputError } from "./ticketPlusMessages.js";
 import { readFile } from "node:fs/promises";
-import { parseTicketPlusActivity, ticketPlusSessionSelection } from "../config/ticketPlusActivity.js";
+import {
+    parseTicketPlusActivity,
+    ticketPlusSessionSelection,
+    validateTicketPlusRunSettings,
+} from "../config/ticketPlusActivity.js";
 import { runTicketPlus } from "../app/runTicketPlus.js";
 import { ticketPlusResultMessage, ticketPlusEventMessage } from "../app/ticketPlusPresentation.js";
 export { ticketPlusResultMessage } from "../app/ticketPlusPresentation.js";
@@ -22,7 +26,7 @@ export async function loadTicketPlusCliSettings(args: string[]) {
         return parseTicketPlusActivity(input);
     } catch {
         throw new TicketPlusCliInputError(
-            "TicketPlus 活動設定格式錯誤，請檢查活動網址、名稱、日期、時間、票種、張數，以及開賣時間、提前秒數與最長執行分鐘數（1～1440 整數）。",
+            "TicketPlus 活動設定格式錯誤，請檢查活動網址、名稱、日期、時間、票種、張數，以及開賣時間、提前秒數與最長執行分鐘數（新購票需填寫 10～1440 整數）。",
         );
     }
 }
@@ -38,6 +42,7 @@ export async function runTicketPlusCli(
     // 錯誤設定與非互動終端在瀏覽器／占用鎖之前拒絕，不讀 Klook 聯絡資料。
     const settings = await loadTicketPlusCliSettings(args);
     ticketPlusSessionSelection(settings);
+    validateTicketPlusRunSettings(settings);
     try {
         requireTicketPlusTerminal(terminal.input);
     } catch {

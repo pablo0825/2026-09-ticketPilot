@@ -10,6 +10,7 @@ import { acquirePurchaseLease, purchaseOccupied } from "../src/app/purchaseLock.
 
 const settings = {
     platform: "ticketplus",
+    maxRunMinutes: 10,
     eventUrl: "https://ticketplus.com.tw/activity/event-fixture",
     eventName: "2026孿生姐妹之夜之鬼迷心竅",
     targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 }],

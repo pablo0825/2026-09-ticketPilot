@@ -24,6 +24,7 @@ const session = {
 };
 const settings: TicketPlusActivitySettings = {
     platform: "ticketplus",
+    maxRunMinutes: 10,
     eventUrl: "https://ticketplus.com.tw/activity/event-fixture",
     eventName: session.eventName,
     targets: ["A區", "B區"].map(ticketType => ({ date: "2026-10-30", time: "20:00", ticketType, quantity: 2 })),

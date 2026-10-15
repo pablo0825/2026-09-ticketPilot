@@ -16,7 +16,7 @@ const settings: TicketPlusActivitySettings = {
     eventUrl: "https://ticketplus.com.tw/activity/event-fixture",
     eventName: "2026孿生姐妹之夜之鬼迷心竅",
     targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 }],
-    maxRunMinutes: 1,
+    maxRunMinutes: 10,
 };
 type Mode = "direct" | "queue" | "failure";
 
@@ -85,7 +85,7 @@ async function fixture(mode: Mode) {
     };
 }
 
-test("TicketPlus 全程期限：登入耗時不計入，真實 DOM 流程仍抵達資料頁", { timeout: 20_000 }, async () => {
+test("TicketPlus 全程期限：登入耗時不計入，期限未滿十分鐘仍抵達資料頁", { timeout: 20_000 }, async () => {
     const site = await fixture("direct");
     let now = 0;
     try {
@@ -93,7 +93,10 @@ test("TicketPlus 全程期限：登入耗時不計入，真實 DOM 流程仍抵�
             lease: acquirePurchaseLease(site.directory),
             deadlineNow: () => now,
             waitForLogin: async () => {
-                now = 300_000;
+                now = 900_000;
+            },
+            onEvent: event => {
+                if (event.type === "stage" && event.stage === "submitting") now += 599_000;
             },
         });
         assert.equal(
@@ -126,7 +129,7 @@ test("TicketPlus 全程期限：選場次與選票累積同一期限，到期不
             onEvent: event => {
                 if (event.type !== "stage") return;
                 stages.push(event.stage);
-                if (["selecting-session", "selecting-tickets", "submitting"].includes(event.stage)) now += 20_000;
+                if (["selecting-session", "selecting-tickets", "submitting"].includes(event.stage)) now += 200_000;
             },
         });
         assert.deepEqual(stages, [
@@ -159,7 +162,7 @@ test("TicketPlus 全程期限：排隊與售完到期保留提交事實，不重
                 waitForLogin: async () => {},
                 onEvent: event => {
                     if (event.type === "submission" && (event.progress.sawQueue || event.progress.failure))
-                        now = 60_000;
+                        now = 600_000;
                 },
             });
             assert.equal(result.outcome, mode === "queue" ? "unknown" : "rejected");
@@ -204,7 +207,7 @@ test("TicketPlus 全程期限：真實受遮罩點擊縮短期限，收尾後解
                 );
             },
             onEvent: event => {
-                if (event.type === "stage" && event.stage === "selecting-session") offset = 59_000;
+                if (event.type === "stage" && event.stage === "selecting-session") offset = 599_000;
             },
         });
         assert.equal(result.outcome, "stopped");
@@ -226,7 +229,7 @@ test("TicketPlus 全程期限：真實受遮罩點擊縮短期限，收尾後解
     }
 });
 
-test("TicketPlus 開賣等待：等待跨過一分鐘不耗期限，到點後同一期限仍可阻止提交", { timeout: 20_000 }, async () => {
+test("TicketPlus 開賣等待：等待跨過十分鐘不耗期限，到點後同一期限仍可阻止提交", { timeout: 20_000 }, async () => {
     const site = await fixture("direct");
     let deadlineClock = 0;
     let saleClock = Date.parse("2026-10-30T11:59:59+08:00");
@@ -244,11 +247,11 @@ test("TicketPlus 開賣等待：等待跨過一分鐘不耗期限，到點後同
                     stages.push(event.stage);
                     if (event.stage === "waiting-for-sale") {
                         setTimeout(() => {
-                            deadlineClock = 120_000;
+                            deadlineClock = 1_200_000;
                             saleClock += 1000;
                         }, 100);
                     }
-                    if (event.stage === "submitting") deadlineClock += 60_000;
+                    if (event.stage === "submitting") deadlineClock += 600_000;
                 },
             },
         );

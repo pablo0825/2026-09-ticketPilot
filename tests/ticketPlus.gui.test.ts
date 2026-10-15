@@ -109,7 +109,7 @@ test("TicketPlus GUI：真表單重排複製保存與重載，兩平台同名活
         await third.getByRole("button", { name: "上移" }).click();
         await page.getByRole("group", { name: "順位 1", exact: true }).getByRole("button", { name: "移除" }).click();
         await page.getByRole("group", { name: "順位 1", exact: true }).getByRole("button", { name: "下移" }).click();
-        assert.equal(await page.getByLabel("最長執行時間（分鐘，選填）").count(), 0);
+        assert.equal(await page.getByLabel("最長執行時間（分鐘）").count(), 0);
         await page.getByRole("button", { name: "儲存活動" }).click();
         await page.getByRole("alert").filter({ hasText: "活動已儲存" }).waitFor();
         const saved = (await h.store.list()).activities.find(record => record.settings.eventName === "新活動")!;
@@ -126,6 +126,7 @@ test("TicketPlus GUI：真表單重排複製保存與重載，兩平台同名活
             .getByRole("button", { name: "② 確認與開始", exact: true })
             .getAttribute("aria-current")
             .then(value => assert.equal(value, "step"));
+        assert.equal(await page.getByLabel("最長執行時間（分鐘）", { exact: true }).inputValue(), "10");
         await page.locator("#homeButton").click();
         await page
             .locator("#activities tr")

@@ -9,5 +9,6 @@
       "ticketType": "請填寫完整票種名稱",
       "quantity": 1
     }
-  ]
+  ],
+  "maxRunMinutes": 10
 }

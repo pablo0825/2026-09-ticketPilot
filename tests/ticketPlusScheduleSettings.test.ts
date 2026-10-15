@@ -104,7 +104,11 @@ test("排程不被舊指紋投影丟掉；無排程 v4／v5 指紋及原紀錄�
                 const scheduled = { ...activity, saleSchedule: { ...schedule, advanceSeconds } };
                 assert.throws(() => runs.start(requestId, scheduled, undefined, activityId), /更換設定/);
                 assert.equal(runs.activityStatus({ ...saved, settings: scheduled }), "設定已更新");
-                assert.throws(() => runs.start(randomUUID(), scheduled, undefined, activityId), /開賣等待時間已過/);
+                assert.throws(() => runs.start(randomUUID(), scheduled, undefined, activityId), /10～1440/);
+                assert.throws(
+                    () => runs.start(randomUUID(), { ...scheduled, maxRunMinutes: 10 }, undefined, activityId),
+                    /開賣等待時間已過/,
+                );
             }
             assert.equal(await readFile(file, "utf8"), original);
             assert.deepEqual(await readdir(join(dir, "runs")), [requestId + ".json"]);
@@ -160,12 +164,12 @@ test("API 排程可保存重讀；提前秒數與時間皆比對，過期啟動�
                 body: body === undefined ? undefined : JSON.stringify(body),
             });
         const expiredSchedule = { ...schedule, saleAt: "2020-10-20T12:00:00+08:00" };
-        const settings = { ...activity, saleSchedule: expiredSchedule };
+        const settings = { ...activity, maxRunMinutes: 10, saleSchedule: expiredSchedule };
         const created = await request("/api/activities", "POST", settings);
         assert.equal(created.status, 201);
         const saved = await created.json();
         assert.deepEqual((await store.load(saved.id)).settings, settings);
-        const twoSeconds = { ...activity, saleSchedule: { ...expiredSchedule, advanceSeconds: 2 } };
+        const twoSeconds = { ...settings, saleSchedule: { ...expiredSchedule, advanceSeconds: 2 } };
         const updated = await request("/api/activities/" + saved.id, "PUT", twoSeconds);
         assert.equal(updated.status, 200);
         assert.deepEqual((await updated.json()).settings, twoSeconds);
@@ -230,7 +234,11 @@ test("固定 v5 排程紀錄：同請求重播先於啟動限制，改時間或�
         };
         assert.equal(runs.start(requestId, scheduled, undefined, activityId).id, "123-history");
         assert.equal(runs.activityStatus(saved), "已執行");
-        assert.throws(() => runs.start(randomUUID(), scheduled, undefined, activityId), /開賣等待時間已過/);
+        assert.throws(() => runs.start(randomUUID(), scheduled, undefined, activityId), /10～1440/);
+        assert.throws(
+            () => runs.start(randomUUID(), { ...scheduled, maxRunMinutes: 10 }, undefined, activityId),
+            /開賣等待時間已過/,
+        );
         for (const saleSchedule of [
             { ...schedule, advanceSeconds: 2 as const },
             { ...schedule, saleAt: "2026-10-21T12:00:00+08:00" },

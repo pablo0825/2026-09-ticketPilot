@@ -19,7 +19,12 @@ test("TicketPlus CLI：設定與非互動輸入在開瀏覽器前拒絕，help �
     const input = new PassThrough();
     const output = new PassThrough();
     try {
-        await writeFile(path, await readFile(new URL("../ticketplus.example.json", import.meta.url)));
+        const settings = JSON.parse(await readFile(new URL("../ticketplus.example.json", import.meta.url), "utf8"));
+        for (const maxRunMinutes of [undefined, 9]) {
+            await writeFile(path, JSON.stringify({ ...settings, maxRunMinutes }));
+            await assert.rejects(runTicketPlusCli(["--config", path], { input, output }), /10～1440/);
+        }
+        await writeFile(path, JSON.stringify({ ...settings, maxRunMinutes: 10 }));
         assert.equal((await loadTicketPlusCliSettings(["--config", path])).platform, "ticketplus");
         for (const args of [[], ["--config"], ["--config", path, "extra"], ["--unknown", path]]) {
             await assert.rejects(loadTicketPlusCliSettings(args), /用法/);

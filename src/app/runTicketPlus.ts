@@ -4,7 +4,11 @@ import { chromium } from "playwright";
 import type { BrowserContext, Page } from "playwright";
 import { join } from "node:path";
 import { projectRoot } from "../config/activityStore.js";
-import { parseTicketPlusActivity, ticketPlusSessionSelection } from "../config/ticketPlusActivity.js";
+import {
+    parseTicketPlusActivity,
+    ticketPlusSessionSelection,
+    validateTicketPlusRunSettings,
+} from "../config/ticketPlusActivity.js";
 import type { TicketPlusActivitySettings } from "../config/ticketPlusActivity.js";
 import { acquirePurchaseLease, releasePurchaseLease, verifyPurchaseLease } from "./purchaseLock.js";
 import type { PurchaseLease } from "./purchaseLock.js";
@@ -79,6 +83,7 @@ export async function runTicketPlus(
     // 所有啟動輸入先驗證，錯誤時不取得占用或開啟瀏覽器。
     const activity = parseTicketPlusActivity(input);
     const settings = ticketPlusSessionSelection(activity);
+    validateTicketPlusRunSettings(activity);
     if (typeof options.waitForLogin !== "function") throw new Error("TicketPlus 需要人工登入交接。");
     const control = new TicketPlusRunControl(options.signal, options.deadlineNow);
     if (options.signal?.aborted && !options.lease) {

@@ -58,11 +58,12 @@ export function ExecutionEditor({ form, disabled, onChange }: Props) {
                 </div>
             )}
             <label>
-                最長執行時間（分鐘，選填）
+                最長執行時間（分鐘）
                 <input
                     id="maxRunMinutes"
                     type="number"
-                    min="1"
+                    min="10"
+                    required
                     max="1440"
                     step="1"
                     disabled={disabled}

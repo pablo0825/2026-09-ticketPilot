@@ -37,17 +37,13 @@ test("TicketPlus 表單：明列儲存欄位，保留唯讀排程與跨場次設
     assert.equal(settings.maxRunMinutes, 10);
 });
 
-test("TicketPlus 執行設定：空白期限省略、上下限接受，其餘數值拒絕", () => {
+test("TicketPlus 執行設定：必填期限、上下限接受，其餘數值拒絕", () => {
     const form = executionForm(settings);
-    for (const text of ["", "  "]) {
-        form.maxRunMinutes = text;
-        assert(!("maxRunMinutes" in executionInput(form, settings)));
-    }
-    for (const minutes of [1, 1440]) {
+    for (const minutes of [10, 1440]) {
         form.maxRunMinutes = String(minutes);
         assert.equal(executionInput(form, settings).maxRunMinutes, minutes);
     }
-    for (const text of ["0", "-1", "1.5", "1441", "NaN", "abc"]) {
+    for (const text of ["", "  ", "0", "9", "-1", "10.5", "1441", "NaN", "abc"]) {
         form.maxRunMinutes = text;
         assert.throws(() => executionInput(form, settings), /最長執行時間/);
     }
@@ -78,4 +74,20 @@ test("TicketPlus 表單：API 回應須核對平台、ID 與版本", () => {
     assert.throws(() => ticketPlusRecord({ ...record, settings: { ...settings, platform: "klook" } }));
     assert.throws(() => ticketPlusRecord({ ...record, updatedAt: "invalid" }));
     assert.throws(() => ticketPlusRecord(null));
+});
+
+test("TicketPlus 期限表單：新活動與舊缺值預填 10，讀取不修改來源，舊低值不偷偷延長", () => {
+    assert.equal(executionForm().maxRunMinutes, "10");
+    const { maxRunMinutes: _duration, ...legacy } = settings;
+    const before = JSON.stringify(legacy);
+    assert.equal(executionForm(legacy).maxRunMinutes, "10");
+    assert.equal(JSON.stringify(legacy), before);
+    assert.equal(executionInput(executionForm(legacy), legacy).maxRunMinutes, 10);
+    for (const minutes of [1, 5, 9]) {
+        const old = { ...legacy, maxRunMinutes: minutes };
+        const form = executionForm(old);
+        assert.equal(form.maxRunMinutes, String(minutes));
+        assert.throws(() => executionInput(form, old), /最長執行時間/);
+        assert.equal(old.maxRunMinutes, minutes);
+    }
 });
