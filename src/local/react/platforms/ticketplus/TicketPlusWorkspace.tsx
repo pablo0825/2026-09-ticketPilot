@@ -4,6 +4,7 @@ import type { ActivityExecutionStatus } from "../../../purchaseRuns.js";
 import { api } from "../../shared/api.js";
 import { AppHeader } from "../../shared/AppHeader.js";
 import type { useRunStatus } from "../../shared/runs/useRunStatus.js";
+import { RunStatus } from "../../shared/runs/RunStatus.js";
 import { ActivityList } from "./ActivityList.js";
 import type { ActivityListEntry } from "./ActivityList.js";
 import { ActivityEditor } from "./ActivityEditor.js";
@@ -19,19 +20,28 @@ interface Props {
     runs: ReturnType<typeof useRunStatus>;
     onExit: () => void;
     onViewRun: () => void;
-    onStarted: () => void;
+    onPendingResolved: () => void;
 }
 interface ActivityListData {
     activities: (ActivityRecord & { executionStatus: ActivityExecutionStatus })[];
     invalidFiles: number;
 }
 
-export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewRun, onStarted }: Props) {
+type Step = "activity" | "confirm" | "status";
+const steps: { id: Step; label: string }[] = [
+    { id: "activity", label: "① 活動與順位" },
+    { id: "confirm", label: "② 確認與開始" },
+    { id: "status", label: "③ 執行狀態" },
+];
+
+export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewRun, onPendingResolved }: Props) {
     const [activities, setActivities] = useState<ActivityListEntry[]>([]);
     const [record, setRecord] = useState<TicketPlusActivityRecord | null>(null);
     const [form, setForm] = useState(activityForm);
     const [baseline, setBaseline] = useState(() => draftFingerprint(form));
     const [editing, setEditing] = useState(false);
+    const [step, setStep] = useState<Step>("activity");
+    const [startedRunId, setStartedRunId] = useState<string | null>(null);
     const [initialized, setInitialized] = useState(false);
     const [busy, setBusy] = useState(false);
     const busyRef = useRef(false);
@@ -95,6 +105,13 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
         runs.purchase?.status === "interrupted" ||
         runs.simulation?.status === "running",
     );
+    // 只呈現這個工作區啟動的流程，不以活動名稱推論歷史紀錄的歸屬。
+    const displayedRun =
+        runs.displayed?.kind === "purchase" &&
+        runs.displayed.run.platform === "ticketplus" &&
+        runs.displayed.run.id === startedRunId
+            ? runs.displayed
+            : null;
 
     async function action(work: () => Promise<unknown>) {
         // 同步鎖涵蓋保存與導覽，避免 React 尚未更新按鈕時重複送出。
@@ -132,7 +149,14 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
         setForm(nextForm);
         setBaseline(draftFingerprint(nextForm));
         setEditing(true);
+        setStep("activity");
+        setStartedRunId(null);
         setMessage("");
+    }
+
+    function changeStep(next: Step) {
+        if (busyRef.current || runs.closing) return;
+        setStep(next);
     }
 
     async function save() {
@@ -154,7 +178,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
             { ...next, executionStatus: "待重新載入" },
             ...previous.filter(item => item.id !== next.id),
         ]);
-        setEditing(false);
+        setStep("confirm");
         try {
             const invalidFiles = await refreshList();
             if (active.current && invalidFiles !== undefined) {
@@ -190,7 +214,8 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
         const result = await startPurchase(record);
         if (!active.current) return;
         runs.showAccepted(result, previousId);
-        onStarted();
+        setStartedRunId(result.id);
+        setStep("status");
     }
 
     async function inspectPending() {
@@ -198,7 +223,8 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
         const result = await findPendingStart();
         if (!active.current) return;
         runs.showAccepted(result, previousId);
-        onStarted();
+        // 待確認請求可能屬於其他活動，沿用全域狀態頁供人工核對。
+        onPendingResolved();
     }
 
     return (
@@ -221,19 +247,58 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                     <button id="homeButton" className="secondary" disabled={locked} onClick={() => leave("list")}>
                         返回活動首頁
                     </button>
-                    <ActivityEditor
-                        form={form}
-                        saved={record?.settings}
-                        disabled={blocked || pendingStart}
-                        onChange={setForm}
-                        onSave={() => void action(save)}
-                    />
-                    <PurchaseSummary
-                        settings={record?.settings}
-                        reason={startReason}
-                        disabled={blocked}
-                        onStart={() => void action(start)}
-                    />
+                    <nav aria-label="設定步驟">
+                        {steps.map(item => (
+                            <button
+                                type="button"
+                                key={item.id}
+                                className={step === item.id ? "active" : ""}
+                                aria-current={step === item.id ? "step" : undefined}
+                                disabled={locked}
+                                onClick={() => changeStep(item.id)}
+                            >
+                                {item.label}
+                            </button>
+                        ))}
+                    </nav>
+                    {step === "activity" && (
+                        <ActivityEditor
+                            form={form}
+                            saved={record?.settings}
+                            disabled={blocked || pendingStart}
+                            onChange={setForm}
+                            onSave={() => void action(save)}
+                        />
+                    )}
+                    {step === "confirm" && (
+                        <PurchaseSummary
+                            settings={record?.settings}
+                            reason={startReason}
+                            disabled={blocked}
+                            onStart={() => void action(start)}
+                        />
+                    )}
+                    {step === "status" &&
+                        (displayedRun ? (
+                            <RunStatus
+                                displayed={displayedRun}
+                                loginHandoff={runs.loginHandoff}
+                                stopControl={runs.stopControl}
+                                closing={runs.closing}
+                                canClose={
+                                    displayedRun.run.id === runs.purchase?.id && Boolean(runs.purchase?.canCloseBrowser)
+                                }
+                                onClose={() => void runs.closeBrowser()}
+                                onCopy={text =>
+                                    void navigator.clipboard.writeText(text).catch(error => setMessage(error.message))
+                                }
+                            />
+                        ) : (
+                            <section className="card">
+                                <h2>尚未開始</h2>
+                                <p>請在第二步確認已儲存的設定，再開始購票。</p>
+                            </section>
+                        ))}
                 </>
             ) : (
                 <>

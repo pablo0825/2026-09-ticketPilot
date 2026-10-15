@@ -124,6 +124,11 @@ test("TicketPlus GUI：真表單重排複製保存與重載，兩平台同名活
             maxRunMinutes: 15,
         });
         await page
+            .getByRole("button", { name: "② 確認與開始", exact: true })
+            .getAttribute("aria-current")
+            .then(value => assert.equal(value, "step"));
+        await page.locator("#homeButton").click();
+        await page
             .locator("#activities tr")
             .filter({ hasText: "新活動" })
             .getByRole("button", { name: "編輯活動" })
@@ -205,6 +210,10 @@ test("TicketPlus GUI：兩分頁真 revision 衝突不覆蓋，失敗保留草�
         await other.locator("#eventName").fill("B分頁草稿");
         await other.getByRole("button", { name: "儲存活動" }).click();
         await other.getByRole("alert").filter({ hasText: "其他分頁修改" }).waitFor();
+        assert.equal(
+            await other.getByRole("button", { name: "① 活動與順位", exact: true }).getAttribute("aria-current"),
+            "step",
+        );
         assert.equal(await other.locator("#eventName").inputValue(), "B分頁草稿");
         assert.equal((await disk(h, h.id)).settings.eventName, "A分頁已保存");
     });
@@ -276,11 +285,12 @@ test("TicketPlus GUI：保存成功但重載失敗仍保留 ID，再編輯以 PU
         await fillNew(h.page);
         await h.page.getByRole("button", { name: "儲存活動" }).click();
         await h.page.getByRole("alert").filter({ hasText: "活動已儲存，但列表" }).waitFor();
-        await h.page
-            .locator("#activities tr")
-            .filter({ hasText: "新活動" })
-            .getByRole("button", { name: "編輯活動" })
-            .click();
+        assert.equal(
+            await h.page.getByRole("button", { name: "② 確認與開始", exact: true }).getAttribute("aria-current"),
+            "step",
+        );
+        assert.match(await h.page.getByRole("region", { name: "購票前確認" }).innerText(), /新活動/);
+        await h.page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
         await h.page.locator("#eventName").fill("再次編輯");
         await h.page.getByRole("button", { name: "儲存活動" }).click();
         await h.page.getByRole("alert").filter({ hasText: "活動已儲存，但列表" }).waitFor();

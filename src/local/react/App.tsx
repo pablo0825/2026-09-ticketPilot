@@ -59,7 +59,7 @@ export function App() {
                     setMessage={setMessage}
                     runs={runs}
                     onExit={showPlatforms}
-                    onStarted={() => setPage("run")}
+                    onPendingResolved={() => setPage("run")}
                     onViewRun={() => {
                         runs.showCurrent();
                         setPage("run");

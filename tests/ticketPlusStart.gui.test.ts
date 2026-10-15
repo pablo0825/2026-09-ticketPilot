@@ -13,8 +13,9 @@ type RequestLog = { path: string; method: string; body: any }[];
 async function fixture(
     work: (h: Harness, page: Page, record: any, requests: RequestLog) => Promise<void>,
     settings: unknown = apiActivity,
+    mode = "success",
 ) {
-    const h = await apiHarness();
+    const h = await apiHarness(mode);
     const browser = await chromium.launch();
     try {
         const record = await (await h.request("/api/activities", settings)).json();
@@ -40,6 +41,11 @@ async function fixture(
 async function edit(page: Page) {
     await page.locator("#selectTicketPlus").click();
     await page.getByRole("button", { name: "編輯活動", exact: true }).click();
+    await page.getByRole("button", { name: "① 活動與順位", exact: true }).waitFor();
+}
+
+async function review(page: Page) {
+    await page.getByRole("button", { name: "② 確認與開始", exact: true }).click();
     await page.getByRole("region", { name: "購票前確認" }).waitFor();
 }
 
@@ -67,6 +73,7 @@ test("TicketPlus 啟動 GUI：保存摘要到真 API、人工交接及資料頁�
     await fixture(async (h, page, record, requests) => {
         await page.evaluate(key => sessionStorage.setItem(key, "klook-independent-marker"), klookPendingKey);
         await edit(page);
+        await review(page);
         const summary = await page.getByRole("region", { name: "購票前確認" }).innerText();
         for (const value of ["2026孿生姐妹之夜之鬼迷心竅", "2026-10-30", "20:00", "預售票", "2", "填寫資料頁"])
             assert(summary.includes(value));
@@ -95,11 +102,15 @@ test("TicketPlus 啟動 GUI：保存摘要到真 API、人工交接及資料頁�
 test("TicketPlus 啟動 GUI：未保存修改與新增草稿都不能啟動", async () => {
     await fixture(async (_h, page, _record, requests) => {
         await edit(page);
+        await review(page);
+        await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
         await page.getByLabel("票種名稱").fill("另一票種");
+        await review(page);
         assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
         page.once("dialog", dialog => dialog.accept());
         await page.locator("#homeButton").click();
         await page.getByRole("button", { name: "新增活動", exact: true }).click();
+        await page.getByRole("button", { name: "② 確認與開始", exact: true }).click();
         const start = page.getByRole("button", { name: "開始購票", exact: true });
         assert((await start.count()) === 0 || (await start.isDisabled()));
         assert.equal(starts(requests).length, 0);
@@ -116,6 +127,7 @@ test("TicketPlus 啟動 GUI：跨場次及尚未接通排程可以讀取，但�
     ]) {
         await fixture(async (_h, page, _record, requests) => {
             await edit(page);
+            await review(page);
             assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
             assert.equal(starts(requests).length, 0);
         }, settings);
@@ -125,6 +137,7 @@ test("TicketPlus 啟動 GUI：跨場次及尚未接通排程可以讀取，但�
 test("TicketPlus 啟動 GUI：別頁修改保存設定後，真後端拒絕舊摘要而不開 worker", async () => {
     await fixture(async (h, page, record, requests) => {
         await edit(page);
+        await review(page);
         const response = await fetch(h.url + "/api/activities/" + record.id, {
             method: "PUT",
             headers: { ...h.headers, "X-Activity-Revision": record.updatedAt },
@@ -151,6 +164,7 @@ test("TicketPlus 啟動 GUI：真接受後回應遺失，重載查詢原請求�
             await route.abort("failed");
         });
         await edit(page);
+        await review(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).click();
         const ready = await h.until(run => Boolean(run?.loginConfirmation));
         await eventually(async () => assert(await page.evaluate(key => sessionStorage.getItem(key), pendingKey)));
@@ -197,6 +211,7 @@ test("TicketPlus 啟動 GUI：開始回應晚於 SSE，導覽保留最新登入�
         });
         try {
             await edit(page);
+            await review(page);
             await page.getByRole("button", { name: "開始購票", exact: true }).click();
             const ready = await h.until(run => Boolean(run?.loginConfirmation));
             await eventually(async () =>
@@ -231,7 +246,10 @@ test("TicketPlus 啟動 GUI：查不到原請求仍保留 pending，不能把未
             value: pending,
         });
         await edit(page);
+        await review(page);
+        await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
         assert(await page.getByLabel("票種名稱").isDisabled());
+        await review(page);
         await page.getByRole("button", { name: "查看待確認的啟動結果", exact: true }).click();
         await eventually(async () => assert.match(await page.locator("#message").innerText(), /無法核對.*保留/));
         assert.deepEqual(await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!), pendingKey), pending);
@@ -252,11 +270,14 @@ test(
                 return route.continue();
             });
             await edit(page);
+            await review(page);
             await page.getByRole("button", { name: "開始購票", exact: true }).click();
             await eventually(async () =>
                 assert.match(await page.locator("#message").innerText(), /失敗|fetch|確認|連線/i),
             );
+            await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
             assert(await page.getByLabel("票種名稱").isDisabled());
+            await review(page);
             await page.getByRole("button", { name: "開始購票", exact: true }).click();
             await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
             await verifyInformation(h, page);
@@ -280,6 +301,7 @@ test("TicketPlus 啟動 GUI：另一活動的 pending 不允許改用新設定�
             value: pending,
         });
         await edit(page);
+        await review(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).click();
         await eventually(async () => assert.match(await page.locator("#message").innerText(), /不能更換活動或設定/));
         assert.equal(starts(requests).length, 0);
@@ -303,9 +325,111 @@ test("TicketPlus 啟動 GUI：同活動但不同設定的 pending 不能換成�
             value: pending,
         });
         await edit(page);
+        await review(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).click();
         await eventually(async () => assert.match(await page.locator("#message").innerText(), /不能更換活動或設定/));
         assert.equal(starts(requests).length, 0);
         assert.deepEqual(await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!), pendingKey), pending);
     });
 });
+
+test("TicketPlus 步驟 GUI：保存後前進，未保存修改禁止啟動，重新保存使用新張數", { timeout: 30_000 }, async () => {
+    await fixture(async (h, page, record, requests) => {
+        await edit(page);
+        assert.equal(await page.getByRole("region", { name: "購票前確認" }).count(), 0);
+        await page.getByLabel("張數", { exact: true }).fill("1");
+        await page.getByRole("button", { name: "儲存活動", exact: true }).click();
+        await page.getByRole("region", { name: "購票前確認" }).waitFor();
+        assert.equal(
+            await page.getByRole("button", { name: "② 確認與開始", exact: true }).getAttribute("aria-current"),
+            "step",
+        );
+        await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+        await page.getByLabel("張數", { exact: true }).fill("2");
+        await review(page);
+        assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
+        assert.match(await page.getByRole("region", { name: "購票前確認" }).innerText(), /1 張/);
+        assert.equal(starts(requests).length, 0);
+        await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+        assert.equal(await page.getByLabel("張數", { exact: true }).inputValue(), "2");
+        await page.getByRole("button", { name: "儲存活動", exact: true }).click();
+        await page.getByRole("region", { name: "購票前確認" }).waitFor();
+        const saved = await (await h.request("/api/activities/" + record.id)).json();
+        assert.equal(saved.settings.targets[0].quantity, 2);
+        await page.getByRole("button", { name: "開始購票", exact: true }).click();
+        await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
+        await verifyInformation(h, page);
+        assert.equal(starts(requests).length, 1);
+        assert.deepEqual(starts(requests)[0]!.body.expectedActivity, saved.settings);
+    });
+});
+
+test(
+    "TicketPlus 步驟 GUI：第三步保留登入、停止與關窗，切換不重啟，另一同名活動無舊結果",
+    { timeout: 30_000 },
+    async () => {
+        await fixture(
+            async (h, page, record, requests) => {
+                await h.request("/api/activities", apiActivity);
+                await page.locator("#selectTicketPlus").click();
+                await page.getByRole("button", { name: "編輯活動", exact: true }).first().click();
+                await page.getByRole("button", { name: "③ 執行狀態", exact: true }).click();
+                await page.getByText("尚未開始", { exact: true }).waitFor();
+                await review(page);
+                await page.getByRole("button", { name: "開始購票", exact: true }).click();
+                await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
+                const run = await h.snapshot();
+                assert(run);
+                assert.equal(
+                    await page.getByRole("button", { name: "③ 執行狀態", exact: true }).getAttribute("aria-current"),
+                    "step",
+                );
+                await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+                assert(await page.getByLabel("票種名稱").isDisabled());
+                await page.getByRole("button", { name: "③ 執行狀態", exact: true }).click();
+                await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
+                await eventually(async () => assert.equal((await h.counts()).counts.submit, 1));
+                await page.getByRole("button", { name: "停止購票", exact: true }).click();
+                await page.getByRole("button", { name: "② 確認與開始", exact: true }).click();
+                assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
+                await page.getByRole("button", { name: "③ 執行狀態", exact: true }).click();
+                await eventually(async () => assert.equal(await page.locator("#status").innerText(), "購票已停止"));
+                assert.equal((await h.snapshot())!.id, run.id);
+                assert.equal(starts(requests).length, 1);
+                assert.equal(
+                    requests.filter(request => request.path === "/api/purchase/stop" && request.method === "POST")
+                        .length,
+                    1,
+                );
+                assert.equal(
+                    requests.filter(
+                        request => request.path === "/api/purchase/confirm-login" && request.method === "POST",
+                    ).length,
+                    1,
+                );
+                assert.equal((await h.counts()).counts.submit, 1);
+                assert.equal((await h.counts()).counts.information, 0);
+                page.once("dialog", dialog => void dialog.accept());
+                await page.getByRole("button", { name: "關閉購票瀏覽器", exact: true }).click();
+                await h.until(current => !current?.occupied);
+                await page.locator("#homeButton").click();
+                // 兩筆活動同名，明確選另一筆，不能依名稱帶入上一輪狀態。
+                const loadedOther = page.waitForResponse(response =>
+                    /\/api\/activities\/[^/]+$/.test(new URL(response.url()).pathname),
+                );
+                await page
+                    .locator("#activities tr")
+                    .getByRole("button", { name: "編輯活動", exact: true })
+                    .nth(1)
+                    .click();
+                assert.notEqual((await (await loadedOther).json()).id, starts(requests)[0]!.body.activityId);
+                await page.getByRole("button", { name: "③ 執行狀態", exact: true }).click();
+                await page.getByText("尚未開始", { exact: true }).waitFor();
+                assert.equal(await page.locator("#status").count(), 0);
+                assert.equal(starts(requests).length, 1);
+            },
+            apiActivity,
+            "queue",
+        );
+    },
+);
