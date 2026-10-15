@@ -70,7 +70,7 @@ export interface ActivityTransitionTarget {
 interface ActivityTransitionDiagnostic {
     result:
         | "verified"
-        | "not-order-route"
+        | "unsupported-transition-route"
         | "event-id-mismatch"
         | "mixed-markers"
         | "activity-unreadable"
@@ -161,6 +161,14 @@ function classifyPage(dom: TicketPlusDom, transitionTarget?: ActivityTransitionT
         if (dom.queueCount || dom.tickets.length || hasInformation || hasCheckout) {
             return unknownPage("conflicting-page");
         }
+        // 點擊後可能先重疊同名標題，再切換網址；仍須核對完整活動與場次。
+        if (
+            transitionTarget &&
+            dom.activityNames.length > 1 &&
+            inspectActivityTransition(dom, activity[1]!, transitionTarget).result === "verified"
+        ) {
+            return unknownPage("activity-transition");
+        }
         return parseActivityPage(dom, activity[1]!);
     }
     const identity = { eventId: order![2]!, sessionId: order![3]! };
@@ -220,10 +228,12 @@ export async function readTicketPlusPage(
         if (result.kind === "unknown") diagnostic.unknownReason = result.reason;
         if (snapshot && transitionTarget && snapshot.activity.length) {
             const order = /^\/order\/([A-Za-z0-9_-]+)\/[A-Za-z0-9_-]+\/?$/.exec(snapshot.pathname);
+            const activity = /^\/activity\/([A-Za-z0-9_-]+)\/?$/.exec(snapshot.pathname);
+            const eventId = order?.[1] ?? activity?.[1];
             diagnostic.activityTransition = {
-                ...(order
-                    ? inspectActivityTransition(snapshot, order[1]!, transitionTarget)
-                    : { result: "not-order-route" as const }),
+                ...(eventId
+                    ? inspectActivityTransition(snapshot, eventId, transitionTarget)
+                    : { result: "unsupported-transition-route" as const }),
                 headingCount: snapshot.activityNames.length,
                 matchingHeadingCount: snapshot.activityNames.filter(name => name === transitionTarget.eventName).length,
                 rows: snapshot.activity.map(row => ({

@@ -746,3 +746,101 @@ test("TicketPlus 重複標題：非目標標題、重複場次與點擊前歧義
         { html: activity + `<h1>${eventName}</h1>` },
     );
 });
+
+test("TicketPlus 入場過渡：網址切換前後同名標題重疊，共用等待且只點一次", { timeout: 15_000 }, async () => {
+    await withPage(
+        async page => {
+            await page.evaluate(name => {
+                document.addEventListener(
+                    "click",
+                    () => {
+                        const heading = document.createElement("h1");
+                        heading.textContent = name;
+                        document.body.append(heading);
+                    },
+                    { once: true },
+                );
+            }, eventName);
+            let waits = 0;
+            class TransitionControl extends TicketPlusRunControl {
+                override async wait(milliseconds: number): Promise<void> {
+                    waits++;
+                    assert.deepEqual(await readTicketPlusPage(page), {
+                        kind: "unknown",
+                        reason: waits === 1 ? "ambiguous-data" : "conflicting-page",
+                    });
+                    if (waits === 1) {
+                        await page.evaluate(() => history.replaceState({}, "", "/order/event-fixture/session-B"));
+                    } else {
+                        await page.setContent(orderB);
+                    }
+                    await super.wait(milliseconds);
+                }
+            }
+            const result = await selectTicketPlusSession(page, settings, options, new TransitionControl());
+            assert.equal(result.sessionId, "session-B");
+            assert.equal(waits, 2);
+            assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+        },
+        { noNavigation: true },
+    );
+});
+
+test("TicketPlus 活動網址過渡：持續重疊逾時，不重按並保留驗證結果", { timeout: 15_000 }, async () => {
+    await withPage(
+        async page => {
+            await page.evaluate(name => {
+                document.addEventListener(
+                    "click",
+                    () => {
+                        const heading = document.createElement("h1");
+                        heading.textContent = name;
+                        document.body.append(heading);
+                    },
+                    { once: true },
+                );
+            }, eventName);
+            await assert.rejects(
+                selectTicketPlusSession(page, settings, { ...options, arrivalTimeoutMs: 300 }),
+                error => {
+                    assert(error instanceof TicketPlusSessionError);
+                    assert.equal(error.reason, "arrival-timeout");
+                    assert.equal(error.diagnostic?.check, "page-state");
+                    if (error.diagnostic?.check !== "page-state") return false;
+                    assert.equal(error.diagnostic.snapshot.activityTransition?.result, "verified");
+                    assert.equal(error.diagnostic.snapshot.unknownReason, "activity-transition");
+                    return true;
+                },
+            );
+            assert.equal(page.url(), activityUrl);
+            assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+        },
+        { noNavigation: true },
+    );
+});
+
+test("TicketPlus 活動網址過渡：不同標題、重複場次與混合標記仍停止", { timeout: 20_000 }, async () => {
+    for (const extra of [
+        "<h1>另一活動</h1>",
+        `<h1>${eventName}</h1>${rowB}`,
+        `<h1>${eventName}</h1><div role="dialog">提示</div>`,
+        `<h1>${eventName}</h1>${orderB}`,
+    ]) {
+        await withPage(
+            async page => {
+                await page.evaluate(html => {
+                    document.addEventListener("click", () => document.body.insertAdjacentHTML("beforeend", html), {
+                        once: true,
+                    });
+                }, extra);
+                await rejectsEntry(
+                    selectTicketPlusSession(page, settings, options),
+                    "after-click-attempt",
+                    "unexpected-page",
+                );
+                assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+            },
+            { noNavigation: true },
+        );
+    }
+});
