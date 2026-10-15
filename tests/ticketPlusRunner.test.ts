@@ -236,7 +236,10 @@ test("TicketPlus runner：活動不符保留具體原因，CLI 指出設定欄�
         );
         assert.equal(result.outcome, "stopped");
         assert("sessionFailure" in result);
-        assert.deepEqual(result.sessionFailure, { reason: "activity-mismatch", stage: "before-click" });
+        assert.equal(result.sessionFailure?.reason, "activity-mismatch");
+        assert.equal(result.sessionFailure?.stage, "before-click");
+        assert.equal(result.sessionFailure?.diagnostic?.check, "page-state");
+        assert.match(ticketPlusResultMessage(result), /"pageKind":"activity"/);
         assert.match(ticketPlusResultMessage(result), /eventName 與 eventUrl/);
         assert.match(ticketPlusResultMessage(result), /尚未嘗試點擊立即購買/);
         assert.deepEqual(requests, ["/activity/event-fixture"]);

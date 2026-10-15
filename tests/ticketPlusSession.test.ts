@@ -405,3 +405,99 @@ test("TicketPlus 場次：未知或矛盾按鈕與同時段預售重複列皆零
         );
     }
 });
+
+test("TicketPlus 場次診斷：保留失敗快照與分類，仍只點一次且不洩漏文字", { timeout: 30_000 }, async () => {
+    const cases = [
+        {
+            html: orderB + '<div role="dialog">PRIVATE_DIALOG_TEXT</div>',
+            kind: "unknown",
+            reason: "blocking-dialog",
+            marker: "unknownDialogs",
+        },
+        {
+            html: orderB + '<div class="stepText checkedStep">付款結帳</div>',
+            kind: "unknown",
+            reason: "conflicting-page",
+            marker: "checkoutSteps",
+        },
+        { html: fixture.queue, kind: "queue", reason: undefined, marker: "queueHeadings" },
+    ];
+    for (const item of cases) {
+        await withPage(
+            async page => {
+                await assert.rejects(selectTicketPlusSession(page, settings, options), error => {
+                    assert(error instanceof TicketPlusSessionError);
+                    assert.equal(error.reason, "unexpected-page");
+                    assert.equal(error.stage, "after-click-attempt");
+                    assert.equal(error.diagnostic?.check, "page-state");
+                    if (error.diagnostic?.check !== "page-state") return false;
+                    assert.equal(error.diagnostic.snapshot.pageKind, item.kind);
+                    assert.equal(error.diagnostic.snapshot.unknownReason, item.reason);
+                    assert.equal(Reflect.get(error.diagnostic.snapshot.markers!, item.marker), 1);
+                    assert.doesNotMatch(
+                        JSON.stringify(error.diagnostic),
+                        /PRIVATE_DIALOG_TEXT|https:|孿生|event-fixture/,
+                    );
+                    return true;
+                });
+                assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+            },
+            { orderB: item.html },
+        );
+    }
+});
+
+test("TicketPlus 場次診斷：網址拒絕只留下條件，不保存查詢內容", { timeout: 20_000 }, async () => {
+    for (const [destination, reason] of [
+        ["/order/another/session-B", "path-mismatch"],
+        ["/order/event-fixture/session-B?token=PRIVATE_TOKEN", "extra-url-parts"],
+    ]) {
+        await withPage(
+            async page => {
+                await assert.rejects(selectTicketPlusSession(page, settings, options), error => {
+                    assert(error instanceof TicketPlusSessionError);
+                    assert.equal(error.reason, "unexpected-page");
+                    assert.deepEqual(error.diagnostic, { check: "arrival-route", reason });
+                    return true;
+                });
+                assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+            },
+            { destinationB: destination },
+        );
+    }
+});
+
+test("TicketPlus 場次診斷：點擊前阻擋與等待逾時保留最後觀測", { timeout: 20_000 }, async () => {
+    await withPage(
+        async page => {
+            await assert.rejects(selectTicketPlusSession(page, settings, options), error => {
+                assert(error instanceof TicketPlusSessionError);
+                assert.equal(error.stage, "before-click");
+                assert.equal(error.diagnostic?.check, "page-state");
+                if (error.diagnostic?.check !== "page-state") return false;
+                assert.equal(error.diagnostic.snapshot.unknownReason, "blocking-dialog");
+                return true;
+            });
+            assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
+        },
+        { html: activity + '<div role="dialog">請確認</div>' },
+    );
+    await withPage(
+        async page => {
+            await assert.rejects(
+                selectTicketPlusSession(page, settings, { ...options, arrivalTimeoutMs: 300 }),
+                error => {
+                    assert(error instanceof TicketPlusSessionError);
+                    assert.equal(error.reason, "arrival-timeout");
+                    assert.equal(error.diagnostic?.check, "page-state");
+                    if (error.diagnostic?.check !== "page-state") return false;
+                    assert.equal(error.diagnostic.snapshot.unknownReason, "incomplete-data");
+                    assert.equal(error.diagnostic.snapshot.markers?.ticketRows, 0);
+                    return true;
+                },
+            );
+            assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+        },
+        { orderB: "<main>載入中</main>" },
+    );
+});

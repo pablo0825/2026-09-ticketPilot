@@ -4,7 +4,7 @@ import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { ActivityPage } from "./activityPage.js";
 import { readTicketPlusPage } from "./pageState.js";
-import type { TicketPlusPage } from "./pageState.js";
+import type { TicketPlusPageDiagnostic, TicketPlusPage } from "./pageState.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 
 type Session = ActivityPage["sessions"][number];
@@ -25,10 +25,15 @@ export type SessionEntryReason =
     | "arrival-timeout"
     | "read-failed";
 
+export type SessionDiagnostic =
+    | { check: "page-state"; snapshot: TicketPlusPageDiagnostic }
+    | { check: "arrival-route"; reason: "origin-mismatch" | "extra-url-parts" | "path-mismatch" };
+
 export class TicketPlusSessionError extends Error {
     constructor(
         public readonly stage: SessionEntryStage,
         public readonly reason: SessionEntryReason,
+        public diagnostic?: SessionDiagnostic,
     ) {
         super(
             stage === "before-click"
@@ -88,17 +93,18 @@ function sessionButton(page: Page, settings: TicketPlusSelection, session: Sessi
     return row.getByRole("button", { name: "立即購買", exact: true }).filter({ visible: true });
 }
 
-function expectedArrivalRoute(page: Page, settings: TicketPlusSelection): boolean {
+function arrivalRouteFailure(page: Page, settings: TicketPlusSelection): SessionDiagnostic | undefined {
     const current = new URL(page.url());
     const expected = new URL(settings.eventUrl);
-    if (current.origin !== expected.origin || current.search || current.hash || current.username || current.password) {
-        return false;
+    if (current.origin !== expected.origin) return { check: "arrival-route", reason: "origin-mismatch" };
+    if (current.search || current.hash || current.username || current.password) {
+        return { check: "arrival-route", reason: "extra-url-parts" };
     }
     const eventId = expected.pathname.split("/")[2]!;
-    return (
+    const matches =
         current.pathname.replace(/\/$/, "") === expected.pathname.replace(/\/$/, "") ||
-        new RegExp(`^/order/${eventId}/[A-Za-z0-9_-]+/?$`).test(current.pathname)
-    );
+        new RegExp(`^/order/${eventId}/[A-Za-z0-9_-]+/?$`).test(current.pathname);
+    return matches ? undefined : { check: "arrival-route", reason: "path-mismatch" };
 }
 
 // 逾時後可能仍有唯讀 evaluate 收尾，但不會繼續點擊或變更頁面。
@@ -107,12 +113,13 @@ async function readWithinDeadline(
     timeout: number,
     stage: SessionEntryStage,
     control: TicketPlusRunControl,
+    onDiagnostic: (diagnostic: TicketPlusPageDiagnostic) => void,
 ): Promise<TicketPlusPage> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
         return await control.read(() =>
             Promise.race([
-                readTicketPlusPage(page),
+                readTicketPlusPage(page, onDiagnostic),
                 new Promise<never>((_, reject) => {
                     timer = setTimeout(
                         () =>
@@ -138,6 +145,7 @@ async function waitForSelection(
     timeout: number,
     interval: number,
     control: TicketPlusRunControl,
+    onDiagnostic: (diagnostic: TicketPlusPageDiagnostic) => void,
 ): Promise<TicketSelectionPage> {
     // 只設一次期限，暫時缺資料不會延長等待，也不會回到點擊流程。
     const deadline = performance.now() + timeout;
@@ -145,10 +153,17 @@ async function waitForSelection(
     while (performance.now() < deadline) {
         control.check();
         if (page.isClosed()) throw new TicketPlusSessionError("after-click-attempt", "read-failed");
-        if (!expectedArrivalRoute(page, settings)) {
-            throw new TicketPlusSessionError("after-click-attempt", "unexpected-page");
+        const routeFailure = arrivalRouteFailure(page, settings);
+        if (routeFailure) {
+            throw new TicketPlusSessionError("after-click-attempt", "unexpected-page", routeFailure);
         }
-        const snapshot = await readWithinDeadline(page, deadline - performance.now(), "after-click-attempt", control);
+        const snapshot = await readWithinDeadline(
+            page,
+            deadline - performance.now(),
+            "after-click-attempt",
+            control,
+            onDiagnostic,
+        );
         if (performance.now() >= deadline) break;
 
         // 完整選票頁必須符合活動與日期時間；sessionId 是此時新取得的資料。
@@ -189,6 +204,10 @@ export async function selectTicketPlusSession(
 ): Promise<TicketSelectionPage> {
     let stage: SessionEntryStage = "before-click";
     let reason: SessionEntryReason = "invalid-settings";
+    let diagnostic: SessionDiagnostic | undefined;
+    const onDiagnostic = (snapshot: TicketPlusPageDiagnostic) => {
+        diagnostic = { check: "page-state", snapshot };
+    };
     try {
         // 複製並驗證設定，操作途中不受呼叫端修改設定影響。
         control.check();
@@ -206,7 +225,10 @@ export async function selectTicketPlusSession(
 
         // 以最新快照建立目標定位，再確認按鈕與場次身分仍然相同。
         reason = "read-failed";
-        const target = requireTargetSession(await readWithinDeadline(page, clickTimeout, stage, control), settings);
+        const target = requireTargetSession(
+            await readWithinDeadline(page, clickTimeout, stage, control, onDiagnostic),
+            settings,
+        );
         const button = sessionButton(page, settings, target);
         if (
             (await control.read(() => button.count())) !== 1 ||
@@ -214,7 +236,10 @@ export async function selectTicketPlusSession(
         ) {
             throw new TicketPlusSessionError(stage, "button-unavailable");
         }
-        const latest = requireTargetSession(await readWithinDeadline(page, clickTimeout, stage, control), settings);
+        const latest = requireTargetSession(
+            await readWithinDeadline(page, clickTimeout, stage, control, onDiagnostic),
+            settings,
+        );
         if (latest.name !== target.name || latest.date !== target.date || latest.time !== target.time) {
             throw new TicketPlusSessionError(stage, "session-changed");
         }
@@ -226,12 +251,16 @@ export async function selectTicketPlusSession(
         await button.click({ timeout: Math.min(clickTimeout, control.remainingMs()) });
         control.check();
         reason = "read-failed";
-        return await waitForSelection(page, settings, arrivalTimeout, interval, control);
+        diagnostic = undefined;
+        return await waitForSelection(page, settings, arrivalTimeout, interval, control, onDiagnostic);
     } catch (error) {
         control.check();
         if (error instanceof TicketPlusStopError) throw error;
-        if (error instanceof TicketPlusSessionError) throw error;
+        if (error instanceof TicketPlusSessionError) {
+            error.diagnostic ??= diagnostic;
+            throw error;
+        }
         // 原始 Playwright 錯誤可能包含網址或 DOM，僅回傳固定階段與原因。
-        throw new TicketPlusSessionError(stage, reason);
+        throw new TicketPlusSessionError(stage, reason, diagnostic);
     }
 }

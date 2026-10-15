@@ -12,7 +12,11 @@ import {
 import type { TicketPlusActivitySettings } from "../config/ticketPlusActivity.js";
 import { acquirePurchaseLease, releasePurchaseLease, verifyPurchaseLease } from "./purchaseLock.js";
 import type { PurchaseLease } from "./purchaseLock.js";
-import type { SessionEntryReason, SessionEntryStage } from "../platforms/ticketplus/sessionSelection.js";
+import type {
+    SessionDiagnostic,
+    SessionEntryReason,
+    SessionEntryStage,
+} from "../platforms/ticketplus/sessionSelection.js";
 import { TicketPlusSessionError, selectTicketPlusSession } from "../platforms/ticketplus/sessionSelection.js";
 import { TicketPlusPriorityError } from "../platforms/ticketplus/ticketPriority.js";
 import { runTicketPlusCycle } from "../platforms/ticketplus/purchaseCycle.js";
@@ -54,7 +58,7 @@ export type TicketPlusRunResult =
           priorityFailure?: PriorityReason;
           saleFailure?: TicketPlusSaleReason;
           stopReason?: TicketPlusStopReason;
-          sessionFailure?: { reason: SessionEntryReason; stage: SessionEntryStage };
+          sessionFailure?: { reason: SessionEntryReason; stage: SessionEntryStage; diagnostic?: SessionDiagnostic };
       };
 export interface TicketPlusRunOptions {
     // 回呼必須合作取消並清理監聽，不能只讓外層提早返回。
@@ -183,7 +187,7 @@ export async function runTicketPlus(
             return {
                 outcome: "stopped",
                 reason: "session-selection-stopped",
-                sessionFailure: { reason: error.reason, stage: error.stage },
+                sessionFailure: { reason: error.reason, stage: error.stage, diagnostic: error.diagnostic },
                 progress: Object.freeze(emptySubmissionProgress()),
             };
         }

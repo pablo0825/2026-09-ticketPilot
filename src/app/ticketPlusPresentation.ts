@@ -1,6 +1,10 @@
 import type { TicketPlusSaleReason } from "../platforms/ticketplus/salePreparation.js";
 import type { TicketPlusRunEvent, TicketPlusRunResult } from "./runTicketPlus.js";
-import type { SessionEntryReason, SessionEntryStage } from "../platforms/ticketplus/sessionSelection.js";
+import type {
+    SessionDiagnostic,
+    SessionEntryReason,
+    SessionEntryStage,
+} from "../platforms/ticketplus/sessionSelection.js";
 
 const sessionReasons: Record<SessionEntryReason, string> = {
     "invalid-settings": "活動設定無效，請檢查活動網址、名稱及場次日期時間",
@@ -34,12 +38,19 @@ const saleReasons: Record<TicketPlusSaleReason, string> = {
     "refresh-failed": "活動頁刷新未確認成功",
 };
 
-export function ticketPlusSessionMessage(failure: { reason: SessionEntryReason; stage: SessionEntryStage }): string {
+export function ticketPlusSessionMessage(failure: {
+    reason: SessionEntryReason;
+    stage: SessionEntryStage;
+    diagnostic?: SessionDiagnostic;
+}): string {
     const attempt =
         failure.stage === "before-click"
             ? "尚未嘗試點擊立即購買"
             : "已嘗試點擊立即購買，請先人工確認目前頁面，不會再次點擊";
-    return `場次選擇停止（${failure.reason}）：${sessionReasons[failure.reason]}。${attempt}；尚未嘗試選票提交，不會自動重跑。`;
+    const diagnostic = failure.diagnostic
+        ? ` 診斷（${failure.stage}；最後一次觀測）：${JSON.stringify(failure.diagnostic)}`
+        : "";
+    return `場次選擇停止（${failure.reason}）：${sessionReasons[failure.reason]}。${attempt}；尚未嘗試選票提交，不會自動重跑。${diagnostic}`;
 }
 
 export function ticketPlusResultMessage(result: TicketPlusRunResult): string {

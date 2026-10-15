@@ -29,6 +29,24 @@ export type TicketPlusPage =
     | (PageIdentity & { kind: "queue" })
     | UnknownPage;
 
+export interface TicketPlusPageDiagnostic {
+    pageKind: TicketPlusPage["kind"];
+    unknownReason?: UnknownPage["reason"];
+    markers?: {
+        activityRows: number;
+        ticketRows: number;
+        queueHeadings: number;
+        unknownDialogs: number;
+        failureDialogs: number;
+        queueDialogs: number;
+        informationHeadings: number;
+        terms: number;
+        paymentButtons: number;
+        checkoutSteps: number;
+        checkoutRows: number;
+    };
+}
+
 function classifyPage(dom: TicketPlusDom): TicketPlusPage {
     // 網址採明確白名單，不接受其他站台、額外路徑或不明參數。
     if (dom.origin !== "https://ticketplus.com.tw" || dom.extraUrlParts) return unknownPage("unsupported-url");
@@ -93,16 +111,54 @@ function classifyPage(dom: TicketPlusDom): TicketPlusPage {
 
 // 對外唯一的唯讀入口：取得一份快照後分流，不在頁面辨識後重讀整頁。
 // unknown 不是售完或終局失敗；等待、重試與點擊由未來的流程層決定。
-export async function readTicketPlusPage(page: Page): Promise<TicketPlusPage> {
+export async function readTicketPlusPage(
+    page: Page,
+    onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void,
+): Promise<TicketPlusPage> {
+    // 沿用同一份快照判讀，不為診斷重讀頁面。
+    let snapshot: TicketPlusDom | undefined;
+    let result: TicketPlusPage;
     try {
         const before = page.url();
-        const dom = await readTicketPlusDom(page);
+        snapshot = await readTicketPlusDom(page);
         const after = page.url();
-        if (before !== after || new URL(after).origin !== dom.origin || new URL(after).pathname !== dom.pathname) {
-            return unknownPage("page-changed");
+        if (
+            before !== after ||
+            new URL(after).origin !== snapshot.origin ||
+            new URL(after).pathname !== snapshot.pathname
+        ) {
+            result = unknownPage("page-changed");
+        } else {
+            result = classifyPage(snapshot);
         }
-        return classifyPage(dom);
     } catch {
-        return unknownPage("read-failed");
+        result = unknownPage("read-failed");
     }
+
+    // 只保留分類與計數，不帶出網址、頁面文字或個資。
+    if (onDiagnostic) {
+        const diagnostic: TicketPlusPageDiagnostic = { pageKind: result.kind };
+        if (result.kind === "unknown") diagnostic.unknownReason = result.reason;
+        if (snapshot) {
+            diagnostic.markers = {
+                activityRows: snapshot.activity.length,
+                ticketRows: snapshot.tickets.length,
+                queueHeadings: snapshot.queueCount,
+                unknownDialogs: snapshot.dialogs.filter(dialog => dialog.kind === "unknown").length,
+                failureDialogs: snapshot.dialogs.filter(dialog => dialog.kind === "failure").length,
+                queueDialogs: snapshot.dialogs.filter(dialog => dialog.kind === "queue").length,
+                informationHeadings: snapshot.information.headingCount,
+                terms: snapshot.information.terms.length,
+                paymentButtons: snapshot.paymentButtons.length,
+                checkoutSteps: snapshot.checkoutStepCount,
+                checkoutRows: snapshot.checkout.length,
+            };
+        }
+        try {
+            onDiagnostic(diagnostic);
+        } catch {
+            // 診斷接收失敗不能改變購票判斷。
+        }
+    }
+    return result;
 }

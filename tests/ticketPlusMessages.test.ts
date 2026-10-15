@@ -69,3 +69,16 @@ test("CLI 僅顯示已分類訊息，未知錯誤不轉印私密資料", async (
     assert.match(ticketPlusSessionMessage({ reason: "session-disabled", stage: "before-click" }), /不能僅據此判定/);
     assert.match(ticketPlusSessionMessage({ reason: "session-missing", stage: "before-click" }), /該順位的日期與時間/);
 });
+
+test("場次診斷會出現在使用者訊息，既有停止說明維持不變", () => {
+    const message = ticketPlusSessionMessage({
+        reason: "unexpected-page",
+        stage: "after-click-attempt",
+        diagnostic: { check: "page-state", snapshot: { pageKind: "unknown", unknownReason: "conflicting-page" } },
+    });
+    assert.match(message, /conflicting-page/);
+    assert.match(message, /最後一次觀測/);
+    assert.match(message, /after-click-attempt/);
+    assert.match(message, /不會再次點擊/);
+    assert.match(message, /尚未嘗試選票提交/);
+});
