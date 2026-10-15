@@ -1,5 +1,5 @@
 import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
-import { summary } from "./fixtures/ticketplus/pages.js";
+import { presale, summary } from "./fixtures/ticketplus/pages.js";
 import { runTicketPlusSubmission, stoppedSubmissionResult } from "../src/platforms/ticketplus/submissionOutcome.js";
 import { ticketPlusResultMessage } from "../src/app/ticketPlusPresentation.js";
 import assert from "node:assert/strict";
@@ -577,14 +577,14 @@ test("TicketPlus 提交診斷：缺漏資料逾時、排隊逾時與網址拒絕
             );
         });
         const error = await failure(submit(page, { submitWaitMs: 300 }));
-        assert.equal(error.reason, "wait-timeout");
+        assert(["wait-timeout", "read-timeout"].includes(error.reason));
         assert.equal(error.diagnostic?.page?.unknownReason, "incomplete-data");
         assert.equal(error.diagnostic?.page?.markers?.terms, 0);
         assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
     });
     await withPage("queue", async page => {
         const error = await failure(submit(page, { queueWaitMs: 300 }));
-        assert.equal(error.reason, "wait-timeout");
+        assert(["wait-timeout", "read-timeout"].includes(error.reason));
         assert.equal(error.progress.sawQueue, true);
         assert.equal(error.diagnostic?.page?.pageKind, "queue");
         assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
@@ -647,6 +647,196 @@ test("TicketPlus 含摘要的資料頁：錯場次仍拒絕且不重送", async 
         const error = await failure(submit(page));
         assert.equal(error.reason, "unexpected-route");
         assert.equal(stoppedSubmissionResult(error).outcome, "unknown");
+        assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+    });
+});
+
+// 模擬網站先改成資料頁網址，畫面暫時保留已提交的選票內容。
+async function installConfirmTransition(page: Page, html = readyOrder): Promise<void> {
+    await page.evaluate(html => {
+        document.addEventListener(
+            "click",
+            () => {
+                history.replaceState({}, "", "/confirm/event-fixture/session-B");
+                document.body.innerHTML = html;
+            },
+            { once: true },
+        );
+    }, html);
+}
+
+test("TicketPlus 提交過渡：同場次選票殘留到資料頁，只提交一次", { timeout: 15_000 }, async () => {
+    await withPage("stay", async page => {
+        await installConfirmTransition(page);
+        let waits = 0;
+        class TransitionControl extends TicketPlusRunControl {
+            override async wait(milliseconds: number): Promise<void> {
+                waits++;
+                if (waits === 1) {
+                    assert.deepEqual(await readTicketPlusPage(page), { kind: "unknown", reason: "conflicting-page" });
+                    await page.setContent("<main>載入中</main>");
+                } else {
+                    await page.evaluate(() => window.submissionFixture.show("information"));
+                }
+                await super.wait(milliseconds);
+            }
+        }
+        const result = await runTicketPlusSubmission(
+            page,
+            settings,
+            selection,
+            options,
+            undefined,
+            new TransitionControl(),
+        );
+        assert.equal(result.outcome, "information-ready");
+        assert.equal(waits, 2);
+        assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+    });
+});
+
+test("TicketPlus 提交過渡：排隊後的殘留仍沿用期限，逾時保留診斷", { timeout: 15_000 }, async () => {
+    await withPage("queue", async page => {
+        let waits = 0;
+        class TransitionControl extends TicketPlusRunControl {
+            override async wait(milliseconds: number): Promise<void> {
+                if (++waits === 1) {
+                    await page.evaluate(() => {
+                        window.submissionFixture.show("order");
+                        history.replaceState({}, "", "/confirm/event-fixture/session-B");
+                    });
+                }
+                await super.wait(milliseconds);
+            }
+        }
+        const started = performance.now();
+        const result = await runTicketPlusSubmission(
+            page,
+            settings,
+            selection,
+            { ...options, queueWaitMs: 300, submitWaitMs: 4_000 },
+            undefined,
+            new TransitionControl(),
+        );
+        assert.equal(result.outcome, "unknown");
+        assert("reason" in result);
+        // 截止可能落在輪詢等待或最後一次唯讀讀取，兩者都不得延長期限。
+        assert(["wait-timeout", "read-timeout"].includes(result.reason));
+        assert.equal(result.progress.sawQueue, true);
+        assert.equal(result.diagnostic?.page?.routeKind, "confirm");
+        assert.equal(result.diagnostic?.page?.unknownReason, "selection-transition");
+        assert.equal(result.diagnostic?.page?.selectionTransition, "verified");
+        assert(performance.now() - started < 2_000);
+        assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+    });
+});
+
+test("TicketPlus 提交過渡：活動、票種、張數不符及混合畫面仍立即停止", { timeout: 30_000 }, async () => {
+    const cases = [
+        readyOrder.replace(settings.eventName, "其他活動"),
+        readyOrder.replace("2026-10-30", "2026-10-31"),
+        readyOrder.replace("20:00", "21:00"),
+        readyOrder.replace("預售票", "其他票種"),
+        readyOrder.replace("<div>2</div>", "<div>1</div>"),
+        readyOrder.replace("<div>0</div>", "<div>1</div>"),
+        readyOrder.replace("<div>2</div>", "<div>?</div>"),
+        readyOrder + presale,
+        readyOrder + queueDialog,
+        readyOrder + '<div role="dialog">提示</div>',
+        readyOrder + "<div>聯絡人資訊</div>",
+        readyOrder + '<label>姓名<input value="PRIVATE_CONTACT"></label>',
+        readyOrder + "<button>前往付款</button>",
+        readyOrder + '<div class="stepText checkedStep">付款結帳</div>',
+        readyOrder + summary,
+    ];
+    for (const html of cases) {
+        await withPage("stay", async page => {
+            await installConfirmTransition(page, html);
+            let waits = 0;
+            class ObservedControl extends TicketPlusRunControl {
+                override async wait(milliseconds: number): Promise<void> {
+                    waits++;
+                    await super.wait(milliseconds);
+                }
+            }
+            const result = await runTicketPlusSubmission(
+                page,
+                settings,
+                selection,
+                options,
+                undefined,
+                new ObservedControl(),
+            );
+            assert.equal(result.outcome, "unknown");
+            assert("reason" in result);
+            assert.equal(result.reason, "unexpected-page");
+            assert.equal(waits, 0);
+            assert.doesNotMatch(JSON.stringify(result.diagnostic), /PRIVATE_CONTACT|其他活動|session-B/);
+            assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+        });
+    }
+});
+
+test("TicketPlus 提交過渡：可手動停止，晚到錯場次仍拒絕", { timeout: 15_000 }, async () => {
+    for (const stop of [true, false]) {
+        await withPage("stay", async page => {
+            await installConfirmTransition(page);
+            const controller = new AbortController();
+            class TransitionControl extends TicketPlusRunControl {
+                override async wait(milliseconds: number): Promise<void> {
+                    if (stop) controller.abort();
+                    else
+                        await page.evaluate(() => {
+                            window.submissionFixture.show("information");
+                            history.replaceState({}, "", "/confirm/event-fixture/session-WRONG");
+                        });
+                    await super.wait(milliseconds);
+                }
+            }
+            const result = await runTicketPlusSubmission(
+                page,
+                settings,
+                selection,
+                options,
+                undefined,
+                new TransitionControl(controller.signal),
+            );
+            assert.equal(result.outcome, "unknown");
+            assert("reason" in result);
+            assert.equal(result.reason, stop ? "user-stopped" : "unexpected-route");
+            assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+        });
+    }
+});
+
+test("TicketPlus 提交過渡：排隊結束後殘留選票，再抵達資料頁", async () => {
+    await withPage("queue", async page => {
+        let waits = 0;
+        class TransitionControl extends TicketPlusRunControl {
+            override async wait(milliseconds: number): Promise<void> {
+                if (++waits === 1) {
+                    await page.evaluate(() => {
+                        window.submissionFixture.show("order");
+                        history.replaceState({}, "", "/confirm/event-fixture/session-B");
+                    });
+                } else {
+                    assert.deepEqual(await readTicketPlusPage(page), { kind: "unknown", reason: "conflicting-page" });
+                    await page.evaluate(() => window.submissionFixture.show("information"));
+                }
+                await super.wait(milliseconds);
+            }
+        }
+        const result = await runTicketPlusSubmission(
+            page,
+            settings,
+            selection,
+            options,
+            undefined,
+            new TransitionControl(),
+        );
+        assert.equal(result.outcome, "information-ready");
+        assert.equal(result.progress.sawQueue, true);
+        assert.equal(waits, 2);
         assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
     });
 });

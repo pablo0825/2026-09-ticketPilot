@@ -155,13 +155,33 @@ function submissionPhase(context: Submission): SubmissionDiagnostic["phase"] {
           : "before-submit";
 }
 
-async function snapshot(page: Page, context: Submission, deadline: number): Promise<TicketPlusPage> {
+async function snapshot(
+    page: Page,
+    context: Submission,
+    deadline: number,
+    allowSelectionTransition = false,
+): Promise<TicketPlusPage> {
     checkRoute(page, context);
     const phase = submissionPhase(context);
     const value = await readBounded(context, deadline, () =>
-        readTicketPlusPage(page, diagnostic => {
-            context.diagnostic = { phase, page: diagnostic };
-        }),
+        readTicketPlusPage(
+            page,
+            diagnostic => {
+                context.diagnostic = { phase, page: diagnostic };
+            },
+            undefined,
+            allowSelectionTransition
+                ? {
+                      eventId: context.selected.eventId,
+                      sessionId: context.selected.sessionId,
+                      eventName: context.settings.eventName,
+                      date: context.settings.target.date,
+                      time: context.settings.target.time,
+                      ticketType: context.settings.target.ticketType,
+                      quantity: context.settings.target.quantity,
+                  }
+                : undefined,
+        ),
     );
     checkRoute(page, context);
     if (
@@ -362,7 +382,7 @@ async function pause(context: Submission, deadline: number): Promise<void> {
 async function waitForInformation(page: Page, context: Submission, initialDeadline: number): Promise<InformationPage> {
     let deadline = initialDeadline;
     while (true) {
-        const value = await snapshot(page, context, deadline);
+        const value = await snapshot(page, context, deadline, true);
         if (value.kind === "order-failure") return dismissFailure(page, context, value);
         if (value.kind === "information") return value;
 
@@ -377,7 +397,7 @@ async function waitForInformation(page: Page, context: Submission, initialDeadli
             verifySelection(context, value);
         } else if (
             value.kind !== "unknown" ||
-            !["incomplete-data", "page-changed", "read-failed"].includes(value.reason)
+            !["incomplete-data", "page-changed", "read-failed", "selection-transition"].includes(value.reason)
         ) {
             throw stop(context, "unexpected-page");
         }

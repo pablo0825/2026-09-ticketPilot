@@ -33,6 +33,7 @@ export interface TicketPlusPageDiagnostic {
     pageKind: TicketPlusPage["kind"];
     routeKind?: "activity" | "order" | "confirm" | "checkout" | "other";
     unknownReason?: UnknownPage["reason"];
+    selectionTransition?: SelectionTransitionCheck;
     activityTransition?: ActivityTransitionDiagnostic & {
         headingCount: number;
         matchingHeadingCount: number;
@@ -117,7 +118,68 @@ function inspectActivityTransition(
     return { result: matches[0]!.name === target.sessionName ? "verified" : "session-name-mismatch" };
 }
 
-function classifyPage(dom: TicketPlusDom, transitionTarget?: ActivityTransitionTarget): TicketPlusPage {
+export interface SelectionTransitionTarget extends PageIdentity {
+    eventName: string;
+    date: string;
+    time: string;
+    ticketType: string;
+    quantity: number;
+}
+
+type SelectionTransitionCheck =
+    "verified" | "mixed-markers" | "incomplete-selection" | "identity-mismatch" | "selection-mismatch";
+
+function inspectSelectionTransition(
+    dom: TicketPlusDom,
+    identity: PageIdentity,
+    target: SelectionTransitionTarget,
+): SelectionTransitionCheck {
+    // 只接受純選票殘留，不能忽略排隊、彈窗或已出現的資料／付款內容。
+    if (
+        dom.activity.length ||
+        dom.queueCount ||
+        dom.dialogs.length ||
+        dom.information.headingCount ||
+        dom.information.terms.length ||
+        dom.information.contact.some(fields => fields.length > 0) ||
+        dom.paymentButtons.length ||
+        dom.checkoutStepCount ||
+        dom.checkout.length
+    ) {
+        return "mixed-markers";
+    }
+
+    // 完整解析殘留選票資料，再核對本次提交的活動與場次。
+    const selection = parseTicketSelectionPage(dom, identity);
+    if (selection.kind !== "ticket-selection") return "incomplete-selection";
+    if (
+        selection.eventId !== target.eventId ||
+        selection.sessionId !== target.sessionId ||
+        selection.eventName !== target.eventName ||
+        selection.date !== target.date ||
+        selection.time !== target.time
+    ) {
+        return "identity-mismatch";
+    }
+
+    // 目標票種唯一且張數相符，其他票種必須維持零張。
+    const matches = selection.tickets.filter(ticket => ticket.name === target.ticketType);
+    if (
+        matches.length !== 1 ||
+        matches[0]!.saleStatus !== "selling" ||
+        matches[0]!.selectedQuantity !== target.quantity ||
+        selection.tickets.some(ticket => ticket !== matches[0] && ticket.selectedQuantity !== 0)
+    ) {
+        return "selection-mismatch";
+    }
+    return "verified";
+}
+
+function classifyPage(
+    dom: TicketPlusDom,
+    transitionTarget?: ActivityTransitionTarget,
+    selectionTarget?: SelectionTransitionTarget,
+): TicketPlusPage {
     // 網址採明確白名單，不接受其他站台、額外路徑或不明參數。
     if (dom.origin !== "https://ticketplus.com.tw" || dom.extraUrlParts) return unknownPage("unsupported-url");
     const activity = /^\/activity\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
@@ -189,6 +251,15 @@ function classifyPage(dom: TicketPlusDom, transitionTarget?: ActivityTransitionT
         if (dom.queueCount === 1) return { kind: "queue", ...identity };
         return parseTicketSelectionPage(dom, identity);
     }
+    // 僅提交後等待可提供目標；一般 reader 不放寬 confirm 路徑的選票殘留。
+    if (
+        order![1] === "confirm" &&
+        dom.tickets.length > 0 &&
+        selectionTarget &&
+        inspectSelectionTransition(dom, identity, selectionTarget) === "verified"
+    ) {
+        return unknownPage("selection-transition");
+    }
     if (dom.queueCount || dom.tickets.length) return unknownPage("conflicting-page");
     if (order![1] === "confirm") {
         // 資料頁可以有摘要列，但付款操作標記仍屬衝突。
@@ -212,6 +283,7 @@ export async function readTicketPlusPage(
     page: Page,
     onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void,
     transitionTarget?: ActivityTransitionTarget,
+    selectionTarget?: SelectionTransitionTarget,
 ): Promise<TicketPlusPage> {
     // 沿用同一份快照判讀，不為診斷重讀頁面。
     let snapshot: TicketPlusDom | undefined;
@@ -227,7 +299,7 @@ export async function readTicketPlusPage(
         ) {
             result = unknownPage("page-changed");
         } else {
-            result = classifyPage(snapshot, transitionTarget);
+            result = classifyPage(snapshot, transitionTarget, selectionTarget);
         }
     } catch {
         result = unknownPage("read-failed");
@@ -256,6 +328,16 @@ export async function readTicketPlusPage(
                         row.saleButtons.length === 1 && ["立即購買", "尚未開賣"].includes(row.saleButtons[0]!.text),
                 })),
             };
+        }
+        if (snapshot && selectionTarget && snapshot.tickets.length > 0) {
+            const confirm = /^\/confirm\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?$/.exec(snapshot.pathname);
+            if (confirm) {
+                diagnostic.selectionTransition = inspectSelectionTransition(
+                    snapshot,
+                    { eventId: confirm[1]!, sessionId: confirm[2]! },
+                    selectionTarget,
+                );
+            }
         }
         if (snapshot) {
             diagnostic.routeKind = diagnosticRouteKind(snapshot.pathname);
