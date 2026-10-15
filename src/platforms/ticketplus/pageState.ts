@@ -37,6 +37,12 @@ export interface TicketPlusPageDiagnostic {
         matchingHeadingCount: number;
         rows: { names: number; dates: number; times: number; buttons: number; knownButtonText: boolean }[];
     };
+    informationControls?: {
+        nextButtons: number;
+        nameFields: number;
+        phoneFields: number;
+        emailFields: number;
+    };
     markers?: {
         activityRows: number;
         ticketRows: number;
@@ -231,6 +237,12 @@ export async function readTicketPlusPage(
             };
         }
         if (snapshot) {
+            diagnostic.informationControls = {
+                nextButtons: snapshot.nextButtons.length,
+                nameFields: snapshot.information.contact[0]!.length,
+                phoneFields: snapshot.information.contact[1]!.length,
+                emailFields: snapshot.information.contact[2]!.length,
+            };
             diagnostic.markers = {
                 activityRows: snapshot.activity.length,
                 ticketRows: snapshot.tickets.length,

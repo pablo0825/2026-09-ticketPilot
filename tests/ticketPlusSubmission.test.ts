@@ -1,3 +1,5 @@
+import { stoppedSubmissionResult } from "../src/platforms/ticketplus/submissionOutcome.js";
+import { ticketPlusResultMessage } from "../src/app/ticketPlusPresentation.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { TestContext } from "node:test";
@@ -532,5 +534,68 @@ test("TicketPlus 提交：已開始 click 等待時換到資料頁，不改按�
         assert.equal(error.progress.submitAttempted, true);
         assert.equal(error.reason, "submit-click-failed");
         assert.deepEqual(await submissionCounts(page), zero);
+    });
+});
+
+test("TicketPlus 提交診斷：保留資料頁拒絕條件並傳到結果訊息，零重送", { timeout: 30_000 }, async () => {
+    const cases = [
+        { extra: '<div class="stepText checkedStep">付款結帳</div>', reason: "conflicting-page" },
+        { extra: "<div>聯絡人資訊</div>", reason: "ambiguous-data" },
+        { extra: '<div role="dialog">PRIVATE_DIALOG</div>', reason: "blocking-dialog" },
+    ];
+    for (const item of cases) {
+        await withPage("direct", async page => {
+            await page.evaluate(extra => {
+                document.addEventListener("click", () => {
+                    if (location.pathname.startsWith("/confirm/")) document.body.insertAdjacentHTML("beforeend", extra);
+                });
+            }, item.extra);
+            const error = await failure(submit(page));
+            assert.equal(error.reason, "unexpected-page");
+            assert.equal(error.diagnostic?.phase, "after-submit");
+            assert.equal(error.diagnostic?.page?.unknownReason, item.reason);
+            assert.equal(error.diagnostic?.page?.informationControls?.nextButtons, 1);
+            const result = stoppedSubmissionResult(error);
+            assert.equal(result.outcome, "unknown");
+            const message = ticketPlusResultMessage(result);
+            assert.match(message, /unexpected-page/);
+            assert(message.includes(item.reason));
+            assert.match(message, /不會重送/);
+            assert.doesNotMatch(message, /PRIVATE_DIALOG|event-fixture|session-B|https:/);
+            assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+        });
+    }
+});
+
+test("TicketPlus 提交診斷：缺漏資料逾時、排隊逾時與網址拒絕保留不同原因", { timeout: 20_000 }, async () => {
+    await withPage("direct", async page => {
+        await page.evaluate(() => {
+            document.addEventListener("click", () =>
+                document.querySelectorAll('input[type="checkbox"]').forEach(input => input.remove()),
+            );
+        });
+        const error = await failure(submit(page, { submitWaitMs: 300 }));
+        assert.equal(error.reason, "wait-timeout");
+        assert.equal(error.diagnostic?.page?.unknownReason, "incomplete-data");
+        assert.equal(error.diagnostic?.page?.markers?.terms, 0);
+        assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+    });
+    await withPage("queue", async page => {
+        const error = await failure(submit(page, { queueWaitMs: 300 }));
+        assert.equal(error.reason, "wait-timeout");
+        assert.equal(error.progress.sawQueue, true);
+        assert.equal(error.diagnostic?.page?.pageKind, "queue");
+        assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+    });
+    await withPage("direct", async page => {
+        await page.evaluate(() => {
+            document.addEventListener("click", () => history.replaceState({}, "", "?token=PRIVATE_TOKEN"));
+        });
+        const error = await failure(submit(page));
+        assert.equal(error.reason, "unexpected-route");
+        assert.equal(error.diagnostic?.routeFailure, "extra-url-parts");
+        assert.equal(error.diagnostic?.page, undefined);
+        assert.doesNotMatch(JSON.stringify(stoppedSubmissionResult(error)), /PRIVATE_TOKEN/);
+        assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
     });
 });

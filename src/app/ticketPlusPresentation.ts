@@ -54,6 +54,14 @@ export function ticketPlusSessionMessage(failure: {
 }
 
 export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
+    const message = resultMessage(result);
+    if (!result.progress.submitAttempted || result.outcome === "information-ready" || !("reason" in result))
+        return message;
+    const diagnostic = "diagnostic" in result ? result.diagnostic : undefined;
+    return `${message} 提交後停止原因：${result.reason}。${diagnostic ? ` 診斷（最後一次觀測）：${JSON.stringify(diagnostic)}` : ""}`;
+}
+
+function resultMessage(result: TicketPlusRunResult): string {
     if (result.outcome === "information-ready")
         return "已到同場次填寫資料頁，本階段完成。請人工接手；未填資料、未勾條款、未操作付款。";
     const priorAttempts = "submissionAttempts" in result ? result.submissionAttempts : 0;

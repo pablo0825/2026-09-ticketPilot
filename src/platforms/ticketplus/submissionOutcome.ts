@@ -6,6 +6,7 @@ import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 import type { InformationPage } from "./informationPage.js";
 import { emptySubmissionProgress, submitTicketPlusSelection, TicketPlusSubmissionError } from "./ticketSubmission.js";
 import type {
+    SubmissionDiagnostic,
     SubmissionObserver,
     SubmissionProgress,
     SubmissionReason,
@@ -15,6 +16,7 @@ import type {
 interface ResultProgress {
     stopReason?: TicketPlusStopReason;
     progress: Readonly<SubmissionProgress>;
+    diagnostic?: SubmissionDiagnostic;
 }
 export type TicketPlusSubmissionResult =
     | (ResultProgress & { outcome: "information-ready"; information: InformationPage })
@@ -48,7 +50,13 @@ export function stoppedSubmissionResult(
             : error instanceof TicketPlusStopError
               ? error.stopReason
               : undefined;
-    return { outcome, reason, progress, ...(stopReason ? { stopReason } : {}) };
+    return {
+        outcome,
+        reason,
+        progress,
+        ...(stopReason ? { stopReason } : {}),
+        ...(error instanceof TicketPlusSubmissionError && error.diagnostic ? { diagnostic: error.diagnostic } : {}),
+    };
 }
 
 // runner 只接收終局結果；此層不做任何重試或錯誤恢復。

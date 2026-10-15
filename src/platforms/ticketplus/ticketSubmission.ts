@@ -4,7 +4,7 @@ import type { Page } from "playwright";
 import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import { readTicketPlusPage } from "./pageState.js";
-import type { OrderFailurePage, TicketPlusPage } from "./pageState.js";
+import type { OrderFailurePage, TicketPlusPage, TicketPlusPageDiagnostic } from "./pageState.js";
 import type { InformationPage } from "./informationPage.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 
@@ -43,11 +43,17 @@ export interface SubmissionProgress {
     failure?: OrderFailurePage["failure"];
     dismissal: Dismissal;
 }
+export interface SubmissionDiagnostic {
+    phase: "before-submit" | "after-submit" | "dismiss-failure";
+    page?: TicketPlusPageDiagnostic;
+    routeFailure?: "origin-mismatch" | "extra-url-parts" | "path-mismatch" | "snapshot-identity-mismatch";
+}
 export class TicketPlusSubmissionError extends Error {
     constructor(
         public readonly reason: SubmissionReason,
         public readonly progress: Readonly<SubmissionProgress>,
         public readonly stopReason?: TicketPlusStopReason,
+        public readonly diagnostic?: SubmissionDiagnostic,
     ) {
         super(`TicketPlus 選票提交停止（${reason}），不會刷新或重新提交。`);
         this.name = "TicketPlusSubmissionError";
@@ -61,6 +67,7 @@ interface Submission {
     deadline: number;
     progress: SubmissionProgress;
     observer?: SubmissionObserver;
+    diagnostic?: SubmissionDiagnostic;
 }
 const defaults: Required<TicketSubmissionOptions> = {
     preflightTimeoutMs: 5_000,
@@ -91,7 +98,7 @@ function notifyProgress(context: Submission): void {
 }
 
 function stop(context: Submission, reason: SubmissionReason): TicketPlusSubmissionError {
-    return new TicketPlusSubmissionError(reason, { ...context.progress });
+    return new TicketPlusSubmissionError(reason, { ...context.progress }, undefined, context.diagnostic);
 }
 function localRemaining(context: Submission, deadline: number): number {
     context.control.check();
@@ -127,20 +134,35 @@ function checkRoute(page: Page, context: Submission, orderOnly = false): void {
     const url = new URL(page.url());
     const suffix = `${context.selected.eventId}/${context.selected.sessionId}`;
     const paths = [`/order/${suffix}`, ...(orderOnly ? [] : [`/confirm/${suffix}`])];
-    if (
-        url.origin !== "https://ticketplus.com.tw" ||
-        url.search ||
-        url.hash ||
-        url.username ||
-        url.password ||
-        !paths.includes(url.pathname.replace(/\/$/, ""))
-    ) {
+    const routeFailure =
+        url.origin !== "https://ticketplus.com.tw"
+            ? "origin-mismatch"
+            : url.search || url.hash || url.username || url.password
+              ? "extra-url-parts"
+              : !paths.includes(url.pathname.replace(/\/$/, ""))
+                ? "path-mismatch"
+                : undefined;
+    if (routeFailure) {
+        context.diagnostic = { ...context.diagnostic, phase: submissionPhase(context), routeFailure };
         throw stop(context, "unexpected-route");
     }
 }
+function submissionPhase(context: Submission): SubmissionDiagnostic["phase"] {
+    return context.progress.failure
+        ? "dismiss-failure"
+        : context.progress.submitAttempted
+          ? "after-submit"
+          : "before-submit";
+}
+
 async function snapshot(page: Page, context: Submission, deadline: number): Promise<TicketPlusPage> {
     checkRoute(page, context);
-    const value = await readBounded(context, deadline, () => readTicketPlusPage(page));
+    const phase = submissionPhase(context);
+    const value = await readBounded(context, deadline, () =>
+        readTicketPlusPage(page, diagnostic => {
+            context.diagnostic = { phase, page: diagnostic };
+        }),
+    );
     checkRoute(page, context);
     if (
         value.kind !== "unknown" &&
@@ -148,6 +170,7 @@ async function snapshot(page: Page, context: Submission, deadline: number): Prom
             !("sessionId" in value) ||
             value.sessionId !== context.selected.sessionId)
     ) {
+        context.diagnostic = { ...context.diagnostic, phase, routeFailure: "snapshot-identity-mismatch" };
         throw stop(context, "unexpected-route");
     }
     return value;
@@ -228,6 +251,7 @@ async function submitOnce(page: Page, context: Submission, deadline: number): Pr
             remaining(context, waitDeadline),
         );
         context.progress.submitAttempted = true;
+        context.diagnostic = { phase: "after-submit" };
         notifyProgress(context);
         try {
             await button.click({
@@ -416,6 +440,7 @@ export async function submitTicketPlusSelection(
                 stopError.stopReason === "time-limit" ? "time-limit" : "user-stopped",
                 { ...(context?.progress ?? emptySubmissionProgress()) },
                 stopError.stopReason,
+                context?.diagnostic,
             );
         }
         if (error instanceof TicketPlusSubmissionError) throw error;
