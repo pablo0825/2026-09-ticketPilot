@@ -169,7 +169,6 @@ async function snapshot(
             diagnostic => {
                 context.diagnostic = { phase, page: diagnostic };
             },
-            undefined,
             allowSelectionTransition
                 ? {
                       eventId: context.selected.eventId,

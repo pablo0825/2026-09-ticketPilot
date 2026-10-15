@@ -1,5 +1,5 @@
-import { activityReadiness } from "./pageReadiness.js";
-import type { PageReadiness } from "./pageReadiness.js";
+import { activityReadiness, selectionReadiness } from "./pageReadiness.js";
+import type { PageReadiness, SelectionEntryTarget } from "./pageReadiness.js";
 import type { Page } from "playwright";
 import { inspectActivityLoading } from "./activityLoading.js";
 import type { ActivityLoading, ActivityLoadingTarget } from "./activityLoading.js";
@@ -42,11 +42,6 @@ export interface TicketPlusPageDiagnostic {
     emptyActivityLoading?: boolean;
     activityLoading?: ActivityLoading;
     activityFields?: ReturnType<typeof diagnoseActivityFields>;
-    activityTransition?: ActivityTransitionDiagnostic & {
-        headingCount: number;
-        matchingHeadingCount: number;
-        rows: { names: number; dates: number; times: number; buttons: number; knownButtonText: boolean }[];
-    };
     informationControls?: {
         nextButtons: number;
         nameFields: number;
@@ -66,64 +61,6 @@ export interface TicketPlusPageDiagnostic {
         checkoutSteps: number;
         checkoutRows: number;
     };
-}
-
-// 僅進入選票頁的等待階段提供，其他流程仍將殘留活動列視為衝突。
-export interface ActivityTransitionTarget {
-    eventId: string;
-    eventName: string;
-    sessionName: string;
-    date: string;
-    time: string;
-}
-
-interface ActivityTransitionDiagnostic {
-    result:
-        | "verified"
-        | "unsupported-transition-route"
-        | "event-id-mismatch"
-        | "mixed-markers"
-        | "activity-unreadable"
-        | "event-name-mismatch"
-        | "target-session-missing"
-        | "target-session-ambiguous"
-        | "session-name-mismatch";
-    activityReadReason?: UnknownPage["reason"];
-}
-
-function inspectActivityTransition(
-    dom: TicketPlusDom,
-    eventId: string,
-    target: ActivityTransitionTarget,
-): ActivityTransitionDiagnostic {
-    // 只有活動列殘留可以等待，其他流程標記或任何彈窗都不能放行。
-    if (eventId !== target.eventId) return { result: "event-id-mismatch" };
-    if (
-        dom.dialogs.length ||
-        dom.queueCount ||
-        dom.tickets.length ||
-        dom.information.headingCount ||
-        dom.information.terms.length ||
-        dom.paymentButtons.length ||
-        dom.checkoutStepCount ||
-        dom.checkout.length
-    ) {
-        return { result: "mixed-markers" };
-    }
-
-    // 過渡時允許同活動標題重複，但每個標題都必須完全符合目標。
-    const repeatedTargetHeading =
-        dom.activityNames.length > 1 && dom.activityNames.every(name => name === target.eventName);
-    const activityDom = repeatedTargetHeading ? { ...dom, activityNames: [target.eventName] } : dom;
-
-    // 以同份快照核對活動及唯一目標場次，不依殘留列數猜測身分。
-    const activity = parseActivityPage(activityDom, eventId);
-    if (activity.kind !== "activity") return { result: "activity-unreadable", activityReadReason: activity.reason };
-    if (activity.eventName !== target.eventName) return { result: "event-name-mismatch" };
-    const matches = activity.sessions.filter(session => session.date === target.date && session.time === target.time);
-    if (matches.length === 0) return { result: "target-session-missing" };
-    if (matches.length !== 1) return { result: "target-session-ambiguous" };
-    return { result: matches[0]!.name === target.sessionName ? "verified" : "session-name-mismatch" };
 }
 
 export interface SelectionTransitionTarget extends PageIdentity {
@@ -183,11 +120,7 @@ function inspectSelectionTransition(
     return "verified";
 }
 
-function classifyPage(
-    dom: TicketPlusDom,
-    transitionTarget?: ActivityTransitionTarget,
-    selectionTarget?: SelectionTransitionTarget,
-): TicketPlusPage {
+function classifyPage(dom: TicketPlusDom, selectionTarget?: SelectionTransitionTarget): TicketPlusPage {
     // 網址採明確白名單，不接受其他站台、額外路徑或不明參數。
     if (dom.origin !== "https://ticketplus.com.tw" || dom.extraUrlParts) return unknownPage("unsupported-url");
     const activity = /^\/activity\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
@@ -232,25 +165,10 @@ function classifyPage(
         if (dom.queueCount || dom.tickets.length || hasInformation || hasCheckout) {
             return unknownPage("conflicting-page");
         }
-        // 點擊後可能先重疊同名標題，再切換網址；仍須核對完整活動與場次。
-        if (
-            transitionTarget &&
-            dom.activityNames.length > 1 &&
-            inspectActivityTransition(dom, activity[1]!, transitionTarget).result === "verified"
-        ) {
-            return unknownPage("activity-transition");
-        }
         return parseActivityPage(dom, activity[1]!);
     }
     const identity = { eventId: order![2]!, sessionId: order![3]! };
     if (dom.activity.length) {
-        if (
-            order![1] === "order" &&
-            transitionTarget &&
-            inspectActivityTransition(dom, identity.eventId, transitionTarget).result === "verified"
-        ) {
-            return unknownPage("activity-transition");
-        }
         return unknownPage("conflicting-page");
     }
     if (order![1] === "order") {
@@ -287,7 +205,7 @@ function diagnosticRouteKind(pathname: string): TicketPlusPageDiagnostic["routeK
 
 interface PageObservationOptions {
     onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void;
-    transitionTarget?: ActivityTransitionTarget;
+    entryTarget?: SelectionEntryTarget;
     selectionTarget?: SelectionTransitionTarget;
     activityName?: string;
     activityTarget?: ActivityLoadingTarget;
@@ -303,13 +221,11 @@ export interface ActivityObservation {
 export async function readTicketPlusPage(
     page: Page,
     onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void,
-    transitionTarget?: ActivityTransitionTarget,
     selectionTarget?: SelectionTransitionTarget,
     activityName?: string,
 ): Promise<TicketPlusPage> {
     const observation = await readPageObservation(page, {
         onDiagnostic,
-        transitionTarget,
         selectionTarget,
         activityName,
     });
@@ -325,8 +241,17 @@ export async function readTicketPlusActivityObservation(
     return readPageObservation(page, { onDiagnostic, activityName: target.eventName, activityTarget: target });
 }
 
+// 點擊後只等嚴格選票頁，不修改一般 reader 的分類。
+export async function readTicketPlusSelectionObservation(
+    page: Page,
+    target: SelectionEntryTarget,
+    onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void,
+): Promise<ActivityObservation> {
+    return readPageObservation(page, { onDiagnostic, entryTarget: target, activityName: target.eventName });
+}
+
 async function readPageObservation(page: Page, options: PageObservationOptions): Promise<ActivityObservation> {
-    const { onDiagnostic, transitionTarget, selectionTarget, activityName, activityTarget } = options;
+    const { onDiagnostic, entryTarget, selectionTarget, activityName, activityTarget } = options;
     // 沿用同一份快照判讀，不為診斷重讀頁面。
     let snapshot: TicketPlusDom | undefined;
     let result: TicketPlusPage;
@@ -341,7 +266,7 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
         ) {
             result = unknownPage("page-changed");
         } else {
-            result = classifyPage(snapshot, transitionTarget, selectionTarget);
+            result = classifyPage(snapshot, selectionTarget);
         }
     } catch {
         result = unknownPage("read-failed");
@@ -361,33 +286,15 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
 
     const readiness: PageReadiness = activityTarget
         ? activityReadiness(snapshot, result, activityTarget)
-        : { status: "stop", reason: "not-requested" };
+        : entryTarget
+          ? selectionReadiness(snapshot, result, entryTarget)
+          : { status: "stop", reason: "not-requested" };
 
     // 只保留分類與計數，不帶出網址、頁面文字或個資。
     if (onDiagnostic) {
         const diagnostic: TicketPlusPageDiagnostic = { pageKind: result.kind };
-        if (activityTarget) diagnostic.readiness = readiness;
+        if (activityTarget || entryTarget) diagnostic.readiness = readiness;
         if (result.kind === "unknown") diagnostic.unknownReason = result.reason;
-        if (snapshot && transitionTarget && snapshot.activity.length) {
-            const order = /^\/order\/([A-Za-z0-9_-]+)\/[A-Za-z0-9_-]+\/?$/.exec(snapshot.pathname);
-            const activity = /^\/activity\/([A-Za-z0-9_-]+)\/?$/.exec(snapshot.pathname);
-            const eventId = order?.[1] ?? activity?.[1];
-            diagnostic.activityTransition = {
-                ...(eventId
-                    ? inspectActivityTransition(snapshot, eventId, transitionTarget)
-                    : { result: "unsupported-transition-route" as const }),
-                headingCount: snapshot.activityNames.length,
-                matchingHeadingCount: snapshot.activityNames.filter(name => name === transitionTarget.eventName).length,
-                rows: snapshot.activity.map(row => ({
-                    names: row.names.length,
-                    dates: row.dates.length,
-                    times: row.times.length,
-                    buttons: row.saleButtons.length,
-                    knownButtonText:
-                        row.saleButtons.length === 1 && ["立即購買", "尚未開賣"].includes(row.saleButtons[0]!.text),
-                })),
-            };
-        }
         if (snapshot && selectionTarget && snapshot.tickets.length > 0) {
             const confirm = /^\/confirm\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?$/.exec(snapshot.pathname);
             if (confirm) {

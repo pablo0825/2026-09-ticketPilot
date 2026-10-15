@@ -530,7 +530,6 @@ test("TicketPlus 活動欄位診斷：同快照描述缺少、空白、歧義與
                     fields = diagnostic.activityFields;
                 },
                 undefined,
-                undefined,
                 event.eventName,
             );
             assert.deepEqual(observed, baseline);
@@ -556,7 +555,6 @@ test("TicketPlus 活動欄位診斷：同快照描述缺少、空白、歧義與
                 diagnostic => {
                     fields = diagnostic.activityFields;
                 },
-                undefined,
                 undefined,
                 event.eventName,
             );

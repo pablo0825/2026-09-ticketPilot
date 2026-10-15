@@ -2,6 +2,7 @@ import { TicketPlusRunControl, TicketPlusStopError } from "../src/platforms/tick
 import { readTicketPlusPage } from "../src/platforms/ticketplus/pageState.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
 import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
@@ -547,7 +548,7 @@ test("TicketPlus 入場過渡：殘留不消失沿用期限停止，診斷保留
                     assert.equal(error.reason, "arrival-timeout");
                     assert.equal(error.diagnostic?.check, "page-state");
                     if (error.diagnostic?.check !== "page-state") return false;
-                    assert.equal(error.diagnostic.snapshot.unknownReason, "activity-transition");
+                    assert.equal(error.diagnostic.snapshot.readiness?.status, "pending");
                     assert.equal(error.diagnostic.snapshot.markers?.activityRows, 2);
                     return true;
                 },
@@ -559,17 +560,17 @@ test("TicketPlus 入場過渡：殘留不消失沿用期限停止，診斷保留
     );
 });
 
-test("TicketPlus 入場過渡：身分不符、不完整或混合標記不能當作過渡等待", { timeout: 30_000 }, async () => {
+test("TicketPlus 入場過渡：身分不符或跨流程標記立即停止", { timeout: 30_000 }, async () => {
     const cases = [
         activity.replace(`<h1>${eventName}</h1>`, "<h1>其他活動</h1>"),
         heading + rowA,
         activity.replace("晚場 [B] (特別)", "其他場次"),
         activity + rowB,
-        activity.replace("21:00", "未知時間"),
-        activity + orderB,
         activity + '<div role="dialog">請確認</div>',
         activity + "<h3>排隊購票中 請稍候</h3>",
         activity + "<div>聯絡人資訊</div>",
+        activity + '<label>姓名<input value="PRIVATE_CONTACT"></label>',
+        activity + orderB.replace("21:00", "22:00"),
         activity + "<button>前往付款</button>",
         activity + '<div class="stepText checkedStep">付款結帳</div>',
         activity + '<div class="row py-2 py-md-3 no-gutters">摘要</div>',
@@ -631,38 +632,52 @@ test("TicketPlus 入場過渡：等待可停止，完成後仍核對選票場次
     }
 });
 
-test("TicketPlus 過渡診斷：指出驗證失敗條件，不放寬停止規則或輸出頁面文字", { timeout: 30_000 }, async () => {
+test("TicketPlus 入場診斷：保留原始欄位與等待決策，不輸出頁面文字", { timeout: 30_000 }, async () => {
     const cases = [
-        { html: rowB, result: "activity-unreadable", readReason: "incomplete-data", headings: 0 },
+        { html: rowB, status: "pending", reason: "selection-not-ready", headings: 0 },
         {
             html: heading + rowB.replace("立即購買", "PRIVATE_LOADING_TEXT"),
-            result: "activity-unreadable",
-            readReason: "incomplete-data",
+            status: "pending",
+            reason: "selection-not-ready",
             knownButton: false,
         },
-        { html: activity.replace(`<h1>${eventName}</h1>`, "<h1>PRIVATE_EVENT</h1>"), result: "event-name-mismatch" },
-        { html: heading + rowA, result: "target-session-missing" },
-        { html: activity + rowB, result: "target-session-ambiguous" },
-        { html: activity.replace("晚場 [B] (特別)", "PRIVATE_SESSION"), result: "session-name-mismatch" },
-        { html: activity + '<div class="stepText checkedStep">付款結帳</div>', result: "mixed-markers" },
+        {
+            html: activity.replace(`<h1>${eventName}</h1>`, "<h1>PRIVATE_EVENT</h1>"),
+            status: "stop",
+            reason: "event-name-mismatch",
+        },
+        { html: heading + rowA, status: "stop", reason: "activity-session-mismatch" },
+        { html: activity + rowB, status: "stop", reason: "activity-session-mismatch" },
+        {
+            html: activity.replace("晚場 [B] (特別)", "PRIVATE_SESSION"),
+            status: "stop",
+            reason: "activity-session-mismatch",
+        },
+        {
+            html: activity + '<div class="stepText checkedStep">付款結帳</div>',
+            status: "stop",
+            reason: "conflicting-content",
+        },
     ];
     for (const item of cases) {
         await withPage(
             async page => {
-                await assert.rejects(selectTicketPlusSession(page, settings, options), error => {
-                    assert(error instanceof TicketPlusSessionError);
-                    assert.equal(error.reason, "unexpected-page");
-                    assert.equal(error.diagnostic?.check, "page-state");
-                    if (error.diagnostic?.check !== "page-state") return false;
-                    const diagnostic = error.diagnostic.snapshot.activityTransition;
-                    assert.equal(diagnostic?.result, item.result);
-                    assert.equal(diagnostic?.activityReadReason, item.readReason);
-                    if (item.headings !== undefined) assert.equal(diagnostic?.headingCount, item.headings);
-                    if (item.knownButton !== undefined)
-                        assert.equal(diagnostic?.rows[0]?.knownButtonText, item.knownButton);
-                    assert.doesNotMatch(JSON.stringify(error.diagnostic), /PRIVATE_|孿生|event-fixture|晚場/);
-                    return true;
-                });
+                await assert.rejects(
+                    selectTicketPlusSession(page, settings, { ...options, arrivalTimeoutMs: 300 }),
+                    error => {
+                        assert(error instanceof TicketPlusSessionError);
+                        assert.equal(error.reason, item.status === "pending" ? "arrival-timeout" : "unexpected-page");
+                        if (error.diagnostic?.check !== "page-state") assert.fail();
+                        const diagnostic = error.diagnostic.snapshot;
+                        assert.deepEqual(diagnostic.readiness, { status: item.status, reason: item.reason });
+                        if (item.headings !== undefined)
+                            assert.equal(diagnostic.activityFields?.headings.count, item.headings);
+                        if (item.knownButton !== undefined)
+                            assert.equal(diagnostic.activityFields?.rows[0]?.knownButtonText, item.knownButton);
+                        assert.doesNotMatch(JSON.stringify(error.diagnostic), /PRIVATE_|孿生|event-fixture|晚場/);
+                        return true;
+                    },
+                );
                 assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
             },
             { orderB: item.html },
@@ -706,10 +721,10 @@ test("TicketPlus 入場過渡：重複標題持續存在仍逾時，保留原標
                     assert.equal(error.reason, "arrival-timeout");
                     assert.equal(error.diagnostic?.check, "page-state");
                     if (error.diagnostic?.check !== "page-state") return false;
-                    const transition = error.diagnostic.snapshot.activityTransition;
-                    assert.equal(transition?.result, "verified");
-                    assert.equal(transition?.headingCount, 2);
-                    assert.equal(transition?.matchingHeadingCount, 2);
+                    const diagnostic = error.diagnostic.snapshot;
+                    assert.equal(diagnostic.readiness?.status, "pending");
+                    assert.equal(diagnostic.activityFields?.headings.count, 2);
+                    assert.equal(diagnostic.activityFields?.headings.matchingCount, 2);
                     return true;
                 },
             );
@@ -722,8 +737,6 @@ test("TicketPlus 入場過渡：重複標題持續存在仍逾時，保留原標
 test("TicketPlus 重複標題：非目標標題、重複場次與點擊前歧義仍停止", { timeout: 20_000 }, async () => {
     for (const html of [
         heading + rowB + "<h1>其他活動</h1>",
-        heading + rowB + "<h1> </h1>",
-        heading + rowB + rowB + `<h1>${eventName}</h1>`,
         heading + rowB + `<h1>${eventName}</h1><div role="dialog">提示</div>`,
     ]) {
         await withPage(
@@ -811,8 +824,8 @@ test("TicketPlus 活動網址過渡：持續重疊逾時，不重按並保留驗
                     assert.equal(error.reason, "arrival-timeout");
                     assert.equal(error.diagnostic?.check, "page-state");
                     if (error.diagnostic?.check !== "page-state") return false;
-                    assert.equal(error.diagnostic.snapshot.activityTransition?.result, "verified");
-                    assert.equal(error.diagnostic.snapshot.unknownReason, "activity-transition");
+                    assert.equal(error.diagnostic.snapshot.readiness?.reason, "selection-not-ready");
+                    assert.equal(error.diagnostic.snapshot.readiness?.status, "pending");
                     return true;
                 },
             );
@@ -824,12 +837,7 @@ test("TicketPlus 活動網址過渡：持續重疊逾時，不重按並保留驗
 });
 
 test("TicketPlus 活動網址過渡：不同標題、重複場次與混合標記仍停止", { timeout: 20_000 }, async () => {
-    for (const extra of [
-        "<h1>另一活動</h1>",
-        `<h1>${eventName}</h1>${rowB}`,
-        `<h1>${eventName}</h1><div role="dialog">提示</div>`,
-        `<h1>${eventName}</h1>${orderB}`,
-    ]) {
+    for (const extra of ["<h1>另一活動</h1>", `<h1>${eventName}</h1><div role="dialog">提示</div>`]) {
         await withPage(
             async page => {
                 await page.evaluate(html => {
@@ -1107,5 +1115,78 @@ test("TicketPlus 點擊前診斷：缺時間等待到期限，保留欄位與等
             assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
         },
         { html: heading + rowB.replace("21:00", "PRIVATE_TIME") },
+    );
+});
+
+test("TicketPlus 入場等待：殘缺與重疊內容到期限仍只點一次", async () => {
+    for (const html of [
+        activity.replace("21:00", "未知時間"),
+        activity + orderB,
+        heading + rowB + "<h1> </h1>",
+        heading + rowB + rowB + `<h1>${eventName}</h1>`,
+        "<button>下一步</button>",
+    ]) {
+        await withPage(
+            async page => {
+                await rejectsEntry(
+                    selectTicketPlusSession(page, settings, { ...options, arrivalTimeoutMs: 300 }),
+                    "after-click-attempt",
+                    "arrival-timeout",
+                );
+                assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+            },
+            { orderB: html },
+        );
+    }
+});
+
+test("TicketPlus 入場等待：獨立回應結束活動與選票重疊後才完成", { timeout: 15_000 }, async () => {
+    await withPage(
+        async page => {
+            let release!: () => void;
+            let requested!: () => void;
+            const gate = new Promise<void>(resolve => {
+                release = resolve;
+            });
+            const request = new Promise<void>(resolve => {
+                requested = resolve;
+            });
+            await page.route("**/selection-content", async route => {
+                requested();
+                await gate;
+                await route.fulfill({ contentType: "text/html; charset=utf-8", body: orderB });
+            });
+            let settled = false;
+            const outcome = selectTicketPlusSession(page, settings, options).then(
+                value => {
+                    settled = true;
+                    return { value };
+                },
+                error => {
+                    settled = true;
+                    return { error };
+                },
+            );
+            try {
+                await request;
+                await delay(250);
+                assert.equal(settled, false);
+                assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+                release();
+                const result = await outcome;
+                if ("error" in result) throw result.error;
+                assert.equal(result.value.sessionId, "session-B");
+                assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+            } finally {
+                release();
+                await outcome;
+            }
+        },
+        {
+            orderB:
+                activity +
+                orderB +
+                '<script>fetch("/selection-content").then(r => r.text()).then(html => { document.body.innerHTML = html; });</script>',
+        },
     );
 });

@@ -3,7 +3,7 @@ import type { Locator, Page } from "playwright";
 import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { ActivityPage } from "./activityPage.js";
-import { readTicketPlusActivityObservation, readTicketPlusPage } from "./pageState.js";
+import { readTicketPlusActivityObservation, readTicketPlusSelectionObservation } from "./pageState.js";
 import type { TicketPlusPageDiagnostic, TicketPlusPage } from "./pageState.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 
@@ -225,16 +225,26 @@ async function waitForSelection(
         if (routeFailure) {
             throw new TicketPlusSessionError("after-click-attempt", "unexpected-page", routeFailure);
         }
-        const snapshot = await readWithinDeadline(deadline - performance.now(), "after-click-attempt", control, () =>
-            readTicketPlusPage(page, onDiagnostic, {
-                eventId: eventId!,
-                eventName: settings.eventName,
-                sessionName: target.name,
-                date: target.date,
-                time: target.time,
-            }),
+        const observation = await readWithinDeadline(deadline - performance.now(), "after-click-attempt", control, () =>
+            readTicketPlusSelectionObservation(
+                page,
+                {
+                    eventId: eventId!,
+                    eventName: settings.eventName,
+                    sessionName: target.name,
+                    date: target.date,
+                    time: target.time,
+                },
+                onDiagnostic,
+            ),
         );
+        const changedRoute = arrivalRouteFailure(page, settings);
+        if (changedRoute) throw new TicketPlusSessionError("after-click-attempt", "unexpected-page", changedRoute);
         if (performance.now() >= deadline) break;
+        const snapshot = observation.page;
+        if (observation.readiness.status === "stop") {
+            throw new TicketPlusSessionError("after-click-attempt", "unexpected-page");
+        }
 
         // 完整選票頁必須符合活動與日期時間；sessionId 是此時新取得的資料。
         if (snapshot.kind === "ticket-selection") {
@@ -248,17 +258,6 @@ async function waitForSelection(
             }
             return snapshot;
         }
-        if (snapshot.kind === "activity") {
-            if (snapshot.eventId !== eventId || snapshot.eventName !== settings.eventName) {
-                throw new TicketPlusSessionError("after-click-attempt", "activity-mismatch");
-            }
-        } else if (
-            snapshot.kind !== "unknown" ||
-            !["incomplete-data", "page-changed", "read-failed", "activity-transition"].includes(snapshot.reason)
-        ) {
-            throw new TicketPlusSessionError("after-click-attempt", "unexpected-page");
-        }
-
         // 等待期間不刷新、不處理排隊，也不碰選票頁的任何控制項。
         await control.wait(Math.min(interval, Math.max(0, deadline - performance.now())));
     }
