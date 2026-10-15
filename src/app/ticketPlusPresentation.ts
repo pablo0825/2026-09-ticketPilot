@@ -1,3 +1,4 @@
+import type { TicketPlusSaleReason } from "../platforms/ticketplus/salePreparation.js";
 import type { TicketPlusRunEvent, TicketPlusRunResult } from "./runTicketPlus.js";
 import type { SessionEntryReason, SessionEntryStage } from "../platforms/ticketplus/sessionSelection.js";
 
@@ -16,6 +17,21 @@ const sessionReasons: Record<SessionEntryReason, string> = {
     "arrival-mismatch": "進入的選票頁與設定活動或場次不符，請核對活動及日期時間",
     "arrival-timeout": "等待選票頁逾時，請檢查目前是否仍在處理或已完成跳轉",
     "read-failed": "無法完成頁面資料讀取，請檢查瀏覽器是否關閉、頁面載入或變動",
+};
+
+const saleReasons: Record<TicketPlusSaleReason, string> = {
+    "invalid-schedule": "開賣時間或提前刷新秒數無效",
+    "invalid-clock": "無法核對目前時間",
+    "sale-expired": "已超過開賣後 2 分鐘的等待期限",
+    "page-closed": "購票頁已關閉或中斷",
+    "unexpected-page": "目前網址不是設定的活動頁",
+    "activity-mismatch": "活動名稱或 ID 與設定不符",
+    "session-missing": "找不到設定的日期與時間",
+    "session-ambiguous": "同日期與時間有多個場次",
+    "session-disabled": "目標的立即購買按鈕停用，不能據此判定尚未開賣",
+    "page-unrecognized": "無法確認頁面或場次狀態",
+    "read-timeout": "等待活動頁資料完整逾時",
+    "refresh-failed": "活動頁刷新未確認成功",
 };
 
 export function ticketPlusSessionMessage(failure: { reason: SessionEntryReason; stage: SessionEntryStage }): string {
@@ -80,8 +96,10 @@ export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
                 : `順位核對未通過（${result.priorityFailure}），不能據此判定售完`;
         return `${detail}。${prior}不刷新或重跑。`;
     }
-    if (result.reason === "sale-wait-stopped")
-        return "開賣等待已中斷，尚未選場次或提交選票。請檢查購票瀏覽器；不會自動重跑。";
+    if (result.reason === "sale-wait-stopped") {
+        const detail = "saleFailure" in result && result.saleFailure ? saleReasons[result.saleFailure] : "等待已中斷";
+        return `開賣等待停止：${detail}。尚未選場次或提交選票，請檢查購票瀏覽器；不會自動重跑。`;
+    }
     return `流程已停止（${result.reason}）。${prior}請檢查購票瀏覽器；不會自動重跑。`;
 }
 export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | undefined {
@@ -93,7 +111,9 @@ export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | unde
         return {
             starting: "啟動 TicketPlus 購票瀏覽器。",
             "waiting-for-login": "等待人工登入交接。",
-            "waiting-for-sale": "等待指定開賣時間；到時間後開始選場次，不刷新頁面。已過時間則立即繼續。",
+            "waiting-for-sale": "等待指定開賣時間及提前刷新時間。",
+            "refreshing-activity": "刷新活動頁並重新核對目標場次。",
+            "waiting-for-availability": "目標場次尚未開賣，間隔至少 3 秒再次刷新；最多等到開賣後 2 分鐘。",
             "selecting-session": "核對活動並選擇場次。",
             "selecting-tickets": "核對票種並調整張數。",
             submitting: "核對選票並提交，等待資料頁。",

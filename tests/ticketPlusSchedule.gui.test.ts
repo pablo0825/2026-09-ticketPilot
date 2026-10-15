@@ -187,18 +187,18 @@ test("TicketPlus 執行設定：真版本衝突保留草稿，不覆蓋別頁也
     });
 });
 
-test("TicketPlus 執行設定：明確清除舊提前刷新與期限，使用修改後候選啟動", async () => {
+test("TicketPlus 執行設定：改為立即開始可清除開賣設定與期限，使用修改後候選啟動", async () => {
     await fixture(
         async (h, page, record, requests) => {
             const checkbox = page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ });
             await checkbox.check();
-            assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
-            await page.getByRole("button", { name: "改為僅等待開賣", exact: true }).click();
+            assert(await page.getByRole("button", { name: "開始購票", exact: true }).isEnabled());
+            await page.getByRole("combobox", { name: /執行方式/ }).selectOption("now");
             await page.getByLabel("最長執行時間（分鐘，選填）").fill("");
             await start(page);
             await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
             const saved = await (await h.request("/api/activities/" + record.id)).json();
-            assert.deepEqual(saved.settings.saleSchedule, { saleAt: "2026-12-01T12:34:56+08:00" });
+            assert.equal(saved.settings.saleSchedule, undefined);
             assert.equal(saved.settings.maxRunMinutes, undefined);
             assert.deepEqual(starts(requests)[0]!.body.expectedActivity, saved.settings);
         },
@@ -265,13 +265,27 @@ test("TicketPlus 排程 GUI：倒數跨過零只更新文字，不自行啟動�
             ],
             historyTruncated: false,
         };
-        await snapshotFeed(page, "/api/purchase/events", run);
+        const feed = await snapshotFeed(page, "/api/purchase/events", run);
         await page.route("**/api/purchase", route => route.fulfill({ json: run }));
         await page.goto(h.url);
         await page.getByRole("button", { name: "查看狀態", exact: true }).click();
         await eventually(async () => assert.match(await page.locator("body").innerText(), /距開賣 \d+ 秒/));
         await eventually(async () => assert.match(await page.locator("body").innerText(), /已到設定時間/));
         assert.equal(await page.locator("#status").innerText(), "等待開賣");
+        for (const [stage, title] of [
+            ["refreshing-activity", "刷新活動頁"],
+            ["waiting-for-availability", "等待目標場次開賣"],
+            ["refreshing", "更新票數核對中"],
+        ] as const) {
+            run.events.push({
+                sequence: run.events.length + 1,
+                at: new Date().toISOString(),
+                event: { type: "ticketplus", stage },
+            });
+            feed.publish(run);
+            await eventually(async () => assert.equal(await page.locator("#status").innerText(), title));
+            assert(await page.getByRole("button", { name: "停止購票", exact: true }).isEnabled());
+        }
         assert.equal(requests.filter(request => request.method === "POST").length, 0);
         assert.equal(await h.snapshot(), null);
     });
@@ -350,4 +364,20 @@ test("TicketPlus 執行設定：保存回應延遲時連點只保存一次並啟
             release();
         }
     });
+});
+
+test("TicketPlus 執行設定：已保存提前 2 秒可啟動且原設定不被改寫", async () => {
+    const settings = {
+        ...apiActivity,
+        saleSchedule: { saleAt: "2026-12-01T12:34:56+08:00", advanceSeconds: 2 },
+    };
+    await fixture(async (h, page, record, requests) => {
+        assert.match(await page.getByRole("region", { name: "活動摘要" }).innerText(), /提前 2 秒刷新活動頁/);
+        await start(page);
+        await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
+        const saved = await (await h.request("/api/activities/" + record.id)).json();
+        assert.deepEqual(saved.settings, settings);
+        assert.deepEqual(starts(requests)[0]!.body.expectedActivity, settings);
+        assert.equal(requests.filter(request => request.method === "PUT").length, 0);
+    }, settings);
 });

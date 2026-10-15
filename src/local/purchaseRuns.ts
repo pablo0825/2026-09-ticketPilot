@@ -243,7 +243,10 @@ export class PurchaseRuns {
         if (record === this.current && this.child && record.snapshot.status === "running") {
             if (record.snapshot.platform === "ticketplus") {
                 const event = record.snapshot.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
-                return event?.type === "ticketplus" && event.stage === "waiting-for-sale" ? "等待開賣" : "執行中";
+                return event?.type === "ticketplus" &&
+                    ["waiting-for-sale", "refreshing-activity", "waiting-for-availability"].includes(event.stage)
+                    ? "等待開賣"
+                    : "執行中";
             }
             const state = record.snapshot.events.filter(item => item.event.type === "state").at(-1)?.event;
             return state?.type === "state" && state.state === "WAITING_FOR_SALE" ? "等待開賣" : "執行中";
@@ -304,11 +307,7 @@ export class PurchaseRuns {
 
         // 確認沒有占用，且還沒超過開賣等待期限
         if (this.busy()) throw new Error("已有購票程序或瀏覽器占用，請先關閉原購票瀏覽器。");
-        if (
-            activity.platform === "klook" &&
-            activity.saleSchedule &&
-            Date.now() >= validateSaleSchedule(activity.saleSchedule) + 120_000
-        ) {
+        if (activity.saleSchedule && Date.now() >= validateSaleSchedule(activity.saleSchedule) + 120_000) {
             throw new Error("開賣等待時間已過，請更新時間或選擇立即開始。");
         }
 

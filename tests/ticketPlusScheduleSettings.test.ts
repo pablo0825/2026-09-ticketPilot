@@ -4,15 +4,11 @@ import { mkdtemp, mkdir, readFile, writeFile, readdir, rm } from "node:fs/promis
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { PassThrough } from "node:stream";
-import { chromium } from "playwright";
-import { parseTicketPlusActivity } from "../src/config/ticketPlusActivity.js";
+import { parseTicketPlusActivity, ticketPlusSessionSelection } from "../src/config/ticketPlusActivity.js";
 import { ActivityStore } from "../src/config/activityStore.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 import { startLocalServer } from "../src/local/server.js";
-import { runTicketPlus } from "../src/app/runTicketPlus.js";
-import { loadTicketPlusCliSettings, runTicketPlusCli } from "../src/cli/ticketPlus.js";
-import { ticketPlusStartupMessage } from "../src/cli/ticketPlusMessages.js";
+import { loadTicketPlusCliSettings } from "../src/cli/ticketPlus.js";
 import { purchaseOccupied } from "../src/app/purchaseLock.js";
 
 const activity = {
@@ -57,7 +53,7 @@ function record(hashes: (typeof historyHashes)[number]) {
     };
 }
 
-test("排程設定：省略提前秒數代表僅等待，完整台灣時間且不改演出時間", () => {
+test("排程設定：省略提前秒數保持原始形狀，完整台灣時間且不改演出時間", () => {
     assert.deepEqual(parseTicketPlusActivity(activity), activity);
     assert.equal("saleSchedule" in parseTicketPlusActivity(activity), false);
     assert.deepEqual(parseTicketPlusActivity({ ...activity, saleSchedule: { saleAt: schedule.saleAt } }).saleSchedule, {
@@ -86,7 +82,8 @@ test("排程設定：省略提前秒數代表僅等待，完整台灣時間且�
         assert.throws(() => parseTicketPlusActivity({ ...activity, saleSchedule: bad }));
 });
 
-test("排程不被舊指紋投影丟掉；無排程 v4／v5 指紋及原紀錄保持不變", async () => {
+test("排程不被舊指紋投影丟掉；無排程 v4／v5 指紋及原紀錄保持不變", async t => {
+    t.mock.method(Date, "now", () => Date.parse("2026-10-22T12:00:00+08:00"));
     for (const hashes of historyHashes) {
         const dir = await mkdtemp(join(tmpdir(), "tp-schedule-history-"));
         try {
@@ -107,7 +104,7 @@ test("排程不被舊指紋投影丟掉；無排程 v4／v5 指紋及原紀錄�
                 const scheduled = { ...activity, saleSchedule: { ...schedule, advanceSeconds } };
                 assert.throws(() => runs.start(requestId, scheduled, undefined, activityId), /更換設定/);
                 assert.equal(runs.activityStatus({ ...saved, settings: scheduled }), "設定已更新");
-                assert.throws(() => runs.start(randomUUID(), scheduled, undefined, activityId), /提前刷新尚未接通/);
+                assert.throws(() => runs.start(randomUUID(), scheduled, undefined, activityId), /開賣等待時間已過/);
             }
             assert.equal(await readFile(file, "utf8"), original);
             assert.deepEqual(await readdir(join(dir, "runs")), [requestId + ".json"]);
@@ -121,43 +118,30 @@ test("排程不被舊指紋投影丟掉；無排程 v4／v5 指紋及原紀錄�
     }
 });
 
-test("排程 CLI 可讀設定但啟動前拒絕；runner 不取得占用或開瀏覽器", async t => {
+test("排程 CLI 可讀設定，省略及明確提前 1／2 秒都能通過場次能力檢查", async () => {
     const dir = await mkdtemp(join(tmpdir(), "tp-schedule-cli-"));
-    const input = Object.assign(new PassThrough(), { isTTY: true });
-    const output = new PassThrough();
-    const launch = t.mock.method(chromium, "launchPersistentContext", async () => {
-        throw new Error("must not launch");
-    });
     try {
         const file = join(dir, "settings.json");
-        for (const advanceSeconds of [1, 2] as const) {
-            const settings = { ...activity, saleSchedule: { ...schedule, advanceSeconds } };
+        for (const advanceSeconds of [undefined, 1, 2] as const) {
+            const saleSchedule =
+                advanceSeconds === undefined ? { saleAt: schedule.saleAt } : { ...schedule, advanceSeconds };
+            const settings = { ...activity, saleSchedule };
             await writeFile(file, JSON.stringify(settings));
             assert.deepEqual(await loadTicketPlusCliSettings(["--config", file]), settings);
-            await assert.rejects(runTicketPlusCli(["--config", file], { input, output }), error => {
-                assert.match(ticketPlusStartupMessage(error), /提前刷新尚未接通/);
-                return true;
+            assert.deepEqual(ticketPlusSessionSelection(settings), {
+                platform: "ticketplus",
+                eventUrl: activity.eventUrl,
+                eventName: activity.eventName,
+                target: activity.targets[0],
             });
-            await assert.rejects(
-                runTicketPlus(settings, {
-                    waitForLogin: async () => {
-                        assert.fail("must not login");
-                    },
-                    lease: { path: join(dir, "missing.lock"), token: "invalid" } as never,
-                }),
-                /提前刷新尚未接通/,
-            );
         }
-        assert.equal(launch.mock.callCount(), 0);
         assert.deepEqual(await readdir(dir), ["settings.json"]);
     } finally {
-        input.destroy();
-        output.destroy();
         await rm(dir, { recursive: true, force: true });
     }
 });
 
-test("API 排程可保存重讀；提前秒數與時間皆比對，拒絕啟動不留副作用", async () => {
+test("API 排程可保存重讀；提前秒數與時間皆比對，過期啟動不留副作用", async () => {
     const dir = await mkdtemp(join(tmpdir(), "tp-schedule-api-"));
     const runtime = join(dir, "runtime");
     const store = new ActivityStore(join(dir, "events"));
@@ -175,12 +159,13 @@ test("API 排程可保存重讀；提前秒數與時間皆比對，拒絕啟動�
                 headers: { "X-Local-Token": token, "Content-Type": "application/json" },
                 body: body === undefined ? undefined : JSON.stringify(body),
             });
-        const settings = { ...activity, saleSchedule: schedule };
+        const expiredSchedule = { ...schedule, saleAt: "2020-10-20T12:00:00+08:00" };
+        const settings = { ...activity, saleSchedule: expiredSchedule };
         const created = await request("/api/activities", "POST", settings);
         assert.equal(created.status, 201);
         const saved = await created.json();
         assert.deepEqual((await store.load(saved.id)).settings, settings);
-        const twoSeconds = { ...activity, saleSchedule: { ...schedule, advanceSeconds: 2 } };
+        const twoSeconds = { ...activity, saleSchedule: { ...expiredSchedule, advanceSeconds: 2 } };
         const updated = await request("/api/activities/" + saved.id, "PUT", twoSeconds);
         assert.equal(updated.status, 200);
         assert.deepEqual((await updated.json()).settings, twoSeconds);
@@ -194,7 +179,7 @@ test("API 排程可保存重讀；提前秒數與時間皆比對，拒絕啟動�
         });
         assert.equal(invalid.status, 400);
         assert.equal(await readFile(file, "utf8"), bytes);
-        // 設定不符優先報錯，吻合則被能力保護擋住；不能提前開購票程序。
+        // 設定不符優先報錯，吻合則被開賣等待期限擋住；不能提前開購票程序。
         for (const expectedActivity of [
             settings,
             { ...twoSeconds, saleSchedule: { ...twoSeconds.saleSchedule, saleAt: "2026-10-21T12:00:00+08:00" } },
@@ -207,7 +192,7 @@ test("API 排程可保存重讀；提前秒數與時間皆比對，拒絕啟動�
             });
             assert.equal(response.status, 400);
             const error = await response.json();
-            assert.match(error.error, expectedActivity === twoSeconds ? /提前刷新尚未接通/ : /已變更/);
+            assert.match(error.error, expectedActivity === twoSeconds ? /開賣等待時間已過/ : /已變更/);
             assert.equal(error.notAccepted, true);
         }
         assert.equal((await request("/api/activities")).status, 200);
@@ -220,11 +205,12 @@ test("API 排程可保存重讀；提前秒數與時間皆比對，拒絕啟動�
     }
 });
 
-test("固定 v5 排程紀錄：同請求重播先於啟動限制，改時間或提前秒數皆拒絕", async () => {
+test("固定 v5 排程紀錄：同請求重播先於啟動限制，改時間或提前秒數皆拒絕", async t => {
+    t.mock.method(Date, "now", () => Date.parse("2026-10-22T12:00:00+08:00"));
     const dir = await mkdtemp(join(tmpdir(), "tp-schedule-fingerprint-"));
     try {
         await mkdir(join(dir, "runs"));
-        // 人工準備歷史紀錄來驗證指紋契約；不宣稱本版能啟動排程。
+        // 人工準備歷史紀錄來驗證指紋契約；確認已截止的同請求仍優先重播。
         const original = JSON.stringify(
             record({
                 version: 5,
@@ -244,6 +230,7 @@ test("固定 v5 排程紀錄：同請求重播先於啟動限制，改時間或�
         };
         assert.equal(runs.start(requestId, scheduled, undefined, activityId).id, "123-history");
         assert.equal(runs.activityStatus(saved), "已執行");
+        assert.throws(() => runs.start(randomUUID(), scheduled, undefined, activityId), /開賣等待時間已過/);
         for (const saleSchedule of [
             { ...schedule, advanceSeconds: 2 as const },
             { ...schedule, saleAt: "2026-10-21T12:00:00+08:00" },

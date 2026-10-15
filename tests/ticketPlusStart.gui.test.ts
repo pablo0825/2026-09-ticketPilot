@@ -160,13 +160,12 @@ test("TicketPlus 啟動 GUI：未保存修改與新增草稿都不能啟動", as
     });
 });
 
-test("TicketPlus 啟動 GUI：跨場次及尚未接通排程可以讀取，但不能開始", async () => {
+test("TicketPlus 啟動 GUI：跨場次設定可以讀取，但不能開始", async () => {
     for (const settings of [
         {
             ...apiActivity,
             targets: [...apiActivity.targets, { date: "2026-10-31", time: "20:00", ticketType: "B區", quantity: 1 }],
         },
-        { ...apiActivity, saleSchedule: { saleAt: "2026-11-01T12:00:00+08:00", advanceSeconds: 2 } },
     ]) {
         await fixture(async (_h, page, _record, requests) => {
             await edit(page);
@@ -494,14 +493,14 @@ test(
     },
 );
 
-test("TicketPlus 開賣核心 GUI：已保存僅等待設定可啟動，呈現等待且可手動停止", { timeout: 25_000 }, async () => {
+test("TicketPlus 開賣核心 GUI：未填提前秒數採 1 秒，可啟動且等待中可停止", { timeout: 25_000 }, async () => {
     const saleAt = new Date(Date.now() + 8 * 3600_000 + 60_000).toISOString().slice(0, 19) + "+08:00";
     const scheduled = { ...apiActivity, saleSchedule: { saleAt }, maxRunMinutes: 10 };
     await fixture(async (h, page, _record, requests) => {
         await edit(page);
         await review(page);
         const summary = await page.getByRole("region", { name: "活動摘要" }).innerText();
-        assert.match(summary, /僅等待開賣，不刷新/);
+        assert.match(summary, /提前 1 秒刷新活動頁/);
         assert.doesNotMatch(summary, /undefined|人工登入確認後開始計時/);
         assert.equal(await page.getByLabel("最長執行時間（分鐘，選填）").inputValue(), "10");
         await confirmStart(page);

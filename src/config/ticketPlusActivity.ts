@@ -83,9 +83,6 @@ export function singleTicketPlusSelection(settings: TicketPlusActivitySettings):
 
 // 執行能力與舊紀錄的單目標投影分開；只有同一場次可依序選票。
 export function ticketPlusSessionSelection(settings: TicketPlusActivitySettings): TicketPlusSelection {
-    if (settings.saleSchedule?.advanceSeconds !== undefined) {
-        throw new TicketPlusCapabilityError("TicketPlus 提前刷新尚未接通；請改用僅等待開賣的設定，或選擇立即開始。");
-    }
     const first = settings.targets[0]!;
     if (settings.targets.some(target => target.date !== first.date || target.time !== first.time)) {
         throw new TicketPlusCapabilityError("TicketPlus 目前只支援同場次多順位；不同日期或時間不會啟動購票。");

@@ -12,11 +12,12 @@ appendFileSync(report + ".starts", "started\n");
 const mode = process.env.FIXTURE_MODE ?? "success";
 const counts = { session: 0, plus: 0, submit: 0, dismiss: 0, information: 0, other: 0, terms: 0 };
 const requests: string[] = [];
+const timeline: { kind: string; at: number }[] = [];
 let releaseLaunch: (() => void) | undefined;
 const submissions: { name: string; quantity: number }[][] = [];
 let flush = Promise.resolve();
 function save() {
-    const json = JSON.stringify({ counts, requests, submissions });
+    const json = JSON.stringify({ counts, requests, submissions, timeline });
     flush = flush.then(async () => {
         await writeFile(report + ".tmp", json);
         await rename(report + ".tmp", report);
@@ -41,6 +42,7 @@ chromium.launchPersistentContext = async (_profile, options) => {
         async ({ page }, key: keyof typeof counts, tickets?: { name: string; quantity: number }[]) => {
             if (key === "submit" && tickets) submissions.push(tickets);
             counts[key]++;
+            timeline.push({ kind: key, at: Date.now() });
             await save();
             if (key === "submit" && mode === "close-after-submit") await page.close();
         },
@@ -54,6 +56,7 @@ chromium.launchPersistentContext = async (_profile, options) => {
     await context.route("**/*", async route => {
         const path = new URL(route.request().url()).pathname;
         requests.push(path);
+        timeline.push({ kind: path, at: Date.now() });
         await save();
         await route.fulfill({
             contentType: "text/html; charset=utf-8",

@@ -30,35 +30,48 @@ async function scheduledLogin(h: Harness, seconds = 7) {
     return { saleAt, saleTime, run, body };
 }
 
-test("開賣 API：時間到之前零操作，到點走正式 worker 且不刷新、不重建同請求", { timeout: 20_000 }, async () => {
-    const h = await apiHarness();
-    try {
-        const { saleTime, run, body } = await scheduledLogin(h);
-        await h.until(
-            value =>
-                value?.events.some(
-                    event => event.event.type === "ticketplus" && event.event.stage === "waiting-for-sale",
-                ) === true,
-        );
-        assert(Date.now() < saleTime, "必須真的進入未到時的等待，不可直接略過");
-        assert.deepEqual((await h.counts()).counts, zeroCounts);
-        const remaining = saleTime - Date.now();
-        if (remaining > 300) await new Promise(resolve => setTimeout(resolve, remaining - 200));
-        assert.deepEqual((await h.counts()).counts, zeroCounts);
-        const completed = await h.until(value => value?.status === "information-ready");
-        assert(Date.now() >= saleTime);
-        assert.equal(completed.id, run.id);
-        const report = await h.counts();
-        assert.deepEqual(report.counts, { ...zeroCounts, session: 1, plus: 2, submit: 1 });
-        assert.equal(report.requests.filter((path: string) => path.startsWith("/activity/")).length, 1);
-        const replay = await h.request("/api/purchase", body);
-        assert.equal(replay.status, 200);
-        assert.equal((await replay.json()).id, run.id);
-        assert.deepEqual((await h.counts()).counts, report.counts);
-    } finally {
-        await h.dispose();
-    }
-});
+test(
+    "開賣 API：時間到之前零操作，到點走正式 worker 且預設提前一秒刷新、不重建同請求",
+    { timeout: 20_000 },
+    async () => {
+        const h = await apiHarness();
+        try {
+            const { saleTime, run, body } = await scheduledLogin(h);
+            await h.until(
+                value =>
+                    value?.events.some(
+                        event => event.event.type === "ticketplus" && event.event.stage === "waiting-for-sale",
+                    ) === true,
+            );
+            assert(Date.now() < saleTime, "必須真的進入未到時的等待，不可直接略過");
+            assert.deepEqual((await h.counts()).counts, zeroCounts);
+            const remaining = saleTime - Date.now();
+            if (remaining > 300) await new Promise(resolve => setTimeout(resolve, remaining - 200));
+            assert.deepEqual((await h.counts()).counts, zeroCounts);
+            const completed = await h.until(value => value?.status === "information-ready");
+            assert(Date.now() >= saleTime);
+            assert.equal(completed.id, run.id);
+            const report = await h.counts();
+            assert.deepEqual(report.counts, { ...zeroCounts, session: 1, plus: 2, submit: 1 });
+            assert.equal(report.requests.filter((path: string) => path.startsWith("/activity/")).length, 2);
+            const activityLoads = report.timeline.filter((entry: { kind: string }) =>
+                entry.kind.startsWith("/activity/"),
+            );
+            assert(activityLoads[1].at >= saleTime - 1000, "預設提前一秒，不能更早送刷新請求");
+            assert(activityLoads[1].at < saleTime, "必須觀察到開賣前的刷新請求");
+            const sessionClick = report.timeline.find((entry: { kind: string }) => entry.kind === "session");
+            const submitClick = report.timeline.find((entry: { kind: string }) => entry.kind === "submit");
+            assert(sessionClick.at >= saleTime, "不能看到可按就提前選場次");
+            assert(submitClick.at >= sessionClick.at, "提交必須在核對場次之後");
+            const replay = await h.request("/api/purchase", body);
+            assert.equal(replay.status, 200);
+            assert.equal((await replay.json()).id, run.id);
+            assert.deepEqual((await h.counts()).counts, report.counts);
+        } finally {
+            await h.dispose();
+        }
+    },
+);
 
 test("開賣 API：等待中停止，跨過原開賣時間仍沒有選票或提交", { timeout: 20_000 }, async () => {
     const h = await apiHarness();

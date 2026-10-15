@@ -42,11 +42,17 @@ export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, n
                     instruction =
                         `開賣時間：${new Date(saleAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })}（台灣時間）。` +
                         (seconds > 0
-                            ? `距開賣 ${seconds} 秒；到時間後開始選場次，不刷新頁面。`
+                            ? `距開賣 ${seconds} 秒；程式會依設定提前刷新活動頁。`
                             : "已到設定時間，等待購票程序更新進度；不會由此畫面重新啟動。");
                 } else {
-                    instruction = "等待指定開賣時間；到時間後開始選場次，不刷新頁面。";
+                    instruction = "等待指定開賣時間，程式會依設定提前刷新活動頁。";
                 }
+            } else if (stage === "refreshing-activity") {
+                title = "刷新活動頁";
+                instruction = "正在重新載入活動頁並核對目標場次；仍可要求停止。";
+            } else if (stage === "waiting-for-availability") {
+                title = "等待目標場次開賣";
+                instruction = "目標場次仍尚未開賣，間隔至少 3 秒再次刷新；最多等待至開賣後 2 分鐘，仍可要求停止。";
             } else if (stage === "queue") {
                 title = "排隊中";
                 instruction = "等待 TicketPlus 處理，請保留購票頁面；程式不會刷新或重送。";

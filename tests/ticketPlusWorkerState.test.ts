@@ -142,6 +142,8 @@ test("更新進度：新 stage 通過 schema 且呈現受限更新提示，歷�
         for (const [stage, title, instruction] of [
             ["waiting-to-refresh", "等待更新票數", /仍可要求停止/],
             ["refreshing", "更新票數核對中", /未確認完成前/],
+            ["refreshing-activity", "刷新活動頁", /重新載入活動頁/],
+            ["waiting-for-availability", "等待目標場次開賣", /開賣後 2 分鐘/],
         ] as const) {
             const event = ticketPlusEventSchema.parse({ type: "ticketplus", stage });
             const events = [{ sequence: 1, at: "2026-10-14T00:00:00Z", event }];

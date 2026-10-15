@@ -179,12 +179,9 @@ export function ActivityEditor({ form, saved, disabled, onChange, onSave }: Prop
                 <div role="note">
                     <h3>已保存的開賣設定（唯讀）</h3>
                     <p>
-                        開賣時間：{saved.saleSchedule.saleAt}；
-                        {saved.saleSchedule.advanceSeconds === undefined
-                            ? "僅等待開賣，不刷新頁面。"
-                            : `提前刷新：${saved.saleSchedule.advanceSeconds} 秒（尚未支援執行）。`}
+                        開賣時間：{saved.saleSchedule.saleAt}； 提前刷新：{saved.saleSchedule.advanceSeconds ?? 1} 秒。
                     </p>
-                    <p>此次儲存會保留原設定。僅等待模式已過開賣時間則立即繼續；提前刷新模式目前無法啟動購票。</p>
+                    <p>此次儲存會保留原設定。開賣後最多等待 2 分鐘；超過期限會停止。</p>
                 </div>
             )}
             <footer>

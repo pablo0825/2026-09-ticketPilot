@@ -21,11 +21,18 @@ import type { PriorityReason } from "../platforms/ticketplus/ticketPriority.js";
 import { stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
 import type { TicketPlusSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
 import { emptySubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
-import { waitForTicketPlusSale } from "../platforms/ticketplus/saleWait.js";
+import { prepareTicketPlusSale, TicketPlusSaleError } from "../platforms/ticketplus/salePreparation.js";
+import type { TicketPlusSaleReason } from "../platforms/ticketplus/salePreparation.js";
 import type { SubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
 
 export type TicketPlusStage =
-    "starting" | "waiting-for-login" | "waiting-for-sale" | "selecting-session" | TicketPlusCycleStage;
+    | "starting"
+    | "waiting-for-login"
+    | "waiting-for-sale"
+    | "refreshing-activity"
+    | "waiting-for-availability"
+    | "selecting-session"
+    | TicketPlusCycleStage;
 export type TicketPlusRunEvent =
     { type: "stage"; stage: TicketPlusStage } | TicketPlusCycleEvent | { type: "lease-release-failed" };
 export type TicketPlusRunResult =
@@ -41,6 +48,7 @@ export type TicketPlusRunResult =
               | "ticket-selection-stopped";
           progress: Readonly<SubmissionProgress>;
           priorityFailure?: PriorityReason;
+          saleFailure?: TicketPlusSaleReason;
           stopReason?: TicketPlusStopReason;
           sessionFailure?: { reason: SessionEntryReason; stage: SessionEntryStage };
       };
@@ -136,7 +144,10 @@ export async function runTicketPlus(
         if (page.isClosed()) throw new Error("購票頁已關閉。");
         if (activity.saleSchedule) {
             report("waiting-for-sale");
-            await waitForTicketPlusSale(page, activity.saleSchedule.saleAt, control, options.saleNow);
+            await prepareTicketPlusSale(page, settings, activity.saleSchedule, control, {
+                now: options.saleNow,
+                onStage: report,
+            });
         }
         // 登入與開賣等待不消耗購票期限；之後各階段共用同一期限。
         control.startDeadline(activity.maxRunMinutes);
@@ -171,12 +182,22 @@ export async function runTicketPlus(
                 progress: Object.freeze(emptySubmissionProgress()),
             };
         }
+        if (error instanceof TicketPlusSaleError) {
+            return {
+                outcome: "stopped",
+                reason: "sale-wait-stopped",
+                saleFailure: error.reason,
+                progress: Object.freeze(emptySubmissionProgress()),
+            };
+        }
         const reason =
             stage === "starting"
                 ? "startup-stopped"
                 : stage === "waiting-for-login"
                   ? "login-stopped"
-                  : stage === "waiting-for-sale"
+                  : stage === "waiting-for-sale" ||
+                      stage === "refreshing-activity" ||
+                      stage === "waiting-for-availability"
                     ? "sale-wait-stopped"
                     : stage === "selecting-session"
                       ? "session-selection-stopped"

@@ -17,6 +17,8 @@ export const ticketPlusEventSchema = z.discriminatedUnion("stage", [
                 "starting",
                 "waiting-for-login",
                 "waiting-for-sale",
+                "refreshing-activity",
+                "waiting-for-availability",
                 "selecting-session",
                 "selecting-tickets",
                 "submitting",

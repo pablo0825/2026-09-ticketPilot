@@ -40,27 +40,10 @@ export function ExecutionEditor({ form, disabled, activityDirty, onChange }: Pro
                             onChange={event => onChange({ ...form, saleAt: event.target.value })}
                         />
                     </label>
-                    {form.advanceSeconds !== undefined ? (
-                        <div role="note">
-                            <p>原設定提前刷新 {form.advanceSeconds} 秒，目前尚未支援執行。可明確改為僅等待開賣。</p>
-                            <button
-                                type="button"
-                                className="secondary"
-                                disabled={disabled}
-                                onClick={() =>
-                                    onChange({
-                                        mode: "scheduled",
-                                        saleAt: form.saleAt,
-                                        maxRunMinutes: form.maxRunMinutes,
-                                    })
-                                }
-                            >
-                                改為僅等待開賣
-                            </button>
-                        </div>
-                    ) : (
-                        <p>僅等待開賣，不刷新頁面。已過設定時間則立即繼續；登入與開賣等待不計入購票期限。</p>
-                    )}
+                    <p>
+                        提前 {form.advanceSeconds ?? 1} 秒刷新活動頁；開賣後目標場次仍尚未開賣時，間隔至少 3
+                        秒再次刷新，最多等待至開賣後 2 分鐘。
+                    </p>
                 </>
             )}
             <label>

@@ -20,10 +20,13 @@ const settings: TicketPlusActivitySettings = {
 };
 type Mode = "direct" | "queue" | "failure";
 
-async function install(context: BrowserContext, mode: Mode) {
+async function install(context: BrowserContext, mode: Mode, requests: string[]) {
     // 保留真實 DOM 點擊，只有網站內容與外部瀏覽器啟動由本機替代。
     await context.newPage();
-    await context.route("**/*", route => route.fulfill({ contentType: "text/html; charset=utf-8", body: activity }));
+    await context.route("**/*", route => {
+        requests.push(route.request().url());
+        return route.fulfill({ contentType: "text/html; charset=utf-8", body: activity });
+    });
     await context.addInitScript(
         ({ mode, order, information, queue, failure }) => {
             const counts = { session: 0, plus: 0, submit: 0, dismiss: 0, other: 0 };
@@ -66,11 +69,13 @@ async function fixture(mode: Mode) {
     const directory = await mkdtemp(join(tmpdir(), "ticketplus-deadline-"));
     const browser = await chromium.launch();
     const context = await browser.newContext();
-    await install(context, mode);
+    const requests: string[] = [];
+    await install(context, mode, requests);
     const launch = mock.method(chromium, "launchPersistentContext", async () => context);
     return {
         context,
         directory,
+        requests,
         counts: () => context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("deadlineCounts")!)),
         async cleanup() {
             launch.mock.restore();
@@ -97,6 +102,7 @@ test("TicketPlus 全程期限：登入耗時不計入，真實 DOM 流程仍抵�
             JSON.stringify({ result, counts: await site.counts(), url: site.context.pages()[0]!.url() }),
         );
         assert.equal(result.stopReason, undefined);
+        assert.equal(site.requests.length, 1, "立即開始不增加活動頁刷新");
         assert.deepEqual(await site.counts(), { session: 1, plus: 2, submit: 1, dismiss: 0, other: 0 });
         assert(purchaseOccupied(site.directory));
         await site.context.close();
@@ -246,6 +252,7 @@ test("TicketPlus 開賣等待：等待跨過一分鐘不耗期限，到點後同
                 },
             },
         );
+        assert.equal(site.requests.length, 2, "排程等待只增加一次開賣前刷新");
         assert(stages.includes("waiting-for-sale"));
         assert(stages.indexOf("waiting-for-sale") < stages.indexOf("selecting-session"));
         assert.equal(result.outcome, "stopped");
