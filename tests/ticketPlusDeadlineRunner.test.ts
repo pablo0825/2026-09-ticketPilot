@@ -1,3 +1,4 @@
+import { loggedInHome, loggedOutHome } from "./fixtures/ticketplus/loginPage.js";
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -25,7 +26,10 @@ async function install(context: BrowserContext, mode: Mode, requests: string[]) 
     await context.newPage();
     await context.route("**/*", route => {
         requests.push(route.request().url());
-        return route.fulfill({ contentType: "text/html; charset=utf-8", body: activity });
+        return route.fulfill({
+            contentType: "text/html; charset=utf-8",
+            body: new URL(route.request().url()).pathname === "/" ? loggedInHome : activity,
+        });
     });
     await context.addInitScript(
         ({ mode, order, information, queue, failure }) => {
@@ -89,23 +93,37 @@ test("TicketPlus 全程期限：登入耗時不計入，期限未滿十分鐘仍
     const site = await fixture("direct");
     let now = 0;
     try {
-        const result = await runTicketPlus(settings, {
+        await site.context.route("https://ticketplus.com.tw/", route =>
+            route.fulfill({ contentType: "text/html; charset=utf-8", body: loggedOutHome }),
+        );
+        const pending = runTicketPlus(settings, {
             lease: acquirePurchaseLease(site.directory),
             deadlineNow: () => now,
-            waitForLogin: async () => {
-                now = 900_000;
-            },
             onEvent: event => {
                 if (event.type === "stage" && event.stage === "submitting") now += 599_000;
             },
         });
+        const page = site.context.pages()[0]!;
+        await page.getByText("會員登入").waitFor();
+        await new Promise(resolve => setTimeout(resolve, 300));
+        assert.equal(site.requests.length, 0, "登入未完成前不載入活動");
+        now = 900_000;
+        await page.evaluate(html => {
+            document.body.innerHTML = html;
+        }, loggedInHome);
+        const result = await pending;
         assert.equal(
             result.outcome,
             "information-ready",
             JSON.stringify({ result, counts: await site.counts(), url: site.context.pages()[0]!.url() }),
         );
         assert.equal(result.stopReason, undefined);
-        assert.equal(site.requests.length, 1, "立即開始不增加活動頁刷新");
+
+        assert.equal(
+            site.requests.filter(url => new URL(url).pathname.startsWith("/activity/")).length,
+            1,
+            "立即開始不增加活動頁刷新",
+        );
         assert.deepEqual(await site.counts(), { session: 1, plus: 2, submit: 1, dismiss: 0, other: 0 });
         assert(purchaseOccupied(site.directory));
         await site.context.close();
@@ -123,9 +141,6 @@ test("TicketPlus 全程期限：選場次與選票累積同一期限，到期不
         const result = await runTicketPlus(settings, {
             lease: acquirePurchaseLease(site.directory),
             deadlineNow: () => now,
-            waitForLogin: async () => {
-                now = 300_000;
-            },
             onEvent: event => {
                 if (event.type !== "stage") return;
                 stages.push(event.stage);
@@ -134,7 +149,8 @@ test("TicketPlus 全程期限：選場次與選票累積同一期限，到期不
         });
         assert.deepEqual(stages, [
             "starting",
-            "waiting-for-login",
+            "checking-login",
+            "opening-activity",
             "selecting-session",
             "selecting-tickets",
             "submitting",
@@ -159,7 +175,6 @@ test("TicketPlus 全程期限：排隊與售完到期保留提交事實，不重
             const result = await runTicketPlus(settings, {
                 lease: acquirePurchaseLease(site.directory),
                 deadlineNow: () => now,
-                waitForLogin: async () => {},
                 onEvent: event => {
                     if (event.type === "submission" && (event.progress.sawQueue || event.progress.failure))
                         now = 600_000;
@@ -194,18 +209,19 @@ test("TicketPlus 全程期限：真實受遮罩點擊縮短期限，收尾後解
     let offset = 0;
     const started = performance.now();
     try {
+        await site.context.addInitScript(() => {
+            if (location.pathname.startsWith("/activity/"))
+                document.addEventListener("DOMContentLoaded", () => {
+                    document.body.insertAdjacentHTML(
+                        "beforeend",
+                        '<div id="deadline-cover" style="position:fixed;inset:0;z-index:999;background:white"></div>',
+                    );
+                });
+        });
         // 遮罩確實阻擋 Playwright 原生點擊，不以假的 click 結果代替。
         const result = await runTicketPlus(settings, {
             lease: acquirePurchaseLease(site.directory),
             deadlineNow: () => offset + performance.now() - started,
-            waitForLogin: async () => {
-                await page.evaluate(() =>
-                    document.body.insertAdjacentHTML(
-                        "beforeend",
-                        '<div id="deadline-cover" style="position:fixed;inset:0;z-index:999;background:white"></div>',
-                    ),
-                );
-            },
             onEvent: event => {
                 if (event.type === "stage" && event.stage === "selecting-session") offset = 599_000;
             },
@@ -241,7 +257,6 @@ test("TicketPlus 開賣等待：等待跨過十分鐘不耗期限，到點後同
                 lease: acquirePurchaseLease(site.directory),
                 deadlineNow: () => deadlineClock,
                 saleNow: () => saleClock,
-                waitForLogin: async () => {},
                 onEvent: event => {
                     if (event.type !== "stage") return;
                     stages.push(event.stage);
@@ -255,7 +270,12 @@ test("TicketPlus 開賣等待：等待跨過十分鐘不耗期限，到點後同
                 },
             },
         );
-        assert.equal(site.requests.length, 2, "排程等待只增加一次開賣前刷新");
+        assert.equal(site.requests.filter(url => new URL(url).pathname === "/").length, 1);
+        assert.equal(
+            site.requests.filter(url => new URL(url).pathname.startsWith("/activity/")).length,
+            2,
+            "排程等待只增加一次開賣前刷新",
+        );
         assert(stages.includes("waiting-for-sale"));
         assert(stages.indexOf("waiting-for-sale") < stages.indexOf("selecting-session"));
         assert.equal(result.outcome, "stopped");

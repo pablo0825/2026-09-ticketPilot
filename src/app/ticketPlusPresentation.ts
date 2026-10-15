@@ -108,6 +108,8 @@ function resultMessage(result: TicketPlusRunResult): string {
                 : `更新核對停止（${refresh.reason}）`;
         return `${action}，${detail}。${prior}不補按、不開始新一輪選票，請人工檢查。`;
     }
+    if ("loginFailure" in result && result.loginFailure)
+        return `登入核對停止（${result.loginFailure.reason}）；尚未選票或提交。診斷：${JSON.stringify(result.loginFailure.summary)}`;
     if ("sessionFailure" in result && result.sessionFailure) return ticketPlusSessionMessage(result.sessionFailure);
     if ("priorityFailure" in result && result.priorityFailure) {
         const detail =
@@ -123,6 +125,7 @@ function resultMessage(result: TicketPlusRunResult): string {
     return `流程已停止（${result.reason}）。${prior}請檢查購票瀏覽器；不會自動重跑。`;
 }
 export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | undefined {
+    if (event.type === "login-wait") return `登入核對等待：${event.elapsedMs} 毫秒，共觀測 ${event.observations} 次。`;
     if (event.type === "activity-wait")
         return `活動頁核對等待：${event.elapsedMs} 毫秒，共觀測 ${event.observations} 次。`;
     if (event.type === "lease-release-failed") return "無法釋放購票占用，請人工檢查；不會自動解除。";
@@ -132,7 +135,9 @@ export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | unde
     if (event.type === "stage") {
         return {
             starting: "啟動 TicketPlus 購票瀏覽器。",
-            "waiting-for-login": "等待人工登入交接。",
+            "checking-login": "等待首頁會員區載入並確認登入狀態。",
+            "opening-activity": "登入已確認，前往設定活動頁。",
+            "waiting-for-login": "請在購票瀏覽器手動登入，成功後會自動繼續。",
             "waiting-for-sale": "等待指定開賣時間及提前刷新時間。",
             "refreshing-activity": "刷新活動頁並重新核對目標場次。",
             "waiting-for-availability": "目標場次尚未開賣，間隔至少 3 秒再次刷新；最多等到開賣後 2 分鐘。",

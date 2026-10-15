@@ -20,10 +20,11 @@ async function launch(h: Harness) {
     return response.json();
 }
 async function login(h: Harness) {
-    const waiting = await h.until(run => Boolean(run?.loginConfirmation));
-    const confirmation = { runId: waiting.id, confirmationId: waiting.loginConfirmation!.confirmationId };
-    assert.equal((await h.request("/api/purchase/confirm-login", confirmation)).status, 200);
-    return confirmation;
+    const waiting = await h.until(run =>
+        Boolean(run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login")),
+    );
+    assert.equal(waiting.loginConfirmation, undefined);
+    await h.login();
 }
 async function waitFor(check: () => Promise<boolean>) {
     const deadline = Date.now() + 10_000;
@@ -41,11 +42,15 @@ test("停止 API：登入等待可停止，並行重送不重複 IPC、資格失
     let stops = 0;
     try {
         t.mock.method(ChildProcess.prototype, "emit", function (this: ChildProcess, event: string, ...args: any[]) {
-            if (event === "message" && args[0]?.event?.stage === "login-ready") worker = this;
+            if (event === "message" && args[0]?.event?.stage === "waiting-for-login") worker = this;
             return Reflect.apply(originalEmit, this, [event, ...args]);
         });
         await launch(h);
-        const waiting = await h.until(run => Boolean(run?.loginConfirmation));
+        const waiting = await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+            ),
+        );
         assert(worker);
         const originalSend = worker.send;
         t.mock.method(worker, "send", function (this: ChildProcess, message: any, ...args: any[]) {
@@ -69,7 +74,7 @@ test("停止 API：登入等待可停止，並行重送不重複 IPC、資格失
             (
                 await h.request("/api/purchase/confirm-login", {
                     runId: waiting.id,
-                    confirmationId: waiting.loginConfirmation!.confirmationId,
+                    confirmationId: randomUUID(),
                 })
             ).status,
             400,
@@ -93,7 +98,7 @@ test("停止 API：登入等待可停止，並行重送不重複 IPC、資格失
             canStop: true,
             canCloseBrowser: true,
             stopRequest: { status: "sending" },
-            loginConfirmation: waiting.loginConfirmation,
+            loginConfirmation: { confirmationId: randomUUID() },
         });
         await writeFile(file, JSON.stringify(stored));
         const restored = new PurchaseRuns(h.runtime);
@@ -183,7 +188,11 @@ test("停止 API：錯誤 ID、額外欄位、缺 token 及跨來源不影響登
     try {
         assert.equal((await h.request("/api/purchase/stop", { runId: "old" })).status, 400);
         await launch(h);
-        const waiting = await h.until(run => Boolean(run?.loginConfirmation));
+        const waiting = await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+            ),
+        );
         for (const body of [{ runId: "old" }, { runId: waiting.id, extra: true }]) {
             assert.equal((await h.request("/api/purchase/stop", body)).status, 400);
         }
@@ -202,7 +211,7 @@ test("停止 API：錯誤 ID、額外欄位、缺 token 及跨來源不影響登
                 403,
             );
         }
-        assert.deepEqual((await h.snapshot())!.loginConfirmation, waiting.loginConfirmation);
+        assert.equal((await h.snapshot())!.loginConfirmation, undefined);
         assert.equal((await h.counts()).counts.session, 0);
         await login(h);
         const finished = await h.until(run => run?.status === "information-ready");
@@ -221,11 +230,15 @@ test("停止 API：IPC 傳送失敗保留未確認，晚到登入事件不恢復
     let stops = 0;
     try {
         t.mock.method(ChildProcess.prototype, "emit", function (this: ChildProcess, event: string, ...args: any[]) {
-            if (event === "message" && args[0]?.event?.stage === "login-ready") worker = this;
+            if (event === "message" && args[0]?.event?.stage === "waiting-for-login") worker = this;
             return Reflect.apply(originalEmit, this, [event, ...args]);
         });
         await launch(h);
-        const waiting = await h.until(run => Boolean(run?.loginConfirmation));
+        const waiting = await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+            ),
+        );
         assert(worker);
         const originalSend = worker.send;
         // 只讓 IPC 傳送失敗，API、事件處理與真實 worker 均繼續執行。
@@ -238,7 +251,7 @@ test("停止 API：IPC 傳送失敗保留未確認，晚到登入事件不恢復
                 event: {
                     type: "ticketplus",
                     stage: "login-ready",
-                    confirmationId: waiting.loginConfirmation!.confirmationId,
+                    confirmationId: randomUUID(),
                 },
             });
             return false;
@@ -295,7 +308,7 @@ test("停止 API：停止傳送回呼晚於成功結果，不覆蓋資料頁終�
     let response: Promise<Response> | undefined;
     try {
         t.mock.method(ChildProcess.prototype, "emit", function (this: ChildProcess, event: string, ...args: any[]) {
-            if (event === "message" && args[0]?.event?.stage === "login-ready") worker = this;
+            if (event === "message" && args[0]?.event?.stage === "waiting-for-login") worker = this;
             return Reflect.apply(originalEmit, this, [event, ...args]);
         });
         const run = await launch(h);

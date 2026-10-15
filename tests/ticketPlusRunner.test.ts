@@ -1,4 +1,4 @@
-import { waitForTicketPlusWorkerLogin } from "../src/local/ticketPlusWorkerLogin.js";
+import { loggedInHome, loggedOutHome } from "./fixtures/ticketplus/loginPage.js";
 import { ticketPlusResultMessage } from "../src/cli/ticketPlus.js";
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
@@ -29,11 +29,14 @@ async function setup(context: BrowserContext, rejected: boolean) {
         requests.push(path);
         return route.fulfill({
             contentType: "text/html; charset=utf-8",
-            body: path.startsWith("/activity/")
-                ? activity
-                : path.startsWith("/confirm/")
-                  ? readyInformation
-                  : readyOrder.replace("<div>2</div>", "<div>0</div>"),
+            body:
+                path === "/"
+                    ? loggedInHome
+                    : path.startsWith("/activity/")
+                      ? activity
+                      : path.startsWith("/confirm/")
+                        ? readyInformation
+                        : readyOrder.replace("<div>2</div>", "<div>0</div>"),
         });
     });
     await context.addInitScript(
@@ -95,17 +98,11 @@ test("TicketPlus runner：真實本機頁面串接到資料頁／失敗停止，
         const launch = mock.method(chromium, "launchPersistentContext", async () => context);
         try {
             const lease = acquirePurchaseLease(directory);
-            let logins = 0;
             const result = await runTicketPlus(settings, {
                 lease,
                 webdriverExperiment: rejected,
-                waitForLogin: async page => {
-                    logins++;
-                    assert.equal(page.url(), settings.eventUrl);
-                },
             });
             assert.equal(result.outcome, rejected ? "rejected" : "information-ready");
-            assert.equal(logins, 1);
             const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
             assert.deepEqual(counts, {
                 session: 1,
@@ -119,6 +116,7 @@ test("TicketPlus runner：真實本機頁面串接到資料頁／失敗停止，
             assert(purchaseOccupied(directory));
             assert.throws(() => acquirePurchaseLease(directory), /占用/);
             assert.deepEqual(requests, [
+                "/",
                 "/activity/event-fixture",
                 "/order/event-fixture/session-B",
                 ...(rejected ? [] : ["/confirm/event-fixture/session-B"]),
@@ -144,13 +142,10 @@ test("TicketPlus runner：啟動失敗釋放占用，錯設定不啟動；登入
         throw new Error("PRIVATE_STARTUP");
     });
     try {
-        await assert.rejects(
-            runTicketPlus({ ...settings, platform: "klook" } as never, { waitForLogin: async () => {} }),
-        );
+        await assert.rejects(runTicketPlus({ ...settings, platform: "klook" } as never, {}));
         assert.equal(launch.mock.callCount(), 0);
         const result = await runTicketPlus(settings, {
             lease: acquirePurchaseLease(directory),
-            waitForLogin: async () => {},
         });
         assert.equal(result.outcome, "stopped");
         assert(!JSON.stringify(result).includes("PRIVATE_STARTUP"));
@@ -166,14 +161,16 @@ test("TicketPlus runner：啟動失敗釋放占用，錯設定不啟動；登入
     const requests = await setup(context, false);
     const started = mock.method(chromium, "launchPersistentContext", async () => context);
     try {
+        const controller = new AbortController();
         const result = await runTicketPlus(settings, {
             lease: acquirePurchaseLease(dir),
-            waitForLogin: async () => {
-                throw new Error("cancel");
+            signal: controller.signal,
+            onEvent: event => {
+                if (event.type === "stage" && event.stage === "checking-login") controller.abort();
             },
         });
         assert.equal(result.outcome, "stopped");
-        assert.deepEqual(requests, ["/activity/event-fixture"]);
+        assert.deepEqual(requests, ["/"]);
         assert(purchaseOccupied(dir));
         await context.close();
         assert(!purchaseOccupied(dir));
@@ -184,36 +181,33 @@ test("TicketPlus runner：啟動失敗釋放占用，錯設定不啟動；登入
     }
 });
 
-test("TicketPlus runner：瀏覽器先關閉也等流程結束才解鎖", async () => {
+test("TicketPlus runner：登入等待時關閉瀏覽器，流程停止後解除占用", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticketplus-close-"));
     const browser = await chromium.launch();
     const context = await browser.newContext();
-    await setup(context, false);
+    const requests = await setup(context, false);
+    await context.route("https://ticketplus.com.tw/", route =>
+        route.fulfill({ contentType: "text/html; charset=utf-8", body: loggedOutHome }),
+    );
     const launch = mock.method(chromium, "launchPersistentContext", async () => context);
-    let resume!: () => void;
     let entered!: () => void;
-    const gate = new Promise<void>(resolve => {
-        resume = resolve;
-    });
-    const login = new Promise<void>(resolve => {
+    const waiting = new Promise<void>(resolve => {
         entered = resolve;
     });
     try {
         const pending = runTicketPlus(settings, {
             lease: acquirePurchaseLease(dir),
-            waitForLogin: async () => {
-                entered();
-                await gate;
+            onEvent: event => {
+                if (event.type === "stage" && event.stage === "waiting-for-login") entered();
             },
         });
-        await login;
-        await context.close();
+        await waiting;
         assert(purchaseOccupied(dir));
-        resume();
+        await context.close();
         assert.equal((await pending).outcome, "stopped");
         assert(!purchaseOccupied(dir));
+        assert.equal(requests.length, 0);
     } finally {
-        resume();
         launch.mock.restore();
         await browser.close();
         await rm(dir, { recursive: true, force: true });
@@ -231,7 +225,6 @@ test("TicketPlus runner：活動不符保留具體原因，CLI 指出設定欄�
             { ...settings, eventName: "不同活動" },
             {
                 lease: acquirePurchaseLease(dir),
-                waitForLogin: async () => {},
             },
         );
         assert.equal(result.outcome, "stopped");
@@ -242,7 +235,7 @@ test("TicketPlus runner：活動不符保留具體原因，CLI 指出設定欄�
         assert.match(ticketPlusResultMessage(result), /"pageKind":"activity"/);
         assert.match(ticketPlusResultMessage(result), /eventName 與 eventUrl/);
         assert.match(ticketPlusResultMessage(result), /尚未嘗試點擊立即購買/);
-        assert.deepEqual(requests, ["/activity/event-fixture"]);
+        assert.deepEqual(requests, ["/", "/activity/event-fixture"]);
         assert.equal(await context.pages()[0]!.evaluate(() => sessionStorage.getItem("counts")), null);
         assert(purchaseOccupied(dir));
         await context.close();
@@ -274,22 +267,22 @@ test("TicketPlus runner：預先取消不啟動；啟動途中取消須接管瀏
     try {
         const pre = new AbortController();
         pre.abort();
-        const stopped = await runTicketPlus(settings, { signal: pre.signal, waitForLogin: async () => {} });
+        const stopped = await runTicketPlus(settings, { signal: pre.signal });
         assert.equal(stopped.stopReason, "user-stop");
         assert.equal(launch.mock.callCount(), 0);
         const lease = acquirePurchaseLease(directory);
         const controller = new AbortController();
         let settled = false;
         let managed = false;
-        let logins = 0;
+        let loginChecks = 0;
         const pending = runTicketPlus(settings, {
             lease,
             signal: controller.signal,
             onBrowser: () => {
                 managed = true;
             },
-            waitForLogin: async () => {
-                logins++;
+            onEvent: event => {
+                if (event.type === "stage" && event.stage === "checking-login") loginChecks++;
             },
         }).then(result => {
             settled = true;
@@ -302,7 +295,7 @@ test("TicketPlus runner：預先取消不啟動；啟動途中取消須接管瀏
         releaseLaunch();
         assert.equal((await pending).stopReason, "user-stop");
         assert.equal(managed, true);
-        assert.equal(logins, 0);
+        assert.equal(loginChecks, 0);
         assert(purchaseOccupied(directory));
         await context.close();
         assert(!purchaseOccupied(directory));
@@ -326,12 +319,14 @@ test("TicketPlus runner：登入等待取消保留畫面與占用，不選場次
         const result = await runTicketPlus(settings, {
             lease,
             signal: controller.signal,
-            waitForLogin: (page, signal) => waitForTicketPlusWorkerLogin(page, () => controller.abort(), signal),
+            onEvent: event => {
+                if (event.type === "stage" && event.stage === "checking-login") controller.abort();
+            },
         });
         assert.equal(result.outcome, "stopped");
         assert.equal(result.stopReason, "user-stop");
         assert.match(ticketPlusResultMessage(result), /已依要求停止/);
-        assert.deepEqual(requests, ["/activity/event-fixture"]);
+        assert.deepEqual(requests, ["/"]);
         assert(purchaseOccupied(directory));
         await context.close();
         assert(!purchaseOccupied(directory));
@@ -355,7 +350,6 @@ test("TicketPlus runner：預先取消接管有效外部占用，不釋放錯誤
             runTicketPlus(settings, {
                 lease: { ...lease, token: "wrong-token" },
                 signal: controller.signal,
-                waitForLogin: async () => {},
             }),
             /購票占用識別無法確認/,
         );
@@ -363,7 +357,6 @@ test("TicketPlus runner：預先取消接管有效外部占用，不釋放錯誤
         const result = await runTicketPlus(settings, {
             lease,
             signal: controller.signal,
-            waitForLogin: async () => {},
         });
         assert.equal(result.stopReason, "user-stop");
         assert.equal(result.progress.submitAttempted, false);
@@ -386,7 +379,6 @@ test("TicketPlus runner：初始分頁遺失不重新建立，保留瀏覽器直
     try {
         const result = await runTicketPlus(settings, {
             lease: acquirePurchaseLease(directory),
-            waitForLogin: async () => {},
         });
         assert.equal(result.outcome, "stopped");
         assert.equal(newPage.mock.callCount(), 0);
@@ -436,7 +428,6 @@ test("TicketPlus runner：首張加票後取消，停止訊號穿過順位與張
         const pending = runTicketPlus(settings, {
             lease: acquirePurchaseLease(directory),
             signal: controller.signal,
-            waitForLogin: async () => {},
         });
         await firstClick;
         controller.abort();
@@ -450,7 +441,7 @@ test("TicketPlus runner：首張加票後取消，停止訊號穿過順位與張
         const counts = await page.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
         assert.equal(counts.session, 1);
         assert.equal(counts.submit, 0);
-        assert.deepEqual(requests, ["/activity/event-fixture", "/order/event-fixture/session-B"]);
+        assert.deepEqual(requests, ["/", "/activity/event-fixture", "/order/event-fixture/session-B"]);
         assert(purchaseOccupied(directory));
         await context.close();
         assert(!purchaseOccupied(directory));
@@ -458,5 +449,103 @@ test("TicketPlus runner：首張加票後取消，停止訊號穿過順位與張
         launch.mock.restore();
         await browser.close();
         await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus runner：外部登入狀態到達前不導航或購票，確認後只開一次活動", { timeout: 15_000 }, async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-login-gate-"));
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    const requests = await setup(context, false);
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => {
+        release = resolve;
+    });
+    await context.route("https://ticketplus.com.tw/", route =>
+        route.fulfill({
+            contentType: "text/html; charset=utf-8",
+            body:
+                loggedOutHome +
+                '<script>fetch("/fixture-member").then(r => r.text()).then(html => { document.querySelector("header").outerHTML = html; });</script>',
+        }),
+    );
+    await context.route("**/fixture-member", async route => {
+        await gate;
+        await route.fulfill({ contentType: "text/html; charset=utf-8", body: loggedInHome });
+    });
+    const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+    let entered!: () => void;
+    const waiting = new Promise<void>(resolve => {
+        entered = resolve;
+    });
+    try {
+        const pending = runTicketPlus(settings, {
+            lease: acquirePurchaseLease(directory),
+            onEvent: event => {
+                if (event.type === "stage" && event.stage === "waiting-for-login") entered();
+            },
+        });
+        await waiting;
+        await new Promise(resolve => setTimeout(resolve, 350));
+        assert.equal(requests.length, 0);
+        assert.equal(await context.pages()[0]!.evaluate(() => sessionStorage.getItem("counts")), null);
+        release();
+        assert.equal((await pending).outcome, "information-ready");
+        assert.equal(requests.filter(path => path.startsWith("/activity/")).length, 1);
+        const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
+        assert.equal(counts.session, 1);
+        assert.equal(counts.plus, 2);
+        assert.equal(counts.submit, 1);
+        await context.close();
+        assert(!purchaseOccupied(directory));
+    } finally {
+        release();
+        launch.mock.restore();
+        await browser.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus runner：前往活動前取消不導航，活動登入失效不選場次", { timeout: 15_000 }, async () => {
+    for (const mode of ["cancel-before-navigation", "logged-out-at-activity"] as const) {
+        const directory = await mkdtemp(join(tmpdir(), "ticketplus-login-boundary-"));
+        const browser = await chromium.launch();
+        const context = await browser.newContext();
+        const requests = await setup(context, false);
+        if (mode === "logged-out-at-activity") {
+            await context.route("**/activity/**", route => {
+                requests.push(new URL(route.request().url()).pathname);
+                return route.fulfill({ contentType: "text/html; charset=utf-8", body: loggedOutHome + activity });
+            });
+        }
+        const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+        const controller = new AbortController();
+        try {
+            const result = await runTicketPlus(settings, {
+                lease: acquirePurchaseLease(directory),
+                signal: controller.signal,
+                onEvent: event => {
+                    if (
+                        mode === "cancel-before-navigation" &&
+                        event.type === "stage" &&
+                        event.stage === "opening-activity"
+                    )
+                        controller.abort();
+                },
+            });
+            assert.equal(result.outcome, "stopped");
+            assert.equal(result.progress.submitAttempted, false);
+            assert.deepEqual(requests, mode === "cancel-before-navigation" ? ["/"] : ["/", "/activity/event-fixture"]);
+            assert.equal(await context.pages()[0]!.evaluate(() => sessionStorage.getItem("counts")), null);
+            if (mode === "cancel-before-navigation") assert.equal(result.stopReason, "user-stop");
+            else assert.equal(result.reason, "startup-stopped");
+            assert(purchaseOccupied(directory));
+            await context.close();
+            assert(!purchaseOccupied(directory));
+        } finally {
+            launch.mock.restore();
+            await browser.close();
+            await rm(directory, { recursive: true, force: true });
+        }
     }
 });

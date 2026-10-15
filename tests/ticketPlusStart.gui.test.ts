@@ -74,7 +74,7 @@ async function verifyInformation(h: Harness, page: Page) {
     assert.equal((await h.snapshot())!.occupied, true);
 }
 
-test("TicketPlus 啟動 GUI：保存摘要到真 API、人工交接及資料頁，連點只啟動一次", { timeout: 30_000 }, async () => {
+test("TicketPlus 啟動 GUI：保存摘要到真 API、網頁登入及資料頁，連點只啟動一次", { timeout: 30_000 }, async () => {
     await fixture(async (h, page, record, requests) => {
         await page.evaluate(key => sessionStorage.setItem(key, "klook-independent-marker"), klookPendingKey);
         await edit(page);
@@ -87,7 +87,12 @@ test("TicketPlus 啟動 GUI：保存摘要到真 API、人工交接及資料頁�
             (button as HTMLButtonElement).click();
             (button as HTMLButtonElement).click();
         });
-        await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
+        await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+            ),
+        );
+        await h.login();
         await verifyInformation(h, page);
         assert.equal(requests.filter(request => request.method === "PUT").length, 0, "執行設定未變更時不應重新保存");
         assert.equal(starts(requests).length, 1);
@@ -216,12 +221,21 @@ test("TicketPlus 啟動 GUI：真接受後回應遺失，重載查詢原請求�
         await review(page);
         await confirmStart(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).click();
-        const ready = await h.until(run => Boolean(run?.loginConfirmation));
+        const ready = await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+            ),
+        );
         await eventually(async () => assert(await page.evaluate(key => sessionStorage.getItem(key), pendingKey)));
         await page.reload();
         await page.locator("#selectTicketPlus").click();
         await page.getByRole("button", { name: "查看待確認的啟動結果", exact: true }).click();
-        await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
+        await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+            ),
+        );
+        await h.login();
         await verifyInformation(h, page);
         assert.equal(starts(requests).length, 1);
         assert.equal(starts(requests)[0]!.body.requestId, ready.requestId);
@@ -229,9 +243,9 @@ test("TicketPlus 啟動 GUI：真接受後回應遺失，重載查詢原請求�
     });
 });
 
-test("TicketPlus 啟動 GUI：開始回應晚於 SSE，導覽保留最新登入資格", { timeout: 30_000 }, async () => {
+test("TicketPlus 啟動 GUI：開始回應晚於 SSE，導覽保留最新等待登入狀態", { timeout: 30_000 }, async () => {
     await fixture(async (h, page, _record, requests) => {
-        // 只旁觀真實 SSE，確認本頁確實收過新資格後才釋放舊 POST 回應。
+        // 只旁觀真實 SSE，確認本頁確實收過等待登入狀態後才釋放舊 POST 回應。
         await page.addInitScript(() => {
             const OriginalEventSource = window.EventSource;
             window.EventSource = class extends OriginalEventSource {
@@ -240,7 +254,12 @@ test("TicketPlus 啟動 GUI：開始回應晚於 SSE，導覽保留最新登入�
                     if (String(url).startsWith("/api/purchase/events")) {
                         this.addEventListener("message", event => {
                             const run = JSON.parse(event.data);
-                            if (run?.loginConfirmation) {
+                            if (
+                                run?.events.some(
+                                    (item: any) =>
+                                        item.event.type === "ticketplus" && item.event.stage === "waiting-for-login",
+                                )
+                            ) {
                                 (window as unknown as { observedLoginRun: string }).observedLoginRun = run.id;
                             }
                         });
@@ -264,7 +283,13 @@ test("TicketPlus 啟動 GUI：開始回應晚於 SSE，導覽保留最新登入�
             await review(page);
             await confirmStart(page);
             await page.getByRole("button", { name: "開始購票", exact: true }).click();
-            const ready = await h.until(run => Boolean(run?.loginConfirmation));
+            const ready = await h.until(run =>
+                Boolean(
+                    run?.events.some(
+                        item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login",
+                    ),
+                ),
+            );
             await eventually(async () =>
                 assert.equal(
                     await page.evaluate(() => (window as unknown as { observedLoginRun?: string }).observedLoginRun),
@@ -275,7 +300,14 @@ test("TicketPlus 啟動 GUI：開始回應晚於 SSE，導覽保留最新登入�
                 () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))),
             );
             release();
-            await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
+            await h.until(run =>
+                Boolean(
+                    run?.events.some(
+                        item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login",
+                    ),
+                ),
+            );
+            await h.login();
             await verifyInformation(h, page);
             assert.equal(starts(requests).length, 1);
         } finally {
@@ -332,7 +364,14 @@ test(
             await review(page);
             await confirmStart(page);
             await page.getByRole("button", { name: "開始購票", exact: true }).click();
-            await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
+            await h.until(run =>
+                Boolean(
+                    run?.events.some(
+                        item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login",
+                    ),
+                ),
+            );
+            await h.login();
             await verifyInformation(h, page);
             assert.equal(starts(requests).length, 2);
             assert.equal(starts(requests)[0]!.body.requestId, starts(requests)[1]!.body.requestId);
@@ -421,7 +460,12 @@ test("TicketPlus 步驟 GUI：保存後前進，未保存修改禁止啟動，�
         assert.equal(saved.settings.targets[0].quantity, 2);
         await confirmStart(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).click();
-        await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
+        await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+            ),
+        );
+        await h.login();
         await verifyInformation(h, page);
         assert.equal(starts(requests).length, 1);
         assert.deepEqual(starts(requests)[0]!.body.expectedActivity, saved.settings);
@@ -442,7 +486,13 @@ test(
                 await review(page);
                 await confirmStart(page);
                 await page.getByRole("button", { name: "開始購票", exact: true }).click();
-                await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
+                await h.until(run =>
+                    Boolean(
+                        run?.events.some(
+                            item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login",
+                        ),
+                    ),
+                );
                 const run = await h.snapshot();
                 assert(run);
                 assert.equal(
@@ -452,7 +502,14 @@ test(
                 await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
                 assert(await page.getByLabel("票種名稱").isDisabled());
                 await page.getByRole("button", { name: "③ 執行狀態", exact: true }).click();
-                await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
+                await h.until(run =>
+                    Boolean(
+                        run?.events.some(
+                            item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login",
+                        ),
+                    ),
+                );
+                await h.login();
                 await eventually(async () => assert.equal((await h.counts()).counts.submit, 1));
                 await page.getByRole("button", { name: "停止購票", exact: true }).click();
                 await page.getByRole("button", { name: "② 確認與開始", exact: true }).click();
@@ -470,7 +527,7 @@ test(
                     requests.filter(
                         request => request.path === "/api/purchase/confirm-login" && request.method === "POST",
                     ).length,
-                    1,
+                    0,
                 );
                 assert.equal((await h.counts()).counts.submit, 1);
                 assert.equal((await h.counts()).counts.information, 0);
@@ -511,7 +568,12 @@ test("TicketPlus 開賣核心 GUI：未填提前秒數採 1 秒，可啟動且�
         assert.equal(await page.getByLabel("最長執行時間（分鐘）").inputValue(), "10");
         await confirmStart(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).click();
-        await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
+        await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+            ),
+        );
+        await h.login();
         await eventually(async () => assert.match(await page.locator("#status").innerText(), /等待開賣/));
         assert.deepEqual(starts(requests)[0]!.body.expectedActivity, scheduled);
         assert.equal((await h.counts()).counts.session, 0);

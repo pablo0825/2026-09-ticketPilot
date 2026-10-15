@@ -144,9 +144,6 @@ test("跨場次 CLI／runner 拒絕在開瀏覽器前，訊息明確而非默取
         // 無效 lease 若被驗證會先報鎖錯誤；能力限制必須比取得／驗證 lease 更早。
         await assert.rejects(
             runTicketPlus(multiple, {
-                waitForLogin: async () => {
-                    assert.fail("must not login");
-                },
                 lease: { path: join(dir, "missing.lock"), token: "invalid" } as never,
             }),
             /只支援同場次多順位/,
@@ -239,14 +236,7 @@ test("舊 target 不能從 CLI 或 runner 啟動，內部單次 Selection 仍合
         const file = join(dir, "settings.json");
         await writeFile(file, JSON.stringify(legacy));
         await assert.rejects(runTicketPlusCli(["--config", file], { input, output }), /格式錯誤/);
-        await assert.rejects(
-            runTicketPlus(legacy as never, {
-                waitForLogin: async () => {
-                    assert.fail("must not login");
-                },
-            }),
-            /格式錯誤/,
-        );
+        await assert.rejects(runTicketPlus(legacy as never, {}), /格式錯誤/);
         assert.equal(launch.mock.callCount(), 0);
         assert.deepEqual(parseTicketPlusSelection(legacy), legacy);
     } finally {

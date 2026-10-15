@@ -34,7 +34,9 @@ async function start(h: Harness) {
         expectedActivity: apiActivity,
     });
     assert.equal(response.status, 200);
-    return h.until(run => Boolean(run?.loginConfirmation));
+    return h.until(run =>
+        Boolean(run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login")),
+    );
 }
 
 async function showRun(page: Page, url: string) {
@@ -66,91 +68,20 @@ async function verifyInformation(h: Harness, page: Page) {
     assert.equal(await page.getByRole("button", { name: confirmLabel, exact: true }).count(), 0);
 }
 
-test("TicketPlus 登入 GUI：真 API 交接只執行一次，晚回應不覆蓋資料頁狀態", { timeout: 30_000 }, async () => {
-    await fixture(async (h, page, requests) => {
-        const run = await start(h);
-        let release!: () => void;
-        const gate = new Promise<void>(resolve => {
-            release = resolve;
-        });
-        let responseReceived = false;
-        let responseFinished = false;
-        await page.route("**/api/purchase/confirm-login", async route => {
-            assert.deepEqual(route.request().postDataJSON(), {
-                runId: run.id,
-                confirmationId: run.loginConfirmation!.confirmationId,
-            });
-            const response = await fetch(route.request().url(), {
-                method: "POST",
-                headers: await route.request().allHeaders(),
-                body: route.request().postData(),
-                signal: AbortSignal.timeout(5000),
-            });
-            assert.equal(response.status, 200);
-            const body = await response.text();
-            responseReceived = true;
-            await gate;
-            await route.fulfill({ status: response.status, contentType: "application/json", body });
-            responseFinished = true;
-        });
-        try {
-            await showRun(page, h.url);
-            // 同一個事件迴圈連點，驗證同步鎖，不能只依靠下一次 React render。
-            await page.getByRole("button", { name: confirmLabel, exact: true }).evaluate(element => {
-                (element as HTMLButtonElement).click();
-                (element as HTMLButtonElement).click();
-            });
-            await eventually(async () => {
-                assert(
-                    responseReceived,
-                    JSON.stringify({ requests, snapshot: await h.snapshot(), counts: await h.counts() }),
-                );
-            });
-            await verifyInformation(h, page);
-            release();
-            await eventually(async () => {
-                assert.equal(await page.locator("#status").innerText(), "已到填寫資料頁");
-                assert(responseFinished);
-            });
-            await page.evaluate(
-                () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-            );
-            assert.equal(await page.locator("#status").innerText(), "已到填寫資料頁");
-            assert.equal(requests.filter(path => path === "/api/purchase/confirm-login").length, 1);
-        } finally {
-            release();
-        }
-    });
-});
-
-test("TicketPlus 登入 GUI：後端接受但回應遺失，依即時結果前進且重載不重送", { timeout: 30_000 }, async () => {
-    await fixture(async (h, page, requests) => {
-        await start(h);
-        await page.route("**/api/purchase/confirm-login", async route => {
-            const response = await route.fetch({ timeout: 3000, postData: route.request().postData()! });
-            assert.equal(response.status(), 200);
-            await route.abort("failed");
-        });
-        await showRun(page, h.url);
-        await page.getByRole("button", { name: confirmLabel, exact: true }).click();
-        await verifyInformation(h, page);
-        await showRun(page, h.url);
-        await verifyInformation(h, page);
-        assert.equal(requests.filter(path => path === "/api/purchase/confirm-login").length, 1);
-    });
-});
-
-test("TicketPlus 登入 GUI：尚未確認時重載只恢復即時資格，不自動交接", { timeout: 30_000 }, async () => {
+test("TicketPlus 登入 GUI：等待網頁登入，重載不導航，登入後自動更新資料頁狀態", { timeout: 30_000 }, async () => {
     await fixture(async (h, page, requests) => {
         await start(h);
         await showRun(page, h.url);
-        await page.getByRole("button", { name: confirmLabel, exact: true }).waitFor();
+        assert.equal(await page.getByRole("button", { name: confirmLabel, exact: true }).count(), 0);
         await showRun(page, h.url);
-        assert(await page.getByRole("button", { name: confirmLabel, exact: true }).isEnabled());
-        assert.equal(requests.length, 0);
+        assert.deepEqual((await h.counts()).requests, ["/"]);
         assert.equal((await h.counts()).counts.session, 0);
-        await page.getByRole("button", { name: confirmLabel, exact: true }).click();
+        await h.login();
         await verifyInformation(h, page);
+        await showRun(page, h.url);
+        await verifyInformation(h, page);
+        assert.equal(requests.filter(path => path === "/api/purchase/confirm-login").length, 0);
+        assert.equal((await h.counts()).requests.filter((path: string) => path.startsWith("/activity/")).length, 1);
     });
 });
 
@@ -182,6 +113,7 @@ test("TicketPlus 登入 GUI：Klook、歷史紀錄及無即時資格都不能確
         const feed = await snapshotFeed(page, "/api/purchase/events", current);
         await page.route("**/api/purchase", route => route.fulfill({ json: current }));
         for (const next of [
+            waitingRun(),
             { ...waitingRun(), platform: "klook" as const },
             { ...waitingRun(), status: "failed" as const, occupied: false },
             { ...waitingRun(), loginConfirmation: undefined },
@@ -192,27 +124,5 @@ test("TicketPlus 登入 GUI：Klook、歷史紀錄及無即時資格都不能確
             assert.equal(await page.getByRole("button", { name: confirmLabel, exact: true }).count(), 0);
         }
         assert.equal(requests.length, 0);
-    });
-});
-
-test("TicketPlus 登入 GUI：送出結果不明且舊資格仍廣播時，本頁不再提供重送", async () => {
-    await fixture(async (h, page, requests) => {
-        const current = waitingRun();
-        await snapshotFeed(page, "/api/purchase/events", current);
-        await page.route("**/api/purchase", route => route.fulfill({ json: current }));
-        await page.route("**/api/purchase/confirm-login", route => route.abort("failed"));
-        await showRun(page, h.url);
-        await page.getByRole("button", { name: confirmLabel, exact: true }).click();
-        await eventually(async () => {
-            const button = page.getByRole("button", { name: confirmLabel, exact: true });
-            assert((await button.count()) === 0 || (await button.isDisabled()));
-            assert.match(await page.getByRole("status").innerText(), /未確認|失敗|連線/);
-        });
-        // 改變頁面再回來，仍是同一個已消耗資格，不能恢復按鈕。
-        await page.locator("#brandHome").click();
-        await page.getByRole("button", { name: "查看狀態", exact: true }).click();
-        const button = page.getByRole("button", { name: confirmLabel, exact: true });
-        assert((await button.count()) === 0 || (await button.isDisabled()));
-        assert.equal(requests.filter(path => path === "/api/purchase/confirm-login").length, 1);
     });
 });

@@ -92,6 +92,7 @@ export async function apiHarness(mode = "success") {
             until,
             dispose,
             counts: async () => JSON.parse(await readFile(report, "utf8")),
+            login: async () => writeFile(report + ".control", "login"),
             closePage: async () => writeFile(report + ".control", "close-page"),
         };
     } catch (error) {

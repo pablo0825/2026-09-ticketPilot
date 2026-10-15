@@ -70,7 +70,7 @@ export function App() {
                 <>
                     <RunStatus
                         displayed={runs.displayed}
-                        loginHandoff={runs.loginHandoff}
+
                         stopControl={runs.stopControl}
                         closing={runs.closing}
                         canClose={

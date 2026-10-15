@@ -36,7 +36,9 @@ async function start(h: Harness) {
         expectedActivity: apiActivity,
     });
     assert.equal(response.status, 200);
-    return h.until(run => Boolean(run?.loginConfirmation));
+    return h.until(run =>
+        Boolean(run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login")),
+    );
 }
 
 async function showRun(page: Page, url: string) {
@@ -50,18 +52,14 @@ async function unavailable(page: Page, label: string) {
     assert((await button.count()) === 0 || (await button.isDisabled()));
 }
 
-test("TicketPlus 停止 GUI：同輪連點及緊接登入只送一次停止，關窗前保留占用", { timeout: 30_000 }, async () => {
+test("TicketPlus 停止 GUI：同輪連點只送一次停止，關窗前保留占用", { timeout: 30_000 }, async () => {
     await fixture("success", async (h, page, requests) => {
         await start(h);
         await showRun(page, h.url);
-        await page.getByRole("button", { name: loginLabel, exact: true }).waitFor();
+        await unavailable(page, loginLabel);
         await page.getByRole("button", { name: stopLabel, exact: true }).evaluate(element => {
-            const login = [...document.querySelectorAll("button")].find(
-                button => button.textContent === "我已登入，開始選票",
-            )!;
             (element as HTMLButtonElement).click();
             (element as HTMLButtonElement).click();
-            login.click();
         });
         const finished = await h.until(run => run?.status === "failed");
         assert.equal(finished.occupied, true);
@@ -87,55 +85,27 @@ test("TicketPlus 停止 GUI：同輪連點及緊接登入只送一次停止，�
     });
 });
 
-test("TicketPlus 停止 GUI：登入先送仍可停止，加第一張後解除延遲不再加票或提交", { timeout: 30_000 }, async () => {
+test("TicketPlus 停止 GUI：頁面登入後仍可停止，加第一張後解除延遲不再加票或提交", { timeout: 30_000 }, async () => {
     await fixture("held-plus", async (h, page, requests) => {
         await start(h);
-        let release!: () => void;
-        const gate = new Promise<void>(resolve => {
-            release = resolve;
+        await showRun(page, h.url);
+        await h.login();
+        await eventually(async () => assert.equal((await h.counts()).counts.plus, 1));
+        await page.getByRole("button", { name: stopLabel, exact: true }).click();
+        await h.until(run => run?.status === "failed");
+        await writeFile(h.report + ".control", "release-plus");
+        await eventually(async () => assert.equal(await readFile(h.report + ".released", "utf8"), "yes"));
+        assert.deepEqual((await h.counts()).counts, {
+            session: 1,
+            plus: 1,
+            submit: 0,
+            dismiss: 0,
+            information: 0,
+            other: 0,
+            terms: 0,
         });
-        let loginResponseFinished = false;
-        await page.route("**/api/purchase/confirm-login", async route => {
-            const response = await fetch(route.request().url(), {
-                method: "POST",
-                headers: await route.request().allHeaders(),
-                body: route.request().postData(),
-                signal: AbortSignal.timeout(5000),
-            });
-            assert.equal(response.status, 200);
-            const body = await response.text();
-            await gate;
-            await route.fulfill({ status: response.status, contentType: "application/json", body });
-            loginResponseFinished = true;
-        });
-        try {
-            await showRun(page, h.url);
-            await page.getByRole("button", { name: loginLabel, exact: true }).click();
-            await eventually(async () => assert.equal((await h.counts()).counts.plus, 1));
-            await page.getByRole("button", { name: stopLabel, exact: true }).click();
-            await h.until(run => run?.status === "failed");
-            assert.equal(loginResponseFinished, false);
-            release();
-            await eventually(async () => {
-                await page.locator("#status").textContent();
-                assert(loginResponseFinished);
-            });
-            await writeFile(h.report + ".control", "release-plus");
-            await eventually(async () => assert.equal(await readFile(h.report + ".released", "utf8"), "yes"));
-            assert.deepEqual((await h.counts()).counts, {
-                session: 1,
-                plus: 1,
-                submit: 0,
-                dismiss: 0,
-                information: 0,
-                other: 0,
-                terms: 0,
-            });
-            assert.equal(requests.filter(path => path === "/api/purchase/stop").length, 1);
-            assert.equal(requests.filter(path => path === "/api/purchase/confirm-login").length, 1);
-        } finally {
-            release();
-        }
+        assert.equal(requests.filter(path => path === "/api/purchase/stop").length, 1);
+        assert.equal(requests.filter(path => path === "/api/purchase/confirm-login").length, 0);
     });
 });
 
@@ -143,7 +113,7 @@ test("TicketPlus 停止 GUI：排隊停止保留提交一次並回報結果不�
     await fixture("queue", async (h, page, requests) => {
         const run = await start(h);
         await showRun(page, h.url);
-        await page.getByRole("button", { name: loginLabel, exact: true }).click();
+        await h.login();
         await eventually(async () => assert.equal((await h.counts()).counts.submit, 1));
         const stopRequest = page.waitForRequest(
             request => new URL(request.url()).pathname === "/api/purchase/stop" && request.method() === "POST",
@@ -204,7 +174,7 @@ function waitingRun(): PurchaseSnapshot {
             {
                 sequence: 1,
                 at: "2026-10-15T00:00:00Z",
-                event: { type: "ticketplus", stage: "login-ready", confirmationId: "fixture-login" },
+                event: { type: "ticketplus", stage: "waiting-for-login" },
             },
         ],
         historyTruncated: false,

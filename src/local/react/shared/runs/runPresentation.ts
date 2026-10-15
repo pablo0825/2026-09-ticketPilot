@@ -29,11 +29,18 @@ export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, n
         const ticketPlusEvent = run.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
         if (run.platform === "ticketplus" && ticketPlusEvent?.type === "ticketplus") {
             const stage = ticketPlusEvent.stage;
-            if (stage === "login-ready" || stage === "waiting-for-login") {
-                title = run.loginConfirmation ? "等待人工登入確認" : "等待登入交接狀態";
-                instruction = run.loginConfirmation
-                    ? "請到購票瀏覽器手動登入；確認交接後依執行設定繼續，不會自動偵測登入。"
-                    : "目前沒有可操作的登入確認資格，請查看後續狀態；不會自動確認或重送。";
+            if (stage === "checking-login") {
+                title = "確認登入狀態";
+                instruction = "等待 TicketPlus 首頁的會員狀態載入；確認已登入後會自動前往活動頁。";
+            } else if (stage === "waiting-for-login") {
+                title = "請手動登入";
+                instruction = "請在購票瀏覽器完成登入。系統確認登入成功後會自動前往活動頁，依設定繼續。";
+            } else if (stage === "opening-activity") {
+                title = "前往活動頁";
+                instruction = "已確認登入，正在開啟設定的活動頁；接著會核對活動與場次。";
+            } else if (stage === "login-ready") {
+                title = "舊版登入交接紀錄";
+                instruction = "這是舊版人工確認狀態，目前不提供登入確認操作；請檢查原流程。";
             } else if (stage === "waiting-for-sale") {
                 title = "等待開賣";
                 const saleAt = Date.parse(run.saleAt ?? "");

@@ -91,10 +91,23 @@ test(
             await page.getByRole("combobox", { name: advanceLabel }).selectOption("2");
             assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
             await start(page);
-            await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
+            await h.until(run =>
+                Boolean(
+                    run?.events.some(
+                        item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login",
+                    ),
+                ),
+            );
             const saved = await (await h.request("/api/activities/" + record.id)).json();
             assert.deepEqual(saved.settings.saleSchedule, { saleAt: time + "+08:00", advanceSeconds: 2 });
-            await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
+            await h.until(run =>
+                Boolean(
+                    run?.events.some(
+                        item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login",
+                    ),
+                ),
+            );
+            await h.login();
             await eventually(async () => assert.match(await page.locator("#status").innerText(), /等待開賣/));
             assert.equal((await h.counts()).counts.session, 0);
             assert.deepEqual(starts(requests)[0]!.body.expectedActivity, saved.settings);
@@ -121,7 +134,12 @@ test("TicketPlus 排程 GUI：等待中停止，倒數及切步驟不重啟，�
     await fixture(async (h, page, _record, requests) => {
         await setTime(page, taiwanTime(Date.now() + 60_000));
         await start(page);
-        await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).click();
+        await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+            ),
+        );
+        await h.login();
         await eventually(async () => assert.match(await page.locator("#status").innerText(), /等待開賣/));
         await review(page);
         assert(await page.getByRole("combobox", { name: /執行方式/ }).isDisabled());
@@ -212,7 +230,13 @@ test("TicketPlus 執行設定：改為立即開始可清除開賣設定並保留
             await page.getByRole("combobox", { name: /執行方式/ }).selectOption("now");
             await page.getByLabel("最長執行時間（分鐘）").fill("10");
             await start(page);
-            await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
+            await h.until(run =>
+                Boolean(
+                    run?.events.some(
+                        item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login",
+                    ),
+                ),
+            );
             const saved = await (await h.request("/api/activities/" + record.id)).json();
             assert.equal(saved.settings.saleSchedule, undefined);
             assert.equal(saved.settings.maxRunMinutes, 10);
@@ -389,7 +413,13 @@ test("TicketPlus 執行設定：保存回應延遲時連點只保存一次並啟
             assert(await page.getByLabel("最長執行時間（分鐘）").isDisabled());
             assert.equal(starts(requests).length, 0);
             release();
-            await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
+            await h.until(run =>
+                Boolean(
+                    run?.events.some(
+                        item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login",
+                    ),
+                ),
+            );
             assert.equal(requests.filter(request => request.method === "PUT").length, 1);
             assert.equal(starts(requests).length, 1);
             assert.equal(starts(requests)[0]!.body.expectedActivity.maxRunMinutes, 15);
@@ -408,7 +438,11 @@ test("TicketPlus 執行設定：已保存提前 2 秒可啟動且原設定不被
     await fixture(async (h, page, record, requests) => {
         assert.equal(await page.getByRole("combobox", { name: advanceLabel }).inputValue(), "2");
         await start(page);
-        await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
+        await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+            ),
+        );
         const saved = await (await h.request("/api/activities/" + record.id)).json();
         assert.deepEqual(saved.settings, settings);
         assert.deepEqual(starts(requests)[0]!.body.expectedActivity, settings);
@@ -499,7 +533,11 @@ test("TicketPlus 期限 GUI：舊缺值預填 10，唯讀不寫入，開始前�
         assert.equal(requests.filter(request => request.method === "PUT").length, 0);
         assert.deepEqual((await (await h.request("/api/activities/" + record.id)).json()).settings, legacy);
         await start(page);
-        await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
+        await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+            ),
+        );
         const saved = await (await h.request("/api/activities/" + record.id)).json();
         assert.equal(saved.settings.maxRunMinutes, 10);
         assert.equal(requests.filter(request => request.method === "PUT").length, 1);
@@ -523,7 +561,13 @@ test("TicketPlus 期限 GUI：舊 5 分鐘保留顯示但不能開始，改成 1
             assert.equal((await (await h.request("/api/activities/" + record.id)).json()).settings.maxRunMinutes, 5);
             await input.fill("10");
             await start(page);
-            await page.getByRole("button", { name: "我已登入，開始選票", exact: true }).waitFor();
+            await h.until(run =>
+                Boolean(
+                    run?.events.some(
+                        item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login",
+                    ),
+                ),
+            );
             assert.equal(starts(requests)[0]!.body.expectedActivity.maxRunMinutes, 10);
             assert.equal((await (await h.request("/api/activities/" + record.id)).json()).settings.maxRunMinutes, 10);
         },

@@ -348,7 +348,6 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                         (displayedRun ? (
                             <RunStatus
                                 displayed={displayedRun}
-                                loginHandoff={runs.loginHandoff}
                                 stopControl={runs.stopControl}
                                 closing={runs.closing}
                                 canClose={

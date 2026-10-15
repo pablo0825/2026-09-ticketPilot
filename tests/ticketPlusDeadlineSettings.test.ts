@@ -80,9 +80,6 @@ test("期限錯誤在 runner 取得占用、驗證外部 lease 與開瀏覽器�
         runTicketPlus(
             { ...activity, maxRunMinutes: 0 },
             {
-                waitForLogin: async () => {
-                    assert.fail("must not login");
-                },
                 lease: { path: "/missing-ticketplus-deadline.lock", token: "invalid" } as never,
             },
         ),
@@ -219,7 +216,6 @@ test("新購票期限必填且至少 10 分鐘；舊設定讀取不補值", asyn
         await assert.rejects(
             runTicketPlus(settings, {
                 lease: { path: "/missing-duration.lock", token: "invalid" } as never,
-                waitForLogin: async () => assert.fail("不得進入人工登入"),
             }),
             /10～1440/,
         );

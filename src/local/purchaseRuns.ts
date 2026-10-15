@@ -15,7 +15,6 @@ import {
 } from "../config/ticketPlusActivity.js";
 import { ticketPlusEventSchema } from "./purchaseEvents.js";
 import { sendTicketPlusStop } from "./sendTicketPlusStop.js";
-import { sendLoginConfirmation } from "./sendLoginConfirmation.js";
 import type { PurchaseEvent } from "./purchaseEvents.js";
 
 export interface PurchaseSnapshot {
@@ -28,7 +27,7 @@ export interface PurchaseSnapshot {
     canCloseBrowser?: boolean;
     canStop?: boolean;
     stopRequest?: { status: "sending" | "sent" | "unconfirmed" };
-    loginConfirmation?: { confirmationId: string }; // 僅現行 worker 的即時交接資格，不從磁碟恢復。
+    loginConfirmation?: { confirmationId: string }; // 相容舊快照型別；新流程不產生人工確認資格。
     browserOpen: boolean;
     occupied: boolean;
     message: string;
@@ -60,7 +59,6 @@ export class PurchaseRuns {
     private current?: Record;
     private latestByActivity = new Map<string, Record>();
     private child?: ChildProcess;
-    private login?: { child: ChildProcess; record: Record; confirmationId: string; consumed: boolean };
     private stopRequest?: { child: ChildProcess; record: Record; status: "sending" | "sent" | "unconfirmed" };
     private listeners = new Set<() => void>();
     private directory: string;
@@ -205,7 +203,7 @@ export class PurchaseRuns {
             occupied: purchaseOccupied(this.root) || !!this.child,
             canStop: this.stopAvailable(),
             stopRequest: this.stopRequest?.record === this.current ? { status: this.stopRequest.status } : undefined,
-            loginConfirmation: this.loginAvailable() ? { confirmationId: this.login!.confirmationId } : undefined,
+            loginConfirmation: undefined,
             canCloseBrowser:
                 !!this.child?.connected &&
                 this.current.snapshot.browserOpen &&
@@ -353,7 +351,6 @@ export class PurchaseRuns {
             stdio: ["ignore", "ignore", "ignore", "ipc"],
         });
         this.child = child;
-        this.login = undefined;
         this.stopRequest = undefined;
         this.attachWorker(child, record);
 
@@ -419,10 +416,9 @@ export class PurchaseRuns {
             throw new Error("目前沒有可停止的 TicketPlus 執行，請查看目前狀態。");
         }
 
-        // 先固定要求並封鎖登入；停止傳送不能依賴磁碟寫入成功。
+        // 先固定停止要求；停止傳送不能依賴磁碟寫入成功。
         const request = { child, record, status: "sending" as "sending" | "sent" | "unconfirmed" };
         this.stopRequest = request;
-        this.invalidateLogin(child);
         this.notify();
 
         // 傳送完成只更新要求狀態，購票結果仍由 worker 回報。
@@ -456,65 +452,12 @@ export class PurchaseRuns {
         return { status, message: messages[status], run };
     }
 
-    private loginAvailable(): boolean {
-        const login = this.login;
-        return Boolean(
-            login &&
-            !login.consumed &&
-            this.stopRequest?.record !== login.record &&
-            login.child === this.child &&
-            login.child.connected &&
-            login.record === this.current &&
-            login.record.snapshot.platform === "ticketplus" &&
-            login.record.snapshot.status === "running" &&
-            login.record.snapshot.browserOpen,
-        );
-    }
-
     async confirmLogin(
-        runId: string,
-        confirmationId: string,
+        _runId: string,
+        _confirmationId: string,
     ): Promise<{ status: "sent"; message: string; run: PurchaseSnapshot }> {
-        // 比對本輪即時資格，不能使用磁碟中的歷史 login-ready 或其他程序。
-        const login = this.login;
-        if (
-            !this.loginAvailable() ||
-            !login ||
-            runId !== login.record.snapshot.id ||
-            confirmationId !== login.confirmationId ||
-            !z.string().uuid().safeParse(confirmationId).success
-        ) {
-            throw new Error("登入確認尚未就緒、已送出或已失效，請查看目前執行狀態。");
-        }
-
-        // 先消耗並留下嘗試紀錄，再傳送；任何失敗都不能重新啟用確認資格。
-        login.consumed = true;
-        const events = login.record.snapshot.events;
-        events.push({
-            sequence: (events.at(-1)?.sequence ?? 0) + 1,
-            at: new Date().toISOString(),
-            event: { type: "log", message: "已開始傳送人工登入確認，後續請查看執行狀態。" },
-        });
-        if (events.length > 300) {
-            events.shift();
-            login.record.snapshot.historyTruncated = true;
-        }
-        try {
-            this.save(login.record);
-        } catch {
-            login.child.kill();
-            this.notify();
-            throw new Error("執行紀錄寫入失敗，未傳送登入確認；請檢查原流程，不會自動重跑。");
-        }
-        this.notify();
-
-        // 只等待有界的 IPC 傳送，不占住 API 直到整個購票流程結束。
-        await sendLoginConfirmation(login.child, confirmationId);
-        return { status: "sent", message: "已送出登入確認，請查看後續執行狀態。", run: this.snapshot()! };
-    }
-
-    private invalidateLogin(child: ChildProcess): void {
-        if (this.login?.child === child) this.login.consumed = true;
+        // 舊客戶端請求不能跳過目前由瀏覽器觀測的登入驗證。
+        throw new Error("人工登入確認已停用，請在購票瀏覽器登入，系統會自動確認；不會重新購票。");
     }
 
     // 接收子程序回報；結束時依是否正常完成更新紀錄。
@@ -557,44 +500,14 @@ export class PurchaseRuns {
                 }
 
                 this.save(record);
-                // 事件成功落盤後才開放交接；同一輪只接受第一次 ready，不因重複事件恢復資格。
-                if (child === this.child && record === this.current && record.snapshot.platform === "ticketplus") {
-                    if (
-                        value.type === "event" &&
-                        ticketPlusEvent.success &&
-                        ticketPlusEvent.data.stage === "login-ready" &&
-                        !this.login &&
-                        this.stopRequest?.record !== record &&
-                        record.snapshot.status === "running" &&
-                        record.snapshot.browserOpen &&
-                        child.connected
-                    ) {
-                        this.login = {
-                            child,
-                            record,
-                            confirmationId: ticketPlusEvent.data.confirmationId,
-                            consumed: false,
-                        };
-                    } else if (
-                        value.type === "result" ||
-                        (value.type === "browser" && !value.open) ||
-                        (value.type === "event" &&
-                            ticketPlusEvent.success &&
-                            ticketPlusEvent.data.stage !== "login-ready")
-                    ) {
-                        this.invalidateLogin(child);
-                    }
-                }
                 this.notify();
             } catch {
-                this.invalidateLogin(child);
                 child.kill();
             }
         });
 
         // 子程序結束時，更新並儲存紀錄
         const ended = (code: number | null) => {
-            this.invalidateLogin(child);
             this.child = undefined;
             if (code !== 0 || !clean) {
                 record.snapshot.status = "interrupted";
@@ -613,11 +526,9 @@ export class PurchaseRuns {
         };
 
         child.once("disconnect", () => {
-            this.invalidateLogin(child);
             this.notify();
         });
         child.once("error", () => {
-            this.invalidateLogin(child);
             clean = false;
         });
         child.once("close", ended);

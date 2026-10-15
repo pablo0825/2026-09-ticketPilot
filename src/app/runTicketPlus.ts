@@ -1,7 +1,10 @@
+import type { TicketPlusLoginReason, TicketPlusLoginSummary } from "../platforms/ticketplus/loginWait.js";
+import { waitForTicketPlusLogin, TicketPlusLoginError } from "../platforms/ticketplus/loginWait.js";
+import { readTicketPlusLoginState } from "../platforms/ticketplus/loginState.js";
 import type { TicketPlusStopReason } from "../platforms/ticketplus/runControl.js";
 import { TicketPlusRunControl, TicketPlusStopError } from "../platforms/ticketplus/runControl.js";
 import { chromium } from "playwright";
-import type { BrowserContext, Page } from "playwright";
+import type { BrowserContext } from "playwright";
 import { join } from "node:path";
 import { projectRoot } from "../config/activityStore.js";
 import {
@@ -35,6 +38,8 @@ import type { SubmissionProgress } from "../platforms/ticketplus/ticketSubmissio
 
 export type TicketPlusStage =
     | "starting"
+    | "checking-login"
+    | "opening-activity"
     | "waiting-for-login"
     | "waiting-for-sale"
     | "refreshing-activity"
@@ -43,6 +48,7 @@ export type TicketPlusStage =
     | TicketPlusCycleStage;
 export type TicketPlusRunEvent =
     | { type: "stage"; stage: TicketPlusStage }
+    | { type: "login-wait"; elapsedMs: number; observations: number }
     | { type: "activity-wait"; elapsedMs: number; observations: number }
     | TicketPlusCycleEvent
     | { type: "lease-release-failed" };
@@ -58,14 +64,13 @@ export type TicketPlusRunResult =
               | "session-selection-stopped"
               | "ticket-selection-stopped";
           progress: Readonly<SubmissionProgress>;
+          loginFailure?: { reason: TicketPlusLoginReason; summary: TicketPlusLoginSummary };
           priorityFailure?: PriorityReason;
           saleFailure?: TicketPlusSaleReason;
           stopReason?: TicketPlusStopReason;
           sessionFailure?: { reason: SessionEntryReason; stage: SessionEntryStage; diagnostic?: SessionDiagnostic };
       };
 export interface TicketPlusRunOptions {
-    // 回呼必須合作取消並清理監聽，不能只讓外層提早返回。
-    waitForLogin: (page: Page, signal?: AbortSignal) => Promise<void>;
     signal?: AbortSignal;
     deadlineNow?: () => number;
     saleNow?: () => number;
@@ -91,7 +96,6 @@ export async function runTicketPlus(
     const activity = parseTicketPlusActivity(input);
     const settings = ticketPlusSessionSelection(activity);
     validateTicketPlusRunSettings(activity);
-    if (typeof options.waitForLogin !== "function") throw new Error("TicketPlus 需要人工登入交接。");
     const control = new TicketPlusRunControl(options.signal, options.deadlineNow);
     if (options.signal?.aborted && !options.lease) {
         return {
@@ -144,16 +148,49 @@ export async function runTicketPlus(
         const page = context.pages()[0];
         if (!page) throw new Error("購票瀏覽器沒有可用分頁。");
         control.check();
-        const response = await page.goto(settings.eventUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+        const response = await page.goto("https://ticketplus.com.tw/", {
+            waitUntil: "domcontentloaded",
+            timeout: 30_000,
+        });
         control.check();
-        if (response && !response.ok()) throw new Error("活動頁無法載入。");
+        if (response && !response.ok()) throw new Error("首頁無法載入。");
 
-        // 登入由使用者操作；交接後仍由正式模組核對活動／場次，不相信舊畫面。
-        report("waiting-for-login");
-        control.check();
-        await options.waitForLogin(page, options.signal);
+        // 首頁只觀察會員區；登入成功後才導覽一次目標活動。
+        report("checking-login");
+        const login = await waitForTicketPlusLogin(page, {
+            signal: options.signal,
+            deadline: activity.saleSchedule ? Date.parse(activity.saleSchedule.saleAt) + 120_000 : undefined,
+            now: options.saleNow,
+            onWaiting: () => report("waiting-for-login"),
+        });
+        notify(options, { type: "login-wait", elapsedMs: login.elapsedMs, observations: login.observations });
         control.check();
         if (page.isClosed()) throw new Error("購票頁已關閉。");
+        report("opening-activity");
+        control.check();
+        const targetResponse = await page.goto(settings.eventUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+        control.check();
+        if (targetResponse && !targetResponse.ok()) throw new Error("活動頁無法載入。");
+        let loginReadTimer: ReturnType<typeof setTimeout> | undefined;
+        try {
+            const targetLogin = await control.read(() =>
+                Promise.race([
+                    readTicketPlusLoginState(page, { allowActivity: true }),
+                    new Promise<never>((_, reject) => {
+                        loginReadTimer = setTimeout(() => reject(new Error("活動頁登入核對逾時。")), 5_000);
+                    }),
+                ]),
+            );
+            control.check();
+            if (
+                targetLogin.state === "logged-out" ||
+                ["unexpected-route", "read-failed", "page-closed"].includes(targetLogin.reason)
+            ) {
+                throw new Error("活動頁登入無法確認。");
+            }
+        } finally {
+            clearTimeout(loginReadTimer);
+        }
         if (activity.saleSchedule) {
             report("waiting-for-sale");
             await prepareTicketPlusSale(page, settings, activity.saleSchedule, control, {
@@ -208,9 +245,9 @@ export async function runTicketPlus(
             };
         }
         const reason =
-            stage === "starting"
+            stage === "starting" || stage === "opening-activity"
                 ? "startup-stopped"
-                : stage === "waiting-for-login"
+                : ["checking-login", "waiting-for-login"].includes(stage)
                   ? "login-stopped"
                   : stage === "waiting-for-sale" ||
                       stage === "refreshing-activity" ||
@@ -223,6 +260,9 @@ export async function runTicketPlus(
             outcome: "stopped",
             reason,
             progress: Object.freeze(emptySubmissionProgress()),
+            ...(error instanceof TicketPlusLoginError
+                ? { loginFailure: { reason: error.reason, summary: error.summary } }
+                : {}),
             ...(error instanceof TicketPlusPriorityError ? { priorityFailure: error.reason } : {}),
         };
     } finally {

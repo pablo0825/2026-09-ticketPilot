@@ -1,3 +1,4 @@
+import { loggedInHome } from "./fixtures/ticketplus/loginPage.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
@@ -345,18 +346,17 @@ test("正式 runner：同輪 A 售完轉 B 成功／不明，保留單一瀏覽�
         const browser = await chromium.launch();
         const context = await browser.newContext();
         await installCyclePage(context, mode);
+        await context.route("https://ticketplus.com.tw/", route =>
+            route.fulfill({ contentType: "text/html; charset=utf-8", body: loggedInHome }),
+        );
         await context.newPage();
         const launch = t.mock.method(chromium, "launchPersistentContext", async () => context);
         try {
-            let logins = 0;
             const result = await runTicketPlus(settings, {
                 lease: acquirePurchaseLease(directory),
-                waitForLogin: async () => {
-                    logins++;
-                },
             });
             assert.equal(result.outcome, mode === "success" ? "information-ready" : "unknown");
-            assert.equal(logins, 1);
+
             assert.equal(launch.mock.callCount(), 1);
             assert.equal(
                 (await cycleState(context.pages()[0]!)).actions.filter(action => action === "session").length,

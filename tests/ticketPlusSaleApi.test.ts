@@ -17,16 +17,12 @@ async function scheduledLogin(h: Harness, seconds = 7) {
     const response = await h.request("/api/purchase", body);
     assert.equal(response.status, 200);
     const run = await response.json();
-    const login = await h.until(value => Boolean(value?.loginConfirmation));
-    assert.equal(
-        (
-            await h.request("/api/purchase/confirm-login", {
-                runId: login.id,
-                confirmationId: login.loginConfirmation!.confirmationId,
-            })
-        ).status,
-        200,
+    const login = await h.until(value =>
+        Boolean(
+            value?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+        ),
     );
+    await h.login();
     return { saleAt, saleTime, run, body };
 }
 
@@ -90,7 +86,7 @@ test("開賣 API：等待中停止，跨過原開賣時間仍沒有選票或提�
         assert.equal(stopped.canCloseBrowser, true);
         await new Promise(resolve => setTimeout(resolve, Math.max(0, saleTime - Date.now()) + 300));
         assert.deepEqual((await h.counts()).counts, zeroCounts);
-        assert.equal((await h.counts()).requests.length, 1);
+        assert.deepEqual((await h.counts()).requests, ["/", "/activity/event-fixture"]);
     } finally {
         await h.dispose();
     }

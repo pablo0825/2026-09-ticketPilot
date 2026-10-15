@@ -15,6 +15,8 @@ export const ticketPlusEventSchema = z.discriminatedUnion("stage", [
             type: z.literal("ticketplus"),
             stage: z.enum([
                 "starting",
+                "checking-login",
+                "opening-activity",
                 "waiting-for-login",
                 "waiting-for-sale",
                 "refreshing-activity",

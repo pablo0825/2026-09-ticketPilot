@@ -125,14 +125,14 @@ async function harness(mode = "success", experiment = "0") {
     }
 }
 
-test("正式 TicketPlus worker：就緒即確認、提交一次、資料頁停止並保留占用", { timeout: 30_000 }, async () => {
+test("正式 TicketPlus worker：頁面登入後提交一次、資料頁停止並保留占用", { timeout: 30_000 }, async () => {
     const h = await harness("success", "1");
     try {
-        // 收到就緒訊息立刻回覆，不靠 sleep 掩蓋 listener 註冊競態。
+        // 等正式等待事件後由外部 fixture 更新 DOM，不能以確認 IPC 放行。
         h.child.on("message", (message: any) => {
-            if (message.type === "event" && message.event.stage === "login-ready") {
-                h.child.send({ type: "confirm-ticketplus-login", confirmationId: message.event.confirmationId });
-                h.child.send({ type: "confirm-ticketplus-login", confirmationId: message.event.confirmationId });
+            if (message.type === "event" && message.event.stage === "waiting-for-login") {
+                h.child.send({ type: "fixture-login" });
+                h.child.send({ type: "fixture-login" });
             }
         });
         h.child.send({ type: "confirm-ticketplus-login", confirmationId: "early" });
@@ -161,6 +161,7 @@ test("正式 TicketPlus worker：就緒即確認、提交一次、資料頁停�
             terms: 0,
         });
         assert.deepEqual(report.requests, [
+            "/",
             "/activity/event-fixture",
             "/order/event-fixture/session-B",
             "/confirm/event-fixture/session-B",
@@ -177,14 +178,14 @@ test("正式 worker：錯誤確認不啟動、已售完關窗停止；queue 經�
         const h = await harness(mode);
         try {
             h.start();
-            const ready = await h.wait(message => message.type === "event" && message.event.stage === "login-ready");
+            await h.wait(message => message.type === "event" && message.event.stage === "waiting-for-login");
             h.child.send({ type: "confirm-ticketplus-login", confirmationId: "wrong" });
-            h.child.send({ type: "wrong-type", confirmationId: ready.event.confirmationId });
+            h.child.send({ type: "wrong-type", confirmationId: "irrelevant" });
             h.child.send({ type: "fixture-snapshot" });
             const snapshot = await h.wait(message => message.type === "fixture-snapshot");
             assert.equal(snapshot.counts.session, 0);
             assert.equal(snapshot.counts.submit, 0);
-            h.child.send({ type: "confirm-ticketplus-login", confirmationId: ready.event.confirmationId });
+            h.child.send({ type: "fixture-login" });
             if (mode === "queue") {
                 await h.wait(message => message.type === "event" && message.event.stage === "queue");
                 assert(!h.messages.some(message => message.type === "result"));
@@ -205,7 +206,12 @@ test("正式 worker：錯誤確認不啟動、已售完關窗停止；queue 經�
                 other: 0,
                 terms: 0,
             });
-            assert.equal(report.requests.length, mode === "failure" ? 2 : 3);
+            assert.deepEqual(report.requests, [
+                "/",
+                "/activity/event-fixture",
+                "/order/event-fixture/session-B",
+                ...(mode === "failure" ? [] : ["/confirm/event-fixture/session-B"]),
+            ]);
             assert(!purchaseOccupied(h.directory));
         } finally {
             await h.dispose();
@@ -218,13 +224,12 @@ test("正式 worker：頁面关闭／crash 取消交接，提交後關頁保留 
         const h = await harness(mode);
         try {
             h.start();
-            const ready = await h.wait(message => message.type === "event" && message.event.stage === "login-ready");
-            if (mode === "close-after-submit")
-                h.child.send({ type: "confirm-ticketplus-login", confirmationId: ready.event.confirmationId });
+            await h.wait(message => message.type === "event" && message.event.stage === "waiting-for-login");
+            if (mode === "close-after-submit") h.child.send({ type: "fixture-login" });
             else h.child.send({ type: mode === "close-login" ? "fixture-close-page" : "fixture-crash-page" });
             const result = await h.wait(message => message.type === "result");
             assert.equal(result.outcome, mode === "close-after-submit" ? "unknown" : "failed");
-            h.child.send({ type: "confirm-ticketplus-login", confirmationId: ready.event.confirmationId });
+            h.child.send({ type: "confirm-ticketplus-login", confirmationId: "stale" });
             await h.stop();
             const report = JSON.parse(await readFile(h.report, "utf8"));
             assert.equal(report.counts.session, mode === "close-after-submit" ? 1 : 0);
@@ -242,14 +247,14 @@ test("正式 worker：父服務失聯停止且保留占用；活動名稱不符�
         const h = await harness();
         try {
             h.start(mode === "mismatch" ? { ...settings, eventName: "不存在的活動" } : settings);
-            const ready = await h.wait(message => message.type === "event" && message.event.stage === "login-ready");
+            await h.wait(message => message.type === "event" && message.event.stage === "waiting-for-login");
             if (mode === "disconnect") {
                 h.child.disconnect();
                 assert.equal(await h.closed, 1);
                 assert(purchaseOccupied(h.directory));
                 assert(!h.messages.some(message => message.type === "finished" || message.type === "result"));
             } else {
-                h.child.send({ type: "confirm-ticketplus-login", confirmationId: ready.event.confirmationId });
+                h.child.send({ type: "fixture-login" });
                 const result = await h.wait(message => message.type === "result");
                 assert.equal(result.outcome, "failed");
                 assert.match(result.message, /activity-mismatch.*eventName/);
@@ -269,8 +274,8 @@ test("正式 worker：同輪候補結果不被前次售完污染，耗盡更新�
         const h = await harness(mode);
         try {
             h.start({ ...settings, targets: [...settings.targets, { ...settings.targets[0]!, ticketType: "學生票" }] });
-            const ready = await h.wait(message => message.type === "event" && message.event.stage === "login-ready");
-            h.child.send({ type: "confirm-ticketplus-login", confirmationId: ready.event.confirmationId });
+            await h.wait(message => message.type === "event" && message.event.stage === "waiting-for-login");
+            h.child.send({ type: "fixture-login" });
             const result = await h.wait(message => message.type === "result");
             assert.equal(
                 result.outcome,

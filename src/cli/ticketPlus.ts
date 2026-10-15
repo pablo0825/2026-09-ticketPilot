@@ -8,7 +8,7 @@ import {
 import { runTicketPlus } from "../app/runTicketPlus.js";
 import { ticketPlusResultMessage, ticketPlusEventMessage } from "../app/ticketPlusPresentation.js";
 export { ticketPlusResultMessage } from "../app/ticketPlusPresentation.js";
-import { requireTicketPlusTerminal, waitForTicketPlusLogin } from "./ticketPlusLogin.js";
+import { requireTicketPlusTerminal } from "./ticketPlusLogin.js";
 import type { TicketPlusTerminal } from "./ticketPlusLogin.js";
 
 export const ticketPlusUsage =
@@ -50,20 +50,27 @@ export async function runTicketPlusCli(
     }
     terminal.output.write(`WEBDRIVER_EXPERIMENT：${environment.WEBDRIVER_EXPERIMENT === "1" ? "開啟" : "關閉"}\n`);
     let closed: Promise<void> = Promise.resolve();
-    const result = await runTicketPlus(settings, {
-        webdriverExperiment: environment.WEBDRIVER_EXPERIMENT === "1",
-        waitForLogin: (page, signal) => waitForTicketPlusLogin(page, terminal, signal),
-        onEvent: event => {
-            const message = ticketPlusEventMessage(event);
-            if (message) terminal.output.write(`${message}\n`);
-        },
-        onBrowser: context => {
-            closed = new Promise(resolve => context.once("close", () => resolve()));
-        },
-    });
+    const controller = new AbortController();
+    const stop = () => controller.abort();
+    process.on("SIGINT", stop);
+    try {
+        const result = await runTicketPlus(settings, {
+            signal: controller.signal,
+            webdriverExperiment: environment.WEBDRIVER_EXPERIMENT === "1",
+            onEvent: event => {
+                const message = ticketPlusEventMessage(event);
+                if (message) terminal.output.write(`${message}\n`);
+            },
+            onBrowser: context => {
+                closed = new Promise(resolve => context.once("close", () => resolve()));
+            },
+        });
 
-    // 結果先顯示，瀏覽器留給人工操作；關閉後才結束 CLI。
-    terminal.output.write(`${ticketPlusResultMessage(result)}\n操作結束後，請關閉購票瀏覽器視窗。\n`);
-    await closed;
-    return result.outcome === "information-ready" ? 0 : 1;
+        // 結果先顯示，瀏覽器留給人工操作；關閉後才結束 CLI。
+        terminal.output.write(`${ticketPlusResultMessage(result)}\n操作結束後，請關閉購票瀏覽器視窗。\n`);
+        await closed;
+        return result.outcome === "information-ready" ? 0 : 1;
+    } finally {
+        process.removeListener("SIGINT", stop);
+    }
 }

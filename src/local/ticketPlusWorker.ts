@@ -6,7 +6,6 @@ import { ticketPlusEventMessage, ticketPlusResultMessage } from "../app/ticketPl
 import { emptySubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
 import { stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
 import type { PurchaseEvent } from "./purchaseEvents.js";
-import { waitForTicketPlusWorkerLogin } from "./ticketPlusWorkerLogin.js";
 
 export interface TicketPlusWorkerResult {
     outcome: "information-ready" | "failed" | "unknown";
@@ -30,14 +29,6 @@ export async function runTicketPlusWorker(
             signal,
             webdriverExperiment: process.env.WEBDRIVER_EXPERIMENT === "1",
             onBrowser,
-            waitForLogin: (page, signal) =>
-                waitForTicketPlusWorkerLogin(
-                    page,
-                    confirmationId => {
-                        sendEvent({ type: "ticketplus", stage: "login-ready", confirmationId });
-                    },
-                    signal,
-                ),
             onEvent: event => {
                 if (event.type === "attempt-reset") {
                     progress = emptySubmissionProgress();

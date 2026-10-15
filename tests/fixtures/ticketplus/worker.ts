@@ -13,6 +13,13 @@ const mode = process.env.FIXTURE_MODE ?? "success";
 const counts = { session: 0, plus: 0, submit: 0, dismiss: 0, information: 0, other: 0, terms: 0 };
 const requests: string[] = [];
 const timeline: { kind: string; at: number }[] = [];
+const loggedOutHome = '<header class="headerApp"><button>會員登入</button></header>';
+async function loginFixture() {
+    await context?.pages()[0]?.evaluate(() => {
+        document.querySelector("header.headerApp")!.innerHTML =
+            '<div class="font-weight-bold">0987***654 <span class="cursor-pointer">登出</span></div>';
+    });
+}
 let releaseLaunch: (() => void) | undefined;
 const submissions: { name: string; quantity: number }[][] = [];
 let flush = Promise.resolve();
@@ -60,11 +67,14 @@ chromium.launchPersistentContext = async (_profile, options) => {
         await save();
         await route.fulfill({
             contentType: "text/html; charset=utf-8",
-            body: path.startsWith("/activity/")
-                ? activity
-                : path.startsWith("/confirm/")
-                  ? readyInformation + "<p>PRIVATE_INFORMATION_MARKER</p>"
-                  : order,
+            body:
+                path === "/"
+                    ? loggedOutHome
+                    : path.startsWith("/activity/")
+                      ? activity
+                      : path.startsWith("/confirm/")
+                        ? readyInformation + "<p>PRIVATE_INFORMATION_MARKER</p>"
+                        : order,
         });
     });
     await context.addInitScript(
@@ -139,6 +149,7 @@ const bufferStart = (input: unknown) => {
 process.on("message", bufferStart);
 // 測試控制頁面生命週期，與正式登入確認及關閉指令分開。
 process.on("message", async (input: any) => {
+    if (input?.type === "fixture-login") await loginFixture();
     if (input?.type === "fixture-close-page") await context?.pages()[0]?.close();
     if (input?.type === "fixture-crash-page" && context?.pages()[0]) {
         const session = await context.newCDPSession(context.pages()[0]!);
@@ -156,6 +167,7 @@ process.on("message", async (input: any) => {
 const control = report + ".control";
 watchFile(control, { interval: 20, persistent: false }, async () => {
     const action = await readFile(control, "utf8").catch(() => "");
+    if (action === "login") await loginFixture();
     if (action === "stop-worker") process.exit(1);
     if (action === "release-launch") releaseLaunch?.();
     if (action === "release-queue")

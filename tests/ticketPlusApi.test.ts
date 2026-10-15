@@ -27,7 +27,7 @@ test(
                 const run = await h.until(run =>
                     Boolean(
                         run?.events.some(
-                            item => item.event.type === "ticketplus" && item.event.stage === "login-ready",
+                            item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login",
                         ),
                     ),
                 );
@@ -57,7 +57,7 @@ test(
                 assert.equal((await h.request("/api/purchase", input)).status, 200);
                 assert.equal(await readFile(h.report + ".starts", "utf8"), "started\n");
                 const report = await h.counts();
-                assert.deepEqual(report.requests, ["/activity/event-fixture"]);
+                assert.deepEqual(report.requests, ["/"]);
                 assert.deepEqual(report.counts, {
                     session: 0,
                     plus: 0,
@@ -163,16 +163,12 @@ test("TicketPlus API：同場次第一順位售完，第二順位提交一次並
         const saved = await (await h.request("/api/activities", activity)).json();
         const input = { requestId: randomUUID(), activityId: saved.id, expectedActivity: activity };
         assert.equal((await h.request("/api/purchase", input)).status, 200);
-        const waiting = await h.until(run => Boolean(run?.loginConfirmation));
-        assert.equal(
-            (
-                await h.request("/api/purchase/confirm-login", {
-                    runId: waiting.id,
-                    confirmationId: waiting.loginConfirmation!.confirmationId,
-                })
-            ).status,
-            200,
+        const waiting = await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+            ),
         );
+        await h.login();
         await h.until(run => run?.status === "information-ready");
         const report = await h.counts();
         assert.deepEqual(report.submissions, [
@@ -192,6 +188,7 @@ test("TicketPlus API：同場次第一順位售完，第二順位提交一次並
             terms: 0,
         });
         assert.deepEqual(report.requests, [
+            "/",
             "/activity/event-fixture",
             "/order/event-fixture/session-B",
             "/confirm/event-fixture/session-B",

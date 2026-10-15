@@ -16,8 +16,6 @@ export function useRunStatus(onError: (message: string) => void) {
     const latestPurchase = useRef<PurchaseSnapshot | null>(null);
     const closingRef = useRef(false);
     const purchaseVersion = useRef(0);
-    const attemptedLogins = useRef(new Set<string>());
-    const [loginAttempt, setLoginAttempt] = useState<{ runId: string; message: string } | null>(null);
     const attemptedStops = useRef(new Set<string>());
     const [stopAttempt, setStopAttempt] = useState<{ runId: string; status: StopRequestStatus } | null>(null);
 
@@ -106,54 +104,8 @@ export function useRunStatus(onError: (message: string) => void) {
         }
     }
 
-    async function confirmLogin() {
-        // 只交接目前顯示且仍持有即時資格的 TicketPlus 流程。
-        const run = latestPurchase.current;
-        const confirmationId = run?.loginConfirmation?.confirmationId;
-        if (
-            !run ||
-            run.platform !== "ticketplus" ||
-            run.status !== "running" ||
-            !confirmationId ||
-            run.stopRequest ||
-            attemptedStops.current.has(run.id) ||
-            closingRef.current ||
-            displayed?.kind !== "purchase" ||
-            displayed.run.id !== run.id
-        ) {
-            return;
-        }
-        const key = `${run.id}:${confirmationId}`;
-        if (attemptedLogins.current.has(key)) return;
-
-        // 先消耗本頁的確認資格，失敗或斷線也不能自動重送同一資格。
-        attemptedLogins.current.add(key);
-        setLoginAttempt({ runId: run.id, message: "正在送出登入確認，請稍候。" });
-        const version = purchaseVersion.current;
-        try {
-            const result = await api<{ status: "sent"; message: string; run: PurchaseSnapshot }>(
-                "/api/purchase/confirm-login",
-                "POST",
-                { runId: run.id, confirmationId },
-            );
-            if (result.status !== "sent" || result.run.id !== run.id || result.run.platform !== "ticketplus") {
-                throw new Error("登入確認回應無法核對。");
-            }
-            if (latestPurchase.current?.id !== run.id) return;
-            if (purchaseVersion.current === version) receivePurchase(result.run);
-            setLoginAttempt({ runId: run.id, message: "已送出登入確認，請查看後續狀態；尚不代表登入或購票成功。" });
-        } catch {
-            if (latestPurchase.current?.id === run.id) {
-                setLoginAttempt({
-                    runId: run.id,
-                    message: "登入確認結果尚未確認，請查看後續狀態與購票瀏覽器；不會自動重送。",
-                });
-            }
-        }
-    }
-
     async function stopPurchase() {
-        // 只停止目前顯示且由後端允許控制的這一輪；登入送出中仍可停止。
+        // 只停止目前顯示且由後端允許控制的這一輪。
         const run = latestPurchase.current;
         if (
             !run ||
@@ -169,7 +121,7 @@ export function useRunStatus(onError: (message: string) => void) {
             return;
         }
 
-        // 送出前同步鎖定本輪，也阻擋同一事件迴圈內的登入確認。
+        // 送出前同步鎖定本輪，避免重複停止要求。
         attemptedStops.current.add(run.id);
         setStopAttempt({ runId: run.id, status: "sending" });
         const version = purchaseVersion.current;
@@ -201,26 +153,7 @@ export function useRunStatus(onError: (message: string) => void) {
     }
 
     const currentDisplayed = displayed?.kind === "purchase" && displayed.run.id === purchase?.id;
-    const loginStage = purchase?.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
-    const waitingForLogin =
-        loginStage?.type === "ticketplus" && ["login-ready", "waiting-for-login"].includes(loginStage.stage);
-    const loginKey = `${purchase?.id}:${purchase?.loginConfirmation?.confirmationId}`;
     const stopRequested = Boolean(purchase && (purchase.stopRequest || attemptedStops.current.has(purchase.id)));
-    const loginHandoff =
-        currentDisplayed && purchase?.platform === "ticketplus" && purchase.status === "running"
-            ? {
-                  available:
-                      !closing &&
-                      !stopRequested &&
-                      Boolean(purchase.loginConfirmation) &&
-                      !attemptedLogins.current.has(loginKey),
-                  message:
-                      !stopRequested && waitingForLogin && loginAttempt?.runId === purchase.id
-                          ? loginAttempt.message
-                          : "",
-                  onConfirm: () => void confirmLogin(),
-              }
-            : undefined;
     const stopControl =
         currentDisplayed && purchase?.platform === "ticketplus" && purchase.status === "running"
             ? {
@@ -258,7 +191,6 @@ export function useRunStatus(onError: (message: string) => void) {
         ready,
         closing,
         closeBrowser,
-        loginHandoff,
         stopControl,
         showCurrent,
         showResult,
