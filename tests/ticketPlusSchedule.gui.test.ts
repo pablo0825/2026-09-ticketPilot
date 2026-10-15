@@ -311,14 +311,28 @@ test("TicketPlus 排程 GUI：倒數跨過零只更新文字，不自行啟動�
 test("TicketPlus 執行設定：空白時間與非法期限不保存不啟動", async () => {
     await fixture(async (h, page, record, requests) => {
         await setTime(page, "");
+        await page.getByLabel("最長執行時間（分鐘）", { exact: true }).fill("9");
         await page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ }).check();
         assert.equal(await page.getByText("開賣時間必須包含日期、秒與台灣時區 +08:00。", { exact: true }).count(), 0);
-        assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
+        assert.equal(await page.getByRole("alert").filter({ hasText: "請填寫有效的開賣日期與時間。" }).count(), 0);
+        await page.getByRole("button", { name: "開始購票", exact: true }).click();
+        await page.getByText("請填寫有效的開賣日期與時間。", { exact: true }).waitFor();
+        assert(
+            await page.getByLabel(timeLabel, { exact: true }).evaluate(element => element === document.activeElement),
+        );
+        await page.getByText("請填寫 10～1440 的整數分鐘。", { exact: true }).waitFor();
         await setTime(page, "2026-12-01T12:34:56");
         for (const value of ["", "9", "-1", "10.5", "1441"]) {
             await page.getByLabel("最長執行時間（分鐘）").fill(value);
             await page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ }).check();
-            assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
+            assert.equal(await page.getByText("請填寫 10～1440 的整數分鐘。", { exact: true }).count(), 0);
+            await page.getByRole("button", { name: "開始購票", exact: true }).click();
+            await page.getByText("請填寫 10～1440 的整數分鐘。", { exact: true }).waitFor();
+            assert(
+                await page
+                    .getByLabel("最長執行時間（分鐘）", { exact: true })
+                    .evaluate(element => element === document.activeElement),
+            );
         }
         assert.equal(requests.filter(request => request.method === "PUT").length, 0);
         assert.equal(starts(requests).length, 0);
@@ -499,7 +513,9 @@ test("TicketPlus 期限 GUI：舊 5 分鐘保留顯示但不能開始，改成 1
             const input = page.getByLabel("最長執行時間（分鐘）", { exact: true });
             assert.equal(await input.inputValue(), "5");
             await page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ }).check();
-            assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
+            await page.getByRole("button", { name: "開始購票", exact: true }).click();
+            await page.getByText("請填寫 10～1440 的整數分鐘。", { exact: true }).waitFor();
+            assert(await input.evaluate(element => element === document.activeElement));
             assert.equal(requests.filter(request => request.method === "PUT").length, 0);
             assert.equal(starts(requests).length, 0);
             assert.equal((await (await h.request("/api/activities/" + record.id)).json()).settings.maxRunMinutes, 5);

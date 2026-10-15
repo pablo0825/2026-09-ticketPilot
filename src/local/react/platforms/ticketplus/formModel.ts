@@ -1,3 +1,4 @@
+import { validateSaleSchedule } from "../../../../core/purchaseValidation.js";
 import {
     parseTicketPlusActivity,
     ticketPlusDefaultRunMinutes,
@@ -25,6 +26,32 @@ export interface ExecutionForm {
     saleAt: string;
     advanceSeconds?: 1 | 2;
     maxRunMinutes: string;
+}
+
+export type ExecutionErrors = Partial<Record<"saleAt" | "maxRunMinutes", string>>;
+
+export function executionErrors(form: ExecutionForm): ExecutionErrors {
+    const errors: ExecutionErrors = {};
+    // 依畫面順序核對欄位，時間固定使用台灣時區。
+    if (form.mode === "scheduled") {
+        try {
+            validateSaleSchedule({ saleAt: withSeconds(form.saleAt) + "+08:00" });
+        } catch {
+            errors.saleAt = "請填寫有效的開賣日期與時間。";
+        }
+    }
+
+    // 期限沿用整數規則，欄位錯誤不取代正式啟動驗證。
+    const minutes = Number(form.maxRunMinutes);
+    if (
+        !/^\d+$/.test(form.maxRunMinutes.trim()) ||
+        !Number.isSafeInteger(minutes) ||
+        minutes < ticketPlusDefaultRunMinutes ||
+        minutes > 1440
+    ) {
+        errors.maxRunMinutes = "請填寫 10～1440 的整數分鐘。";
+    }
+    return errors;
 }
 
 export function executionForm(settings?: TicketPlusActivitySettings): ExecutionForm {

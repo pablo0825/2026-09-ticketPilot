@@ -1,12 +1,20 @@
-import type { ExecutionForm } from "./formModel.js";
+import { useEffect, useRef } from "react";
+import type { ExecutionForm, ExecutionErrors } from "./formModel.js";
 
 interface Props {
     form: ExecutionForm;
+    errors: ExecutionErrors;
     disabled: boolean;
     onChange: (form: ExecutionForm) => void;
 }
 
-export function ExecutionEditor({ form, disabled, onChange }: Props) {
+export function ExecutionEditor({ form, errors, disabled, onChange }: Props) {
+    const saleInput = useRef<HTMLInputElement>(null);
+    const minutesInput = useRef<HTMLInputElement>(null);
+    useEffect(() => {
+        if (errors.saleAt) saleInput.current?.focus();
+        else if (errors.maxRunMinutes) minutesInput.current?.focus();
+    }, [errors]);
     return (
         <div>
             <h2>執行設定</h2>
@@ -29,16 +37,26 @@ export function ExecutionEditor({ form, disabled, onChange }: Props) {
             </label>
             {form.mode === "scheduled" && (
                 <div className="ticketplus-sale-fields">
-                    <label>
-                        開賣時間（台灣 UTC+8）
-                        <input
-                            type="datetime-local"
-                            step="1"
-                            disabled={disabled}
-                            value={form.saleAt}
-                            onChange={event => onChange({ ...form, saleAt: event.target.value })}
-                        />
-                    </label>
+                    <div>
+                        <label>
+                            開賣時間（台灣 UTC+8）
+                            <input
+                                ref={saleInput}
+                                aria-invalid={Boolean(errors.saleAt)}
+                                aria-describedby={errors.saleAt ? "ticketplus-sale-error" : undefined}
+                                type="datetime-local"
+                                step="1"
+                                disabled={disabled}
+                                value={form.saleAt}
+                                onChange={event => onChange({ ...form, saleAt: event.target.value })}
+                            />
+                        </label>
+                        {errors.saleAt && (
+                            <p id="ticketplus-sale-error" role="alert">
+                                {errors.saleAt}
+                            </p>
+                        )}
+                    </div>
                     <label>
                         提前刷新
                         <select
@@ -60,6 +78,9 @@ export function ExecutionEditor({ form, disabled, onChange }: Props) {
             <label>
                 最長執行時間（分鐘）
                 <input
+                    ref={minutesInput}
+                    aria-invalid={Boolean(errors.maxRunMinutes)}
+                    aria-describedby={errors.maxRunMinutes ? "ticketplus-minutes-error" : undefined}
                     id="maxRunMinutes"
                     type="number"
                     min="10"
@@ -71,6 +92,11 @@ export function ExecutionEditor({ form, disabled, onChange }: Props) {
                     onChange={event => onChange({ ...form, maxRunMinutes: event.target.value })}
                 />
             </label>
+            {errors.maxRunMinutes && (
+                <p id="ticketplus-minutes-error" role="alert">
+                    {errors.maxRunMinutes}
+                </p>
+            )}
         </div>
     );
 }

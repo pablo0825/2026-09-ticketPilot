@@ -16,8 +16,9 @@ import {
     executionForm,
     executionFingerprint,
     executionInput,
+    executionErrors,
 } from "./formModel.js";
-import type { TicketPlusActivityRecord, ExecutionForm } from "./formModel.js";
+import type { TicketPlusActivityRecord, ExecutionForm, ExecutionErrors } from "./formModel.js";
 import { ticketPlusSessionSelection } from "../../../../config/ticketPlusActivity.js";
 import { PurchaseSummary } from "./PurchaseSummary.js";
 import { ExecutionEditor } from "./ExecutionEditor.js";
@@ -50,6 +51,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
     const [baseline, setBaseline] = useState(() => draftFingerprint(form));
     const [execution, setExecution] = useState(executionForm);
     const [executionBaseline, setExecutionBaseline] = useState(() => executionFingerprint(execution));
+    const [fieldErrors, setFieldErrors] = useState<ExecutionErrors>({});
     const [confirmed, setConfirmed] = useState(false);
     const [editing, setEditing] = useState(false);
     const [step, setStep] = useState<Step>("activity");
@@ -112,7 +114,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
           : "";
     if (record && !startReason) {
         try {
-            ticketPlusSessionSelection(executionInput(execution, record.settings));
+            ticketPlusSessionSelection(record.settings);
         } catch (error) {
             startReason = (error as Error).message;
         }
@@ -163,6 +165,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
 
     function openRecord(next: TicketPlusActivityRecord | null) {
         const nextForm = activityForm(next?.settings);
+        setFieldErrors({});
         setRecord(next);
         setForm(nextForm);
         setBaseline(draftFingerprint(nextForm));
@@ -199,6 +202,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
     function acceptExecutionSaved(next: TicketPlusActivityRecord) {
         // 立即接受新版本；啟動不依賴活動列表刷新成功。
         if (!active.current) return;
+        setFieldErrors({});
         setRecord(next);
         const nextExecution = executionForm(next.settings);
         setExecution(nextExecution);
@@ -242,6 +246,14 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
         } catch {
             if (active.current) setMessage("活動已刪除，但列表重新載入失敗；請返回平台首頁後重新進入。");
         }
+    }
+
+    function requestStart() {
+        if (blocked || startReason || !record || !confirmed) return;
+        const errors = executionErrors(execution);
+        setFieldErrors(errors);
+        if (Object.keys(errors).length > 0) return;
+        void action(start);
     }
 
     async function start() {
@@ -314,20 +326,19 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                         <PurchaseSummary
                             settings={record?.settings}
                             reason={startReason}
-                            hideReason={
-                                (Boolean(record) && activityDirty) ||
-                                startReason === "開賣時間必須包含日期、秒與台灣時區 +08:00。"
-                            }
+                            hideReason={Boolean(record) && activityDirty}
                             disabled={blocked}
-                            onStart={() => void action(start)}
+                            onStart={requestStart}
                             confirmed={confirmed}
                             onConfirm={setConfirmed}
                         >
                             <ExecutionEditor
                                 form={execution}
+                                errors={fieldErrors}
                                 disabled={blocked || pendingStart}
                                 onChange={next => {
                                     setExecution(next);
+                                    setFieldErrors({});
                                     setConfirmed(false);
                                 }}
                             />
