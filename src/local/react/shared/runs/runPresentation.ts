@@ -1,6 +1,20 @@
 import type { SimulationSnapshot } from "../../../simulationRuns.js";
 import type { PurchaseSnapshot } from "../../../purchaseRuns.js";
 
+export type StopRequestStatus = NonNullable<PurchaseSnapshot["stopRequest"]>["status"];
+
+export function stopRequestPresentation(status: StopRequestStatus) {
+    const messages = {
+        sending: { title: "正在送出停止要求", instruction: "請稍候；停止要求送出前，流程可能仍在執行。" },
+        sent: { title: "等待流程停止", instruction: "已送出停止要求，尚不代表流程已停止；請查看後續執行結果。" },
+        unconfirmed: {
+            title: "停止要求尚未確認",
+            instruction: "無法確認停止要求是否送達，請檢查目前流程與購票瀏覽器；不會自動重送。",
+        },
+    };
+    return messages[status];
+}
+
 export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, now: number) {
     const stateEvent = run.events.filter(item => item.event.type === "state").at(-1)?.event;
     const state = stateEvent?.type === "state" ? stateEvent.state : undefined;
@@ -9,6 +23,9 @@ export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, n
 
     // 執行中：依目前狀態顯示提示
     if (run.status === "running") {
+        if (run.platform === "ticketplus" && run.stopRequest) {
+            return stopRequestPresentation(run.stopRequest.status);
+        }
         const ticketPlusEvent = run.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
         if (run.platform === "ticketplus" && ticketPlusEvent?.type === "ticketplus") {
             const stage = ticketPlusEvent.stage;

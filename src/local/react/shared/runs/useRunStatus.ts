@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PurchaseSnapshot } from "../../../purchaseRuns.js";
 import type { SimulationSnapshot } from "../../../simulationRuns.js";
 import { api, localToken } from "../api.js";
+import type { StopRequestStatus } from "./runPresentation.js";
 
 export type DisplayedRun =
     { kind: "purchase"; run: PurchaseSnapshot } | { kind: "simulation"; run: SimulationSnapshot };
@@ -17,6 +18,8 @@ export function useRunStatus(onError: (message: string) => void) {
     const purchaseVersion = useRef(0);
     const attemptedLogins = useRef(new Set<string>());
     const [loginAttempt, setLoginAttempt] = useState<{ runId: string; message: string } | null>(null);
+    const attemptedStops = useRef(new Set<string>());
+    const [stopAttempt, setStopAttempt] = useState<{ runId: string; status: StopRequestStatus } | null>(null);
 
     const receivePurchase = useCallback((run: PurchaseSnapshot | null) => {
         purchaseVersion.current++;
@@ -112,11 +115,14 @@ export function useRunStatus(onError: (message: string) => void) {
             run.platform !== "ticketplus" ||
             run.status !== "running" ||
             !confirmationId ||
+            run.stopRequest ||
+            attemptedStops.current.has(run.id) ||
             closingRef.current ||
             displayed?.kind !== "purchase" ||
             displayed.run.id !== run.id
-        )
+        ) {
             return;
+        }
         const key = `${run.id}:${confirmationId}`;
         if (attemptedLogins.current.has(key)) return;
 
@@ -146,17 +152,83 @@ export function useRunStatus(onError: (message: string) => void) {
         }
     }
 
+    async function stopPurchase() {
+        // 只停止目前顯示且由後端允許控制的這一輪；登入送出中仍可停止。
+        const run = latestPurchase.current;
+        if (
+            !run ||
+            run.platform !== "ticketplus" ||
+            run.status !== "running" ||
+            !run.canStop ||
+            run.stopRequest ||
+            attemptedStops.current.has(run.id) ||
+            closingRef.current ||
+            displayed?.kind !== "purchase" ||
+            displayed.run.id !== run.id
+        ) {
+            return;
+        }
+
+        // 送出前同步鎖定本輪，也阻擋同一事件迴圈內的登入確認。
+        attemptedStops.current.add(run.id);
+        setStopAttempt({ runId: run.id, status: "sending" });
+        const version = purchaseVersion.current;
+        try {
+            const result = await api<{ status: StopRequestStatus; run: PurchaseSnapshot }>(
+                "/api/purchase/stop",
+                "POST",
+                { runId: run.id },
+            );
+            if (
+                !result ||
+                !["sending", "sent", "unconfirmed"].includes(result.status) ||
+                result.run?.id !== run.id ||
+                result.run.platform !== "ticketplus"
+            ) {
+                throw new Error("無法核對停止回應。");
+            }
+            if (latestPurchase.current?.id !== run.id) return;
+            if (purchaseVersion.current === version) receivePurchase(result.run);
+            if (latestPurchase.current?.status === "running") {
+                setStopAttempt({ runId: run.id, status: result.status });
+            }
+        } catch {
+            // 結果不明仍保留本頁停止鎖；終局與後端即時要求始終優先。
+            if (latestPurchase.current?.id === run.id && latestPurchase.current.status === "running") {
+                setStopAttempt({ runId: run.id, status: "unconfirmed" });
+            }
+        }
+    }
+
     const currentDisplayed = displayed?.kind === "purchase" && displayed.run.id === purchase?.id;
     const loginStage = purchase?.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
     const waitingForLogin =
         loginStage?.type === "ticketplus" && ["login-ready", "waiting-for-login"].includes(loginStage.stage);
     const loginKey = `${purchase?.id}:${purchase?.loginConfirmation?.confirmationId}`;
+    const stopRequested = Boolean(purchase && (purchase.stopRequest || attemptedStops.current.has(purchase.id)));
     const loginHandoff =
         currentDisplayed && purchase?.platform === "ticketplus" && purchase.status === "running"
             ? {
-                  available: !closing && Boolean(purchase.loginConfirmation) && !attemptedLogins.current.has(loginKey),
-                  message: waitingForLogin && loginAttempt?.runId === purchase.id ? loginAttempt.message : "",
+                  available:
+                      !closing &&
+                      !stopRequested &&
+                      Boolean(purchase.loginConfirmation) &&
+                      !attemptedLogins.current.has(loginKey),
+                  message:
+                      !stopRequested && waitingForLogin && loginAttempt?.runId === purchase.id
+                          ? loginAttempt.message
+                          : "",
                   onConfirm: () => void confirmLogin(),
+              }
+            : undefined;
+    const stopControl =
+        currentDisplayed && purchase?.platform === "ticketplus" && purchase.status === "running"
+            ? {
+                  available: !closing && purchase.canStop === true && !stopRequested,
+                  progress:
+                      purchase.stopRequest?.status ??
+                      (stopAttempt?.runId === purchase.id ? stopAttempt.status : undefined),
+                  onStop: () => void stopPurchase(),
               }
             : undefined;
 
@@ -187,6 +259,7 @@ export function useRunStatus(onError: (message: string) => void) {
         closing,
         closeBrowser,
         loginHandoff,
+        stopControl,
         showCurrent,
         showResult,
         showAccepted,

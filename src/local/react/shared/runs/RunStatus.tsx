@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { DisplayedRun } from "./useRunStatus.js";
-import { eventLogs, purchaseStatus } from "./runPresentation.js";
+import { eventLogs, purchaseStatus, stopRequestPresentation } from "./runPresentation.js";
+import type { StopRequestStatus } from "./runPresentation.js";
 
 interface Props {
     displayed: DisplayedRun | null;
@@ -9,9 +10,10 @@ interface Props {
     onClose: () => void;
     onCopy: (text: string) => void;
     loginHandoff?: { available: boolean; message: string; onConfirm: () => void };
+    stopControl?: { available: boolean; progress?: StopRequestStatus; onStop: () => void };
 }
 
-export function RunStatus({ displayed, canClose, closing, onClose, onCopy, loginHandoff }: Props) {
+export function RunStatus({ displayed, canClose, closing, onClose, onCopy, loginHandoff, stopControl }: Props) {
     const [now, setNow] = useState(Date.now());
     const logElement = useRef<HTMLPreElement>(null);
     const followLog = useRef(true);
@@ -26,6 +28,9 @@ export function RunStatus({ displayed, canClose, closing, onClose, onCopy, login
     if (displayed?.kind === "purchase") {
         const run = displayed.run;
         ({ title, instruction } = purchaseStatus(run, closing, now));
+        if (run.platform === "ticketplus" && run.status === "running" && stopControl?.progress) {
+            ({ title, instruction } = stopRequestPresentation(stopControl.progress));
+        }
         const recordedAt = run.events[0]?.at;
         logs =
             `購票平台：${run.platform === "klook" ? "Klook" : run.platform === "ticketplus" ? "TicketPlus" : "未知"}\n` +
@@ -60,6 +65,11 @@ export function RunStatus({ displayed, canClose, closing, onClose, onCopy, login
                 </div>
             )}
             {loginHandoff?.message && <p role="status">{loginHandoff.message}</p>}
+            {stopControl?.available && (
+                <button type="button" className="secondary" onClick={stopControl.onStop}>
+                    停止購票
+                </button>
+            )}
             <button id="closeBrowser" className="secondary" hidden={!canClose} disabled={closing} onClick={onClose}>
                 {closing ? "關閉中…" : "關閉購票瀏覽器"}
             </button>
