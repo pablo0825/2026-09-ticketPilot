@@ -47,7 +47,39 @@ export interface TicketPlusPageDiagnostic {
     };
 }
 
-function classifyPage(dom: TicketPlusDom): TicketPlusPage {
+// 僅進入選票頁的等待階段提供，其他流程仍將殘留活動列視為衝突。
+export interface ActivityTransitionTarget {
+    eventId: string;
+    eventName: string;
+    sessionName: string;
+    date: string;
+    time: string;
+}
+
+function isActivityTransition(dom: TicketPlusDom, eventId: string, target: ActivityTransitionTarget): boolean {
+    // 只有活動列殘留可以等待，其他流程標記或任何彈窗都不能放行。
+    if (
+        eventId !== target.eventId ||
+        dom.dialogs.length ||
+        dom.queueCount ||
+        dom.tickets.length ||
+        dom.information.headingCount ||
+        dom.information.terms.length ||
+        dom.paymentButtons.length ||
+        dom.checkoutStepCount ||
+        dom.checkout.length
+    ) {
+        return false;
+    }
+
+    // 以同份快照核對活動及唯一目標場次，不依殘留列數猜測身分。
+    const activity = parseActivityPage(dom, eventId);
+    if (activity.kind !== "activity" || activity.eventName !== target.eventName) return false;
+    const matches = activity.sessions.filter(session => session.date === target.date && session.time === target.time);
+    return matches.length === 1 && matches[0]!.name === target.sessionName;
+}
+
+function classifyPage(dom: TicketPlusDom, transitionTarget?: ActivityTransitionTarget): TicketPlusPage {
     // 網址採明確白名單，不接受其他站台、額外路徑或不明參數。
     if (dom.origin !== "https://ticketplus.com.tw" || dom.extraUrlParts) return unknownPage("unsupported-url");
     const activity = /^\/activity\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
@@ -95,7 +127,16 @@ function classifyPage(dom: TicketPlusDom): TicketPlusPage {
         return parseActivityPage(dom, activity[1]!);
     }
     const identity = { eventId: order![2]!, sessionId: order![3]! };
-    if (dom.activity.length) return unknownPage("conflicting-page");
+    if (dom.activity.length) {
+        if (
+            order![1] === "order" &&
+            transitionTarget &&
+            isActivityTransition(dom, identity.eventId, transitionTarget)
+        ) {
+            return unknownPage("activity-transition");
+        }
+        return unknownPage("conflicting-page");
+    }
     if (order![1] === "order") {
         if (hasInformation || hasCheckout) return unknownPage("conflicting-page");
         if (dom.queueCount > 1) return unknownPage("ambiguous-data");
@@ -114,6 +155,7 @@ function classifyPage(dom: TicketPlusDom): TicketPlusPage {
 export async function readTicketPlusPage(
     page: Page,
     onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void,
+    transitionTarget?: ActivityTransitionTarget,
 ): Promise<TicketPlusPage> {
     // 沿用同一份快照判讀，不為診斷重讀頁面。
     let snapshot: TicketPlusDom | undefined;
@@ -129,7 +171,7 @@ export async function readTicketPlusPage(
         ) {
             result = unknownPage("page-changed");
         } else {
-            result = classifyPage(snapshot);
+            result = classifyPage(snapshot, transitionTarget);
         }
     } catch {
         result = unknownPage("read-failed");

@@ -4,7 +4,7 @@ import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { ActivityPage } from "./activityPage.js";
 import { readTicketPlusPage } from "./pageState.js";
-import type { TicketPlusPageDiagnostic, TicketPlusPage } from "./pageState.js";
+import type { ActivityTransitionTarget, TicketPlusPageDiagnostic, TicketPlusPage } from "./pageState.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 
 type Session = ActivityPage["sessions"][number];
@@ -114,12 +114,13 @@ async function readWithinDeadline(
     stage: SessionEntryStage,
     control: TicketPlusRunControl,
     onDiagnostic: (diagnostic: TicketPlusPageDiagnostic) => void,
+    transitionTarget?: ActivityTransitionTarget,
 ): Promise<TicketPlusPage> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
         return await control.read(() =>
             Promise.race([
-                readTicketPlusPage(page, onDiagnostic),
+                readTicketPlusPage(page, onDiagnostic, transitionTarget),
                 new Promise<never>((_, reject) => {
                     timer = setTimeout(
                         () =>
@@ -146,6 +147,7 @@ async function waitForSelection(
     interval: number,
     control: TicketPlusRunControl,
     onDiagnostic: (diagnostic: TicketPlusPageDiagnostic) => void,
+    target: Session,
 ): Promise<TicketSelectionPage> {
     // 只設一次期限，暫時缺資料不會延長等待，也不會回到點擊流程。
     const deadline = performance.now() + timeout;
@@ -163,6 +165,13 @@ async function waitForSelection(
             "after-click-attempt",
             control,
             onDiagnostic,
+            {
+                eventId: eventId!,
+                eventName: settings.eventName,
+                sessionName: target.name,
+                date: target.date,
+                time: target.time,
+            },
         );
         if (performance.now() >= deadline) break;
 
@@ -184,7 +193,7 @@ async function waitForSelection(
             }
         } else if (
             snapshot.kind !== "unknown" ||
-            !["incomplete-data", "page-changed", "read-failed"].includes(snapshot.reason)
+            !["incomplete-data", "page-changed", "read-failed", "activity-transition"].includes(snapshot.reason)
         ) {
             throw new TicketPlusSessionError("after-click-attempt", "unexpected-page");
         }
@@ -252,7 +261,7 @@ export async function selectTicketPlusSession(
         control.check();
         reason = "read-failed";
         diagnostic = undefined;
-        return await waitForSelection(page, settings, arrivalTimeout, interval, control, onDiagnostic);
+        return await waitForSelection(page, settings, arrivalTimeout, interval, control, onDiagnostic, latest);
     } catch (error) {
         control.check();
         if (error instanceof TicketPlusStopError) throw error;

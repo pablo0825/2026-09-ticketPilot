@@ -1,3 +1,5 @@
+import { TicketPlusRunControl, TicketPlusStopError } from "../src/platforms/ticketplus/runControl.js";
+import { readTicketPlusPage } from "../src/platforms/ticketplus/pageState.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
@@ -500,4 +502,131 @@ test("TicketPlus 場次診斷：點擊前阻擋與等待逾時保留最後觀測
         },
         { orderB: "<main>載入中</main>" },
     );
+});
+
+test("TicketPlus 入場過渡：同活動殘留列經空白載入到選票頁，只點一次", { timeout: 15_000 }, async () => {
+    await withPage(
+        async page => {
+            let transitionReads = 0;
+            class TransitionControl extends TicketPlusRunControl {
+                override async wait(milliseconds: number): Promise<void> {
+                    // 只有正式流程願意等待後，才推進模擬網站的載入階段。
+                    if (page.url().endsWith("/order/event-fixture/session-B")) {
+                        transitionReads++;
+                        if (transitionReads === 1) {
+                            assert.deepEqual(await readTicketPlusPage(page), {
+                                kind: "unknown",
+                                reason: "conflicting-page",
+                            });
+                            await page.setContent("<main>載入中</main>");
+                        } else {
+                            await page.setContent(orderB);
+                        }
+                    }
+                    await super.wait(milliseconds);
+                }
+            }
+            const result = await selectTicketPlusSession(page, settings, options, new TransitionControl());
+            assert.equal(result.kind, "ticket-selection");
+            assert.equal(result.sessionId, "session-B");
+            assert.equal(transitionReads, 2);
+            assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+        },
+        { orderB: activity },
+    );
+});
+
+test("TicketPlus 入場過渡：殘留不消失沿用期限停止，診斷保留過渡原因", { timeout: 15_000 }, async () => {
+    await withPage(
+        async page => {
+            const started = performance.now();
+            await assert.rejects(
+                selectTicketPlusSession(page, settings, { ...options, arrivalTimeoutMs: 500 }),
+                error => {
+                    assert(error instanceof TicketPlusSessionError);
+                    assert.equal(error.reason, "arrival-timeout");
+                    assert.equal(error.diagnostic?.check, "page-state");
+                    if (error.diagnostic?.check !== "page-state") return false;
+                    assert.equal(error.diagnostic.snapshot.unknownReason, "activity-transition");
+                    assert.equal(error.diagnostic.snapshot.markers?.activityRows, 2);
+                    return true;
+                },
+            );
+            assert(performance.now() - started < 3_000);
+            assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+        },
+        { orderB: activity },
+    );
+});
+
+test("TicketPlus 入場過渡：身分不符、不完整或混合標記不能當作過渡等待", { timeout: 30_000 }, async () => {
+    const cases = [
+        activity.replace(`<h1>${eventName}</h1>`, "<h1>其他活動</h1>"),
+        heading + rowA,
+        activity.replace("晚場 [B] (特別)", "其他場次"),
+        activity + rowB,
+        activity.replace("21:00", "未知時間"),
+        activity + orderB,
+        activity + '<div role="dialog">請確認</div>',
+        activity + "<h3>排隊購票中 請稍候</h3>",
+        activity + "<div>聯絡人資訊</div>",
+        activity + "<button>前往付款</button>",
+        activity + '<div class="stepText checkedStep">付款結帳</div>',
+        activity + '<div class="row py-2 py-md-3 no-gutters">摘要</div>',
+    ];
+    for (const html of cases) {
+        await withPage(
+            async page => {
+                let orderWaits = 0;
+                class ObservedControl extends TicketPlusRunControl {
+                    override async wait(milliseconds: number): Promise<void> {
+                        if (page.url().includes("/order/")) orderWaits++;
+                        await super.wait(milliseconds);
+                    }
+                }
+                await rejectsEntry(
+                    selectTicketPlusSession(page, settings, options, new ObservedControl()),
+                    "after-click-attempt",
+                    "unexpected-page",
+                );
+                assert.equal(orderWaits, 0);
+                assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+            },
+            { orderB: html },
+        );
+    }
+});
+
+test("TicketPlus 入場過渡：等待可停止，完成後仍核對選票場次", { timeout: 15_000 }, async () => {
+    for (const stop of [true, false]) {
+        await withPage(
+            async page => {
+                const controller = new AbortController();
+                class TransitionControl extends TicketPlusRunControl {
+                    override async wait(milliseconds: number): Promise<void> {
+                        if (page.url().includes("/order/")) {
+                            if (stop) controller.abort();
+                            else await page.setContent(orderA);
+                        }
+                        await super.wait(milliseconds);
+                    }
+                }
+                await assert.rejects(
+                    selectTicketPlusSession(page, settings, options, new TransitionControl(controller.signal)),
+                    error => {
+                        if (stop) {
+                            assert(error instanceof TicketPlusStopError);
+                            assert.equal(error.stopReason, "user-stop");
+                        } else {
+                            assert(error instanceof TicketPlusSessionError);
+                            assert.equal(error.reason, "arrival-mismatch");
+                        }
+                        return true;
+                    },
+                );
+                assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+            },
+            { orderB: activity },
+        );
+    }
 });
