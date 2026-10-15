@@ -262,3 +262,41 @@ test("正式 worker：父服務失聯停止且保留占用；活動名稱不符�
         }
     }
 });
+
+test("正式 worker：同輪候補結果不被前次售完污染，耗盡更新後明確停止", { timeout: 45_000 }, async () => {
+    for (const mode of ["cycle-success", "cycle-unknown", "cycle-exhausted"]) {
+        const h = await harness(mode);
+        try {
+            h.start({ ...settings, targets: [...settings.targets, { ...settings.targets[0]!, ticketType: "學生票" }] });
+            const ready = await h.wait(message => message.type === "event" && message.event.stage === "login-ready");
+            h.child.send({ type: "confirm-ticketplus-login", confirmationId: ready.event.confirmationId });
+            const result = await h.wait(message => message.type === "result");
+            assert.equal(
+                result.outcome,
+                mode === "cycle-success" ? "information-ready" : mode === "cycle-unknown" ? "unknown" : "failed",
+            );
+            if (mode === "cycle-exhausted") {
+                assert.match(result.message, /先前 2 次提交已確認售完/);
+                assert.match(result.message, /更新完成/);
+                assert(h.messages.some(message => message.event?.stage === "waiting-to-refresh"));
+                assert(h.messages.some(message => message.event?.stage === "refreshing"));
+            }
+            if (mode === "cycle-unknown") assert.match(result.message, /結果未確認/);
+            assert(purchaseOccupied(h.directory));
+            await h.stop();
+            const report = JSON.parse(await readFile(h.report, "utf8"));
+            assert.equal(report.counts.session, 1);
+            assert.equal(report.counts.submit, 2);
+            assert.equal(report.counts.dismiss, mode === "cycle-exhausted" ? 2 : 1);
+            assert.equal(report.counts.other, mode === "cycle-exhausted" ? 1 : 0);
+            assert.equal(report.counts.information, 0);
+            assert.deepEqual(
+                report.submissions.map((tickets: any[]) => tickets.filter(ticket => ticket.quantity > 0)),
+                [[{ name: "預售票", quantity: 2 }], [{ name: "學生票", quantity: 2 }]],
+            );
+            assert(!purchaseOccupied(h.directory));
+        } finally {
+            await h.dispose();
+        }
+    }
+});

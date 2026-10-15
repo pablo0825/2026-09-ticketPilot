@@ -10,21 +10,25 @@ import { acquirePurchaseLease, releasePurchaseLease, verifyPurchaseLease } from 
 import type { PurchaseLease } from "./purchaseLock.js";
 import type { SessionEntryReason, SessionEntryStage } from "../platforms/ticketplus/sessionSelection.js";
 import { TicketPlusSessionError, selectTicketPlusSession } from "../platforms/ticketplus/sessionSelection.js";
-import { selectTicketPlusPriority, TicketPlusPriorityError } from "../platforms/ticketplus/ticketPriority.js";
+import { TicketPlusPriorityError } from "../platforms/ticketplus/ticketPriority.js";
+import { runTicketPlusCycle } from "../platforms/ticketplus/purchaseCycle.js";
+import type {
+    TicketPlusCycleEvent,
+    TicketPlusCycleResult,
+    TicketPlusCycleStage,
+} from "../platforms/ticketplus/purchaseCycle.js";
 import type { PriorityReason } from "../platforms/ticketplus/ticketPriority.js";
-import { runTicketPlusSubmission, stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
+import { stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
 import type { TicketPlusSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
 import { emptySubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
 import type { SubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
 
-export type TicketPlusStage =
-    "starting" | "waiting-for-login" | "selecting-session" | "selecting-tickets" | "submitting";
+export type TicketPlusStage = "starting" | "waiting-for-login" | "selecting-session" | TicketPlusCycleStage;
 export type TicketPlusRunEvent =
-    | { type: "stage"; stage: TicketPlusStage }
-    | { type: "submission"; progress: Readonly<SubmissionProgress> }
-    | { type: "lease-release-failed" };
+    { type: "stage"; stage: TicketPlusStage } | TicketPlusCycleEvent | { type: "lease-release-failed" };
 export type TicketPlusRunResult =
     | TicketPlusSubmissionResult
+    | TicketPlusCycleResult
     | {
           outcome: "stopped";
           reason: "startup-stopped" | "login-stopped" | "session-selection-stopped" | "ticket-selection-stopped";
@@ -125,22 +129,13 @@ export async function runTicketPlus(
         control.startDeadline(activity.maxRunMinutes);
         report("selecting-session");
         const session = await selectTicketPlusSession(page, settings, {}, control);
-        report("selecting-tickets");
-        const selected = await selectTicketPlusPriority(page, activity, session, {}, control);
-
-        // 唯一一次提交在單向流程最後；資料頁是本階段終點，不處理條款或付款。
-        report("submitting");
-        return await runTicketPlusSubmission(
-            page,
-            selected.selection,
-            selected.snapshot,
-            {},
-            observed => {
-                progress = { ...observed };
-                notify(options, { type: "submission", progress: Object.freeze({ ...progress }) });
-            },
-            control,
-        );
+        // 同輪候補由獨立模組編排；本次結果與歷史提交不混用。
+        return await runTicketPlusCycle(page, activity, session, control, event => {
+            if (event.type === "stage") stage = event.stage;
+            if (event.type === "attempt-reset") progress = emptySubmissionProgress();
+            if (event.type === "submission") progress = { ...event.progress };
+            notify(options, event);
+        });
     } catch (error) {
         let stopError = error instanceof TicketPlusStopError ? error : undefined;
         if (!stopError) {

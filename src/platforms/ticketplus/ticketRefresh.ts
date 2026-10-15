@@ -50,7 +50,9 @@ export async function refreshTicketPlusTickets(
         control.check();
         const identity = { ...session };
         if (
-            Object.values(identity).some(value => typeof value !== "string" || !value.trim()) ||
+            [identity.eventId, identity.sessionId, identity.eventName, identity.date, identity.time].some(
+                value => typeof value !== "string" || !value.trim(),
+            ) ||
             typeof identity.eventId !== "string" ||
             typeof identity.sessionId !== "string" ||
             !/^[A-Za-z0-9_-]+$/.test(identity.eventId) ||

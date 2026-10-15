@@ -2,7 +2,7 @@ import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
 import { writeFile, readFile, rename } from "node:fs/promises";
 import { appendFileSync, watchFile, unwatchFile } from "node:fs";
-import { activity } from "./pages.js";
+import { activity, student, presale, soldOut } from "./pages.js";
 import { readyOrder, readyInformation, failureDialog, queueDialog } from "./submissionPage.js";
 
 // 只替換瀏覽器環境，正式 worker、runner、DOM 模組與設定解析均照常執行。
@@ -45,6 +45,12 @@ chromium.launchPersistentContext = async (_profile, options) => {
             if (key === "submit" && mode === "close-after-submit") await page.close();
         },
     );
+    const order =
+        mode === "cycle-all-sold-out"
+            ? readyOrder
+                  .replace(student, soldOut.replace("身障票", "學生票"))
+                  .replace(presale.replace("<div>1</div>", "<div>2</div>"), soldOut.replace("身障票", "預售票"))
+            : readyOrder.replace("<div>2</div>", "<div>0</div>");
     await context.route("**/*", async route => {
         const path = new URL(route.request().url()).pathname;
         requests.push(path);
@@ -55,11 +61,12 @@ chromium.launchPersistentContext = async (_profile, options) => {
                 ? activity
                 : path.startsWith("/confirm/")
                   ? readyInformation + "<p>PRIVATE_INFORMATION_MARKER</p>"
-                  : readyOrder.replace("<div>2</div>", "<div>0</div>"),
+                  : order,
         });
     });
     await context.addInitScript(
         ({ mode, failure, queue }) => {
+            let submitted = 0;
             document.addEventListener("change", () => {
                 void (window as any).recordFixture("terms");
             });
@@ -79,6 +86,11 @@ chromium.launchPersistentContext = async (_profile, options) => {
                     await (window as any).recordFixture("plus");
                 } else if (button.dataset.fixture === "dismiss") {
                     document.querySelector(".v-dialog__content")!.remove();
+                    if (mode.startsWith("cycle-")) {
+                        document.querySelectorAll(".count-button > div").forEach(value => {
+                            value.textContent = "0";
+                        });
+                    }
                     await (window as any).recordFixture("dismiss");
                 } else if (button.textContent === "下一步") {
                     if (location.pathname.startsWith("/confirm/")) {
@@ -90,8 +102,16 @@ chromium.launchPersistentContext = async (_profile, options) => {
                         quantity: Number(row.querySelector(".count-button > div")?.textContent ?? 0),
                     }));
                     await (window as any).recordFixture("submit", tickets);
-                    if (mode === "failure") document.body.insertAdjacentHTML("beforeend", failure);
-                    else if (mode === "queue") {
+                    submitted++;
+                    if (
+                        mode === "failure" ||
+                        mode === "cycle-exhausted" ||
+                        (mode.startsWith("cycle-") && submitted === 1)
+                    ) {
+                        document.body.insertAdjacentHTML("beforeend", failure);
+                    } else if (mode === "cycle-unknown") {
+                        document.body.insertAdjacentHTML("beforeend", '<div role="dialog">未知處理結果</div>');
+                    } else if (mode === "queue") {
                         document.body.insertAdjacentHTML("beforeend", queue);
                     } else if (mode !== "close-after-submit") location.assign("/confirm/event-fixture/session-B");
                 } else await (window as any).recordFixture("other");

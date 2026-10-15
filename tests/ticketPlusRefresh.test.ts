@@ -210,3 +210,14 @@ test("TicketPlus 更新：已點擊後讀取遇到停止或到期，保留嘗試
         });
     }
 });
+
+test("TicketPlus 更新：場次來自完整選票快照時，只驗證身分欄位", async () => {
+    await withPage(async page => {
+        // selectTicketPlusSession 回傳完整快照，結構型別允許額外 tickets / nextEnabled。
+        const snapshotSession = { ...session, kind: "ticket-selection", tickets: [], nextEnabled: false };
+        const result = await refreshTicketPlusTickets(page, snapshotSession, new TicketPlusRunControl());
+        assert.equal(result.reason, "completion-unverified");
+        assert.equal(result.clickAttempted, true);
+        assert.equal((await quantityState(page)).clicks.refresh, 1);
+    });
+});

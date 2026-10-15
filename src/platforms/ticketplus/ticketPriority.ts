@@ -8,6 +8,7 @@ import type { TicketQuantityOptions, VerifiedTicketPlusSession } from "./ticketQ
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 
 export type PriorityReason =
+    | "invalid-options"
     | "unexpected-page"
     | "identity-mismatch"
     | "ticket-missing"
@@ -21,18 +22,26 @@ export class TicketPlusPriorityError extends Error {
     }
 }
 
+export interface TicketPriorityOptions extends TicketQuantityOptions {
+    startPriorityIndex?: number;
+}
+
 // 唯讀挑選候選；所有張數操作只交給單目標模組一次，錯誤不能變成換順位。
 export async function selectTicketPlusPriority(
     page: Page,
     input: TicketPlusActivitySettings,
     session: VerifiedTicketPlusSession,
-    options: TicketQuantityOptions = {},
+    options: TicketPriorityOptions = {},
     control = new TicketPlusRunControl(),
 ): Promise<{ selection: TicketPlusSelection; snapshot: TicketSelectionPage; priorityIndex: number }> {
     // 複製設定並確認同場次；挑選與調張數共用一個期限。
     control.check();
     const settings = parseTicketPlusActivity(input);
     const first = ticketPlusSessionSelection(settings);
+    const start = options.startPriorityIndex ?? 0;
+    if (!Number.isInteger(start) || start < 0 || start >= settings.targets.length) {
+        throw new TicketPlusPriorityError("invalid-options");
+    }
     const timeout = options.timeoutMs ?? 30_000;
     if (!Number.isFinite(timeout) || timeout <= 0 || timeout > 2_147_483_647) throw new Error("無效的選票期限。");
     const deadline = performance.now() + timeout;
@@ -54,7 +63,8 @@ export async function selectTicketPlusPriority(
     };
 
     // 每個順位重新讀完整頁面；只有唯一且明確售完的票種能被略過。
-    for (const [priorityIndex, target] of settings.targets.entries()) {
+    for (let priorityIndex = start; priorityIndex < settings.targets.length; priorityIndex++) {
+        const target = settings.targets[priorityIndex]!;
         let timer: ReturnType<typeof setTimeout> | undefined;
         let snapshot;
         try {

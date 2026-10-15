@@ -18,6 +18,12 @@ export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, n
             } else if (stage === "queue") {
                 title = "排隊中";
                 instruction = "等待 TicketPlus 處理，請保留購票頁面；程式不會刷新或重送。";
+            } else if (stage === "waiting-to-refresh") {
+                title = "等待更新票數";
+                instruction = "本輪設定順位已耗盡，短暫等待後核對更新票數；仍可要求停止。";
+            } else if (stage === "refreshing") {
+                title = "更新票數核對中";
+                instruction = "最多嘗試一次更新；未確認完成前不會開始新一輪選票。";
             } else if (stage === "submitting") {
                 title = "提交並等待網站處理";
                 instruction = "正在核對選票並進行一次提交流程，等待填寫資料頁；不會重送。";

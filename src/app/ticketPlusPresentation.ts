@@ -28,19 +28,24 @@ export function ticketPlusSessionMessage(failure: { reason: SessionEntryReason; 
 export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
     if (result.outcome === "information-ready")
         return "已到同場次填寫資料頁，本階段完成。請人工接手；未填資料、未勾條款、未操作付款。";
+    const priorAttempts = "submissionAttempts" in result ? result.submissionAttempts : 0;
+    const prior =
+        priorAttempts > 0 && !result.progress.submitAttempted
+            ? `先前 ${priorAttempts} 次提交已確認售完，目前未開始下一次提交。`
+            : "尚未嘗試選票提交。";
     if (result.stopReason === "time-limit") {
         if (result.outcome === "unknown")
             return "已達最長執行時間，停止自動操作；已嘗試提交，結果未確認。請檢查原頁面及訂單，不會重送。";
         if (result.outcome === "rejected")
             return "已達最長執行時間，停止自動操作；已確認購票失敗，請人工檢查彈窗與頁面，不會繼續關閉或重試。";
-        return "已達最長執行時間，尚未嘗試選票提交。瀏覽器保留供人工檢查，關閉後才解除購票占用。";
+        return `已達最長執行時間，停止自動操作。${prior}瀏覽器保留供人工檢查，關閉後才解除購票占用。`;
     }
     if (result.stopReason === "user-stop") {
         if (result.outcome === "unknown")
             return "已依要求停止自動操作；已嘗試提交，結果未確認。請檢查原頁面及訂單，不會重送。";
         if (result.outcome === "rejected")
             return "已依要求停止自動操作；已確認購票失敗，請人工檢查彈窗與頁面，不會繼續關閉或重試。";
-        return "已依要求停止自動操作，尚未嘗試選票提交。瀏覽器保留供人工檢查，關閉後才解除購票占用。";
+        return `已依要求停止自動操作。${prior}瀏覽器保留供人工檢查，關閉後才解除購票占用。`;
     }
     if (result.outcome === "unknown") return "已嘗試提交，結果未確認。請檢查原頁面及訂單；不會重送。";
     if (result.outcome === "rejected") {
@@ -51,7 +56,20 @@ export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
                 : result.progress.dismissal === "disappeared"
                   ? "彈窗已消失，未嘗試關閉"
                   : "彈窗關閉未確認";
-        return `${reason}，${dismissal}。流程停止，不刷新、不切換候補。`;
+        const blocked =
+            "reselectionFailure" in result && result.reselectionFailure
+                ? `重新選票前核對未通過（${result.reselectionFailure}）。`
+                : "";
+        return `${reason}，${dismissal}。${blocked}流程停止，不刷新、不切換候補。`;
+    }
+    if ("refresh" in result && result.refresh) {
+        const refresh = result.refresh;
+        const action = refresh.clickAttempted ? "已嘗試一次更新票數" : "尚未嘗試更新票數";
+        const detail =
+            refresh.reason === "completion-unverified"
+                ? "尚無可靠訊號確認更新完成"
+                : `更新核對停止（${refresh.reason}）`;
+        return `${action}，${detail}。${prior}不補按、不開始新一輪選票，請人工檢查。`;
     }
     if ("sessionFailure" in result && result.sessionFailure) return ticketPlusSessionMessage(result.sessionFailure);
     if ("priorityFailure" in result && result.priorityFailure) {
@@ -59,12 +77,15 @@ export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
             result.priorityFailure === "all-targets-sold-out"
                 ? "本次檢查的設定順位皆明確售完"
                 : `順位核對未通過（${result.priorityFailure}），不能據此判定售完`;
-        return `${detail}。尚未提交，不刷新或重跑。`;
+        return `${detail}。${prior}不刷新或重跑。`;
     }
-    return `流程已停止（${result.reason}），尚未嘗試選票提交。請檢查購票瀏覽器；不會自動重跑。`;
+    return `流程已停止（${result.reason}）。${prior}請檢查購票瀏覽器；不會自動重跑。`;
 }
 export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | undefined {
     if (event.type === "lease-release-failed") return "無法釋放購票占用，請人工檢查；不會自動解除。";
+    if (event.type === "attempt-reset") {
+        return event.submissionAttempts > 0 ? "前次提交已確認售完且重新選票核對通過，檢查本輪剩餘順位。" : undefined;
+    }
     if (event.type === "stage") {
         return {
             starting: "啟動 TicketPlus 購票瀏覽器。",
@@ -72,9 +93,12 @@ export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | unde
             "selecting-session": "核對活動並選擇場次。",
             "selecting-tickets": "核對票種並調整張數。",
             submitting: "核對選票並提交，等待資料頁。",
+            "waiting-to-refresh": "本輪設定順位已耗盡，短暫等待後核對更新票數；可要求停止。",
+            refreshing: "核對並嘗試一次更新票數；更新完成未確認前不開始新一輪。",
         }[event.stage];
     }
-    if (event.progress.failure) return "偵測到明確購票失敗，完成彈窗處理後停止。";
+    if (event.progress.failure === "sold-out") return "偵測到明確售完，處理彈窗後核對是否可以嘗試下一順位。";
+    if (event.progress.failure) return "偵測到購票失敗，完成彈窗處理後停止。";
     if (event.progress.sawQueue) return "排隊購票中，等待網站處理，不重送。";
     if (event.progress.submitAttempted) return "已開始一次提交嘗試，結果尚待確認。";
 }

@@ -20,6 +20,8 @@ export const ticketPlusEventSchema = z.discriminatedUnion("stage", [
                 "selecting-tickets",
                 "submitting",
                 "queue",
+                "waiting-to-refresh",
+                "refreshing",
             ]),
         })
         .strict(),

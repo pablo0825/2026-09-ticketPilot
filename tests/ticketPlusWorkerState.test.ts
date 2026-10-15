@@ -126,3 +126,31 @@ test("重啟時舊 login-ready 與磁碟確認資格不能恢復人工交接", a
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+test("更新進度：新 stage 通過 schema 且呈現受限更新提示，歷史可重讀", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-refresh-history-"));
+    try {
+        await mkdir(join(directory, "runs"));
+        for (const [stage, title, instruction] of [
+            ["waiting-to-refresh", "等待更新票數", /仍可要求停止/],
+            ["refreshing", "更新票數核對中", /未確認完成前/],
+        ] as const) {
+            const event = ticketPlusEventSchema.parse({ type: "ticketplus", stage });
+            const events = [{ sequence: 1, at: "2026-10-14T00:00:00Z", event }];
+            const view = purchaseStatus(
+                { ...record.snapshot, platform: "ticketplus", status: "running", events },
+                false,
+                Date.now(),
+            );
+            assert.equal(view.title, title);
+            assert.match(view.instruction, instruction);
+            await writeFile(
+                join(directory, "runs", requestId + ".json"),
+                JSON.stringify({ ...record, snapshot: { ...record.snapshot, events } }),
+            );
+            assert.deepEqual(new PurchaseRuns(directory).snapshot()!.events, events);
+        }
+    } finally {
+        await rm(directory, { recursive: true, force: true });
+    }
+});

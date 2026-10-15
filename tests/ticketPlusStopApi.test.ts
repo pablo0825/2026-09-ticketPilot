@@ -325,3 +325,28 @@ test("停止 API：停止傳送回呼晚於成功結果，不覆蓋資料頁終�
         await h.dispose();
     }
 });
+
+test("停止 API：本輪全部目標售完後等待更新可停止，worker 不啟動刷新", async () => {
+    const h = await apiHarness("cycle-all-sold-out");
+    try {
+        await launch(h);
+        await login(h);
+        const waiting = await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-to-refresh"),
+            ),
+        );
+        assert.equal((await h.request("/api/purchase/stop", { runId: waiting.id })).status, 200);
+        const finished = await h.until(run => run?.status === "failed");
+        assert.match(finished.message, /已依要求停止/);
+        assert.equal(finished.browserOpen, true);
+        assert.equal(finished.occupied, true);
+        const report = await h.counts();
+        assert.equal(report.counts.submit, 0);
+        assert.equal(report.counts.other, 0);
+        assert.equal((await h.request("/api/purchase/close-browser", { runId: waiting.id })).status, 200);
+        await h.until(run => !run?.occupied);
+    } finally {
+        await h.dispose();
+    }
+});

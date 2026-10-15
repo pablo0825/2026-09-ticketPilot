@@ -23,6 +23,7 @@ export async function runTicketPlusWorker(
 ): Promise<TicketPlusWorkerResult> {
     // 提交標記先於通知保存；外圍錯誤不能把已嘗試提交改成未提交。
     let progress = emptySubmissionProgress();
+    let submissionAttempts = 0;
     try {
         const result = await runTicketPlus(activity, {
             lease,
@@ -38,7 +39,12 @@ export async function runTicketPlusWorker(
                     signal,
                 ),
             onEvent: event => {
+                if (event.type === "attempt-reset") {
+                    progress = emptySubmissionProgress();
+                    submissionAttempts = event.submissionAttempts;
+                }
                 if (event.type === "submission") {
+                    if (event.progress.submitAttempted && !progress.submitAttempted) submissionAttempts++;
                     progress = { ...event.progress };
                     if (progress.submitAttempted) onSubmitAttempt();
                 }
@@ -62,7 +68,7 @@ export async function runTicketPlusWorker(
             message: ticketPlusResultMessage(result),
         };
     } catch (error) {
-        const result = stoppedSubmissionResult(error, progress);
+        const result = { ...stoppedSubmissionResult(error, progress), submissionAttempts };
         return {
             outcome: result.outcome === "unknown" ? "unknown" : "failed",
             message: ticketPlusResultMessage(result),
