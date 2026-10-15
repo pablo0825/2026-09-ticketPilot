@@ -1,13 +1,15 @@
 import type { TicketPlusActivitySettings } from "../../../../config/ticketPlusActivity.js";
+import type { ReactNode } from "react";
 
 interface Props {
     settings?: TicketPlusActivitySettings;
     reason: string;
     disabled: boolean;
     onStart: () => void;
+    children?: ReactNode;
 }
 
-export function PurchaseSummary({ settings, reason, disabled, onStart }: Props) {
+export function PurchaseSummary({ settings, reason, disabled, onStart, children }: Props) {
     return (
         <section className="card" aria-label="購票前確認">
             <h2>購票前確認</h2>
@@ -38,6 +40,7 @@ export function PurchaseSummary({ settings, reason, disabled, onStart }: Props) 
                     )}
                 </>
             )}
+            {children}
             <p>流程終點：填寫資料頁。後續資料、條款與付款由你手動處理。</p>
             {reason && <p role="status">{reason}</p>}
             <button type="button" disabled={disabled || Boolean(reason)} onClick={onStart}>

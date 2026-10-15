@@ -8,10 +8,19 @@ import { RunStatus } from "../../shared/runs/RunStatus.js";
 import { ActivityList } from "./ActivityList.js";
 import type { ActivityListEntry } from "./ActivityList.js";
 import { ActivityEditor } from "./ActivityEditor.js";
-import { activityForm, activityInput, draftFingerprint, ticketPlusRecord } from "./formModel.js";
-import type { TicketPlusActivityRecord } from "./formModel.js";
+import {
+    activityForm,
+    activityInput,
+    draftFingerprint,
+    ticketPlusRecord,
+    scheduleForm,
+    scheduleFingerprint,
+    scheduleInput,
+} from "./formModel.js";
+import type { TicketPlusActivityRecord, ScheduleForm } from "./formModel.js";
 import { ticketPlusSessionSelection } from "../../../../config/ticketPlusActivity.js";
 import { PurchaseSummary } from "./PurchaseSummary.js";
+import { ScheduleEditor } from "./ScheduleEditor.js";
 import { findPendingStart, hasPendingStart, startPurchase } from "./startPurchase.js";
 
 interface Props {
@@ -39,6 +48,8 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
     const [record, setRecord] = useState<TicketPlusActivityRecord | null>(null);
     const [form, setForm] = useState(activityForm);
     const [baseline, setBaseline] = useState(() => draftFingerprint(form));
+    const [schedule, setSchedule] = useState(scheduleForm);
+    const [scheduleBaseline, setScheduleBaseline] = useState(() => scheduleFingerprint(schedule));
     const [editing, setEditing] = useState(false);
     const [step, setStep] = useState<Step>("activity");
     const [startedRunId, setStartedRunId] = useState<string | null>(null);
@@ -90,7 +101,9 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
     const occupied = runs.purchase?.occupied === true || runs.simulation?.status === "running";
     const locked = busy || runs.closing;
     const blocked = locked || !initialized || !runs.ready || occupied;
-    const dirty = editing && draftFingerprint(form) !== baseline;
+    const activityDirty = editing && draftFingerprint(form) !== baseline;
+    const scheduleDirty = editing && scheduleFingerprint(schedule) !== scheduleBaseline;
+    const dirty = activityDirty || scheduleDirty;
     let startReason = !record ? "請先儲存活動設定。" : dirty ? "有尚未儲存的修改，請先儲存再開始。" : "";
     if (record && !startReason) {
         try {
@@ -148,6 +161,9 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
         setRecord(next);
         setForm(nextForm);
         setBaseline(draftFingerprint(nextForm));
+        const nextSchedule = scheduleForm(next?.settings);
+        setSchedule(nextSchedule);
+        setScheduleBaseline(scheduleFingerprint(nextSchedule));
         setEditing(true);
         setStep("activity");
         setStartedRunId(null);
@@ -171,9 +187,23 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
         );
         const next = ticketPlusRecord(response, record?.id);
         if (!active.current) return;
+        await acceptSaved(next, scheduleDirty ? schedule : undefined);
+    }
 
+    async function saveSchedule() {
+        // 開始設定只修改已保存的活動；不代存或丟棄第一步的草稿。
+        if (blocked || hasPendingStart() || activityDirty || !record) return;
+        const settings = scheduleInput(schedule, record.settings);
+        const response = await api<unknown>("/api/activities/" + record.id, "PUT", settings, record.updatedAt);
+        const next = ticketPlusRecord(response, record.id);
+        if (!active.current) return;
+        await acceptSaved(next);
+    }
+
+    async function acceptSaved(next: TicketPlusActivityRecord, retainedSchedule?: ScheduleForm) {
         // 保存成功先接受 ID 與新版本；後續列表失敗不能造成第二次新增。
         openRecord(next);
+        if (retainedSchedule) setSchedule(retainedSchedule);
         setActivities(previous => [
             { ...next, executionStatus: "待重新載入" },
             ...previous.filter(item => item.id !== next.id),
@@ -276,7 +306,16 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                             reason={startReason}
                             disabled={blocked}
                             onStart={() => void action(start)}
-                        />
+                        >
+                            <ScheduleEditor
+                                form={schedule}
+                                disabled={blocked || pendingStart}
+                                saveDisabled={!record || activityDirty || !scheduleDirty}
+                                activityDirty={activityDirty}
+                                onChange={setSchedule}
+                                onSave={() => void action(saveSchedule)}
+                            />
+                        </PurchaseSummary>
                     )}
                     {step === "status" &&
                         (displayedRun ? (

@@ -17,6 +17,45 @@ export interface ActivityForm {
     maxRunMinutes: string;
 }
 
+export interface ScheduleForm {
+    mode: "now" | "scheduled";
+    saleAt: string;
+    advanceSeconds?: 1 | 2;
+}
+
+export function scheduleForm(settings?: TicketPlusActivitySettings): ScheduleForm {
+    const schedule = settings?.saleSchedule;
+    return {
+        mode: schedule ? "scheduled" : "now",
+        saleAt: schedule?.saleAt.slice(0, 19) ?? "",
+        ...(schedule?.advanceSeconds !== undefined ? { advanceSeconds: schedule.advanceSeconds } : {}),
+    };
+}
+
+function withSeconds(value: string): string {
+    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) ? value + ":00" : value;
+}
+
+export function scheduleFingerprint(form: ScheduleForm): string {
+    return JSON.stringify({ mode: form.mode, saleAt: withSeconds(form.saleAt), advanceSeconds: form.advanceSeconds });
+}
+
+// 時間輸入固定視為台灣時間，不經過瀏覽器所在時區轉換。
+export function scheduleInput(form: ScheduleForm, saved: TicketPlusActivitySettings): TicketPlusActivitySettings {
+    const { saleSchedule: _previous, ...activity } = saved;
+    return parseTicketPlusActivity({
+        ...activity,
+        ...(form.mode === "scheduled"
+            ? {
+                  saleSchedule: {
+                      saleAt: withSeconds(form.saleAt) + "+08:00",
+                      ...(form.advanceSeconds !== undefined ? { advanceSeconds: form.advanceSeconds } : {}),
+                  },
+              }
+            : {}),
+    });
+}
+
 export function emptyTarget(): TargetDraft {
     return { key: crypto.randomUUID(), date: "", time: "", ticketType: "", quantity: "1" };
 }

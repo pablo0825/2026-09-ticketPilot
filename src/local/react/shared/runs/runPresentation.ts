@@ -36,7 +36,17 @@ export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, n
                     : "目前沒有可操作的登入確認資格，請查看後續狀態；不會自動確認或重送。";
             } else if (stage === "waiting-for-sale") {
                 title = "等待開賣";
-                instruction = `等待指定開賣時間${run.saleAt ? `：${run.saleAt}` : ""}；到時間後開始選場次，不刷新頁面。已過時間則立即繼續。`;
+                const saleAt = Date.parse(run.saleAt ?? "");
+                if (Number.isFinite(saleAt)) {
+                    const seconds = Math.max(0, Math.ceil((saleAt - now) / 1000));
+                    instruction =
+                        `開賣時間：${new Date(saleAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })}（台灣時間）。` +
+                        (seconds > 0
+                            ? `距開賣 ${seconds} 秒；到時間後開始選場次，不刷新頁面。`
+                            : "已到設定時間，等待購票程序更新進度；不會由此畫面重新啟動。");
+                } else {
+                    instruction = "等待指定開賣時間；到時間後開始選場次，不刷新頁面。";
+                }
             } else if (stage === "queue") {
                 title = "排隊中";
                 instruction = "等待 TicketPlus 處理，請保留購票頁面；程式不會刷新或重送。";
