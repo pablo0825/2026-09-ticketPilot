@@ -24,7 +24,7 @@ export function ActivityList({ activities, disabled, mutationsDisabled, onNew, o
                 <table>
                     <thead>
                         <tr>
-                            {["活動名稱", "演出日期", "演出時間", "執行狀態", "操作"].map(label => (
+                            {["活動名稱", "執行狀態", "操作"].map(label => (
                                 <th key={label} scope="col">
                                     {label}
                                 </th>
@@ -32,39 +32,30 @@ export function ActivityList({ activities, disabled, mutationsDisabled, onNew, o
                         </tr>
                     </thead>
                     <tbody id="activities">
-                        {activities.map(item => {
-                            const sessions = new Set(
-                                item.settings.targets.map(target => `${target.date} ${target.time}`),
-                            );
-                            return (
-                                <tr key={item.id}>
-                                    <td>{item.settings.eventName}</td>
-                                    <td>{sessions.size === 1 ? item.settings.targets[0]!.date : "多個場次"}</td>
-                                    <td>{sessions.size === 1 ? item.settings.targets[0]!.time : "多個場次"}</td>
-                                    <td
-                                        title={
-                                            item.executionStatus === "已執行"
-                                                ? "已執行不代表購票或付款成功。"
-                                                : undefined
-                                        }
+                        {activities.map(item => (
+                            <tr key={item.id}>
+                                <td>{item.settings.eventName}</td>
+                                <td
+                                    title={
+                                        item.executionStatus === "已執行" ? "已執行不代表購票或付款成功。" : undefined
+                                    }
+                                >
+                                    {item.executionStatus || "尚無執行紀錄"}
+                                </td>
+                                <td>
+                                    <button disabled={disabled} onClick={() => onLoad(item.id)}>
+                                        編輯活動
+                                    </button>
+                                    <button
+                                        className="secondary"
+                                        disabled={disabled || mutationsDisabled}
+                                        onClick={() => onRemove(item)}
                                     >
-                                        {item.executionStatus || "尚無執行紀錄"}
-                                    </td>
-                                    <td>
-                                        <button disabled={disabled} onClick={() => onLoad(item.id)}>
-                                            編輯活動
-                                        </button>
-                                        <button
-                                            className="secondary"
-                                            disabled={disabled || mutationsDisabled}
-                                            onClick={() => onRemove(item)}
-                                        >
-                                            刪除
-                                        </button>
-                                    </td>
-                                </tr>
-                            );
-                        })}
+                                        刪除
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
                     </tbody>
                 </table>
             </div>
