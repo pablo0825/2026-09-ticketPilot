@@ -32,6 +32,10 @@ export type TicketPlusPage =
 export interface TicketPlusPageDiagnostic {
     pageKind: TicketPlusPage["kind"];
     unknownReason?: UnknownPage["reason"];
+    activityTransition?: ActivityTransitionDiagnostic & {
+        headingCount: number;
+        rows: { names: number; dates: number; times: number; buttons: number; knownButtonText: boolean }[];
+    };
     markers?: {
         activityRows: number;
         ticketRows: number;
@@ -56,10 +60,28 @@ export interface ActivityTransitionTarget {
     time: string;
 }
 
-function isActivityTransition(dom: TicketPlusDom, eventId: string, target: ActivityTransitionTarget): boolean {
+interface ActivityTransitionDiagnostic {
+    result:
+        | "verified"
+        | "not-order-route"
+        | "event-id-mismatch"
+        | "mixed-markers"
+        | "activity-unreadable"
+        | "event-name-mismatch"
+        | "target-session-missing"
+        | "target-session-ambiguous"
+        | "session-name-mismatch";
+    activityReadReason?: UnknownPage["reason"];
+}
+
+function inspectActivityTransition(
+    dom: TicketPlusDom,
+    eventId: string,
+    target: ActivityTransitionTarget,
+): ActivityTransitionDiagnostic {
     // 只有活動列殘留可以等待，其他流程標記或任何彈窗都不能放行。
+    if (eventId !== target.eventId) return { result: "event-id-mismatch" };
     if (
-        eventId !== target.eventId ||
         dom.dialogs.length ||
         dom.queueCount ||
         dom.tickets.length ||
@@ -69,14 +91,17 @@ function isActivityTransition(dom: TicketPlusDom, eventId: string, target: Activ
         dom.checkoutStepCount ||
         dom.checkout.length
     ) {
-        return false;
+        return { result: "mixed-markers" };
     }
 
     // 以同份快照核對活動及唯一目標場次，不依殘留列數猜測身分。
     const activity = parseActivityPage(dom, eventId);
-    if (activity.kind !== "activity" || activity.eventName !== target.eventName) return false;
+    if (activity.kind !== "activity") return { result: "activity-unreadable", activityReadReason: activity.reason };
+    if (activity.eventName !== target.eventName) return { result: "event-name-mismatch" };
     const matches = activity.sessions.filter(session => session.date === target.date && session.time === target.time);
-    return matches.length === 1 && matches[0]!.name === target.sessionName;
+    if (matches.length === 0) return { result: "target-session-missing" };
+    if (matches.length !== 1) return { result: "target-session-ambiguous" };
+    return { result: matches[0]!.name === target.sessionName ? "verified" : "session-name-mismatch" };
 }
 
 function classifyPage(dom: TicketPlusDom, transitionTarget?: ActivityTransitionTarget): TicketPlusPage {
@@ -131,7 +156,7 @@ function classifyPage(dom: TicketPlusDom, transitionTarget?: ActivityTransitionT
         if (
             order![1] === "order" &&
             transitionTarget &&
-            isActivityTransition(dom, identity.eventId, transitionTarget)
+            inspectActivityTransition(dom, identity.eventId, transitionTarget).result === "verified"
         ) {
             return unknownPage("activity-transition");
         }
@@ -181,6 +206,23 @@ export async function readTicketPlusPage(
     if (onDiagnostic) {
         const diagnostic: TicketPlusPageDiagnostic = { pageKind: result.kind };
         if (result.kind === "unknown") diagnostic.unknownReason = result.reason;
+        if (snapshot && transitionTarget && snapshot.activity.length) {
+            const order = /^\/order\/([A-Za-z0-9_-]+)\/[A-Za-z0-9_-]+\/?$/.exec(snapshot.pathname);
+            diagnostic.activityTransition = {
+                ...(order
+                    ? inspectActivityTransition(snapshot, order[1]!, transitionTarget)
+                    : { result: "not-order-route" as const }),
+                headingCount: snapshot.activityNames.length,
+                rows: snapshot.activity.map(row => ({
+                    names: row.names.length,
+                    dates: row.dates.length,
+                    times: row.times.length,
+                    buttons: row.saleButtons.length,
+                    knownButtonText:
+                        row.saleButtons.length === 1 && ["立即購買", "尚未開賣"].includes(row.saleButtons[0]!.text),
+                })),
+            };
+        }
         if (snapshot) {
             diagnostic.markers = {
                 activityRows: snapshot.activity.length,

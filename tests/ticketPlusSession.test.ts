@@ -630,3 +630,42 @@ test("TicketPlus 入場過渡：等待可停止，完成後仍核對選票場次
         );
     }
 });
+
+test("TicketPlus 過渡診斷：指出驗證失敗條件，不放寬停止規則或輸出頁面文字", { timeout: 30_000 }, async () => {
+    const cases = [
+        { html: rowB, result: "activity-unreadable", readReason: "incomplete-data", headings: 0 },
+        {
+            html: heading + rowB.replace("立即購買", "PRIVATE_LOADING_TEXT"),
+            result: "activity-unreadable",
+            readReason: "incomplete-data",
+            knownButton: false,
+        },
+        { html: activity.replace(`<h1>${eventName}</h1>`, "<h1>PRIVATE_EVENT</h1>"), result: "event-name-mismatch" },
+        { html: heading + rowA, result: "target-session-missing" },
+        { html: activity + rowB, result: "target-session-ambiguous" },
+        { html: activity.replace("晚場 [B] (特別)", "PRIVATE_SESSION"), result: "session-name-mismatch" },
+        { html: activity + '<div class="stepText checkedStep">付款結帳</div>', result: "mixed-markers" },
+    ];
+    for (const item of cases) {
+        await withPage(
+            async page => {
+                await assert.rejects(selectTicketPlusSession(page, settings, options), error => {
+                    assert(error instanceof TicketPlusSessionError);
+                    assert.equal(error.reason, "unexpected-page");
+                    assert.equal(error.diagnostic?.check, "page-state");
+                    if (error.diagnostic?.check !== "page-state") return false;
+                    const diagnostic = error.diagnostic.snapshot.activityTransition;
+                    assert.equal(diagnostic?.result, item.result);
+                    assert.equal(diagnostic?.activityReadReason, item.readReason);
+                    if (item.headings !== undefined) assert.equal(diagnostic?.headingCount, item.headings);
+                    if (item.knownButton !== undefined)
+                        assert.equal(diagnostic?.rows[0]?.knownButtonText, item.knownButton);
+                    assert.doesNotMatch(JSON.stringify(error.diagnostic), /PRIVATE_|孿生|event-fixture|晚場/);
+                    return true;
+                });
+                assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+            },
+            { orderB: item.html },
+        );
+    }
+});
