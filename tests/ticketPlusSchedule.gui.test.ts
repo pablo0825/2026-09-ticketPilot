@@ -470,6 +470,7 @@ test("TicketPlus 開賣欄位：寬畫面並排、窄畫面堆疊，移除策略
         const wideAdvance = await advance.boundingBox();
         assert(wideTime && wideAdvance);
         assert(Math.abs(wideTime.y - wideAdvance.y) < 2);
+        assert(Math.abs(wideTime.height - wideAdvance.height) < 1);
         assert(wideTime.x + wideTime.width < wideAdvance.x);
         assert(wideTime.width > wideAdvance.width * 1.5);
 
@@ -477,6 +478,7 @@ test("TicketPlus 開賣欄位：寬畫面並排、窄畫面堆疊，移除策略
         const narrowTime = await time.boundingBox();
         const narrowAdvance = await advance.boundingBox();
         assert(narrowTime && narrowAdvance);
+        assert(Math.abs(narrowTime.height - narrowAdvance.height) < 1);
         assert(narrowAdvance.y > narrowTime.y + narrowTime.height);
         assert(Math.abs(narrowTime.x - narrowAdvance.x) < 2);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);

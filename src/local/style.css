@@ -134,6 +134,11 @@ footer {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     column-gap: 16px;
 }
+.ticketplus-sale-fields input,
+.ticketplus-sale-fields select {
+    height: 2.8rem;
+    line-height: 1.4;
+}
 .ticketplus-target-title {
     margin-top: 0;
 }
