@@ -1,3 +1,4 @@
+import { ticketPlusEventMessage } from "../src/app/ticketPlusPresentation.js";
 import { loggedInHome, loggedOutHome } from "./fixtures/ticketplus/loginPage.js";
 import { ticketPlusResultMessage } from "../src/cli/ticketPlus.js";
 import assert from "node:assert/strict";
@@ -547,5 +548,73 @@ test("TicketPlus runner：前往活動前取消不導航，活動登入失效不
             await browser.close();
             await rm(directory, { recursive: true, force: true });
         }
+    }
+});
+
+test("登入診斷：同狀態不洗版，欄位變化與人工停止保留最後快照且零購票", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-login-diagnostic-"));
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    const requests = await setup(context, false);
+    await context.route("https://ticketplus.com.tw/", route =>
+        route.fulfill({ contentType: "text/html; charset=utf-8", body: loggedOutHome }),
+    );
+    const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+    const controller = new AbortController();
+    const events: import("../src/app/runTicketPlus.js").TicketPlusRunEvent[] = [];
+    let firstSeen = () => {};
+    let changedSeen = () => {};
+    const first = new Promise<void>(resolve => {
+        firstSeen = resolve;
+    });
+    const changed = new Promise<void>(resolve => {
+        changedSeen = resolve;
+    });
+    try {
+        const pending = runTicketPlus(settings, {
+            lease: acquirePurchaseLease(directory),
+            signal: controller.signal,
+            onEvent: event => {
+                events.push(structuredClone(event));
+                if (event.type !== "login-observation") return;
+                if (event.summary.lastObservation?.markers.dialogs === 1) changedSeen();
+                else firstSeen();
+                // 外部通知即使修改收到的副本，也不能讓正式辨識通過。
+                if (event.summary.lastObservation) event.summary.lastObservation.state = "logged-in";
+            },
+        });
+        await first;
+        await new Promise(resolve => setTimeout(resolve, 600));
+        assert.equal(events.filter(event => event.type === "login-observation").length, 1);
+        assert.equal(requests.length, 0);
+        const page = context.pages()[0]!;
+        await page.evaluate(() =>
+            document.body.insertAdjacentHTML(
+                "beforeend",
+                '<div role="dialog">PRIVATE_DIALOG<input value="PRIVATE_PASSWORD"></div>',
+            ),
+        );
+        await changed;
+        controller.abort();
+        const result = await pending;
+        assert.equal(result.stopReason, "user-stop");
+        assert.equal(result.progress.submitAttempted, false);
+        assert.equal(result.loginDiagnostic?.lastObservation?.markers.dialogs, 1);
+        assert.equal(result.loginDiagnostic?.lastObservation?.routeKind, "home");
+        assert((result.loginDiagnostic?.observations ?? 0) >= 3);
+        assert((result.loginDiagnostic?.elapsedMs ?? 0) >= 600);
+        assert.equal(events.filter(event => event.type === "login-stopped").length, 1);
+        assert.equal(requests.length, 0);
+        assert.equal(await page.evaluate(() => sessionStorage.getItem("counts")), null);
+        assert.match(ticketPlusResultMessage(result), /已依要求停止.*登入停止診斷/);
+        const logs = events.map(ticketPlusEventMessage).filter(Boolean).join("\n");
+        assert.match(logs, /登入狀態觀測變化/);
+        assert.match(logs, /登入等待停止/);
+        assert.doesNotMatch(JSON.stringify({ events, result, logs }), /PRIVATE_DIALOG|PRIVATE_PASSWORD|0987/);
+    } finally {
+        controller.abort();
+        launch.mock.restore();
+        await browser.close();
+        await rm(directory, { recursive: true, force: true });
     }
 });

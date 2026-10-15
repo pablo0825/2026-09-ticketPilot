@@ -55,7 +55,8 @@ export function ticketPlusSessionMessage(failure: {
 }
 
 export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
-    const message = resultMessage(result);
+    const base = resultMessage(result);
+    const message = result.loginDiagnostic ? `${base} 登入停止診斷：${JSON.stringify(result.loginDiagnostic)}` : base;
     if (!result.progress.submitAttempted || result.outcome === "information-ready" || !("reason" in result))
         return message;
     const diagnostic = "diagnostic" in result ? result.diagnostic : undefined;
@@ -109,7 +110,7 @@ function resultMessage(result: TicketPlusRunResult): string {
         return `${action}，${detail}。${prior}不補按、不開始新一輪選票，請人工檢查。`;
     }
     if ("loginFailure" in result && result.loginFailure)
-        return `登入核對停止（${result.loginFailure.reason}）；尚未選票或提交。診斷：${JSON.stringify(result.loginFailure.summary)}`;
+        return `登入核對停止（${result.loginFailure.reason}）；尚未選票或提交。${result.loginDiagnostic ? "" : `診斷：${JSON.stringify(result.loginFailure.summary)}`}`;
     if ("sessionFailure" in result && result.sessionFailure) return ticketPlusSessionMessage(result.sessionFailure);
     if ("priorityFailure" in result && result.priorityFailure) {
         const detail =
@@ -125,6 +126,10 @@ function resultMessage(result: TicketPlusRunResult): string {
     return `流程已停止（${result.reason}）。${prior}請檢查購票瀏覽器；不會自動重跑。`;
 }
 export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | undefined {
+    if (event.type === "login-observation" || event.type === "login-stopped") {
+        const label = event.type === "login-observation" ? "登入狀態觀測變化" : "登入等待停止";
+        return `${label}：${JSON.stringify(event.summary)}`;
+    }
     if (event.type === "login-wait") return `登入核對等待：${event.elapsedMs} 毫秒，共觀測 ${event.observations} 次。`;
     if (event.type === "activity-wait")
         return `活動頁核對等待：${event.elapsedMs} 毫秒，共觀測 ${event.observations} 次。`;

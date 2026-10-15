@@ -277,3 +277,129 @@ test("登入等待：遮罩阻擋選單後不留下待點擊工作，取消後�
         assert.equal(await page.evaluate(() => (window as any).menuClicks ?? 0), 0);
     });
 });
+
+test("登入停止診斷：取消前無觀測、讀取懸掛及通知失敗均保留原停止原因", async () => {
+    await fixture(header("<div>會員登入</div>"), async page => {
+        const pre = new AbortController();
+        pre.abort();
+        let empty: import("../src/platforms/ticketplus/loginWait.js").TicketPlusLoginSummary | undefined;
+        await assert.rejects(
+            waitForTicketPlusLogin(page, {
+                signal: pre.signal,
+                onStopped: summary => {
+                    empty = summary;
+                    throw new Error("PRIVATE_NOTIFICATION");
+                },
+            }),
+            TicketPlusStopError,
+        );
+        assert.equal(empty?.observations, 0);
+        assert.equal(empty?.lastObservation, undefined);
+
+        const original = page.evaluate.bind(page);
+        let release = () => {};
+        const gate = new Promise<void>(resolve => {
+            release = resolve;
+        });
+        let reads = 0;
+        let stopNotifications = 0;
+        let finished = () => {};
+        const lateRead = new Promise<void>(resolve => {
+            finished = resolve;
+        });
+        page.evaluate = (async (...args: any[]) => {
+            reads++;
+            await gate;
+            try {
+                return await (original as any)(...args);
+            } finally {
+                finished();
+            }
+        }) as typeof page.evaluate;
+        let stopped: import("../src/platforms/ticketplus/loginWait.js").TicketPlusLoginSummary | undefined;
+        try {
+            await assert.rejects(
+                waitForTicketPlusLogin(page, {
+                    readTimeoutMs: 40,
+                    onStopped: async summary => {
+                        stopNotifications++;
+                        stopped = summary;
+                        throw new Error("PRIVATE_NOTIFICATION");
+                    },
+                }),
+                (error: unknown) => error instanceof TicketPlusLoginError && error.reason === "read-timeout",
+            );
+            assert.equal(reads, 1);
+            assert.equal(stopped?.observations, 0);
+            assert.equal(stopped?.lastObservation, undefined);
+            const saved = JSON.stringify(stopped);
+            release();
+            await lateRead;
+            assert.equal(stopNotifications, 1);
+            assert.equal(JSON.stringify(stopped), saved);
+        } finally {
+            release();
+            page.evaluate = original;
+        }
+    });
+});
+
+test("登入停止診斷：第二次讀取中取消保留前次快照，晚到結果不改摘要", async () => {
+    await fixture(header("<div>會員登入</div>"), async page => {
+        const original = page.evaluate.bind(page);
+        const controller = new AbortController();
+        let release = () => {};
+        let entered = () => {};
+        let finished = () => {};
+        const gate = new Promise<void>(resolve => {
+            release = resolve;
+        });
+        const reading = new Promise<void>(resolve => {
+            entered = resolve;
+        });
+        const lateRead = new Promise<void>(resolve => {
+            finished = resolve;
+        });
+        let reads = 0;
+        let notifications = 0;
+        let stopped: import("../src/platforms/ticketplus/loginWait.js").TicketPlusLoginSummary | undefined;
+        page.evaluate = (async (...args: any[]) => {
+            reads++;
+            if (reads === 1) return (original as any)(...args);
+            entered();
+            await gate;
+            try {
+                return await (original as any)(...args);
+            } finally {
+                finished();
+            }
+        }) as typeof page.evaluate;
+        try {
+            const waiting = waitForTicketPlusLogin(page, {
+                signal: controller.signal,
+                pollIntervalMs: 10,
+                onStopped: summary => {
+                    notifications++;
+                    stopped = summary;
+                },
+            });
+            const rejected = assert.rejects(waiting, TicketPlusStopError);
+            await reading;
+            controller.abort();
+            await rejected;
+            assert.equal(stopped?.observations, 1);
+            assert.equal(stopped?.lastObservation?.state, "logged-out");
+            const saved = JSON.stringify(stopped);
+            await page.setContent(header(member));
+            release();
+            await lateRead;
+            assert.equal(reads, 2);
+            assert.equal(notifications, 1);
+            assert.equal(JSON.stringify(stopped), saved);
+        } finally {
+            release();
+            controller.abort();
+            page.evaluate = original;
+        }
+    });
+});

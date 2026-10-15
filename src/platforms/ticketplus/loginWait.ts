@@ -31,6 +31,7 @@ export interface TicketPlusLoginOptions {
     signal?: AbortSignal;
     onObservation?: (observation: TicketPlusLoginObservation, summary: TicketPlusLoginSummary) => void;
     onWaiting?: () => void;
+    onStopped?: (summary: TicketPlusLoginSummary) => void | Promise<void>;
     pageTimeoutMs?: number;
     loginTimeoutMs?: number;
     readTimeoutMs?: number;
@@ -243,6 +244,14 @@ export async function waitForTicketPlusLogin(
             }
             await pause();
         }
+    } catch (error) {
+        // 停止診斷只保存已有觀測，不重讀頁面，也不能改變原本的停止原因。
+        try {
+            void Promise.resolve(options.onStopped?.(structuredClone(summary()))).catch(() => {});
+        } catch {
+            /* 診斷通知失敗不影響流程。 */
+        }
+        throw error;
     } finally {
         page.off("crash", onCrash);
     }

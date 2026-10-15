@@ -48,11 +48,13 @@ export type TicketPlusStage =
     | TicketPlusCycleStage;
 export type TicketPlusRunEvent =
     | { type: "stage"; stage: TicketPlusStage }
+    | { type: "login-observation"; summary: TicketPlusLoginSummary }
+    | { type: "login-stopped"; summary: TicketPlusLoginSummary }
     | { type: "login-wait"; elapsedMs: number; observations: number }
     | { type: "activity-wait"; elapsedMs: number; observations: number }
     | TicketPlusCycleEvent
     | { type: "lease-release-failed" };
-export type TicketPlusRunResult =
+export type TicketPlusRunResult = (
     | TicketPlusSubmissionResult
     | TicketPlusCycleResult
     | {
@@ -69,7 +71,8 @@ export type TicketPlusRunResult =
           saleFailure?: TicketPlusSaleReason;
           stopReason?: TicketPlusStopReason;
           sessionFailure?: { reason: SessionEntryReason; stage: SessionEntryStage; diagnostic?: SessionDiagnostic };
-      };
+      }
+) & { loginDiagnostic?: TicketPlusLoginSummary };
 export interface TicketPlusRunOptions {
     signal?: AbortSignal;
     deadlineNow?: () => number;
@@ -112,6 +115,8 @@ export async function runTicketPlus(
     let released = false;
     let stage: TicketPlusStage = "starting";
     let progress = emptySubmissionProgress();
+    let loginDiagnostic: TicketPlusLoginSummary | undefined;
+    let lastLoginFingerprint: string | undefined;
 
     // 流程與瀏覽器皆結束才釋放；失敗也不自動關閉供人工檢查的畫面。
     const release = () => {
@@ -162,6 +167,16 @@ export async function runTicketPlus(
             deadline: activity.saleSchedule ? Date.parse(activity.saleSchedule.saleAt) + 120_000 : undefined,
             now: options.saleNow,
             onWaiting: () => report("waiting-for-login"),
+            onObservation: (observation, summary) => {
+                const fingerprint = JSON.stringify(observation);
+                if (fingerprint === lastLoginFingerprint) return;
+                lastLoginFingerprint = fingerprint;
+                notify(options, { type: "login-observation", summary: structuredClone(summary) });
+            },
+            onStopped: summary => {
+                loginDiagnostic = summary;
+                notify(options, { type: "login-stopped", summary: structuredClone(summary) });
+            },
         });
         notify(options, { type: "login-wait", elapsedMs: login.elapsedMs, observations: login.observations });
         control.check();
@@ -225,7 +240,7 @@ export async function runTicketPlus(
         }
         if (stopError) {
             const result = stoppedSubmissionResult(stopError, progress);
-            return result;
+            return { ...result, ...(loginDiagnostic ? { loginDiagnostic } : {}) };
         }
         if (progress.submitAttempted || progress.failure) return stoppedSubmissionResult(error, progress);
         if ((stage as TicketPlusStage) === "selecting-session" && error instanceof TicketPlusSessionError) {
@@ -260,6 +275,7 @@ export async function runTicketPlus(
             outcome: "stopped",
             reason,
             progress: Object.freeze(emptySubmissionProgress()),
+            ...(loginDiagnostic ? { loginDiagnostic } : {}),
             ...(error instanceof TicketPlusLoginError
                 ? { loginFailure: { reason: error.reason, summary: error.summary } }
                 : {}),
