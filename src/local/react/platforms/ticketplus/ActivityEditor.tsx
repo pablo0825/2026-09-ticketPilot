@@ -73,7 +73,7 @@ export function ActivityEditor({ form, saved, disabled, onChange, onSave }: Prop
                     新增順位
                 </button>
             </div>
-            <p>目前購票流程只支援同日期、同時間的多順位；本頁僅管理設定，不會啟動購票。</p>
+            <p>目前購票流程只支援同日期、同時間的多順位；儲存不會啟動購票，請另行核對摘要並開始。</p>
             {sessions.size > 1 && <p role="status">此設定含不同場次，可以儲存，但目前無法啟動購票。</p>}
             <div id="targets">
                 {form.targets.map((target, index) => (

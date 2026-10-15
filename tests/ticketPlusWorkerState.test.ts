@@ -89,8 +89,16 @@ test("TicketPlus 專用交接進度與事件 schema：不套用 Klook 自動登�
         ],
     };
     const presentation = purchaseStatus(snapshot, false, Date.now());
-    assert.equal(presentation.title, "等待人工登入確認");
+    assert.equal(presentation.title, "等待登入交接狀態");
+    assert.match(presentation.instruction, /沒有可操作的登入確認資格/);
     assert.doesNotMatch(presentation.instruction, /完成後會自動繼續/);
+    const available = purchaseStatus(
+        { ...snapshot, loginConfirmation: { confirmationId: "e3098c26-c2dc-4e96-bccc-d581f79f9ce4" } },
+        false,
+        Date.now(),
+    );
+    assert.equal(available.title, "等待人工登入確認");
+    assert.match(available.instruction, /確認交接後才會開始選票/);
     assert.equal(ticketPlusEventSchema.safeParse({ type: "ticketplus", stage: "login-ready" }).success, false);
     assert.equal(
         ticketPlusEventSchema.safeParse({ type: "ticketplus", stage: "queue", privateData: "secret" }).success,

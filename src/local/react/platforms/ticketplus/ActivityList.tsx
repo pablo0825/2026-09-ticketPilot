@@ -5,17 +5,18 @@ export type ActivityListEntry = TicketPlusActivityRecord & { executionStatus: Ac
 interface Props {
     activities: ActivityListEntry[];
     disabled: boolean;
+    mutationsDisabled: boolean;
     onNew: () => void;
     onLoad: (id: string) => void;
     onRemove: (item: ActivityListEntry) => void;
 }
 
-export function ActivityList({ activities, disabled, onNew, onLoad, onRemove }: Props) {
+export function ActivityList({ activities, disabled, mutationsDisabled, onNew, onLoad, onRemove }: Props) {
     return (
         <div className="card">
             <div className="section-title">
                 <h2>活動列表</h2>
-                <button id="new" disabled={disabled} onClick={onNew}>
+                <button id="new" disabled={disabled || mutationsDisabled} onClick={onNew}>
                     新增活動
                 </button>
             </div>
@@ -56,7 +57,7 @@ export function ActivityList({ activities, disabled, onNew, onLoad, onRemove }: 
                                         </button>
                                         <button
                                             className="secondary"
-                                            disabled={disabled}
+                                            disabled={disabled || mutationsDisabled}
                                             onClick={() => onRemove(item)}
                                         >
                                             刪除

@@ -9,6 +9,9 @@ import type { ActivityListEntry } from "./ActivityList.js";
 import { ActivityEditor } from "./ActivityEditor.js";
 import { activityForm, activityInput, draftFingerprint, ticketPlusRecord } from "./formModel.js";
 import type { TicketPlusActivityRecord } from "./formModel.js";
+import { ticketPlusSessionSelection } from "../../../../config/ticketPlusActivity.js";
+import { PurchaseSummary } from "./PurchaseSummary.js";
+import { findPendingStart, hasPendingStart, startPurchase } from "./startPurchase.js";
 
 interface Props {
     message: string;
@@ -16,13 +19,14 @@ interface Props {
     runs: ReturnType<typeof useRunStatus>;
     onExit: () => void;
     onViewRun: () => void;
+    onStarted: () => void;
 }
 interface ActivityListData {
     activities: (ActivityRecord & { executionStatus: ActivityExecutionStatus })[];
     invalidFiles: number;
 }
 
-export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewRun }: Props) {
+export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewRun, onStarted }: Props) {
     const [activities, setActivities] = useState<ActivityListEntry[]>([]);
     const [record, setRecord] = useState<TicketPlusActivityRecord | null>(null);
     const [form, setForm] = useState(activityForm);
@@ -33,6 +37,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
     const busyRef = useRef(false);
     const active = useRef(true);
     const listRequest = useRef(0);
+    const [pendingStart, setPendingStart] = useState(hasPendingStart);
 
     const refreshList = useCallback(async () => {
         const request = ++listRequest.current;
@@ -74,6 +79,14 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
     const locked = busy || runs.closing;
     const blocked = locked || !initialized || !runs.ready || occupied;
     const dirty = editing && draftFingerprint(form) !== baseline;
+    let startReason = !record ? "請先儲存活動設定。" : dirty ? "有尚未儲存的修改，請先儲存再開始。" : "";
+    if (record && !startReason) {
+        try {
+            ticketPlusSessionSelection(record.settings);
+        } catch (error) {
+            startReason = (error as Error).message;
+        }
+    }
     const hasRun = Boolean(
         runs.purchase?.occupied ||
         runs.purchase?.status === "unknown" ||
@@ -93,7 +106,10 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
             if (active.current) setMessage((error as Error).message);
         } finally {
             busyRef.current = false;
-            if (active.current) setBusy(false);
+            if (active.current) {
+                setBusy(false);
+                setPendingStart(hasPendingStart());
+            }
         }
     }
 
@@ -119,7 +135,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
 
     async function save() {
         // 只轉換已確認的 TicketPlus 欄位，版本衝突保留草稿不自動重送。
-        if (blocked) return;
+        if (blocked || hasPendingStart()) return;
         const settings = activityInput(form, record?.settings);
         const response = await api<unknown>(
             "/api/activities" + (record ? "/" + record.id : ""),
@@ -141,7 +157,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
             const invalidFiles = await refreshList();
             if (active.current && invalidFiles !== undefined) {
                 const warning = invalidFiles ? `${invalidFiles} 個設定檔無法載入，未覆寫。` : "";
-                setMessage("活動已儲存。此頁僅管理設定，尚未啟動購票。" + warning);
+                setMessage("活動已儲存，尚未啟動購票。" + warning);
             }
         } catch {
             if (active.current) setMessage("活動已儲存，但列表重新載入失敗；可按重新載入列表再試。");
@@ -149,8 +165,13 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
     }
 
     async function remove(item: ActivityListEntry) {
-        if (blocked || !window.confirm(`刪除「${item.settings.eventName}」的 TicketPlus 活動設定？執行紀錄會保留。`))
+        if (
+            blocked ||
+            hasPendingStart() ||
+            !window.confirm(`刪除「${item.settings.eventName}」的 TicketPlus 活動設定？執行紀錄會保留。`)
+        ) {
             return;
+        }
         await api("/api/activities/" + item.id, "DELETE");
         if (!active.current) return;
         setActivities(previous => previous.filter(value => value.id !== item.id));
@@ -161,6 +182,23 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
         }
     }
 
+    async function start() {
+        if (blocked || startReason || !record) return;
+        const previousId = runs.purchase?.id;
+        const result = await startPurchase(record);
+        if (!active.current) return;
+        runs.showAccepted(result, previousId);
+        onStarted();
+    }
+
+    async function inspectPending() {
+        const previousId = runs.purchase?.id;
+        const result = await findPendingStart();
+        if (!active.current) return;
+        runs.showAccepted(result, previousId);
+        onStarted();
+    }
+
     return (
         <>
             <AppHeader disabled={locked} onHome={() => leave("platforms")} />
@@ -169,6 +207,14 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                 {message}
             </div>
             {occupied && <p role="status">目前有購票瀏覽器占用或模擬正在執行，暫時無法變更活動設定。</p>}
+            {pendingStart && (
+                <div role="status">
+                    <p>有待確認的 TicketPlus 啟動請求。先核對原流程，暫不變更或刪除設定；不會自動重跑。</p>
+                    <button type="button" disabled={locked || !runs.ready} onClick={() => void action(inspectPending)}>
+                        查看待確認的啟動結果
+                    </button>
+                </div>
+            )}
             {editing ? (
                 <>
                     <button id="homeButton" className="secondary" disabled={locked} onClick={() => leave("list")}>
@@ -177,9 +223,15 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                     <ActivityEditor
                         form={form}
                         saved={record?.settings}
-                        disabled={blocked}
+                        disabled={blocked || pendingStart}
                         onChange={setForm}
                         onSave={() => void action(save)}
+                    />
+                    <PurchaseSummary
+                        settings={record?.settings}
+                        reason={startReason}
+                        disabled={blocked}
+                        onStart={() => void action(start)}
                     />
                 </>
             ) : (
@@ -197,8 +249,9 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                     <ActivityList
                         activities={activities}
                         disabled={blocked}
+                        mutationsDisabled={pendingStart}
                         onNew={() => {
-                            if (!blocked) openRecord(null);
+                            if (!blocked && !hasPendingStart()) openRecord(null);
                         }}
                         onLoad={id =>
                             void action(async () => {
