@@ -6,7 +6,13 @@ export interface ActivityPage {
     kind: "activity";
     eventId: string;
     eventName: string;
-    sessions: { name: string; date: string; time: string; buyEnabled: boolean }[];
+    sessions: {
+        name: string;
+        date: string;
+        time: string;
+        buyEnabled: boolean;
+        saleState: "available" | "not-on-sale" | "disabled";
+    }[];
 }
 
 export function parseActivityPage(dom: TicketPlusDom, eventId: string): ActivityPage | UnknownPage {
@@ -18,17 +24,19 @@ export function parseActivityPage(dom: TicketPlusDom, eventId: string): Activity
     // 逐列保存場次與該列按鈕；不推測按鈕沒有提供的場次 ID。
     const sessions: ActivityPage["sessions"] = [];
     for (const row of dom.activity) {
-        if ([row.names, row.dates, row.times, row.buyButtons].some(values => values.length > 1)) {
+        if ([row.names, row.dates, row.times, row.saleButtons].some(values => values.length > 1)) {
             return unknownPage("ambiguous-data");
         }
         const name = single(row.names);
         const date = single(row.dates)?.replace(/\([一二三四五六日]\)$/, "");
         const time = single(row.times);
-        const buyEnabled = single(row.buyButtons);
-        if (!name || !date || !time || buyEnabled === undefined || !validDate(date) || !validTime(time)) {
+        const button = single(row.saleButtons);
+        if (!name || !date || !time || !button || !validDate(date) || !validTime(time)) {
             return unknownPage("incomplete-data");
         }
-        sessions.push({ name, date, time, buyEnabled });
+        if (button.text !== "立即購買" && button.text !== "尚未開賣") return unknownPage("incomplete-data");
+        const saleState = button.text === "尚未開賣" ? "not-on-sale" : button.enabled ? "available" : "disabled";
+        sessions.push({ name, date, time, buyEnabled: saleState === "available", saleState });
     }
     return { kind: "activity", eventId, eventName, sessions };
 }

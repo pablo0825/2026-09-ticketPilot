@@ -8,6 +8,7 @@ const sessionReasons: Record<SessionEntryReason, string> = {
     "activity-mismatch": "頁面活動名稱或活動 ID 與設定不符，請核對 eventName 與 eventUrl",
     "session-missing": "找不到符合日期與時間的場次，請核對 該順位的日期與時間",
     "session-ambiguous": "同日期與時間有多個場次，無法唯一選擇，請人工確認",
+    "not-on-sale": "目標場次尚未開賣，尚未嘗試點擊購票按鈕",
     "session-disabled": "目標場次的立即購買按鈕目前停用，請查看網站狀態；不能僅據此判定尚未開賣或已售完",
     "session-changed": "點擊前場次資料已改變，請重新核對頁面",
     "button-unavailable": "無法唯一定位可用的立即購買按鈕，請檢查頁面是否已變動",

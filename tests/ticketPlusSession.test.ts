@@ -372,3 +372,36 @@ test("TicketPlus 場次：關閉頁面回固定錯誤，不帶出原始 Playwrig
         await rejectsEntry(selectTicketPlusSession(page, settings, options), "before-click", "unexpected-page");
     });
 });
+
+test("TicketPlus 場次：目標尚未開賣不點其他可買場次，其他尚未開賣不阻擋目標", { timeout: 15_000 }, async () => {
+    await withPage(
+        async page => {
+            await rejectsEntry(selectTicketPlusSession(page, settings, options), "before-click", "not-on-sale");
+            assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
+        },
+        { html: heading + rowA + rowB.replace("立即購買", "尚未開賣") },
+    );
+    await withPage(
+        async page => {
+            assert.equal((await selectTicketPlusSession(page, settings, options)).sessionId, "session-B");
+            assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+        },
+        { html: heading + rowA.replace("立即購買", "尚未開賣") + rowB },
+    );
+});
+
+test("TicketPlus 場次：未知或矛盾按鈕與同時段預售重複列皆零點擊", { timeout: 15_000 }, async () => {
+    for (const [html, reason] of [
+        [heading + rowB.replace("立即購買", "未知操作"), "unexpected-page"],
+        [heading + rowB.replace("</button>", "</button><button>尚未開賣</button>"), "unexpected-page"],
+        [activity + rowB.replace("立即購買", "尚未開賣"), "session-ambiguous"],
+    ] as const) {
+        await withPage(
+            async page => {
+                await rejectsEntry(selectTicketPlusSession(page, settings, options), "before-click", reason);
+                assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
+            },
+            { html },
+        );
+    }
+});

@@ -40,7 +40,9 @@ test("TicketPlus 活動：忽略隱藏標題、區分 tab/button，保存各列�
             kind: "activity",
             eventId,
             eventName: event.eventName,
-            sessions: [{ name: event.eventName, date: "2026-10-30", time: "20:00", buyEnabled: true }],
+            sessions: [
+                { name: event.eventName, date: "2026-10-30", time: "20:00", buyEnabled: true, saleState: "available" },
+            ],
         });
         // 人工防禦案例：第二場次不得取用第一列按鈕或日期。
         await page.setContent(
@@ -347,5 +349,49 @@ test("TicketPlus 唯一欄位重複、隱藏父容器與不合法場次皆保守
         assert.equal((await readTicketPlusPage(page)).kind, "unknown");
         await page.setContent(fixture.order + `<div style="display:none">${fixture.order}</div>`);
         assert.equal((await readTicketPlusPage(page)).kind, "ticket-selection");
+    });
+});
+
+test("TicketPlus 活動：尚未開賣即使 enabled 也不標為可買，停用立即購買另分類", async () => {
+    await withPage(async page => {
+        const notOnSale = fixture.session.replace("立即購買", "尚未開賣");
+        await show(page, activityUrl, fixture.activity + notOnSale.replace("20:00", "21:00"));
+        const result = await readTicketPlusPage(page);
+        assert.equal(result.kind, "activity");
+        if (result.kind !== "activity") assert.fail();
+        assert.deepEqual(
+            result.sessions.map(row => [row.time, row.saleState, row.buyEnabled]),
+            [
+                ["20:00", "available", true],
+                ["21:00", "not-on-sale", false],
+            ],
+        );
+        await page.setContent(fixture.activity.replace('type="button"', 'type="button" disabled'));
+        const disabled = await readTicketPlusPage(page);
+        assert.equal(disabled.kind, "activity");
+        if (disabled.kind !== "activity") assert.fail();
+        assert.equal(disabled.sessions[0]?.saleState, "disabled");
+    });
+});
+
+test("TicketPlus 活動：未知、缺少、重複與矛盾的場次按鈕不推論尚未開賣", async () => {
+    await withPage(async page => {
+        const cases = [
+            [fixture.activity.replace("<span>立即購買</span>", "<span>已售完</span>"), "incomplete-data"],
+            [fixture.activity.replace(/<button[^>]*>[\s\S]*?<\/button>/, ""), "incomplete-data"],
+            [fixture.activity.replace("</button>", "</button><button>尚未開賣</button>"), "ambiguous-data"],
+            [fixture.activity.replace("</button>", "</button><button>立即購買</button>"), "ambiguous-data"],
+            [fixture.activity.replace("</button>", "</button><button>未知操作</button>"), "ambiguous-data"],
+        ];
+        for (const [html, reason] of cases) {
+            await show(page, activityUrl, html!);
+            assert.deepEqual(await readTicketPlusPage(page), { kind: "unknown", reason });
+        }
+        await show(
+            page,
+            activityUrl,
+            fixture.activity.replace("</button>", "</button><button hidden>尚未開賣</button>"),
+        );
+        assert.equal((await readTicketPlusPage(page)).kind, "activity");
     });
 });

@@ -17,6 +17,7 @@ export type SessionEntryReason =
     | "session-missing"
     | "session-ambiguous"
     | "session-disabled"
+    | "not-on-sale"
     | "session-changed"
     | "button-unavailable"
     | "click-failed"
@@ -59,6 +60,7 @@ function requireTargetSession(snapshot: TicketPlusPage, settings: TicketPlusSele
 
     // 停用列也參與唯一性檢查，不能先排除它來消除歧義。
     const session = matches[0]!;
+    if (session.saleState === "not-on-sale") throw new TicketPlusSessionError("before-click", "not-on-sale");
     if (!session.buyEnabled) throw new TicketPlusSessionError("before-click", "session-disabled");
     return session;
 }
