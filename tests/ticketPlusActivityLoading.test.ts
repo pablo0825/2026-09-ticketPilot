@@ -77,8 +77,13 @@ async function expectBlocked(page: Page): Promise<void> {
 }
 
 test("活動佔位：獨立延遲回應完成後才點擊，標題空白與先完成皆可等", async () => {
-    for (const title of [emptyHeading, heading]) {
-        await withPage(title + loadingSession, async page => {
+    for (const initial of [
+        emptyHeading + loadingSession,
+        heading + loadingSession,
+        heading + heading + loadingSession,
+        heading + '<div class="sesstion-item"></div>',
+    ]) {
+        await withPage(initial, async page => {
             let release!: () => void;
             let requested!: () => void;
             const gate = new Promise<void>(resolve => {
@@ -135,7 +140,11 @@ test("活動佔位：專用觀測不依賴診斷，嚴格 reader 仍拒絕，不
         const brokenLog = await readTicketPlusActivityObservation(page, target, () => {
             throw new Error("log failed");
         });
-        assert.deepEqual(withoutLog, { page: strict, loading: "loading-placeholder" });
+        assert.deepEqual(withoutLog, {
+            page: strict,
+            loading: "loading-placeholder",
+            readiness: { status: "pending", reason: "activity-not-ready" },
+        });
         assert.deepEqual(brokenLog, withoutLog);
         assert.equal((await readTicketPlusActivityObservation(page, { ...target, eventId: "wrong" })).loading, "none");
         assert.deepEqual(await clicks(page), []);
@@ -165,7 +174,7 @@ test("活動佔位：永久佔位沿用期限，保留固定原因與統計且�
     });
 });
 
-test("活動佔位：缺證據、重複目標及混合內容維持立即停止", async () => {
+test("活動等待：殘缺與重複同名內容只等待到期限，始終零點擊", async () => {
     const cases = [
         heading + loadingSession.replaceAll("Loading...", "真實場次"),
         heading + loadingSession.replace("19:00 ~ 23:59", "PRIVATE_TIME"),
@@ -177,6 +186,28 @@ test("活動佔位：缺證據、重複目標及混合內容維持立即停止",
         heading + loadingSession + loadingSession,
         activity + loadingSession,
         heading + heading + loadingSession,
+    ];
+    for (const html of cases) {
+        await withPage(html, async page => {
+            await assert.rejects(
+                selectTicketPlusSession(page, settings, { ...options, activityReadyTimeoutMs: 250 }),
+                error => {
+                    assert(error instanceof TicketPlusSessionError);
+                    assert.equal(error.stage, "before-click");
+                    assert(["activity-ready-timeout", "read-failed"].includes(error.reason));
+                    if (error.diagnostic?.check !== "page-state") assert.fail();
+                    assert(error.diagnostic.activityWait!.observations > 1);
+                    assert.equal(error.diagnostic.snapshot.readiness?.status, "pending");
+                    return true;
+                },
+            );
+            assert.deepEqual(await clicks(page), []);
+        });
+    }
+});
+
+test("活動等待：錯標題與跨流程內容仍立即停止", async () => {
+    const cases = [
         "<h1>其他活動</h1>" + loadingSession,
         heading + loadingSession + '<div role="dialog">PRIVATE_DIALOG</div>',
         heading + loadingSession + '<label>姓名<input value="PRIVATE_CONTACT"></label>',

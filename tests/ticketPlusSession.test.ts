@@ -145,10 +145,6 @@ test("TicketPlus 場次：活動不符、無目標、停用與重複列皆零點
         { html: heading + rowB.replace('type="button"', 'type="button" disabled'), reason: "session-disabled" },
         { html: activity + rowB, reason: "session-ambiguous" },
         { html: activity + rowB.replace('type="button"', 'type="button" disabled'), reason: "session-ambiguous" },
-        {
-            html: activity.replace("<span>立即購買</span>", "<span>立即購買</span></button><button>立即購買"),
-            reason: "unexpected-page",
-        },
     ];
     for (const item of cases) {
         await withPage(async page => {
@@ -394,13 +390,17 @@ test("TicketPlus 場次：目標尚未開賣不點其他可買場次，其他尚
 
 test("TicketPlus 場次：未知或矛盾按鈕與同時段預售重複列皆零點擊", { timeout: 15_000 }, async () => {
     for (const [html, reason] of [
-        [heading + rowB.replace("立即購買", "未知操作"), "unexpected-page"],
-        [heading + rowB.replace("</button>", "</button><button>尚未開賣</button>"), "unexpected-page"],
+        [heading + rowB.replace("立即購買", "未知操作"), "activity-ready-timeout"],
+        [heading + rowB.replace("</button>", "</button><button>尚未開賣</button>"), "activity-ready-timeout"],
         [activity + rowB.replace("立即購買", "尚未開賣"), "session-ambiguous"],
     ] as const) {
         await withPage(
             async page => {
-                await rejectsEntry(selectTicketPlusSession(page, settings, options), "before-click", reason);
+                await rejectsEntry(
+                    selectTicketPlusSession(page, settings, { ...options, activityReadyTimeoutMs: 300 }),
+                    "before-click",
+                    reason,
+                );
                 assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
             },
             { html },
@@ -740,7 +740,11 @@ test("TicketPlus 重複標題：非目標標題、重複場次與點擊前歧義
     }
     await withPage(
         async page => {
-            await rejectsEntry(selectTicketPlusSession(page, settings, options), "before-click", "unexpected-page");
+            await rejectsEntry(
+                selectTicketPlusSession(page, settings, { ...options, activityReadyTimeoutMs: 300 }),
+                "before-click",
+                "activity-ready-timeout",
+            );
             assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
         },
         { html: activity + `<h1>${eventName}</h1>` },
@@ -917,11 +921,9 @@ test("TicketPlus 活動載入：持續空白有固定期限與診斷，不點擊
     );
 });
 
-test("TicketPlus 活動載入：錯標題、歧義、殘缺場次和跨頁標記不等待", async () => {
+test("TicketPlus 活動載入：錯標題和跨頁標記不等待", async () => {
     for (const html of [
         "<h1>其他活動</h1>",
-        heading + heading,
-        heading + '<div class="sesstion-item"></div>',
         '<div role="dialog">未知提示</div>',
         '<label>姓名<input value="PRIVATE"></label>',
         "<button>下一步</button>",
@@ -1054,45 +1056,54 @@ test("TicketPlus 活動載入：複核退回空白可等待，且不重設初次
     }
 });
 
-test("TicketPlus 點擊前診斷：缺時間仍立即停止，保留欄位與等待統計", async () => {
+test("TicketPlus 點擊前診斷：缺時間等待到期限，保留欄位與等待統計", async () => {
     await withPage(
         async page => {
             let waits = 0;
             class ObservedControl extends TicketPlusRunControl {
-                override async wait(): Promise<void> {
+                override async wait(ms: number): Promise<void> {
                     waits++;
+                    await super.wait(ms);
                 }
             }
-            await assert.rejects(selectTicketPlusSession(page, settings, options, new ObservedControl()), error => {
-                assert(error instanceof TicketPlusSessionError);
-                assert.equal(error.stage, "before-click");
-                assert.equal(error.reason, "unexpected-page");
-                assert.equal(error.diagnostic?.check, "page-state");
-                if (error.diagnostic?.check !== "page-state") return false;
-                const { snapshot, activityWait } = error.diagnostic;
-                assert.equal(snapshot.unknownReason, "incomplete-data");
-                assert.equal(snapshot.emptyActivityLoading, false);
-                assert.deepEqual(snapshot.activityFields, {
-                    headings: { count: 1, nonEmptyCount: 1, matchingCount: 1 },
-                    rows: [
-                        {
-                            names: 1,
-                            nameNonEmpty: true,
-                            dates: 1,
-                            dateValid: true,
-                            times: 0,
-                            timeValid: false,
-                            buttons: 1,
-                            knownButtonText: true,
-                            buttonEnabled: true,
-                        },
-                    ],
-                });
-                assert.equal(activityWait?.observations, 1);
-                assert.doesNotMatch(JSON.stringify(error.diagnostic), /孿生|PRIVATE|https:|event-fixture/);
-                return true;
-            });
-            assert.equal(waits, 0);
+            await assert.rejects(
+                selectTicketPlusSession(
+                    page,
+                    settings,
+                    { ...options, activityReadyTimeoutMs: 300, activityPollIntervalMs: 30 },
+                    new ObservedControl(),
+                ),
+                error => {
+                    assert(error instanceof TicketPlusSessionError);
+                    assert.equal(error.stage, "before-click");
+                    assert(["activity-ready-timeout", "read-failed"].includes(error.reason));
+                    assert.equal(error.diagnostic?.check, "page-state");
+                    if (error.diagnostic?.check !== "page-state") return false;
+                    const { snapshot, activityWait } = error.diagnostic;
+                    assert.equal(snapshot.unknownReason, "incomplete-data");
+                    assert.equal(snapshot.emptyActivityLoading, false);
+                    assert.deepEqual(snapshot.activityFields, {
+                        headings: { count: 1, nonEmptyCount: 1, matchingCount: 1 },
+                        rows: [
+                            {
+                                names: 1,
+                                nameNonEmpty: true,
+                                dates: 1,
+                                dateValid: true,
+                                times: 0,
+                                timeValid: false,
+                                buttons: 1,
+                                knownButtonText: true,
+                                buttonEnabled: true,
+                            },
+                        ],
+                    });
+                    assert(activityWait!.observations > 1);
+                    assert.doesNotMatch(JSON.stringify(error.diagnostic), /孿生|PRIVATE|https:|event-fixture/);
+                    return true;
+                },
+            );
+            assert(waits > 0);
             assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
         },
         { html: heading + rowB.replace("21:00", "PRIVATE_TIME") },

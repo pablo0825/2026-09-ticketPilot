@@ -173,7 +173,7 @@ async function waitForActivitySession(
     control: TicketPlusRunControl,
     onDiagnostic: (diagnostic: TicketPlusPageDiagnostic) => void,
 ): Promise<Session> {
-    // 兩次點擊前核對共用期限，只允許空白或已知載入佔位等待。
+    // 兩次點擊前核對共用期限，等待同活動內容完整。
     while (performance.now() < state.deadline) {
         control.check();
         if (page.isClosed()) throw new TicketPlusSessionError("before-click", "unexpected-page");
@@ -196,9 +196,11 @@ async function waitForActivitySession(
         requireActivityRoute(page, settings);
         if (performance.now() >= state.deadline) break;
 
-        // 完整頁面沿用活動與場次核對，資訊不足不等於可等待。
+        // 先排除阻擋條件，完整頁面仍沿用活動與場次核對。
+        if (observation.readiness.status === "stop") {
+            throw new TicketPlusSessionError("before-click", "unexpected-page");
+        }
         if (observation.page.kind === "activity") return requireTargetSession(observation.page, settings);
-        if (observation.loading === "none") throw new TicketPlusSessionError("before-click", "unexpected-page");
         await control.wait(Math.min(interval, Math.max(0, state.deadline - performance.now())));
     }
     throw new TicketPlusSessionError("before-click", "activity-ready-timeout");

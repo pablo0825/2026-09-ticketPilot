@@ -1,3 +1,5 @@
+import { activityReadiness } from "./pageReadiness.js";
+import type { PageReadiness } from "./pageReadiness.js";
 import type { Page } from "playwright";
 import { inspectActivityLoading } from "./activityLoading.js";
 import type { ActivityLoading, ActivityLoadingTarget } from "./activityLoading.js";
@@ -33,6 +35,7 @@ export type TicketPlusPage =
 
 export interface TicketPlusPageDiagnostic {
     pageKind: TicketPlusPage["kind"];
+    readiness?: PageReadiness;
     routeKind?: "activity" | "order" | "confirm" | "checkout" | "other";
     unknownReason?: UnknownPage["reason"];
     selectionTransition?: SelectionTransitionCheck;
@@ -293,6 +296,7 @@ interface PageObservationOptions {
 export interface ActivityObservation {
     page: TicketPlusPage;
     loading: ActivityLoading;
+    readiness: PageReadiness;
 }
 
 // 既有 reader 保留分類與呼叫介面，不因活動載入證據放寬解析。
@@ -343,7 +347,7 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
         result = unknownPage("read-failed");
     }
 
-    // 載入判斷與分類使用同一份快照，讀取失敗或切頁時不授予等待資格。
+    // 舊載入診斷沿用同份快照；切頁與讀取失敗不標記已知佔位。
     let loading: ActivityLoading = "none";
     if (
         snapshot &&
@@ -355,9 +359,14 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
         loading = inspectActivityLoading(snapshot, activityTarget ?? { eventId, eventName: activityName });
     }
 
+    const readiness: PageReadiness = activityTarget
+        ? activityReadiness(snapshot, result, activityTarget)
+        : { status: "stop", reason: "not-requested" };
+
     // 只保留分類與計數，不帶出網址、頁面文字或個資。
     if (onDiagnostic) {
         const diagnostic: TicketPlusPageDiagnostic = { pageKind: result.kind };
+        if (activityTarget) diagnostic.readiness = readiness;
         if (result.kind === "unknown") diagnostic.unknownReason = result.reason;
         if (snapshot && transitionTarget && snapshot.activity.length) {
             const order = /^\/order\/([A-Za-z0-9_-]+)\/[A-Za-z0-9_-]+\/?$/.exec(snapshot.pathname);
@@ -422,5 +431,5 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
             // 診斷接收失敗不能改變購票判斷。
         }
     }
-    return { page: result, loading };
+    return { page: result, loading, readiness };
 }
