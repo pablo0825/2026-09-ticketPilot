@@ -74,7 +74,7 @@ export function ActivityEditor({ form, saved, disabled, onChange, onSave }: Prop
             <div id="targets">
                 {form.targets.map((target, index) => (
                     <div className="target-row" key={target.key} role="group" aria-label={`順位 ${index + 1}`}>
-                        <h3>順位 {index + 1}</h3>
+                        <h3 className="ticketplus-target-title">順位 {index + 1}</h3>
                         <div className="target-fields">
                             <label>
                                 演出日期

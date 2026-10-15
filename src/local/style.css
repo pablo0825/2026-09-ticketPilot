@@ -129,6 +129,9 @@ footer {
     grid-template-columns: 1.2fr 1fr 1.2fr 0.7fr;
     gap: 10px;
 }
+.ticketplus-target-title {
+    margin-top: 0;
+}
 .target-row label {
     font-size: 13px;
 }
