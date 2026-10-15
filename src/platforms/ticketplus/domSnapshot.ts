@@ -65,6 +65,7 @@ export async function readTicketPlusDom(page: Page) {
             names: all(row, ".font-weight-bold.is-word-break").map(text),
             dates: leafTexts(row).filter(value => /^\d{4}-\d{2}-\d{2}(?:\([一二三四五六日]\))?$/.test(value)),
             times: leafTexts(row).filter(value => /^\d{2}:\d{2}$/.test(value)),
+            timeRanges: leafTexts(row).filter(value => /^\d{2}:\d{2}\s*~\s*\d{2}:\d{2}$/.test(value)),
             saleButtons: all(row, "button").map(element => ({ text: text(element), enabled: enabled(element) })),
         }));
         const identities = all(document, ".text-page-title")

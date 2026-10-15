@@ -3,8 +3,8 @@ import type { Locator, Page } from "playwright";
 import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { ActivityPage } from "./activityPage.js";
-import { readTicketPlusPage } from "./pageState.js";
-import type { ActivityTransitionTarget, TicketPlusPageDiagnostic, TicketPlusPage } from "./pageState.js";
+import { readTicketPlusActivityObservation, readTicketPlusPage } from "./pageState.js";
+import type { TicketPlusPageDiagnostic, TicketPlusPage } from "./pageState.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 
 type Session = ActivityPage["sessions"][number];
@@ -117,20 +117,17 @@ function arrivalRouteFailure(page: Page, settings: TicketPlusSelection): Session
 }
 
 // 逾時後可能仍有唯讀 evaluate 收尾，但不會繼續點擊或變更頁面。
-async function readWithinDeadline(
-    page: Page,
+async function readWithinDeadline<T>(
     timeout: number,
     stage: SessionEntryStage,
     control: TicketPlusRunControl,
-    onDiagnostic: (diagnostic: TicketPlusPageDiagnostic) => void,
-    transitionTarget?: ActivityTransitionTarget,
-    activityName?: string,
-): Promise<TicketPlusPage> {
+    read: () => Promise<T>,
+): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
         return await control.read(() =>
             Promise.race([
-                readTicketPlusPage(page, onDiagnostic, transitionTarget, undefined, activityName),
+                read(),
                 new Promise<never>((_, reject) => {
                     timer = setTimeout(
                         () =>
@@ -176,31 +173,32 @@ async function waitForActivitySession(
     control: TicketPlusRunControl,
     onDiagnostic: (diagnostic: TicketPlusPageDiagnostic) => void,
 ): Promise<Session> {
-    // 兩次點擊前核對共用期限，只允許已確認的空白活動畫面等待。
+    // 兩次點擊前核對共用期限，只允許空白或已知載入佔位等待。
     while (performance.now() < state.deadline) {
         control.check();
         if (page.isClosed()) throw new TicketPlusSessionError("before-click", "unexpected-page");
         requireActivityRoute(page, settings);
-        let emptyLoading = false;
         state.observations++;
-        const snapshot = await readWithinDeadline(
-            page,
+        const observation = await readWithinDeadline(
             Math.min(readTimeout, state.deadline - performance.now()),
             "before-click",
             control,
-            diagnostic => {
-                emptyLoading = diagnostic.emptyActivityLoading === true;
-                onDiagnostic(diagnostic);
-            },
-            undefined,
-            settings.eventName,
+            () =>
+                readTicketPlusActivityObservation(
+                    page,
+                    {
+                        eventId: new URL(settings.eventUrl).pathname.split("/")[2]!,
+                        eventName: settings.eventName,
+                    },
+                    onDiagnostic,
+                ),
         );
         requireActivityRoute(page, settings);
         if (performance.now() >= state.deadline) break;
 
         // 完整頁面沿用活動與場次核對，資訊不足不等於可等待。
-        if (snapshot.kind === "activity") return requireTargetSession(snapshot, settings);
-        if (!emptyLoading) throw new TicketPlusSessionError("before-click", "unexpected-page");
+        if (observation.page.kind === "activity") return requireTargetSession(observation.page, settings);
+        if (observation.loading === "none") throw new TicketPlusSessionError("before-click", "unexpected-page");
         await control.wait(Math.min(interval, Math.max(0, state.deadline - performance.now())));
     }
     throw new TicketPlusSessionError("before-click", "activity-ready-timeout");
@@ -225,19 +223,14 @@ async function waitForSelection(
         if (routeFailure) {
             throw new TicketPlusSessionError("after-click-attempt", "unexpected-page", routeFailure);
         }
-        const snapshot = await readWithinDeadline(
-            page,
-            deadline - performance.now(),
-            "after-click-attempt",
-            control,
-            onDiagnostic,
-            {
+        const snapshot = await readWithinDeadline(deadline - performance.now(), "after-click-attempt", control, () =>
+            readTicketPlusPage(page, onDiagnostic, {
                 eventId: eventId!,
                 eventName: settings.eventName,
                 sessionName: target.name,
                 date: target.date,
                 time: target.time,
-            },
+            }),
         );
         if (performance.now() >= deadline) break;
 

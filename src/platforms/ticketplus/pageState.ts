@@ -1,4 +1,6 @@
 import type { Page } from "playwright";
+import { inspectActivityLoading } from "./activityLoading.js";
+import type { ActivityLoading, ActivityLoadingTarget } from "./activityLoading.js";
 import { readTicketPlusDom } from "./domSnapshot.js";
 import type { TicketPlusDom } from "./domSnapshot.js";
 import { diagnoseActivityFields, parseActivityPage } from "./activityPage.js";
@@ -35,6 +37,7 @@ export interface TicketPlusPageDiagnostic {
     unknownReason?: UnknownPage["reason"];
     selectionTransition?: SelectionTransitionCheck;
     emptyActivityLoading?: boolean;
+    activityLoading?: ActivityLoading;
     activityFields?: ReturnType<typeof diagnoseActivityFields>;
     activityTransition?: ActivityTransitionDiagnostic & {
         headingCount: number;
@@ -279,8 +282,20 @@ function diagnosticRouteKind(pathname: string): TicketPlusPageDiagnostic["routeK
     return "other";
 }
 
-// 對外唯一的唯讀入口：取得一份快照後分流，不在頁面辨識後重讀整頁。
-// unknown 不是售完或終局失敗；等待、重試與點擊由未來的流程層決定。
+interface PageObservationOptions {
+    onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void;
+    transitionTarget?: ActivityTransitionTarget;
+    selectionTarget?: SelectionTransitionTarget;
+    activityName?: string;
+    activityTarget?: ActivityLoadingTarget;
+}
+
+export interface ActivityObservation {
+    page: TicketPlusPage;
+    loading: ActivityLoading;
+}
+
+// 既有 reader 保留分類與呼叫介面，不因活動載入證據放寬解析。
 export async function readTicketPlusPage(
     page: Page,
     onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void,
@@ -288,6 +303,26 @@ export async function readTicketPlusPage(
     selectionTarget?: SelectionTransitionTarget,
     activityName?: string,
 ): Promise<TicketPlusPage> {
+    const observation = await readPageObservation(page, {
+        onDiagnostic,
+        transitionTarget,
+        selectionTarget,
+        activityName,
+    });
+    return observation.page;
+}
+
+// 點擊前專用入口：等待證據直接回傳，不依賴診斷回呼。
+export async function readTicketPlusActivityObservation(
+    page: Page,
+    target: ActivityLoadingTarget,
+    onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void,
+): Promise<ActivityObservation> {
+    return readPageObservation(page, { onDiagnostic, activityName: target.eventName, activityTarget: target });
+}
+
+async function readPageObservation(page: Page, options: PageObservationOptions): Promise<ActivityObservation> {
+    const { onDiagnostic, transitionTarget, selectionTarget, activityName, activityTarget } = options;
     // 沿用同一份快照判讀，不為診斷重讀頁面。
     let snapshot: TicketPlusDom | undefined;
     let result: TicketPlusPage;
@@ -306,6 +341,18 @@ export async function readTicketPlusPage(
         }
     } catch {
         result = unknownPage("read-failed");
+    }
+
+    // 載入判斷與分類使用同一份快照，讀取失敗或切頁時不授予等待資格。
+    let loading: ActivityLoading = "none";
+    if (
+        snapshot &&
+        activityName !== undefined &&
+        result.kind === "unknown" &&
+        ["incomplete-data", "ambiguous-data"].includes(result.reason)
+    ) {
+        const eventId = /^\/activity\/([A-Za-z0-9_-]+)\/?$/.exec(snapshot.pathname)?.[1] ?? "";
+        loading = inspectActivityLoading(snapshot, activityTarget ?? { eventId, eventName: activityName });
     }
 
     // 只保留分類與計數，不帶出網址、頁面文字或個資。
@@ -344,24 +391,8 @@ export async function readTicketPlusPage(
         }
         if (snapshot && activityName !== undefined) {
             diagnostic.activityFields = diagnoseActivityFields(snapshot, activityName);
-            // 使用同份快照確認空白載入，不把缺欄位的場次或跨頁內容當成載入。
-            diagnostic.emptyActivityLoading =
-                result.kind === "unknown" &&
-                result.reason === "incomplete-data" &&
-                diagnosticRouteKind(snapshot.pathname) === "activity" &&
-                snapshot.activity.length === 0 &&
-                (snapshot.activityNames.length === 0 ||
-                    (snapshot.activityNames.length === 1 && snapshot.activityNames[0] === activityName)) &&
-                snapshot.tickets.length === 0 &&
-                snapshot.queueCount === 0 &&
-                snapshot.dialogs.length === 0 &&
-                snapshot.information.headingCount === 0 &&
-                snapshot.information.terms.length === 0 &&
-                snapshot.information.contact.every(fields => fields.length === 0) &&
-                snapshot.nextButtons.length === 0 &&
-                snapshot.paymentButtons.length === 0 &&
-                snapshot.checkoutStepCount === 0 &&
-                snapshot.checkout.length === 0;
+            diagnostic.emptyActivityLoading = loading === "empty";
+            if (activityTarget) diagnostic.activityLoading = loading;
         }
         if (snapshot) {
             diagnostic.routeKind = diagnosticRouteKind(snapshot.pathname);
@@ -391,5 +422,5 @@ export async function readTicketPlusPage(
             // 診斷接收失敗不能改變購票判斷。
         }
     }
-    return result;
+    return { page: result, loading };
 }
