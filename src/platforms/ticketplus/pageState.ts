@@ -31,6 +31,7 @@ export type TicketPlusPage =
 
 export interface TicketPlusPageDiagnostic {
     pageKind: TicketPlusPage["kind"];
+    routeKind?: "activity" | "order" | "confirm" | "checkout" | "other";
     unknownReason?: UnknownPage["reason"];
     activityTransition?: ActivityTransitionDiagnostic & {
         headingCount: number;
@@ -190,9 +191,19 @@ function classifyPage(dom: TicketPlusDom, transitionTarget?: ActivityTransitionT
     }
     if (dom.queueCount || dom.tickets.length) return unknownPage("conflicting-page");
     if (order![1] === "confirm") {
-        return hasCheckout ? unknownPage("conflicting-page") : parseInformationPage(dom, identity);
+        // 資料頁可以有摘要列，但付款操作標記仍屬衝突。
+        const hasPaymentControls = dom.checkoutStepCount > 0 || dom.paymentButtons.length > 0;
+        return hasPaymentControls ? unknownPage("conflicting-page") : parseInformationPage(dom, identity);
     }
     return hasInformation ? unknownPage("conflicting-page") : parseCheckoutPage(dom, identity);
+}
+
+function diagnosticRouteKind(pathname: string): TicketPlusPageDiagnostic["routeKind"] {
+    if (/^\/activity\/[A-Za-z0-9_-]+\/?$/.test(pathname)) return "activity";
+    for (const kind of ["order", "confirm", "checkout"] as const) {
+        if (new RegExp(`^/${kind}/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/?$`).test(pathname)) return kind;
+    }
+    return "other";
 }
 
 // 對外唯一的唯讀入口：取得一份快照後分流，不在頁面辨識後重讀整頁。
@@ -247,6 +258,7 @@ export async function readTicketPlusPage(
             };
         }
         if (snapshot) {
+            diagnostic.routeKind = diagnosticRouteKind(snapshot.pathname);
             diagnostic.informationControls = {
                 nextButtons: snapshot.nextButtons.length,
                 nameFields: snapshot.information.contact[0]!.length,

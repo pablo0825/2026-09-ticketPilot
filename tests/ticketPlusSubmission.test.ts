@@ -1,4 +1,6 @@
-import { stoppedSubmissionResult } from "../src/platforms/ticketplus/submissionOutcome.js";
+import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
+import { summary } from "./fixtures/ticketplus/pages.js";
+import { runTicketPlusSubmission, stoppedSubmissionResult } from "../src/platforms/ticketplus/submissionOutcome.js";
 import { ticketPlusResultMessage } from "../src/app/ticketPlusPresentation.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -596,6 +598,55 @@ test("TicketPlus 提交診斷：缺漏資料逾時、排隊逾時與網址拒絕
         assert.equal(error.diagnostic?.routeFailure, "extra-url-parts");
         assert.equal(error.diagnostic?.page, undefined);
         assert.doesNotMatch(JSON.stringify(stoppedSubmissionResult(error)), /PRIVATE_TOKEN/);
+        assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+    });
+});
+
+test("TicketPlus 含摘要的資料頁：直接及排隊後皆完成，零資料頁操作", { timeout: 20_000 }, async () => {
+    for (const mode of ["direct", "queue"] as const) {
+        await withPage(mode, async page => {
+            await page.evaluate(summary => {
+                document.addEventListener("click", () => {
+                    if (location.pathname.startsWith("/confirm/"))
+                        document.body.insertAdjacentHTML("beforeend", summary);
+                });
+            }, summary);
+            class QueueControl extends TicketPlusRunControl {
+                override async wait(milliseconds: number): Promise<void> {
+                    await page.evaluate(summary => {
+                        window.submissionFixture.show("information");
+                        document.body.insertAdjacentHTML("beforeend", summary);
+                    }, summary);
+                    await super.wait(milliseconds);
+                }
+            }
+            const result = await runTicketPlusSubmission(
+                page,
+                settings,
+                selection,
+                options,
+                undefined,
+                new QueueControl(),
+            );
+            assert.equal(result.outcome, "information-ready");
+            assert.equal(result.progress.sawQueue, mode === "queue");
+            assert.match(ticketPlusResultMessage(result), /已到同場次填寫資料頁/);
+            assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+        });
+    }
+});
+
+test("TicketPlus 含摘要的資料頁：錯場次仍拒絕且不重送", async () => {
+    await withPage("direct", async page => {
+        await page.evaluate(summary => {
+            document.addEventListener("click", () => {
+                document.body.insertAdjacentHTML("beforeend", summary);
+                history.replaceState({}, "", "/confirm/event-fixture/session-WRONG");
+            });
+        }, summary);
+        const error = await failure(submit(page));
+        assert.equal(error.reason, "unexpected-route");
+        assert.equal(stoppedSubmissionResult(error).outcome, "unknown");
         assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
     });
 });

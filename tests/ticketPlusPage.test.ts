@@ -395,3 +395,67 @@ test("TicketPlus 活動：未知、缺少、重複與矛盾的場次按鈕不推
         assert.equal((await readTicketPlusPage(page)).kind, "activity");
     });
 });
+
+test("TicketPlus 資料頁含摘要：仍核對必要元素與真正付款標記", async () => {
+    await withPage(async page => {
+        await show(page, confirmUrl, fixture.information + fixture.summary);
+        const result = await readTicketPlusPage(page);
+        assert.equal(result.kind, "information");
+        if (result.kind !== "information") assert.fail();
+        assert.equal(result.sessionId, sessionId);
+        assert.equal(result.termsChecked, false);
+        assert.equal(result.nextEnabled, false);
+        assert.doesNotMatch(JSON.stringify(result), /fixture@example.invalid|0900000000|測試姓名/);
+
+        // 摘要不取代資料頁驗證，也不能掩蓋付款操作或殘留選票內容。
+        const cases = [
+            [fixture.summary, "incomplete-data"],
+            [fixture.information + fixture.summary + "<button disabled>前往付款</button>", "conflicting-page"],
+            [
+                fixture.information + fixture.summary + '<div class="stepText checkedStep">付款結帳</div>',
+                "conflicting-page",
+            ],
+            [fixture.information + fixture.summary + '<div role="dialog">未知提示</div>', "blocking-dialog"],
+            [fixture.information + fixture.summary + fixture.queue, "conflicting-page"],
+            [fixture.information + fixture.summary + fixture.presale, "conflicting-page"],
+            [fixture.information + fixture.summary + "<button>下一步</button>", "ambiguous-data"],
+            [fixture.information.replace("聯絡人資訊", "其他標題") + fixture.summary, "incomplete-data"],
+        ];
+        for (const [html, reason] of cases) {
+            await page.setContent(html!);
+            assert.deepEqual(await readTicketPlusPage(page), { kind: "unknown", reason });
+        }
+
+        // 活動與選票路徑的摘要衝突維持原規則，付款頁仍正常辨識。
+        await show(page, activityUrl, fixture.activity + fixture.summary);
+        assert.deepEqual(await readTicketPlusPage(page), { kind: "unknown", reason: "conflicting-page" });
+        await show(page, orderUrl, fixture.order + fixture.summary);
+        assert.deepEqual(await readTicketPlusPage(page), { kind: "unknown", reason: "conflicting-page" });
+        await show(page, checkoutUrl, fixture.checkout);
+        assert.equal((await readTicketPlusPage(page)).kind, "checkout");
+    });
+});
+
+test("TicketPlus 路徑診斷：只輸出類型，不輸出路徑或參數", async () => {
+    await withPage(async page => {
+        for (const [url, kind] of [
+            [activityUrl, "activity"],
+            [orderUrl, "order"],
+            [confirmUrl, "confirm"],
+            [checkoutUrl, "checkout"],
+            [origin + "/PRIVATE_PATH", "other"],
+            [confirmUrl + "?token=PRIVATE_TOKEN", "confirm"],
+        ]) {
+            await show(page, url!, fixture.information + fixture.summary);
+            let diagnostic: unknown;
+            await readTicketPlusPage(page, value => {
+                diagnostic = value;
+            });
+            assert.equal((diagnostic as { routeKind: string }).routeKind, kind);
+            assert.doesNotMatch(
+                JSON.stringify(diagnostic),
+                /PRIVATE_|0233a891|62ecd68c|fixture@example.invalid|0900000000/,
+            );
+        }
+    });
+});
