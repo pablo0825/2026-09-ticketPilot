@@ -40,6 +40,22 @@ export function ExecutionEditor({ form, disabled, activityDirty, onChange }: Pro
                             onChange={event => onChange({ ...form, saleAt: event.target.value })}
                         />
                     </label>
+                    <label>
+                        提前刷新
+                        <select
+                            value={form.advanceSeconds ?? 1}
+                            disabled={disabled}
+                            onChange={event => {
+                                const seconds = event.target.value;
+                                if (seconds === "1" || seconds === "2") {
+                                    onChange({ ...form, advanceSeconds: seconds === "1" ? 1 : 2 });
+                                }
+                            }}
+                        >
+                            <option value="1">1 秒</option>
+                            <option value="2">2 秒</option>
+                        </select>
+                    </label>
                     <p>
                         提前 {form.advanceSeconds ?? 1} 秒刷新活動頁；開賣後目標場次仍尚未開賣時，間隔至少 3
                         秒再次刷新，最多等待至開賣後 2 分鐘。
