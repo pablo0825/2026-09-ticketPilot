@@ -4,15 +4,12 @@ import { mkdtemp, mkdir, readFile, writeFile, readdir, rm } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { PassThrough } from "node:stream";
 import { chromium } from "playwright";
 import { parseTicketPlusActivity, parseTicketPlusSelection } from "../src/config/ticketPlusActivity.js";
 import { ActivityStore } from "../src/config/activityStore.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 import { startLocalServer } from "../src/local/server.js";
 import { runTicketPlus } from "../src/app/runTicketPlus.js";
-import { runTicketPlusCli } from "../src/cli/ticketPlus.js";
-import { ticketPlusStartupMessage } from "../src/cli/ticketPlusMessages.js";
 import { purchaseOccupied } from "../src/app/purchaseLock.js";
 
 const legacy = {
@@ -127,20 +124,12 @@ test("舊 TP v4 請求與活動狀態：等價單順位重播原結果，改設�
     }
 });
 
-test("跨場次 CLI／runner 拒絕在開瀏覽器前，訊息明確而非默取第一筆", async t => {
+test("跨場次 runner 拒絕在開瀏覽器前，訊息明確而非默取第一筆", async t => {
     const dir = await mkdtemp(join(tmpdir(), "tp-guard-"));
-    const input = Object.assign(new PassThrough(), { isTTY: true });
-    const output = new PassThrough();
     const launch = t.mock.method(chromium, "launchPersistentContext", async () => {
         throw new Error("must not launch");
     });
     try {
-        const file = join(dir, "settings.json");
-        await writeFile(file, JSON.stringify(multiple));
-        await assert.rejects(runTicketPlusCli(["--config", file], { input, output }), error => {
-            assert.match(ticketPlusStartupMessage(error), /只支援同場次多順位/);
-            return true;
-        });
         // 無效 lease 若被驗證會先報鎖錯誤；能力限制必須比取得／驗證 lease 更早。
         await assert.rejects(
             runTicketPlus(multiple, {
@@ -149,10 +138,8 @@ test("跨場次 CLI／runner 拒絕在開瀏覽器前，訊息明確而非默取
             /只支援同場次多順位/,
         );
         assert.equal(launch.mock.callCount(), 0);
-        assert.deepEqual(await readdir(dir), ["settings.json"]);
+        assert.deepEqual(await readdir(dir), []);
     } finally {
-        input.destroy();
-        output.destroy();
         await rm(dir, { recursive: true, force: true });
     }
 });
@@ -225,23 +212,11 @@ test("舊 target 活動檔列為無效且不能更新／刪除，原始檔保持
     }
 });
 
-test("舊 target 不能從 CLI 或 runner 啟動，內部單次 Selection 仍合法", async t => {
-    const dir = await mkdtemp(join(tmpdir(), "tp-obsolete-cli-"));
-    const input = Object.assign(new PassThrough(), { isTTY: true });
-    const output = new PassThrough();
+test("舊 target 不能從 runner 啟動，內部單次 Selection 仍合法", async t => {
     const launch = t.mock.method(chromium, "launchPersistentContext", async () => {
         throw new Error("must not launch");
     });
-    try {
-        const file = join(dir, "settings.json");
-        await writeFile(file, JSON.stringify(legacy));
-        await assert.rejects(runTicketPlusCli(["--config", file], { input, output }), /格式錯誤/);
-        await assert.rejects(runTicketPlus(legacy as never, {}), /格式錯誤/);
-        assert.equal(launch.mock.callCount(), 0);
-        assert.deepEqual(parseTicketPlusSelection(legacy), legacy);
-    } finally {
-        input.destroy();
-        output.destroy();
-        await rm(dir, { recursive: true, force: true });
-    }
+    await assert.rejects(runTicketPlus(legacy as never, {}), /格式錯誤/);
+    assert.equal(launch.mock.callCount(), 0);
+    assert.deepEqual(parseTicketPlusSelection(legacy), legacy);
 });

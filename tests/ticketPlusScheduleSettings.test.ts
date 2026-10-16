@@ -8,7 +8,6 @@ import { parseTicketPlusActivity, ticketPlusSessionSelection } from "../src/conf
 import { ActivityStore } from "../src/config/activityStore.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 import { startLocalServer } from "../src/local/server.js";
-import { loadTicketPlusCliSettings } from "../src/cli/ticketPlus.js";
 import { purchaseOccupied } from "../src/app/purchaseLock.js";
 
 const activity = {
@@ -122,26 +121,18 @@ test("排程不被舊指紋投影丟掉；無排程 v4／v5 指紋及原紀錄�
     }
 });
 
-test("排程 CLI 可讀設定，省略及明確提前 1／2 秒都能通過場次能力檢查", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "tp-schedule-cli-"));
-    try {
-        const file = join(dir, "settings.json");
-        for (const advanceSeconds of [undefined, 1, 2] as const) {
-            const saleSchedule =
-                advanceSeconds === undefined ? { saleAt: schedule.saleAt } : { ...schedule, advanceSeconds };
-            const settings = { ...activity, saleSchedule };
-            await writeFile(file, JSON.stringify(settings));
-            assert.deepEqual(await loadTicketPlusCliSettings(["--config", file]), settings);
-            assert.deepEqual(ticketPlusSessionSelection(settings), {
-                platform: "ticketplus",
-                eventUrl: activity.eventUrl,
-                eventName: activity.eventName,
-                target: activity.targets[0],
-            });
-        }
-        assert.deepEqual(await readdir(dir), ["settings.json"]);
-    } finally {
-        await rm(dir, { recursive: true, force: true });
+test("排程設定省略及明確提前 1／2 秒都能通過場次能力檢查", () => {
+    for (const advanceSeconds of [undefined, 1, 2] as const) {
+        const saleSchedule =
+            advanceSeconds === undefined ? { saleAt: schedule.saleAt } : { ...schedule, advanceSeconds };
+        const settings = { ...activity, saleSchedule };
+        assert.deepEqual(parseTicketPlusActivity(settings), settings);
+        assert.deepEqual(ticketPlusSessionSelection(settings), {
+            platform: "ticketplus",
+            eventUrl: activity.eventUrl,
+            eventName: activity.eventName,
+            target: activity.targets[0],
+        });
     }
 });
 
