@@ -1,9 +1,12 @@
 import type { Page } from "playwright";
+import { DomCaptureError } from "./domReadFailure.js";
+import type { DomReadDetail } from "./domReadFailure.js";
 
 export type ReadStep = "read-url-before" | "capture-dom" | "read-url-after" | "validate-url" | "classify-page";
 export type RouteKind = "activity" | "order" | "confirm" | "checkout" | "other";
 export interface ReadFailureDiagnostic {
     step: ReadStep;
+    domRead?: DomReadDetail;
     category: "navigation-interrupted" | "page-closed" | "target-closed" | "other-read-error";
     pageClosed: boolean | null;
     routeBefore: RouteKind | null;
@@ -69,6 +72,7 @@ export function diagnoseReadFailure(
     return {
         step,
         category,
+        ...(step === "capture-dom" && error instanceof DomCaptureError ? { domRead: { ...error.detail } } : {}),
         pageClosed,
         routeBefore: routeKind(before),
         routeAfter: routeKind(after),
