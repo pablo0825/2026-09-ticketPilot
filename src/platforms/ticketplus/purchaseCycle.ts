@@ -23,7 +23,7 @@ export type TicketPlusCycleResult = (
     | TicketPlusSubmissionResult
     | {
           outcome: "stopped";
-          reason: "ticket-selection-stopped" | "refresh-stopped";
+          reason: "ticket-selection-stopped" | "refresh-stopped" | "refresh-completed";
           progress: Readonly<SubmissionProgress>;
           stopReason?: TicketRefreshResult["stopReason"];
           priorityFailure?: PriorityReason;
@@ -134,7 +134,7 @@ export async function runTicketPlusCycle(
         const refresh = await refreshTicketPlusTickets(page, session, control, options.refresh);
         return {
             outcome: "stopped",
-            reason: "refresh-stopped",
+            reason: refresh.kind === "completed" ? "refresh-completed" : "refresh-stopped",
             progress: Object.freeze({ ...progress }),
             submissionAttempts,
             refresh,

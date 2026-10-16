@@ -102,6 +102,9 @@ function resultMessage(result: TicketPlusRunResult): string {
     }
     if ("refresh" in result && result.refresh) {
         const refresh = result.refresh;
+        if (refresh.kind === "completed") {
+            return `選票頁更新完成並核對通過。${prior}本版停止於此，不開始新一輪選票；瀏覽器保留供人工檢查。`;
+        }
         const action = refresh.clickAttempted ? "已嘗試一次更新票數" : "尚未嘗試更新票數";
         const detail =
             refresh.reason === "completion-unverified"

@@ -28,6 +28,8 @@ function emptyDom(): TicketPlusDom {
         checkout: [],
         activityNames: [],
         nextButtons: [],
+        refreshButtons: [],
+        refreshEvidence: undefined,
         paymentButtons: [],
         checkoutStepCount: 0,
     };

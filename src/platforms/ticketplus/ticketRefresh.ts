@@ -1,5 +1,8 @@
 import type { Page } from "playwright";
-import { readTicketPlusPage } from "./pageState.js";
+import { readTicketPlusDom } from "./domSnapshot.js";
+import type { RefreshMonitorRequest } from "./domSnapshot.js";
+import { randomUUID } from "node:crypto";
+import { readTicketPlusPage, readTicketPlusRefreshObservation } from "./pageState.js";
 import { validDate, validTime } from "./readResult.js";
 import { TicketPlusStopError } from "./runControl.js";
 import type { TicketPlusRunControl, TicketPlusStopReason } from "./runControl.js";
@@ -19,13 +22,19 @@ export type TicketRefreshReason =
     | "user-stopped"
     | "time-limit";
 
-// 尚無經實站確認的完成訊號，因此本版沒有可放行下一輪的成功結果。
-export interface TicketRefreshResult {
-    kind: "stopped";
-    reason: TicketRefreshReason;
-    clickAttempted: boolean;
-    stopReason?: TicketPlusStopReason;
-}
+export type TicketRefreshResult =
+    | {
+          kind: "completed";
+          clickAttempted: true;
+          reason?: never;
+          stopReason?: never;
+      }
+    | {
+          kind: "stopped";
+          reason: TicketRefreshReason;
+          clickAttempted: boolean;
+          stopReason?: TicketPlusStopReason;
+      };
 export interface TicketRefreshOptions {
     timeoutMs?: number;
     clickTimeoutMs?: number;
@@ -44,7 +53,13 @@ export async function refreshTicketPlusTickets(
     options: TicketRefreshOptions = {},
 ): Promise<TicketRefreshResult> {
     let clickAttempted = false;
-    const stopped = (reason: TicketRefreshReason): TicketRefreshResult => ({ kind: "stopped", reason, clickAttempted });
+    let waitingForRefresh = false;
+    let monitor: RefreshMonitorRequest | undefined;
+    const stopped = (reason: TicketRefreshReason): Extract<TicketRefreshResult, { kind: "stopped" }> => ({
+        kind: "stopped",
+        reason,
+        clickAttempted,
+    });
     try {
         // 保存期望場次並限制本次操作時間，沿用整趟停止控制。
         control.check();
@@ -128,6 +143,11 @@ export async function refreshTicketPlusTickets(
                 return stopped("button-unavailable");
             }
 
+            // 安裝直接等待收尾，不放入唯讀取消競賽；到期安裝會自行拒絕。
+            monitor = { token: randomUUID(), action: "install", expiresAt: Date.now() + remaining() };
+            await readTicketPlusDom(page, monitor);
+            remaining();
+
             // 點擊有原生期限，嘗試後不補按，也不以外層取消留下晚到點擊。
             const limit = Math.min(clickTimeout, remaining());
             clickAttempted = true;
@@ -142,8 +162,23 @@ export async function refreshTicketPlusTickets(
             await button.dispose().catch(() => {});
         }
 
-        // 此讀取僅檢查異常，舊畫面仍完整不代表更新完成；不捏造等待或成功訊號。
-        await verify();
+        // 輪詢只決定等待與完成；完整舊畫面沒有本次過渡證據仍不能放行。
+        waitingForRefresh = true;
+        while (performance.now() < deadline) {
+            const observation = await read(() =>
+                readTicketPlusRefreshObservation(page, identity, { ...monitor!, action: "read" }),
+            );
+            if (observation.readiness.status === "stop") {
+                return stopped(observation.readiness.reason as TicketRefreshReason);
+            }
+            if (observation.readiness.status === "ready") {
+                remaining();
+                return { kind: "completed", clickAttempted: true };
+            }
+            const wait = Math.min(50, remaining());
+            await control.wait(wait);
+            if (performance.now() >= deadline) return stopped("completion-unverified");
+        }
         return stopped("completion-unverified");
     } catch (error) {
         let stop = error instanceof TicketPlusStopError ? error : undefined;
@@ -158,6 +193,23 @@ export async function refreshTicketPlusTickets(
                 stopReason: stop.stopReason,
             };
         }
+        if (waitingForRefresh && error instanceof RefreshBlocked && error.reason === "operation-timeout") {
+            return stopped("completion-unverified");
+        }
         return stopped(error instanceof RefreshBlocked ? error.reason : "read-failed");
+    } finally {
+        if (monitor) {
+            await page
+                .locator("html")
+                .evaluate(
+                    (_element, token) => {
+                        const host = window as unknown as { ticketPilotRefresh?: { token: string; dispose(): void } };
+                        if (host.ticketPilotRefresh?.token === token) host.ticketPilotRefresh.dispose();
+                    },
+                    monitor.token,
+                    { timeout: 500 },
+                )
+                .catch(() => {});
+        }
     }
 }

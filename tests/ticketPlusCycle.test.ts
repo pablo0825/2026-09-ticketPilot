@@ -1,3 +1,4 @@
+import { installRefreshExample } from "./fixtures/ticketplus/refreshPage.js";
 import { loggedInHome } from "./fixtures/ticketplus/loginPage.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -371,4 +372,23 @@ test("正式 runner：同輪 A 售完轉 B 成功／不明，保留單一瀏覽�
             await rm(directory, { recursive: true, force: true });
         }
     }
+});
+
+test("循環：目標售完後實際更新完成仍停止，不開始第二輪或宣稱購票成功", async () => {
+    await withPage("all-sold-out", async page => {
+        await installRefreshExample(page);
+        const pending = runTicketPlusCycle(page, settings, session, new TicketPlusRunControl(), undefined, options);
+        await page.waitForFunction(() => window.refreshExample.phase === "partial");
+        await page.evaluate(() => window.refreshExample.restoreData());
+        await page.evaluate(() => window.refreshExample.restoreButton());
+        const result = await pending;
+        assert.equal(result.outcome, "stopped");
+        assert.equal(result.reason, "refresh-completed");
+        assert.equal(result.submissionAttempts, 0);
+        assert("refresh" in result);
+        assert.equal(result.refresh?.kind, "completed");
+        assert.match(ticketPlusResultMessage(result), /更新.*完成/);
+        assert.doesNotMatch(ticketPlusResultMessage(result), /購票成功|取得最新庫存/);
+        assert.deepEqual(await cycleState(page), { actions: ["refresh"], submissions: [] });
+    });
 });

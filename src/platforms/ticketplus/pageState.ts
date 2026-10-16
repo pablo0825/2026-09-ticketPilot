@@ -1,3 +1,6 @@
+import { refreshReadiness } from "./refreshReadiness.js";
+import type { RefreshMonitorRequest } from "./domSnapshot.js";
+import type { VerifiedTicketPlusSession } from "./ticketQuantity.js";
 import { diagnoseReadFailure, diagnosticRouteKind } from "./readFailure.js";
 import type { ReadFailureDiagnostic, ReadStep } from "./readFailure.js";
 import type { SubmittedSelectionTarget } from "./submissionValidation.js";
@@ -133,6 +136,8 @@ function classifyPage(dom: TicketPlusDom): TicketPlusPage {
 }
 
 interface PageObservationOptions {
+    refreshTarget?: VerifiedTicketPlusSession;
+    refreshMonitor?: RefreshMonitorRequest;
     onDiagnostic?: (diagnostic: TicketPlusPageDiagnostic) => void;
     entryTarget?: SelectionEntryTarget;
     submissionTarget?: SubmittedSelectionTarget;
@@ -186,6 +191,14 @@ export async function readTicketPlusInformationObservation(
     return readPageObservation(page, { onDiagnostic, submissionTarget: target });
 }
 
+export async function readTicketPlusRefreshObservation(
+    page: Page,
+    target: VerifiedTicketPlusSession,
+    monitor: RefreshMonitorRequest,
+): Promise<PageObservation> {
+    return readPageObservation(page, { refreshTarget: target, refreshMonitor: monitor });
+}
+
 async function readPageObservation(page: Page, options: PageObservationOptions): Promise<PageObservation> {
     const { onDiagnostic, entryTarget, submissionTarget, activityName, activityTarget } = options;
     // 沿用同一份快照判讀，不為診斷重讀頁面。
@@ -198,7 +211,7 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
     try {
         before = page.url();
         step = "capture-dom";
-        snapshot = await readTicketPlusDom(page);
+        snapshot = await readTicketPlusDom(page, options.refreshMonitor);
         step = "read-url-after";
         after = page.url();
         step = "validate-url";
@@ -229,13 +242,15 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
         loading = inspectActivityLoading(snapshot, activityTarget ?? { eventId, eventName: activityName });
     }
 
-    const readiness: PageReadiness = activityTarget
-        ? activityReadiness(snapshot, result, activityTarget)
-        : entryTarget
-          ? selectionReadiness(snapshot, result, entryTarget)
-          : submissionTarget
-            ? informationReadiness(snapshot, result, submissionTarget)
-            : { status: "stop", reason: "not-requested" };
+    const readiness: PageReadiness = options.refreshTarget
+        ? refreshReadiness(snapshot, result, options.refreshTarget)
+        : activityTarget
+          ? activityReadiness(snapshot, result, activityTarget)
+          : entryTarget
+            ? selectionReadiness(snapshot, result, entryTarget)
+            : submissionTarget
+              ? informationReadiness(snapshot, result, submissionTarget)
+              : { status: "stop", reason: "not-requested" };
 
     // 只保留分類與計數，不帶出網址、頁面文字或個資。
     if (onDiagnostic) {
