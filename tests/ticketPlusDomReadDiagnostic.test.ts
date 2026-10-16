@@ -25,7 +25,7 @@ async function withPage(run: (page: Page) => Promise<void>) {
     }
 }
 
-test("DOM 診斷：場次購買區轉圈圖示仍停止，指出讀取種類與位置且只擷取一次", async () => {
+test("DOM 診斷：活動欄位擷取不讀購買區圖示且仍只擷取一次", async () => {
     await withPage(async page => {
         // 保留正式欄位，僅在按鈕區加入載入圖示。
         await page.evaluate(() => {
@@ -48,18 +48,9 @@ test("DOM 診斷：場次購買區轉圈圖示仍停止，指出讀取種類與�
         page.evaluate = originalEvaluate;
 
         assert.equal(reads, 1);
-        assert.deepEqual(result.page, { kind: "unknown", reason: "read-failed" });
-        assert.deepEqual(result.readiness, { status: "stop", reason: "read-failed" });
-        assert.equal(diagnostic?.readFailure?.category, "other-read-error");
-        const detail = diagnostic?.readFailure?.domRead;
-        assert(detail);
-        assert.equal(detail.field, "activity.dates");
-        assert.equal(detail.rowIndex, 0);
-        assert.equal(typeof detail.elementIndex, "number");
-        assert.equal(detail.tagName, "circle");
-        assert.equal(detail.namespace, "svg");
-        assert.equal(detail.operation, "trim-inner-text");
-        assert.equal(detail.valueType, "undefined");
+        assert.equal(result.page.kind, "activity");
+        assert.equal(result.readiness.status, "ready");
+        assert.equal(diagnostic?.readFailure, undefined);
         assert.equal(await page.locator("body").getAttribute("data-clicked"), null);
     });
 });
@@ -67,15 +58,18 @@ test("DOM 診斷：場次購買區轉圈圖示仍停止，指出讀取種類與�
 test("DOM 診斷：getter 例外只記固定種類，不回傳原始錯誤或私密自訂標籤", async () => {
     await withPage(async page => {
         await page.evaluate(privateText => {
-            const node = document.createElement("private-customer-tag");
-            node.style.display = "block";
-            node.textContent = privateText;
-            Object.defineProperty(node, "innerText", {
+            const node = document.createElement("div");
+            node.className = "row py-1 py-md-4 rwd-margin no-gutters";
+            const child = document.createElement("private-customer-tag");
+            child.style.display = "block";
+            child.textContent = privateText;
+            Object.defineProperty(child, "innerText", {
                 get() {
                     throw new Error(privateText);
                 },
             });
-            document.querySelector(".sesstion-item")!.append(node);
+            node.append(child);
+            document.body.append(node);
         }, secret);
         await assert.rejects(readTicketPlusDom(page), error => {
             assert(error instanceof DomCaptureError);

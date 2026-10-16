@@ -12,8 +12,8 @@ export const session = `
   <div class="row pa-4 flex-column flex-sm-row no-gutters">
     <div class="col-sm-10 col-md-10 col-12"><div class="row mx-0 flex-column flex-md-row no-gutters">
       <div class="d-flex text-left font-weight-bold text-regular py-2 is-word-break col-sm-12 col-md-4 col-12">2026孿生姐妹之夜之鬼迷心竅</div>
-      <div class="col-sm-12 col-md-2 col-12"><div class="d-flex"><div>日期</div><div>2026-10-30(五)</div></div></div>
-      <div class="col-sm-12 col-md-2 col-12"><div class="d-flex"><div>時間</div><div>20:00</div></div></div>
+      <div class="col-sm-12 col-md-2 col-12"><div class="d-flex"><div class="wordBreakKeepAll">日期</div><div>2026-10-30(五)</div></div></div>
+      <div class="col-sm-12 col-md-2 col-12"><div class="d-flex"><div class="wordBreakKeepAll">時間</div><div>20:00</div></div></div>
     </div></div>
     <div class="font-weight-bold col-sm-2 col-md-2 col-12"><button type="button"><span>立即購買</span></button></div>
   </div>

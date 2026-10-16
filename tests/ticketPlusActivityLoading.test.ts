@@ -161,6 +161,7 @@ test("活動佔位：永久佔位沿用期限，保留固定原因與統計且�
                 assert(["activity-ready-timeout", "read-failed"].includes(error.reason));
                 assert.equal(error.stage, "before-click");
                 if (error.diagnostic?.check !== "page-state") assert.fail();
+                assert.equal(error.diagnostic.snapshot.readFailure, undefined);
                 assert.equal(error.diagnostic.snapshot.activityLoading, "loading-placeholder");
                 assert.equal(error.diagnostic.snapshot.emptyActivityLoading, false);
                 assert(error.diagnostic.activityWait!.observations > 1);
@@ -196,6 +197,7 @@ test("活動等待：殘缺與重複同名內容只等待到期限，始終零�
                     assert.equal(error.stage, "before-click");
                     assert(["activity-ready-timeout", "read-failed"].includes(error.reason));
                     if (error.diagnostic?.check !== "page-state") assert.fail();
+                    assert.equal(error.diagnostic.snapshot.readFailure, undefined);
                     assert(error.diagnostic.activityWait!.observations > 1);
                     assert.equal(error.diagnostic.snapshot.readiness?.status, "pending");
                     return true;
@@ -257,6 +259,10 @@ test("活動佔位：空白與佔位反覆切換不延長期限", { timeout: 8_0
                 assert(error instanceof TicketPlusSessionError);
                 assert.equal(error.stage, "before-click");
                 assert(["activity-ready-timeout", "read-failed"].includes(error.reason));
+                if (error.diagnostic?.check !== "page-state") assert.fail();
+                assert.equal(error.diagnostic.snapshot.readFailure, undefined);
+                assert.equal(error.diagnostic.snapshot.readiness?.status, "pending");
+                assert(error.diagnostic.activityWait!.observations > 1);
                 return true;
             },
         );

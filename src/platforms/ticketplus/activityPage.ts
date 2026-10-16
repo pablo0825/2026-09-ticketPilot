@@ -27,6 +27,10 @@ export function parseActivityPage(dom: TicketPlusDom, eventId: string): Activity
         if ([row.names, row.dates, row.times, row.saleButtons].some(values => values.length > 1)) {
             return unknownPage("ambiguous-data");
         }
+        // 欄位容器也必須唯一，不能漏掉重複但空白的值容器。
+        const counts = [row.dateField.labels, row.dateField.values, row.timeField.labels, row.timeField.values];
+        if (counts.some(count => count > 1)) return unknownPage("ambiguous-data");
+        if (counts.some(count => count !== 1)) return unknownPage("incomplete-data");
         const name = single(row.names);
         const date = single(row.dates)?.replace(/\([一二三四五六日]\)$/, "");
         const time = single(row.times);
@@ -58,6 +62,8 @@ export function diagnoseActivityFields(dom: TicketPlusDom, expectedName: string)
         return {
             names: row.names.length,
             nameNonEmpty: Boolean(single(row.names)),
+            dateField: { ...row.dateField },
+            timeField: { ...row.timeField },
             dates: row.dates.length,
             dateValid: date !== undefined && validDate(date),
             times: row.times.length,

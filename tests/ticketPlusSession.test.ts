@@ -1100,6 +1100,7 @@ test("TicketPlus 點擊前診斷：缺時間等待到期限，保留欄位與等
                     assert.equal(error.diagnostic?.check, "page-state");
                     if (error.diagnostic?.check !== "page-state") return false;
                     const { snapshot, activityWait } = error.diagnostic;
+                    assert.equal(snapshot.readFailure, undefined);
                     assert.equal(snapshot.unknownReason, "incomplete-data");
                     assert.equal(snapshot.emptyActivityLoading, false);
                     assert.deepEqual(snapshot.activityFields, {
@@ -1108,6 +1109,8 @@ test("TicketPlus 點擊前診斷：缺時間等待到期限，保留欄位與等
                             {
                                 names: 1,
                                 nameNonEmpty: true,
+                                dateField: { labels: 1, values: 1 },
+                                timeField: { labels: 1, values: 1 },
                                 dates: 1,
                                 dateValid: true,
                                 times: 0,

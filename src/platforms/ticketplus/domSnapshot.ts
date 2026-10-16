@@ -79,6 +79,37 @@ export async function readTicketPlusDom(page: Page) {
                         .filter(element => dom.text(element) === name)
                         .map(dom.enabled);
                 },
+                activityField(row: Element, label: "日期" | "時間", rowIndex: number) {
+                    // 響應式標籤可隱藏，只用固定文字定位可見欄位容器。
+                    const labels = Array.from(row.querySelectorAll("div.wordBreakKeepAll")).filter(
+                        element =>
+                            element.textContent?.trim() === label &&
+                            element.parentElement?.matches(".d-flex") &&
+                            dom.visible(element.parentElement),
+                    );
+                    const values = labels.flatMap(element =>
+                        Array.from(element.parentElement!.children).filter(
+                            child =>
+                                child !== element && child.matches("div:not(.wordBreakKeepAll)") && dom.visible(child),
+                        ),
+                    );
+
+                    // 只讀值容器；保留重複容器，診斷沿用同一次快照的位置。
+                    const previous = readLocation;
+                    try {
+                        const texts = values.map((element, elementIndex) => {
+                            readLocation = {
+                                field: label === "日期" ? "activity.dates" : "activity.times",
+                                rowIndex,
+                                elementIndex,
+                            };
+                            return dom.text(element);
+                        });
+                        return { labelCount: labels.length, valueCount: values.length, texts };
+                    } finally {
+                        readLocation = previous;
+                    }
+                },
                 leafTexts(root: ParentNode, field: DomReadDetail["field"], rowIndex: number): string[] {
                     const previous = readLocation;
                     try {
@@ -114,17 +145,29 @@ export async function readTicketPlusDom(page: Page) {
             );
 
             // 活動與場次只讀公開文字；資料頁不掃描整頁，避免帶出聯絡人值。
-            const activity = sessions.map((row, rowIndex) => ({
-                names: all(row, ".font-weight-bold.is-word-break").map(text),
-                dates: leafTexts(row, "activity.dates", rowIndex).filter(value =>
-                    /^\d{4}-\d{2}-\d{2}(?:\([一二三四五六日]\))?$/.test(value),
-                ),
-                times: leafTexts(row, "activity.times", rowIndex).filter(value => /^\d{2}:\d{2}$/.test(value)),
-                timeRanges: leafTexts(row, "activity.timeRanges", rowIndex).filter(value =>
-                    /^\d{2}:\d{2}\s*~\s*\d{2}:\d{2}$/.test(value),
-                ),
-                saleButtons: all(row, "button").map(element => ({ text: text(element), enabled: enabled(element) })),
-            }));
+            const activity = sessions.map((row, rowIndex) => {
+                const date = dom.activityField(row, "日期", rowIndex);
+                const time = dom.activityField(row, "時間", rowIndex);
+                const datePattern = /^\d{4}-\d{2}-\d{2}(?:\([一二三四五六日]\))?$/;
+
+                // 日期範圍只在日期欄位內拆分，未知格式不擷取其中片段。
+                const dates = date.texts.flatMap(value => {
+                    const parts = value.split("~").map(part => part.trim());
+                    return parts.length <= 2 && parts.every(part => datePattern.test(part)) ? parts : [];
+                });
+                return {
+                    names: all(row, ".font-weight-bold.is-word-break").map(text),
+                    dateField: { labels: date.labelCount, values: date.valueCount },
+                    timeField: { labels: time.labelCount, values: time.valueCount },
+                    dates,
+                    times: time.texts.filter(value => /^\d{2}:\d{2}$/.test(value)),
+                    timeRanges: time.texts.filter(value => /^\d{2}:\d{2}\s*~\s*\d{2}:\d{2}$/.test(value)),
+                    saleButtons: all(row, "button").map(element => ({
+                        text: text(element),
+                        enabled: enabled(element),
+                    })),
+                };
+            });
             const identities = all(document, ".text-page-title")
                 .filter(element => element.parentElement && all(element.parentElement, ".mdi-calendar").length > 0)
                 .map(element => {

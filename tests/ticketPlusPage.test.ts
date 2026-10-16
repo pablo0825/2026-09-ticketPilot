@@ -464,12 +464,18 @@ test("TicketPlus 活動欄位診斷：同快照描述缺少、空白、歧義與
     await withPage(async page => {
         const row = (content: string) => `<div class="sesstion-item">${content}</div>`;
         const name = '<div class="font-weight-bold is-word-break">PRIVATE_SESSION</div>';
-        const date = "<div>2026-10-30(五)</div>";
-        const time = "<div>20:00</div>";
+        const dateField = (value: string) =>
+            `<div class="d-flex"><div class="wordBreakKeepAll">日期</div><div>${value}</div></div>`;
+        const timeField = (value: string) =>
+            `<div class="d-flex"><div class="wordBreakKeepAll">時間</div><div>${value}</div></div>`;
+        const date = dateField("2026-10-30(五)");
+        const time = timeField("20:00");
         const button = "<button>立即購買</button>";
         const valid = {
             names: 1,
             nameNonEmpty: true,
+            dateField: { labels: 1, values: 1 },
+            timeField: { labels: 1, values: 1 },
             dates: 1,
             dateValid: true,
             times: 1,
@@ -485,14 +491,20 @@ test("TicketPlus 活動欄位診斷：同快照描述缺少、空白、歧義與
                 body: row(name.replace("PRIVATE_SESSION", "") + date + time + button),
                 expected: { ...valid, nameNonEmpty: false },
             },
-            { body: row(name + time + button), expected: { ...valid, dates: 0, dateValid: false } },
-            { body: row(name + "<div>2026-02-30</div>" + time + button), expected: { ...valid, dateValid: false } },
             {
-                body: row(name + "<div>2026/10/30</div>" + time + button),
+                body: row(name + time + button),
+                expected: { ...valid, dateField: { labels: 0, values: 0 }, dates: 0, dateValid: false },
+            },
+            { body: row(name + dateField("2026-02-30") + time + button), expected: { ...valid, dateValid: false } },
+            {
+                body: row(name + dateField("2026/10/30") + time + button),
                 expected: { ...valid, dates: 0, dateValid: false },
             },
-            { body: row(name + date + button), expected: { ...valid, times: 0, timeValid: false } },
-            { body: row(name + date + "<div>25:61</div>" + button), expected: { ...valid, timeValid: false } },
+            {
+                body: row(name + date + button),
+                expected: { ...valid, timeField: { labels: 0, values: 0 }, times: 0, timeValid: false },
+            },
+            { body: row(name + date + timeField("25:61") + button), expected: { ...valid, timeValid: false } },
             {
                 body: row(name + date + time),
                 expected: { ...valid, buttons: 0, knownButtonText: false, buttonEnabled: null },
@@ -510,6 +522,8 @@ test("TicketPlus 活動欄位診斷：同快照描述缺少、空白、歧義與
                 expected: {
                     names: 2,
                     nameNonEmpty: false,
+                    dateField: { labels: 2, values: 2 },
+                    timeField: { labels: 2, values: 2 },
                     dates: 2,
                     dateValid: false,
                     times: 2,
