@@ -403,3 +403,133 @@ test("登入停止診斷：第二次讀取中取消保留前次快照，晚到�
         }
     });
 });
+
+test("登入對話框：僅排除非啟用外框內唯一隱藏登入表單，未知與可見內容仍阻擋", async () => {
+    const form = '<input type="password" value="PRIVATE_PASSWORD"><button>登入</button>';
+    const hidden = `<div class="v-dialog" style="display:none">${form}</div>`;
+    const shell = (content: string, classes = "v-dialog__content") =>
+        `<div role="dialog" class="${classes}" style="position:fixed;inset:0">${content}</div>`;
+    await fixture("", async page => {
+        const cases: [string, number][] = [
+            [shell(hidden), 0],
+            [shell(hidden, "v-dialog__content v-dialog__content--active"), 1],
+            [shell(`<div class="v-dialog">${form}</div>`), 1],
+            [shell('<div class="v-dialog" style="display:none">未知公告</div>'), 1],
+            [shell(hidden, "unknown-shell"), 1],
+            [shell(hidden + "<p>仍需確認的公告</p>"), 1],
+            [shell(hidden + "仍需確認的文字"), 1],
+            [shell(hidden + hidden), 1],
+            [shell(""), 1],
+            [shell(hidden) + '<div role="dialog">未知提示</div>', 1],
+        ];
+        for (const [html, dialogs] of cases) {
+            await page.setContent(header(member) + html);
+            const result = await readTicketPlusLoginState(page);
+            assert.equal(result.markers.dialogs, dialogs, html);
+            assert.equal(result.state, dialogs === 0 ? "logged-in" : "unknown", html);
+            assert.doesNotMatch(JSON.stringify(result), /PRIVATE_PASSWORD|0912/);
+        }
+        await page.setContent(header("") + shell(hidden));
+        assert.equal((await readTicketPlusLoginState(page)).state, "unknown");
+    });
+});
+
+test("登入輪詢：會員標記出現但表單仍可見時等待，外部隱藏後才通過且不點擊", async () => {
+    const html =
+        header(member) +
+        '<div role="dialog" class="v-dialog__content v-dialog__content--active" style="position:fixed;inset:0"><div class="v-dialog"><input type="password"><button>登入</button></div></div>';
+    await fixture(html, async page => {
+        await page.evaluate(() => {
+            (window as any).clicks = 0;
+            document.addEventListener("click", () => {
+                (window as any).clicks++;
+            });
+        });
+        let observed = () => {};
+        const blocked = new Promise<void>(resolve => {
+            observed = resolve;
+        });
+        const pending = waitForTicketPlusLogin(page, {
+            pageTimeoutMs: 2000,
+            pollIntervalMs: 10,
+            onObservation: observation => {
+                if (observation.state === "unknown" && observation.markers.dialogs === 1) observed();
+            },
+        });
+        await blocked;
+        await page.locator(".v-dialog__content").evaluate(element => {
+            element.classList.remove("v-dialog__content--active");
+            (element.querySelector(".v-dialog") as HTMLElement).style.display = "none";
+        });
+        const result = await pending;
+        assert.equal(result.lastObservation?.state, "logged-in");
+        assert.equal(result.lastObservation?.markers.dialogs, 0);
+        assert(result.observations >= 2);
+        assert.equal(await page.evaluate(() => (window as any).clicks), 0);
+        assert.equal(page.url(), "https://ticketplus.com.tw/");
+    });
+});
+
+test("窄版登入：同樣排除隱藏登入外框，可見與未知彈窗不展開選單", async () => {
+    const form = '<div class="v-dialog" style="display:none"><input type="password"><button>登入</button></div>';
+    const cases = [
+        { content: form, active: false, ready: true },
+        { content: form, active: true, ready: false },
+        { content: '<div class="v-dialog">公告</div>', active: false, ready: false },
+        { content: form + "<p>額外提示</p>", active: false, ready: false },
+    ];
+    for (const item of cases) {
+        const html =
+            header(
+                "<button class=\"mdi-menu\" onclick=\"window.menuClicks=(window.menuClicks||0)+1;document.querySelector('nav').classList.remove('v-navigation-drawer--close')\">選單</button>",
+            ) +
+            `<nav class="v-navigation-drawer v-navigation-drawer--close">${member}</nav>` +
+            `<div role="dialog" class="v-dialog__content${item.active ? " v-dialog__content--active" : ""}" style="position:fixed;inset:0;pointer-events:none">${item.content}</div>`;
+        await fixture(html, async page => {
+            const pending = waitForTicketPlusLogin(page, {
+                pageTimeoutMs: item.ready ? 2000 : 400,
+                pollIntervalMs: 10,
+            });
+            if (item.ready) assert.equal((await pending).lastObservation?.state, "logged-in");
+            else
+                await assert.rejects(
+                    pending,
+                    (error: unknown) =>
+                        error instanceof TicketPlusLoginError &&
+                        error.reason === "page-timeout" &&
+                        error.summary.observations >= 2,
+                );
+            assert.equal(await page.evaluate(() => (window as any).menuClicks ?? 0), item.ready ? 1 : 0);
+        });
+    }
+});
+
+test("窄版登入：觀測後才出現未知彈窗，操作前核對仍阻止選單點擊", async () => {
+    const html =
+        header('<button class="mdi-menu" onclick="window.menuClicks=(window.menuClicks||0)+1">選單</button>') +
+        `<nav class="v-navigation-drawer v-navigation-drawer--close">${member}</nav>` +
+        '<div role="dialog" class="v-dialog__content" style="position:fixed;inset:0;pointer-events:none"><div class="v-dialog" style="display:none"><input type="password"><button>登入</button></div></div>';
+    await fixture(html, async page => {
+        const original = page.evaluate.bind(page);
+        let reads = 0;
+        page.evaluate = (async (...args: any[]) => {
+            reads++;
+            if (reads === 2) {
+                await original(() =>
+                    document.body.insertAdjacentHTML("beforeend", '<div role="dialog">新出現的未知提示</div>'),
+                );
+            }
+            return (original as any)(...args);
+        }) as typeof page.evaluate;
+        try {
+            await assert.rejects(
+                waitForTicketPlusLogin(page),
+                (error: unknown) => error instanceof TicketPlusLoginError && error.reason === "menu-failed",
+            );
+            assert.equal(reads, 2);
+            assert.equal(await original(() => (window as any).menuClicks ?? 0), 0);
+        } finally {
+            page.evaluate = original;
+        }
+    });
+});

@@ -66,6 +66,24 @@ export async function readTicketPlusLoginState(
                         !element.closest('.v-navigation-drawer--close, [hidden], [aria-hidden="true"]')
                     );
                 },
+                inactiveLoginShell(element: Element): boolean {
+                    // 只排除已觀察的非啟用登入外框，未知或多餘內容仍保留阻擋。
+                    if (!element.matches(".v-dialog__content:not(.v-dialog__content--active)")) return false;
+                    if (element.children.length !== 1) return false;
+                    const panel = element.children[0]!;
+                    if (!panel.matches(".v-dialog") || getComputedStyle(panel).display !== "none") return false;
+                    const directText = [...element.childNodes].some(
+                        node => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()),
+                    );
+                    if (directText) return false;
+
+                    // 隱藏內容必須仍能確認是登入表單，不將任意隱藏公告當成可忽略。
+                    const passwords = panel.querySelectorAll('input[type="password"]');
+                    const loginButtons = [...panel.querySelectorAll("button")].filter(
+                        button => (button.textContent ?? "").trim() === "登入",
+                    );
+                    return passwords.length === 1 && loginButtons.length === 1;
+                },
                 text(element: Element) {
                     return (element.textContent ?? "").trim();
                 },
@@ -89,7 +107,7 @@ export async function readTicketPlusLoginState(
                     text(element) === "會員登入" && ![...element.children].some(child => text(child) === "會員登入"),
             );
             const dialogs = [...document.querySelectorAll('.v-dialog__content--active, [role="dialog"]')].filter(
-                visible,
+                element => visible(element) && !dom.inactiveLoginShell(element),
             );
             const menuButtons = unique("button").filter(
                 element => element.matches(".mdi-menu") || element.querySelector(".mdi-menu"),

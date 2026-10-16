@@ -192,6 +192,26 @@ export async function waitForTicketPlusLogin(
                     // 選單只做同步命中後點擊，不讓 actionability 等待在取消後補點。
                     const opened = await page.evaluate(() => {
                         const dom = {
+                            inactiveLoginShell(element: Element): boolean {
+                                // 只排除已觀察的非啟用登入外框，未知或多餘內容仍保留阻擋。
+                                if (!element.matches(".v-dialog__content:not(.v-dialog__content--active)"))
+                                    return false;
+                                if (element.children.length !== 1) return false;
+                                const panel = element.children[0]!;
+                                if (!panel.matches(".v-dialog") || getComputedStyle(panel).display !== "none")
+                                    return false;
+                                const directText = [...element.childNodes].some(
+                                    node => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()),
+                                );
+                                if (directText) return false;
+
+                                // 隱藏內容必須仍能確認是登入表單，不將任意隱藏公告當成可忽略。
+                                const passwords = panel.querySelectorAll('input[type="password"]');
+                                const loginButtons = [...panel.querySelectorAll("button")].filter(
+                                    button => (button.textContent ?? "").trim() === "登入",
+                                );
+                                return passwords.length === 1 && loginButtons.length === 1;
+                            },
                             visible(element: Element): boolean {
                                 const rect = element.getBoundingClientRect();
                                 const style = getComputedStyle(element);
@@ -213,7 +233,7 @@ export async function waitForTicketPlusLogin(
                         if (headers.length !== 1) return false;
                         const dialogs = [
                             ...document.querySelectorAll('.v-dialog__content--active, [role="dialog"]'),
-                        ].filter(dom.visible);
+                        ].filter(element => dom.visible(element) && !dom.inactiveLoginShell(element));
                         const drawers = [...document.querySelectorAll("nav.v-navigation-drawer")].filter(dom.visible);
                         if (dialogs.length > 0 || drawers.length > 0) return false;
                         const buttons = [
