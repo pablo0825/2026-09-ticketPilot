@@ -99,6 +99,39 @@ test("循環：A 售完後 B 不明，舊 failure 不污染 B，也不刷新或�
     });
 });
 
+test("跨輪：首輪 A/B 售完，更新後 A 提交不明，保留三次提交且不再候補", async () => {
+    await withPage("next-round-unknown", async page => {
+        const control = new TicketPlusRunControl();
+        control.startDeadline(1);
+        const result = await runTicketPlusCycle(page, settings, session, control, undefined, options);
+        assert.equal(result.outcome, "unknown");
+        assert.equal(result.progress.submitAttempted, true);
+        assert.equal(result.progress.failure, undefined);
+        assert.equal(result.submissionAttempts, 3);
+        assert.deepEqual(await cycleState(page), {
+            actions: [
+                "A區+",
+                "A區+",
+                "submit",
+                "dismiss",
+                "B區+",
+                "B區+",
+                "submit",
+                "dismiss",
+                "refresh",
+                "A區+",
+                "A區+",
+                "submit",
+            ],
+            submissions: [
+                [{ name: "A區", quantity: 2 }],
+                [{ name: "B區", quantity: 2 }],
+                [{ name: "A區", quantity: 2 }],
+            ],
+        });
+    });
+});
+
 test("循環：A 畫面售完、B 提交售完，下一個使用原始 C 索引", async () => {
     await withPage("skip-A", async page => {
         const result = await runTicketPlusCycle(
@@ -117,7 +150,7 @@ test("循環：A 畫面售完、B 提交售完，下一個使用原始 C 索引"
     });
 });
 
-test("循環：A/B 售完且非目標 C 有庫存，單次更新後停止；不是全頁售完才更新", async () => {
+test("循環：A/B 售完且非目標 C 有庫存，更新未確認即停止；不是全頁售完才更新", async () => {
     await withPage("all-sold-out", async page => {
         const result = await runTicketPlusCycle(
             page,
@@ -135,7 +168,7 @@ test("循環：A/B 售完且非目標 C 有庫存，單次更新後停止；不�
     });
 });
 
-test("循環：本輪全部提交售完，只更新一次、不假裝已具備跨輪完成判定", async () => {
+test("循環：本輪全部提交售完，更新沒有過渡證據即停止、不開始新輪", async () => {
     await withPage("all-rejected", async page => {
         const result = await runTicketPlusCycle(
             page,
@@ -374,7 +407,7 @@ test("正式 runner：同輪 A 售完轉 B 成功／不明，保留單一瀏覽�
     }
 });
 
-test("循環：目標售完後實際更新完成仍停止，不開始第二輪或宣稱購票成功", async () => {
+test("循環：目標售完後未設定全程期限時更新完成仍停止，不開始第二輪或宣稱購票成功", async () => {
     await withPage("all-sold-out", async page => {
         await installRefreshExample(page);
         const pending = runTicketPlusCycle(page, settings, session, new TicketPlusRunControl(), undefined, options);
@@ -383,10 +416,11 @@ test("循環：目標售完後實際更新完成仍停止，不開始第二輪�
         await page.evaluate(() => window.refreshExample.restoreButton());
         const result = await pending;
         assert.equal(result.outcome, "stopped");
-        assert.equal(result.reason, "refresh-completed");
+        assert.equal(result.reason, "cycle-limit-missing");
         assert.equal(result.submissionAttempts, 0);
         assert("refresh" in result);
         assert.equal(result.refresh?.kind, "completed");
+        assert.match(ticketPlusResultMessage(result), /未設定全程執行期限/);
         assert.match(ticketPlusResultMessage(result), /更新.*完成/);
         assert.doesNotMatch(ticketPlusResultMessage(result), /購票成功|取得最新庫存/);
         assert.deepEqual(await cycleState(page), { actions: ["refresh"], submissions: [] });

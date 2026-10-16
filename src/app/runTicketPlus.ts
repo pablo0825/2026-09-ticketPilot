@@ -222,7 +222,7 @@ export async function runTicketPlus(
             { onActivityWait: summary => notify(options, { type: "activity-wait", ...summary }) },
             control,
         );
-        // 同輪候補由獨立模組編排；本次結果與歷史提交不混用。
+        // 同場次候補與更新後循環由獨立模組編排；本次結果與歷史提交不混用。
         return await runTicketPlusCycle(page, activity, session, control, event => {
             if (event.type === "stage") stage = event.stage;
             if (event.type === "attempt-reset") progress = emptySubmissionProgress();

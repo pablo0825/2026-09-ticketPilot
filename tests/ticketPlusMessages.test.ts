@@ -90,3 +90,14 @@ test("活動頁等待紀錄呈現耗時與觀測次數", async () => {
         "活動頁核對等待：1250 毫秒，共觀測 7 次。",
     );
 });
+
+test("順位紀錄區分初次、同輪候補與更新後的新輪次", async () => {
+    const { ticketPlusEventMessage } = await import("../src/app/ticketPlusPresentation.js");
+    const event = { type: "attempt-reset" as const, submissionAttempts: 0, nextPriorityIndex: 0 };
+    assert.equal(ticketPlusEventMessage({ ...event, reason: "initial" }), undefined);
+    assert.equal(ticketPlusEventMessage({ ...event, reason: "refreshed" }), "更新完成，從第一順位重新檢查。");
+    assert.equal(
+        ticketPlusEventMessage({ ...event, submissionAttempts: 1, nextPriorityIndex: 1, reason: "next-priority" }),
+        "前次提交已確認售完且重新選票核對通過，檢查本輪剩餘順位。",
+    );
+});

@@ -103,7 +103,7 @@ function resultMessage(result: TicketPlusRunResult): string {
     if ("refresh" in result && result.refresh) {
         const refresh = result.refresh;
         if (refresh.kind === "completed") {
-            return `選票頁更新完成並核對通過。${prior}本版停止於此，不開始新一輪選票；瀏覽器保留供人工檢查。`;
+            return `選票頁更新完成並核對通過。${prior}未設定全程執行期限，停止自動操作，不開始新一輪；瀏覽器保留供人工檢查。`;
         }
         const action = refresh.clickAttempted ? "已嘗試一次更新票數" : "尚未嘗試更新票數";
         const detail =
@@ -138,7 +138,10 @@ export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | unde
         return `活動頁核對等待：${event.elapsedMs} 毫秒，共觀測 ${event.observations} 次。`;
     if (event.type === "lease-release-failed") return "無法釋放購票占用，請人工檢查；不會自動解除。";
     if (event.type === "attempt-reset") {
-        return event.submissionAttempts > 0 ? "前次提交已確認售完且重新選票核對通過，檢查本輪剩餘順位。" : undefined;
+        if (event.reason === "refreshed") return "更新完成，從第一順位重新檢查。";
+        return event.reason === "next-priority"
+            ? "前次提交已確認售完且重新選票核對通過，檢查本輪剩餘順位。"
+            : undefined;
     }
     if (event.type === "stage") {
         return {

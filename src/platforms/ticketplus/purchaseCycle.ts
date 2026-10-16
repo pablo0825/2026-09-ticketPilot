@@ -18,12 +18,17 @@ export type TicketPlusCycleStage = "selecting-tickets" | "submitting" | "waiting
 export type TicketPlusCycleEvent =
     | { type: "stage"; stage: TicketPlusCycleStage }
     | { type: "submission"; progress: Readonly<SubmissionProgress> }
-    | { type: "attempt-reset"; submissionAttempts: number; nextPriorityIndex: number };
+    | {
+          type: "attempt-reset";
+          submissionAttempts: number;
+          nextPriorityIndex: number;
+          reason: "initial" | "next-priority" | "refreshed";
+      };
 export type TicketPlusCycleResult = (
     | TicketPlusSubmissionResult
     | {
           outcome: "stopped";
-          reason: "ticket-selection-stopped" | "refresh-stopped" | "refresh-completed";
+          reason: "ticket-selection-stopped" | "refresh-stopped" | "cycle-limit-missing";
           progress: Readonly<SubmissionProgress>;
           stopReason?: TicketRefreshResult["stopReason"];
           priorityFailure?: PriorityReason;
@@ -40,7 +45,7 @@ export interface TicketPlusCycleOptions {
     refresh?: TicketRefreshOptions;
 }
 
-// 只編排同場次、同輪順位；沒有經驗證的刷新完成訊號前，耗盡後更新一次即停止。
+// 編排同場次順位；只有更新完成且原全程期限有效，才從第一順位開始新一輪。
 export async function runTicketPlusCycle(
     page: Page,
     input: TicketPlusActivitySettings,
@@ -58,9 +63,9 @@ export async function runTicketPlusCycle(
             // 通知不得改變本次提交結果或觸發重試。
         }
     };
-    const reset = (nextPriorityIndex: number) => {
+    const reset = (nextPriorityIndex: number, reason: "initial" | "next-priority" | "refreshed") => {
         progress = emptySubmissionProgress();
-        notify({ type: "attempt-reset", submissionAttempts, nextPriorityIndex });
+        notify({ type: "attempt-reset", submissionAttempts, nextPriorityIndex, reason });
     };
     try {
         // 複製設定並確認同場次能力，等待使用原本的全程控制。
@@ -72,74 +77,95 @@ export async function runTicketPlusCycle(
             throw new TicketPlusPriorityError("invalid-options");
         }
         let nextPriorityIndex = 0;
-        reset(nextPriorityIndex);
+        reset(nextPriorityIndex, "initial");
 
-        // 使用原始順位索引；每個順位在本輪最多提交一次，其他錯誤不能候補。
-        while (nextPriorityIndex < activity.targets.length) {
-            control.check();
-            notify({ type: "stage", stage: "selecting-tickets" });
-            let selected;
-            try {
-                selected = await selectTicketPlusPriority(
+        let hasRefreshed = false;
+        // 每輪共用原停止控制與累計提交次數，不重開瀏覽器或重新計時。
+        while (true) {
+            // 使用原始順位索引；每個順位在本輪最多提交一次，其他錯誤不能候補。
+            while (nextPriorityIndex < activity.targets.length) {
+                control.check();
+                notify({ type: "stage", stage: "selecting-tickets" });
+                let selected;
+                try {
+                    selected = await selectTicketPlusPriority(
+                        page,
+                        activity,
+                        session,
+                        {
+                            ...options.selection,
+                            startPriorityIndex: nextPriorityIndex,
+                            requireZeroInitialQuantity:
+                                hasRefreshed || submissionAttempts > 0 || options.selection?.requireZeroInitialQuantity,
+                        },
+                        control,
+                    );
+                } catch (error) {
+                    control.check();
+                    if (error instanceof TicketPlusPriorityError && error.reason === "all-targets-sold-out") break;
+                    throw error;
+                }
+
+                // 本次進度獨立累積；總提交次數僅供摘要，不帶入之前的 failure。
+                notify({ type: "stage", stage: "submitting" });
+                const result = await runTicketPlusSubmission(
                     page,
-                    activity,
-                    session,
-                    {
-                        ...options.selection,
-                        startPriorityIndex: nextPriorityIndex,
-                        requireZeroInitialQuantity:
-                            submissionAttempts > 0 || options.selection?.requireZeroInitialQuantity,
+                    selected.selection,
+                    selected.snapshot,
+                    options.submission,
+                    observed => {
+                        if (observed.submitAttempted && !progress.submitAttempted) submissionAttempts++;
+                        progress = { ...observed };
+                        notify({ type: "submission", progress: Object.freeze({ ...progress }) });
                     },
                     control,
                 );
-            } catch (error) {
-                control.check();
-                if (error instanceof TicketPlusPriorityError && error.reason === "all-targets-sold-out") break;
-                throw error;
+                if (result.outcome !== "rejected" || result.progress.failure !== "sold-out" || result.stopReason) {
+                    return { ...result, submissionAttempts };
+                }
+
+                // 關窗後重新核對；ready 僅是當下快照，下一次選票仍強制全零。
+                const readiness = await inspectTicketPlusReselection(page, session, result, control);
+                if (readiness.kind !== "ready") {
+                    return { ...result, submissionAttempts, reselectionFailure: readiness.reason };
+                }
+                nextPriorityIndex = selected.priorityIndex + 1;
+                reset(nextPriorityIndex, "next-priority");
             }
 
-            // 本次進度獨立累積；總提交次數僅供摘要，不帶入之前的 failure。
-            notify({ type: "stage", stage: "submitting" });
-            const result = await runTicketPlusSubmission(
-                page,
-                selected.selection,
-                selected.snapshot,
-                options.submission,
-                observed => {
-                    if (observed.submitAttempted && !progress.submitAttempted) submissionAttempts++;
-                    progress = { ...observed };
-                    notify({ type: "submission", progress: Object.freeze({ ...progress }) });
-                },
-                control,
-            );
-            if (result.outcome !== "rejected" || result.progress.failure !== "sold-out" || result.stopReason) {
-                return { ...result, submissionAttempts };
+            // 只有設定目標耗盡才更新，非目標庫存不影響；更新仍會核對全頁已選零張。
+            control.check();
+            notify({ type: "stage", stage: "waiting-to-refresh" });
+            await control.wait(delay);
+            control.check();
+            notify({ type: "stage", stage: "refreshing" });
+            const refresh = await refreshTicketPlusTickets(page, session, control, options.refresh);
+            if (refresh.kind !== "completed") {
+                return {
+                    outcome: "stopped",
+                    reason: "refresh-stopped",
+                    progress: Object.freeze({ ...progress }),
+                    submissionAttempts,
+                    refresh,
+                    ...(refresh.stopReason ? { stopReason: refresh.stopReason } : {}),
+                };
             }
 
-            // 關窗後重新核對；ready 僅是當下快照，下一次選票仍強制全零。
-            const readiness = await inspectTicketPlusReselection(page, session, result, control);
-            if (readiness.kind !== "ready") {
-                return { ...result, submissionAttempts, reselectionFailure: readiness.reason };
+            // 更新成功只是新一輪的起點；缺少全程期限的獨立呼叫不能無限重跑。
+            control.check();
+            if (!Number.isFinite(control.remainingMs())) {
+                return {
+                    outcome: "stopped",
+                    reason: "cycle-limit-missing",
+                    progress: Object.freeze({ ...progress }),
+                    submissionAttempts,
+                    refresh,
+                };
             }
-            nextPriorityIndex = selected.priorityIndex + 1;
-            reset(nextPriorityIndex);
+            hasRefreshed = true;
+            nextPriorityIndex = 0;
+            reset(nextPriorityIndex, "refreshed");
         }
-
-        // 只有設定目標耗盡才更新，非目標庫存不影響；更新仍會核對全頁已選零張。
-        control.check();
-        notify({ type: "stage", stage: "waiting-to-refresh" });
-        await control.wait(delay);
-        control.check();
-        notify({ type: "stage", stage: "refreshing" });
-        const refresh = await refreshTicketPlusTickets(page, session, control, options.refresh);
-        return {
-            outcome: "stopped",
-            reason: refresh.kind === "completed" ? "refresh-completed" : "refresh-stopped",
-            progress: Object.freeze({ ...progress }),
-            submissionAttempts,
-            refresh,
-            ...(refresh.stopReason ? { stopReason: refresh.stopReason } : {}),
-        };
     } catch (error) {
         // 取消保留當次提交事實；前次已確認售完不污染這一次的結果。
         let cause = error;

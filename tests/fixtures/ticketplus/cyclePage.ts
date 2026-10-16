@@ -3,7 +3,15 @@ import { activity, eventHeader, student, presale, soldOut, information } from ".
 import { failureDialog, queueDialog } from "./submissionPage.js";
 
 export type CycleMode =
-    "success" | "unknown" | "queue" | "residue" | "general-failure" | "all-sold-out" | "skip-A" | "all-rejected";
+    | "success"
+    | "unknown"
+    | "queue"
+    | "residue"
+    | "general-failure"
+    | "all-sold-out"
+    | "skip-A"
+    | "all-rejected"
+    | "next-round-unknown";
 interface CycleState {
     actions: string[];
     submissions: { name: string; quantity: number }[][];
@@ -85,7 +93,19 @@ export async function installCyclePage(context: BrowserContext, mode: CycleMode)
                 }
                 if (button.textContent === "更新票數") {
                     state.actions.push("refresh");
-                    return; // 保留舊 DOM；不能當成更新成功。
+                    if (mode === "next-round-unknown") {
+                        button.remove();
+                        // 真正移除再恢復動態欄位；只依實際點擊更新，不讀取正式程式狀態。
+                        setTimeout(() => {
+                            document
+                                .querySelectorAll(".font-weight-medium > span, .count-button")
+                                .forEach(node => node.remove());
+                            setTimeout(() => {
+                                document.body.innerHTML = order;
+                            }, 40);
+                        }, 0);
+                    }
+                    return; // 其他模式保留舊 DOM，不能當成更新成功。
                 }
                 if (button.textContent === "下一步") {
                     if (location.pathname.startsWith("/confirm/")) {
@@ -103,9 +123,13 @@ export async function installCyclePage(context: BrowserContext, mode: CycleMode)
                             .filter(ticket => ticket.quantity > 0),
                     );
                     if (mode === "general-failure") document.body.insertAdjacentHTML("beforeend", generalFailure);
-                    else if (state.submissions.length === 1 || mode === "all-rejected")
+                    else if (
+                        state.submissions.length === 1 ||
+                        mode === "all-rejected" ||
+                        (mode === "next-round-unknown" && state.submissions.length <= 2)
+                    )
                         document.body.insertAdjacentHTML("beforeend", failure);
-                    else if (mode === "unknown")
+                    else if (mode === "unknown" || mode === "next-round-unknown")
                         document.body.insertAdjacentHTML("beforeend", '<div role="dialog">不明處理狀態</div>');
                     else if (mode === "queue") document.body.insertAdjacentHTML("beforeend", queue);
                     else {
