@@ -29,7 +29,7 @@ export function purchaseOccupied(directory?: string): boolean {
     return existsSync(purchaseLockPath(directory));
 }
 
-// CLI 與 GUI 共用持久占用；異常退出保留檔案，不猜測訂單或自動解鎖。
+// 購票程序共用持久占用；異常退出保留檔案，不猜測訂單或自動解鎖。
 export function acquirePurchaseLease(directory = join(projectRoot, "local-data")): PurchaseLease {
     const lease = { path: purchaseLockPath(directory), token: randomUUID() };
     try {

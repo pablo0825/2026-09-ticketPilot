@@ -3,7 +3,8 @@
 ## Structure & Commands
 
 This TypeScript/Playwright project automates Klook ticket selection.
-`src/main.ts` orchestrates; `src/core/` owns strategy, types, state, and recovery;
+`src/local/main.ts` starts the GUI, the only entry point; `src/app/` orchestrates
+purchase runs; `src/core/` owns strategy, types, state, and recovery;
 `src/platforms/klook/` owns DOM interactions; `src/config/` owns configuration;
 `tests/` contains tests; `docs/` records DOM observations.
 
@@ -14,9 +15,9 @@ From the repository root:
 - `npm run typecheck`: check types.
 - `npm test`: run tests.
 - `npm run format`: format files with Prettier; run before committing.
-- `npm start`: run the live flow in installed Chrome.
+- `npm run gui`: open the local GUI; live runs use installed Chrome.
 
-Review `src/config/event.config.ts` before live runs.
+Review the activity settings in the GUI before live runs.
 
 ## Development & Style
 

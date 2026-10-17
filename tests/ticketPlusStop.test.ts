@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
-import { getEventListeners, type EventEmitter } from "node:events";
+import { getEventListeners } from "node:events";
 import { chromium } from "playwright";
 import { TicketPlusRunControl, TicketPlusStopError } from "../src/platforms/ticketplus/runControl.js";
 import { selectTicketPlusTickets } from "../src/platforms/ticketplus/ticketQuantity.js";
 import { selectTicketPlusPriority } from "../src/platforms/ticketplus/ticketPriority.js";
 import { selectTicketPlusSession } from "../src/platforms/ticketplus/sessionSelection.js";
 import { runTicketPlusSubmission } from "../src/platforms/ticketplus/submissionOutcome.js";
-import { waitForTicketPlusWorkerLogin } from "../src/local/ticketPlusWorkerLogin.js";
 import { installQuantityFixture, quantityState } from "./fixtures/ticketplus/quantityPage.js";
 import { installSubmission, submissionCounts } from "./fixtures/ticketplus/submissionPage.js";
 import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
@@ -75,51 +74,6 @@ test("停止控制：唯讀與等待取消後清理監聽；外部原因不進�
         () => control.check(),
         error => error instanceof TicketPlusStopError && !error.message.includes("PRIVATE"),
     );
-});
-
-test("停止控制：登入等待取消與確認競態只完成一次且清理所有監聽", { timeout: 10_000 }, async () => {
-    const browser = await chromium.launch();
-    try {
-        const page = await browser.newPage();
-        for (const phase of ["before", "waiting", "confirmed"]) {
-            const controller = new AbortController();
-            const before = [
-                process.listenerCount("message"),
-                (page as unknown as EventEmitter).listenerCount("close"),
-                (page as unknown as EventEmitter).listenerCount("crash"),
-            ];
-            let confirmationId = "";
-            if (phase === "before") controller.abort();
-            const pending = waitForTicketPlusWorkerLogin(
-                page,
-                id => {
-                    confirmationId = id;
-                },
-                controller.signal,
-            );
-            if (phase === "confirmed") {
-                process.emit("message", { type: "confirm-ticketplus-login", confirmationId }, undefined);
-                controller.abort();
-                await pending;
-            } else {
-                const rejected = assert.rejects(pending, TicketPlusStopError);
-                controller.abort();
-                await rejected;
-            }
-            process.emit("message", { type: "confirm-ticketplus-login", confirmationId }, undefined);
-            assert.deepEqual(
-                [
-                    process.listenerCount("message"),
-                    (page as unknown as EventEmitter).listenerCount("close"),
-                    (page as unknown as EventEmitter).listenerCount("crash"),
-                ],
-                before,
-            );
-            assert.equal(getEventListeners(controller.signal, "abort").length, 0);
-        }
-    } finally {
-        await browser.close();
-    }
 });
 
 test("停止控制：預先停止時場次／順位／張數／提交均不操作", async () => {

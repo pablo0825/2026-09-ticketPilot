@@ -1,6 +1,5 @@
 import { acquirePurchaseLease, verifyPurchaseLease, releasePurchaseLease, type PurchaseLease } from "./purchaseLock.js";
 import { normalizePurchaseConfig } from "../core/purchaseValidation.js";
-import { FlowPause } from "../core/flowPause.js";
 import { KlookSeatRecovery, KlookContactRecovery, KlookQueueRecovery } from "../platforms/klook/expiryRecovery.js";
 import { PaymentPageError, waitForPaymentPage } from "../platforms/klook/paymentPage.js";
 import { validateContactDetails, type ContactDetails } from "../config/contact.config.js";
@@ -81,7 +80,6 @@ async function submitAndVerifyPayment(page: Page, eventUrl: string, contactForm:
 export interface PurchaseRunOptions {
     onEvent?: (event: RunEvent) => void;
     onBrowser?: (context: import("playwright").BrowserContext) => void;
-    pause?: string;
     lease?: PurchaseLease;
 }
 
@@ -140,7 +138,6 @@ async function executePurchase(
 
     // 驗證活動資料是否符合規定
     const strategy = new PriorityStrategy(eventConfig);
-    const pause = new FlowPause(options.pause);
 
     // 列出各順位目標
     for (const [index, target] of eventConfig.targets.entries()) {
@@ -163,7 +160,6 @@ async function executePurchase(
             confirmSeats: async ({ target, value: { seatSelector, allocation } }) => {
                 selecting = false;
                 reportState("SEATS_VERIFIED");
-                await pause.waitAt("seats");
 
                 reportState("SEAT_CONFIRMATION");
                 await seatSelector.confirmVerifiedSeats(target, allocation);
@@ -189,24 +185,13 @@ async function executePurchase(
                 );
                 await contactForm.verify(contactDetails);
                 reportState("CONTACT_VERIFIED");
-
-                if (await pause.waitAt("contact")) {
-                    // 暫停期間可能過期或被修改，返回前重新核對；仍在恢復範圍內。
-                    verifyBookingSummary(
-                        await readBookingSummary(page, eventConfig.eventUrl),
-                        target,
-                        allocation,
-                        bookingExpectation,
-                    );
-                    await contactForm.verify(contactDetails);
-                }
             },
         },
         new KlookQueueRecovery(page, eventConfig.eventUrl),
         new KlookContactRecovery(page, eventConfig.eventUrl),
         new KlookSeatRecovery(page, eventConfig.eventUrl),
     ).catch(async (error: unknown) => {
-        // 已離開 recovery 範圍；採集失敗或手動返回都不能再次購買。
+        // 已離開 recovery 範圍；採集失敗也不能再次購買。
         if (selecting && !(error instanceof Error && error.name === "AbortError")) {
             reportState("MANUAL_REQUIRED");
             const directory = join(projectRoot, "diagnostics", randomUUID());

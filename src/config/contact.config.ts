@@ -80,7 +80,7 @@ export async function loadContactDetails(
     return validateContactDetails(data);
 }
 
-// GUI 與 CLI 共用欄位規則。預設仍寫現有本機個資檔，不改範本。
+// 與讀取共用欄位規則。預設仍寫現有本機個資檔，不改範本。
 export async function saveContactDetails(
     value: unknown,
     path = fileURLToPath(new URL("../../contact.local.json", import.meta.url)),

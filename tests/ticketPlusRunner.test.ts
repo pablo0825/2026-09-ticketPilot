@@ -215,7 +215,7 @@ test("TicketPlus runner：登入等待時關閉瀏覽器，流程停止後解除
     }
 });
 
-test("TicketPlus runner：活動不符保留具體原因，CLI 指出設定欄位且不點擊", async () => {
+test("TicketPlus runner：活動不符保留具體原因，訊息指出設定欄位且不點擊", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticketplus-mismatch-"));
     const browser = await chromium.launch();
     const context = await browser.newContext();

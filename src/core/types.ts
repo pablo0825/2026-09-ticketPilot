@@ -38,7 +38,7 @@ export interface PurchaseConfig extends EventConfig {
     targets: PurchaseTarget[];
 }
 
-// 舊 CLI 可保留金額欄位；入口會忽略，內部只保留活動名稱。
+// 舊格式輸入可保留金額欄位；入口會忽略，內部只保留活動名稱。
 export type PurchaseConfigInput = Omit<PurchaseConfig, "targets"> & {
     targets: (Omit<PurchaseTarget, "expectation"> & {
         expectation: BookingExpectation & { currency?: unknown; unitPrice?: unknown; totalPrice?: unknown };
