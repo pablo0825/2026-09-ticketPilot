@@ -117,7 +117,11 @@ test("舊 TP v4 請求與活動狀態：等價單順位重播原結果，改設�
             runs.activityStatus(await store.save({ ...canonical, flowType: "lottery" }, activityId)),
             "設定已更新",
         );
-        for (const input of [multiple, { ...canonical, targets: [{ ...legacy.target, quantity: 3 }] }]) {
+        for (const input of [
+            multiple,
+            { ...canonical, targets: [{ ...legacy.target, quantity: 3 }] },
+            { ...canonical, flowType: "lottery" as const },
+        ]) {
             assert.throws(() => runs.start(requestId, input, undefined, activityId), /更換設定/);
             assert.equal(runs.activityStatus(await store.save(input, activityId)), "設定已更新");
         }

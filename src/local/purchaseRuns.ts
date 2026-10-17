@@ -301,6 +301,7 @@ export class PurchaseRuns {
         const legacyFingerprint =
             activity.platform === "ticketplus" &&
             activity.targets.length === 1 &&
+            activity.flowType !== "lottery" &&
             !activity.saleSchedule &&
             activity.maxRunMinutes === undefined
                 ? createHash("sha256")
