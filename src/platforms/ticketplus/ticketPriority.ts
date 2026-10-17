@@ -5,6 +5,7 @@ import type { TicketPlusActivitySettings, TicketPlusSelection } from "../../conf
 import { readTicketPlusPage } from "./pageState.js";
 import { selectTicketPlusTickets } from "./ticketQuantity.js";
 import type { TicketQuantityOptions, VerifiedTicketPlusSession } from "./ticketQuantity.js";
+import { findTargetTickets } from "./ticketSelectionPage.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 
 export type PriorityReason =
@@ -90,7 +91,7 @@ export async function selectTicketPlusPriority(
         ) {
             throw new TicketPlusPriorityError("identity-mismatch");
         }
-        const matches = snapshot.tickets.filter(ticket => ticket.name === target.ticketType);
+        const matches = findTargetTickets(snapshot.tickets, target.ticketType);
         if (matches.length === 0) throw new TicketPlusPriorityError("ticket-missing");
         if (matches.length !== 1) throw new TicketPlusPriorityError("ticket-ambiguous");
         const ticket = matches[0]!;

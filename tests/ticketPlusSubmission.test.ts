@@ -128,6 +128,19 @@ test("TicketPlus 提交：直接抵達同場次資料頁，資料頁下一步可
     });
 });
 
+test("TicketPlus 提交：票種列 class 不同時，仍以同一套找列規則確認目標列後送出一次", async () => {
+    await withPage("direct", async page => {
+        await page.evaluate(() => {
+            document.querySelectorAll(".rwd-margin").forEach(row => {
+                row.className = "ticket-line";
+            });
+        });
+        const result = await submit(page);
+        assert.equal(result.kind, "information");
+        assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+    });
+});
+
 test("TicketPlus 提交：排隊消失回選票再排隊，直到資料頁才完成", async () => {
     await withPage("queue", async (page, requests) => {
         let finished = false;

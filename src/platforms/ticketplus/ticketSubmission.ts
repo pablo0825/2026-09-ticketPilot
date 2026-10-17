@@ -9,6 +9,7 @@ import { readTicketPlusPage, readTicketPlusInformationObservation } from "./page
 import type { OrderFailurePage, TicketPlusPage, TicketPlusPageDiagnostic } from "./pageState.js";
 import type { InformationPage } from "./informationPage.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
+import { locateTargetRow } from "./ticketRowFinder.js";
 
 export interface TicketSubmissionOptions {
     preflightTimeoutMs?: number;
@@ -213,34 +214,26 @@ function verifySelection(context: Submission, value: TicketPlusPage): asserts va
     if (value.kind !== "ticket-selection") throw stop(context, "unexpected-page");
     if (!matchesSubmittedSelection(value, submissionTarget(context))) throw stop(context, "selection-mismatch");
 }
-function xpathLiteral(value: string): string {
-    if (!value.includes("'")) return `'${value}'`;
-    if (!value.includes('"')) return `"${value}"`;
-    return `concat(${value
-        .split("'")
-        .map(part => `'${part}'`)
-        .join(', "\'", ')})`;
-}
 async function submitOnce(page: Page, context: Submission, deadline: number): Promise<number> {
     // 先讀全頁，再將按鈕限定於有正確票名與張數的選票畫面。
     checkRoute(page, context, true);
     const first = await snapshot(page, context, deadline);
     verifySelection(context, first);
     if (!first.nextEnabled) throw stop(context, "button-unavailable");
-    const label = page.locator(
-        `xpath=./div[contains(concat(' ', normalize-space(@class), ' '), ' font-weight-medium ')][text()[normalize-space(.)=${xpathLiteral(context.settings.target.ticketType.replace(/\s+/g, " "))}]]`,
-    );
-    const row = page
-        .locator(".row.py-1.py-md-4.rwd-margin.no-gutters")
-        .filter({ visible: true, has: label })
-        .filter({
-            has: page
-                .locator(".count-button > div")
-                .filter({ visible: true, hasText: new RegExp(`^\\s*${context.settings.target.quantity}\\s*$`) }),
-        });
+    // 與讀取共用找列規則，確認有唯一一列票名與張數都正確，才在整頁範圍找下一步。
+    const target = { ticketType: context.settings.target.ticketType, quantity: context.settings.target.quantity };
+    const candidates = await readBounded(context, deadline, async () => {
+        const located = await page.evaluateHandle(locateTargetRow, target);
+        try {
+            const count = await located.getProperty("candidates");
+            return (await count.jsonValue()) as number;
+        } finally {
+            await located.dispose();
+        }
+    });
+    if (candidates !== 1) throw stop(context, "button-unavailable");
     const scope = page
         .locator("body")
-        .filter({ has: row })
         .filter({ hasNot: page.getByText("聯絡人資訊", { exact: true }).filter({ visible: true }) })
         .filter({ hasNot: page.getByRole("heading", { level: 3, name: /排隊購票中/ }).filter({ visible: true }) });
     const locator = scope.getByRole("button", { name: "下一步", exact: true }).filter({ visible: true });

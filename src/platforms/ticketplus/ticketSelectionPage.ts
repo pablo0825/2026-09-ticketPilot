@@ -63,6 +63,11 @@ function parseTicket(row: TicketPlusDom["tickets"][number]): TicketRow | undefin
     };
 }
 
+// 目標票種比對：票名完全相等（大小寫、全半形、內部空白都要一致），保留重複以便呼叫端判斷歧義。
+export function findTargetTickets(tickets: TicketRow[], ticketType: string): TicketRow[] {
+    return tickets.filter(ticket => ticket.name === ticketType);
+}
+
 export function parseTicketSelectionPage(
     dom: TicketPlusDom,
     identity: PageIdentity,

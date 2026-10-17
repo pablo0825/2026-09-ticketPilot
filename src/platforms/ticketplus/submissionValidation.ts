@@ -1,5 +1,6 @@
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 import type { PageIdentity, EventDetails } from "./readResult.js";
+import { findTargetTickets } from "./ticketSelectionPage.js";
 
 export interface SubmittedSelectionTarget extends PageIdentity, EventDetails {
     ticketType: string;
@@ -19,7 +20,7 @@ export function matchesSubmittedSelection(value: TicketSelectionPage, target: Su
     }
 
     // 目標唯一且張數相符，其他票種必須保持零張。
-    const matches = value.tickets.filter(ticket => ticket.name === target.ticketType);
+    const matches = findTargetTickets(value.tickets, target.ticketType);
     return (
         matches.length === 1 &&
         matches[0]!.saleStatus === "selling" &&
