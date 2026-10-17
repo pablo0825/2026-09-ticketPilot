@@ -57,7 +57,8 @@ export function refreshReadiness(
             : { status: "pending", reason: "refresh-not-complete" };
     }
 
-    // 僅缺少動態欄位的票列等待；票名缺失或格式錯誤仍拒絕。
+    // 僅缺少庫存與售完文字的票列等待；計數器可保留但形狀須完整（與 domSnapshot 監測相同），
+    // 張數非零已於上方停止，票名缺失仍拒絕。
     const gap =
         dom.tickets.length > 0 &&
         dom.tickets.every(
@@ -65,11 +66,11 @@ export function refreshReadiness(
                 row.names.length === 1 &&
                 row.names[0]?.trim() &&
                 row.statuses.length === 0 &&
-                row.quantities.length === 0 &&
-                row.counterCount === 0 &&
-                row.plus.length === 0 &&
-                row.minus.length === 0 &&
-                row.soldOut === 0,
+                row.soldOut === 0 &&
+                row.counterCount <= 1 &&
+                row.quantities.length === row.counterCount &&
+                row.plus.length === row.counterCount &&
+                row.minus.length === row.counterCount,
         );
     return gap && dom.nextButtons.length === 1
         ? { status: "pending", reason: "refresh-data-loading" }

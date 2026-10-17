@@ -423,17 +423,19 @@ export async function readTicketPlusDom(page: Page, monitor?: RefreshMonitorRequ
                             return;
                         }
                         if (current.refreshButtons.length === 0) evidence.buttonAbsent = true;
+                        // 空窗看庫存與售完文字消失；實站計數器可能保留，但形狀須完整（與 refreshReadiness 相同）。
+                        // 張數非零已在上方判為無效。
                         if (
                             names === JSON.stringify(current.tickets.map(row => row.names)) &&
                             current.tickets.length > 0 &&
                             current.tickets.every(
                                 row =>
                                     row.statuses.length === 0 &&
-                                    row.quantities.length === 0 &&
-                                    row.counterCount === 0 &&
-                                    row.plus.length === 0 &&
-                                    row.minus.length === 0 &&
-                                    row.soldOut === 0,
+                                    row.soldOut === 0 &&
+                                    row.counterCount <= 1 &&
+                                    row.quantities.length === row.counterCount &&
+                                    row.plus.length === row.counterCount &&
+                                    row.minus.length === row.counterCount,
                             )
                         ) {
                             evidence.dynamicGap = true;
