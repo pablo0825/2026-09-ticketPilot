@@ -143,6 +143,62 @@ export async function readTicketPlusDom(page: Page, monitor?: RefreshMonitorRequ
                                 readLocation = previous;
                             }
                         },
+                        rowControls(root: Element): Element[] {
+                            // 列控制項：計數器，或沒有計數器時的售完／暫無票券文字。
+                            return [
+                                ...dom.all(root, ".count-button"),
+                                ...dom
+                                    .all(root, "*")
+                                    .filter(element => ["已售完", "暫無票券"].includes(dom.directText(element))),
+                            ];
+                        },
+                        hasNameText(root: Element, price: Element): boolean {
+                            // 名稱候選：價格以外、不是庫存／售完／張數的可見直接文字。
+                            return dom
+                                .all(root, "*")
+                                .some(
+                                    element =>
+                                        !price.contains(element) &&
+                                        dom.directText(element) !== "" &&
+                                        !/^(剩餘\s*\d+|熱賣中|已售完|暫無票券|\d+)$/.test(dom.directText(element)),
+                                );
+                        },
+                        priceRows(): Element[] {
+                            // 價格是每個票種列都有的元素（含售完列與更新空窗），用它找列，不依賴列的 class。
+                            const prices = dom
+                                .all(document.body, "*")
+                                .filter(
+                                    element =>
+                                        /^\s*NT\.?\s*[\d,]+\s*$/.test(element.textContent ?? "") &&
+                                        !Array.from(element.children).some(dom.visible),
+                                );
+
+                            // 列不可含其他價格；在此範圍內優先取第一個含計數器或售完文字的祖先，
+                            // 沒有時（例如更新空窗）取第一個含名稱的祖先。
+                            const rows = prices.map(price => {
+                                const chain: Element[] = [];
+                                let node = price.parentElement;
+                                while (node && node !== document.body && dom.pricesInside(node, prices) === 1) {
+                                    chain.push(node);
+                                    node = node.parentElement;
+                                }
+
+                                const withControl = chain.find(ancestor => dom.rowControls(ancestor).length > 0);
+                                const withName = chain.find(ancestor => dom.hasNameText(ancestor, price));
+                                return withControl ?? withName ?? price;
+                            });
+                            const unique = rows.filter((row, index) => rows.indexOf(row) === index);
+
+                            // 不屬於任何列的計數器或售完文字代表有列沒被價格找到（例如價格格式不同），
+                            // 加入成為不完整列，讓整頁判為資料不完整，而不是默默少一列。
+                            const orphans = dom
+                                .rowControls(document.body)
+                                .filter(control => !unique.some(row => row.contains(control)));
+                            return [...unique, ...orphans];
+                        },
+                        pricesInside(root: Element, prices: Element[]): number {
+                            return prices.filter(price => root.contains(price)).length;
+                        },
                     };
                     const { visible, all, text, directText, enabled, buttons, leafTexts } = dom;
 
@@ -151,7 +207,10 @@ export async function readTicketPlusDom(page: Page, monitor?: RefreshMonitorRequ
                         element => text(element).replace(/\s+/g, " ") === "排隊購票中 請稍候",
                     ).length;
                     const sessions = all(document, ".sesstion-item");
-                    const ticketRows = all(document, ".row.py-1.py-md-4.rwd-margin.no-gutters");
+                    // 選票頁以價格找列；其他頁面沿用原 class，只用來偵測殘留的選票列，行為不變。
+                    const ticketRows = location.pathname.startsWith("/order/")
+                        ? dom.priceRows()
+                        : all(document, ".row.py-1.py-md-4.rwd-margin.no-gutters");
                     const summaryRows = all(document, ".row.py-2.py-md-3.no-gutters");
                     const terms = all(document, 'input[type="checkbox"]').filter(element => {
                         const input = element as HTMLInputElement;

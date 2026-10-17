@@ -22,11 +22,13 @@ export const session = `
 export const activity = `<h1 hidden>2026孿生姐妹之夜之鬼迷心竅</h1>
 <h1>2026孿生姐妹之夜之鬼迷心竅</h1><div role="tab">立即購買</div>${session}`;
 
+// 價格是列的獨立欄位，不在名稱欄內（2026-10-17 實站核對）。
 export const student = `
 <div class="row py-1 py-md-4 rwd-margin no-gutters">
   <div class="font-weight-medium py-3 col-sm-6 col-9 align-self-center">學生票
-    <span class="v-tooltip"></span><span>剩餘 14</span><div>NT. 450</div>
+    <span class="v-tooltip"></span><span>剩餘 14</span>
   </div>
+  <div class="text-center col-sm-3 col-3 align-self-center px-4 font-weight-bold">NT. 450</div>
   <div class="col-sm-3 col-3 align-self-center text-right"><div class="count-button d-flex">
     <button type="button" disabled><span><i aria-hidden="true" class="mdi mdi-minus"></i></span></button>
     <div>0</div>
@@ -37,8 +39,9 @@ export const student = `
 export const presale = `
 <div class="row py-1 py-md-4 rwd-margin no-gutters">
   <div class="font-weight-medium py-3 col-sm-6 col-9 align-self-center">預售票
-    <span class="v-tooltip"></span><span class="v-chip"><span class="v-chip__content">熱賣中</span></span><div>NT. 550</div>
+    <span class="v-tooltip"></span><span class="v-chip"><span class="v-chip__content">熱賣中</span></span>
   </div>
+  <div class="text-center col-sm-3 col-3 align-self-center px-4 font-weight-bold">NT. 550</div>
   <div class="col-sm-3 col-3 align-self-center text-right"><div class="count-button d-flex">
     <button type="button"><span><i aria-hidden="true" class="mdi mdi-minus"></i></span></button>
     <div>1</div>
@@ -49,8 +52,9 @@ export const presale = `
 export const soldOut = `
 <div class="row py-1 py-md-4 rwd-margin no-gutters soldout">
   <div class="font-weight-medium py-3 col-sm-6 col-9 align-self-center">身障票
-    <span class="v-tooltip"></span><span>剩餘 0</span><div>NT. 275</div>
-  </div><div class="col-sm-3 col-3 align-self-center text-right"><span>已售完</span></div>
+    <span class="v-tooltip"></span><span>剩餘 0</span>
+  </div>
+  <div class="text-center col-sm-3 col-3 align-self-center px-4 font-weight-bold">NT. 275</div><div class="col-sm-3 col-3 align-self-center text-right"><span>已售完</span></div>
 </div>`;
 export const order = `${eventHeader}<div class="stepText currStep">選擇票種</div>${student}${presale}${soldOut}
 <button type="button">更新票數</button><button type="button">下一步</button>`;
