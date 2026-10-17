@@ -45,7 +45,11 @@ export function refreshReadiness(
     }
 
     // 張數殘留及按鈕歧義不能以資料仍在載入掩蓋。
-    if (dom.tickets.some(row => row.quantities.some(value => value !== "0"))) {
+    // 收合票區保留的隱藏張數也算在內。
+    if (
+        dom.tickets.some(row => row.quantities.some(value => value !== "0")) ||
+        dom.areas.some(area => area.hiddenQuantities.some(value => value !== "0"))
+    ) {
         return { status: "stop", reason: "remaining-quantity" };
     }
     if (dom.refreshEvidence?.invalid) return { status: "stop", reason: "unexpected-page" };
@@ -57,10 +61,18 @@ export function refreshReadiness(
             : { status: "pending", reason: "refresh-not-complete" };
     }
 
-    // 僅缺少庫存與售完文字的票列等待；計數器可保留但形狀須完整（與 domSnapshot 監測相同），
-    // 張數非零已於上方停止，票名缺失仍拒絕。
-    // 票區面板版型的空窗看票區標題，另行處理；此處只認票種列版型。
-    const gap =
+    // 空窗：只缺庫存文字時等待（形狀規則與 domSnapshot 監測相同；名稱不變由監測比對）；計數器可保留但形狀須完整，
+    // 張數非零已於上方停止，名稱缺失仍拒絕。
+    const countersComplete = dom.tickets.every(
+        row =>
+            row.counterCount <= 1 &&
+            row.quantities.length === row.counterCount &&
+            row.plus.length === row.counterCount &&
+            row.minus.length === row.counterCount,
+    );
+
+    // 票種列版型：每列只剩票名，沒有庫存、售完與暫無票券文字。
+    const rowGap =
         dom.areas.length === 0 &&
         dom.tickets.length > 0 &&
         dom.tickets.every(
@@ -69,12 +81,14 @@ export function refreshReadiness(
                 row.names[0]?.trim() &&
                 row.statuses.length === 0 &&
                 row.soldOut === 0 &&
-                row.unavailable === 0 &&
-                row.counterCount <= 1 &&
-                row.quantities.length === row.counterCount &&
-                row.plus.length === row.counterCount &&
-                row.minus.length === row.counterCount,
+                row.unavailable === 0,
         );
+
+    // 票區面板版型：每個票區標題只剩名稱，沒有庫存文字。
+    const areaGap =
+        dom.areas.length > 0 &&
+        dom.areas.every(area => area.names.length === 1 && area.names[0]?.trim() && area.stock.length === 0);
+    const gap = countersComplete && (rowGap || areaGap);
     return gap && dom.nextButtons.length === 1
         ? { status: "pending", reason: "refresh-data-loading" }
         : { status: "stop", reason: "unexpected-page" };

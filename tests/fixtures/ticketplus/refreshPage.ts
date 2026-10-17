@@ -13,7 +13,19 @@ declare global {
 
 // full：舊樣本，空窗移除計數器；live：2026-10-17 實站樣本，空窗保留計數器，售完列暫時多出計數器。
 // keep-status／keep-sold-out：live 但分別留下庫存或已售完文字，屬於不完整的空窗。
-export type RefreshExampleMode = "full" | "live" | "keep-status" | "keep-sold-out" | "button-only";
+// area：票區面板版型實站樣本，所有票區標題的庫存文字暫時消失，展開票區內的列與計數器保留；
+// area-partial：只有第一個票區標題的庫存消失，屬於不完整的空窗。
+// area-renamed：庫存全消失但第一個票區改名；area-broken-counter：庫存全消失但展開票區的加號不見。兩者都不是空窗。
+export type RefreshExampleMode =
+    | "full"
+    | "live"
+    | "keep-status"
+    | "keep-sold-out"
+    | "area"
+    | "area-partial"
+    | "area-renamed"
+    | "area-broken-counter"
+    | "button-only";
 
 export async function installRefreshExample(page: Page, mode: RefreshExampleMode = "full") {
     await page.evaluate(mode => {
@@ -22,12 +34,17 @@ export async function installRefreshExample(page: Page, mode: RefreshExampleMode
             row,
             html: row.innerHTML,
         }));
+        const headers = Array.from(document.querySelectorAll<HTMLElement>(".v-expansion-panel-header"), header => ({
+            header,
+            html: header.innerHTML,
+        }));
         let buttonHtml = "";
         window.refreshExample = {
             phase: "idle",
             enabled: true,
             restoreData() {
                 for (const { row, html } of originals) row.innerHTML = html;
+                for (const { header, html } of headers) header.innerHTML = html;
                 window.refreshExample.phase = "data-restored";
             },
             restoreButton() {
@@ -67,6 +84,20 @@ export async function installRefreshExample(page: Page, mode: RefreshExampleMode
                             else node.outerHTML = soldOutCounter;
                         }
                     }
+                }
+
+                // 票區面板版型：移除標題上的庫存文字（剩餘 N 的 small 與熱賣中 chip）。
+                const allAreas = mode === "area" || mode === "area-renamed" || mode === "area-broken-counter";
+                const emptied = allAreas ? headers : mode === "area-partial" ? headers.slice(0, 1) : [];
+                for (const { header } of emptied) {
+                    header.querySelectorAll("small, .v-chip").forEach(node => node.remove());
+                }
+                if (mode === "area-renamed") {
+                    const name = headers[0]!.header.querySelector(".d-flex.align-center .d-flex.align-center")!;
+                    name.childNodes[0]!.textContent = " 改名區 ";
+                }
+                if (mode === "area-broken-counter") {
+                    document.querySelector(".v-expansion-panel--active .count-button button:has(.mdi-plus)")?.remove();
                 }
                 window.refreshExample.phase = "partial";
             }, 0);

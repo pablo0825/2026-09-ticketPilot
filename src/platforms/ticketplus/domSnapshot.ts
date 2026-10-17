@@ -408,6 +408,7 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                 invalid: false,
             };
             const names = JSON.stringify(baseline.tickets.map(row => row.names));
+            const areaNames = JSON.stringify(baseline.areas.map(area => area.names));
             const identities = JSON.stringify(baseline.identities);
             const observer = new MutationObserver(() => {
                 if (!evidence.clicked) return;
@@ -431,32 +432,38 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                         current.paymentButtons.length ||
                         current.checkoutStepCount ||
                         current.checkout.length ||
-                        current.tickets.some(row => row.quantities.some(value => value !== "0"))
+                        current.tickets.some(row => row.quantities.some(value => value !== "0")) ||
+                        current.areas.some(area => area.hiddenQuantities.some(value => value !== "0"))
                     ) {
                         evidence.invalid = true;
                         return;
                     }
                     if (current.refreshButtons.length === 0) evidence.buttonAbsent = true;
-                    // 空窗看庫存與售完文字消失；實站計數器可能保留，但形狀須完整（與 refreshReadiness 相同）。
-                    // 票區面板版型的空窗看票區標題，另行處理；此處只認票種列版型。
-                    // 張數非零已在上方判為無效。
-                    if (
-                        names === JSON.stringify(current.tickets.map(row => row.names)) &&
+                    // 空窗：庫存文字暫時消失，其他資料不變（形狀規則與 refreshReadiness 相同，名稱不變由此處比對）。
+                    // 實站計數器可能保留，但形狀須完整；張數非零已在上方判為無效。
+                    const countersComplete = current.tickets.every(
+                        row =>
+                            row.counterCount <= 1 &&
+                            row.quantities.length === row.counterCount &&
+                            row.plus.length === row.counterCount &&
+                            row.minus.length === row.counterCount,
+                    );
+
+                    // 票種列版型：每列的庫存、售完與暫無票券文字都消失，票名不變。
+                    const rowGap =
                         current.areas.length === 0 &&
+                        names === JSON.stringify(current.tickets.map(row => row.names)) &&
                         current.tickets.length > 0 &&
                         current.tickets.every(
-                            row =>
-                                row.statuses.length === 0 &&
-                                row.soldOut === 0 &&
-                                row.unavailable === 0 &&
-                                row.counterCount <= 1 &&
-                                row.quantities.length === row.counterCount &&
-                                row.plus.length === row.counterCount &&
-                                row.minus.length === row.counterCount,
-                        )
-                    ) {
-                        evidence.dynamicGap = true;
-                    }
+                            row => row.statuses.length === 0 && row.soldOut === 0 && row.unavailable === 0,
+                        );
+
+                    // 票區面板版型：每個票區標題的庫存文字都消失，票區名稱不變；展開票區內的列可保留。
+                    const areaGap =
+                        current.areas.length > 0 &&
+                        areaNames === JSON.stringify(current.areas.map(area => area.names)) &&
+                        current.areas.every(area => area.stock.length === 0);
+                    if (countersComplete && (rowGap || areaGap)) evidence.dynamicGap = true;
                 } catch {
                     evidence.invalid = true;
                 }
