@@ -8,6 +8,7 @@ import {
     informationBehavior,
     purchaseCheckout,
     purchaseInformation,
+    registerCheckout,
 } from "./fixtures/ticketplus/informationSubmitPage.js";
 import type { InformationOptions, NextMode } from "./fixtures/ticketplus/informationSubmitPage.js";
 
@@ -26,6 +27,7 @@ async function withInformation(
     options: InformationOptions,
     mode: NextMode,
     run: (page: Page, counts: () => Promise<Record<string, number>>) => Promise<void>,
+    checkoutHtml = purchaseCheckout,
 ) {
     const browser = await chromium.launch();
     try {
@@ -36,7 +38,7 @@ async function withInformation(
                 path === confirmPath
                     ? purchaseInformation(options) + informationBehavior(mode, checkoutPath)
                     : path === checkoutPath
-                      ? purchaseCheckout + informationBehavior(mode, checkoutPath)
+                      ? checkoutHtml + informationBehavior(mode, checkoutPath)
                       : "<html><body>其他頁面</body></html>";
             return route.fulfill({ contentType: "text/html; charset=utf-8", body });
         });
@@ -115,4 +117,29 @@ test("資料頁送出：按下一步後停留原頁或跳出彈窗，回報未�
             assert.deepEqual(await counts(), { ...none, terms: 1, next: 1 });
         });
     }
+});
+
+test("資料頁送出：點條款後仍未勾選時停止，不按下一步也不再點條款", async () => {
+    await withInformation({}, "terms-inert", async (page, counts) => {
+        assert.deepEqual(await submitTicketPlusInformation(page, session, new TicketPlusRunControl()), {
+            outcome: "stopped",
+            reason: "terms-unchecked",
+        });
+        assert.deepEqual(await counts(), { ...none, terms: 1 });
+    });
+});
+
+test("資料頁送出：下一步後到的是確認登記頁，不當成付款頁", async () => {
+    await withInformation(
+        {},
+        "to-checkout",
+        async (page, counts) => {
+            assert.deepEqual(
+                await submitTicketPlusInformation(page, session, new TicketPlusRunControl(), { timeoutMs: 800 }),
+                { outcome: "unknown", reason: "checkout-not-reached" },
+            );
+            assert.deepEqual(await counts(), { ...none, terms: 1, next: 1 });
+        },
+        registerCheckout,
+    );
 });

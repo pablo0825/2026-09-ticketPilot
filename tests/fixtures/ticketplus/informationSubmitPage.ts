@@ -46,6 +46,12 @@ ${participants}
 <button type="button" class="nextBtn" data-info="next"${options.termsChecked ? "" : " disabled"}>下一步</button>`;
 }
 
+// 抽選的確認登記頁也在 /checkout；用來確認購票送出不會把它當成付款頁。
+export const registerCheckout = `${eventHeader}
+<div class="text-center bg-tranparent-yellow pa-3 text-title font-weight-bold">登記明細</div>
+<button type="button" data-info="back">上一步</button>
+<button type="button" class="nextBtn" data-info="register">確認登記</button>`;
+
 export const purchaseCheckout = `${eventHeader}
 <div>請在 9:02 內完成購票手續並確認訂單</div>
 <div class="text-center bg-tranparent-yellow pa-3 text-title font-weight-bold">取票方式</div>
@@ -58,7 +64,7 @@ export const purchaseCheckout = `${eventHeader}
 <button type="button" data-info="back">上一步</button>
 <button type="button" class="nextBtn" data-info="pay">前往付款</button>`;
 
-export type NextMode = "to-checkout" | "stay" | "dialog";
+export type NextMode = "to-checkout" | "stay" | "dialog" | "terms-inert";
 
 // 計數各按鈕；點條款控制項切換勾選並啟用下一步；下一步依模式轉付款頁、停留或跳出未知彈窗。
 export function informationBehavior(mode: NextMode, checkoutPath: string): string {
@@ -70,7 +76,7 @@ export function informationBehavior(mode: NextMode, checkoutPath: string): strin
         const kind = target.dataset.info;
         bump("info-" + kind);
         if (kind === "link") event.preventDefault();
-        if (kind === "terms") {
+        if (kind === "terms" && ${JSON.stringify(mode)} !== "terms-inert") {
             const input = document.getElementById("terms");
             input.checked = !input.checked;
             document.querySelector('[data-info="next"]').disabled = !input.checked;

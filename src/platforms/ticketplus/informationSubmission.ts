@@ -75,7 +75,10 @@ export async function checkTicketPlusTerms(
     isChecked: () => Promise<boolean>,
     clickTimeoutMs = 5_000,
 ): Promise<void> {
+    // 已勾選就不點。
     if (await isChecked()) return;
+
+    // 定位條款控制項並點一次；點擊錯誤也不重點。
     const handle = await control.read(() => page.evaluateHandle(locateTermsControl, termsPattern.source));
     const target = handle.asElement();
     if (!target) {
@@ -91,6 +94,8 @@ export async function checkTicketPlusTerms(
     } finally {
         await target.dispose().catch(() => {});
     }
+
+    // 點後核對已勾選；未勾選也不再點第二次。
     if (!(await isChecked())) throw new InformationStop("terms-unchecked");
 }
 
@@ -105,6 +110,22 @@ function isPaymentPage(markers: TicketPlusPageMarkers | undefined, session: Veri
         markers.dialogs === 0 &&
         markers.queue === 0
     );
+}
+
+// 按下一步後等待同場次付款頁；期限內沒到就回報未確認，不重按。
+async function waitForPaymentPage(
+    page: Page,
+    session: VerifiedTicketPlusSession,
+    control: TicketPlusRunControl,
+    options: InformationSubmissionOptions,
+): Promise<InformationSubmissionResult> {
+    const deadline = performance.now() + bounded(control, options.timeoutMs ?? 15_000);
+    while (performance.now() < deadline) {
+        const after = await control.read(() => readTicketPlusPageWithMarkers(page)).catch(() => undefined);
+        if (isPaymentPage(after?.markers, session)) return { outcome: "payment-ready" };
+        await control.wait(Math.max(1, Math.min(options.pollIntervalMs ?? 100, deadline - performance.now())));
+    }
+    return { outcome: "unknown", reason: "checkout-not-reached" };
 }
 
 // 購票資料頁：確認聯絡欄位有值、勾條款、按一次下一步，停在付款頁「前往付款」之前；不付款、不重按。
@@ -122,8 +143,9 @@ export async function submitTicketPlusInformation(
         control.check();
         const information = await readPurchaseInformation(page, session, control);
         const fields = Object.values(information.contactFields);
-        if (!fields.every(field => field.present && field.hasValue))
+        if (!fields.every(field => field.present && field.hasValue)) {
             return { outcome: "stopped", reason: "contact-missing" };
+        }
 
         // 勾選條款後重新核對下一步已啟用。
         await checkTicketPlusTerms(
@@ -138,8 +160,9 @@ export async function submitTicketPlusInformation(
 
         // 固定唯一的「下一步」節點，點擊前再核對頁面，只按一次。
         const locator = page.locator("button.nextBtn").filter({ hasText: /^\s*下一步\s*$/, visible: true });
-        if ((await control.read(() => locator.count())) !== 1)
+        if ((await control.read(() => locator.count())) !== 1) {
             return { outcome: "stopped", reason: "next-unavailable" };
+        }
         handle = await control.read(() => locator.elementHandle({ timeout: bounded(control, clickTimeoutMs) }));
         const latest = await readPurchaseInformation(page, session, control);
         if (!latest.termsChecked || !latest.nextEnabled) return { outcome: "stopped", reason: "next-unavailable" };
@@ -147,14 +170,8 @@ export async function submitTicketPlusInformation(
         clicked = true;
         await handle.click({ timeout });
 
-        // 等待同場次付款頁；期限內沒到就回報未確認，不重按。
-        const deadline = performance.now() + bounded(control, options.timeoutMs ?? 15_000);
-        while (performance.now() < deadline) {
-            const after = await control.read(() => readTicketPlusPageWithMarkers(page)).catch(() => undefined);
-            if (isPaymentPage(after?.markers, session)) return { outcome: "payment-ready" };
-            await control.wait(Math.max(1, Math.min(options.pollIntervalMs ?? 100, deadline - performance.now())));
-        }
-        return { outcome: "unknown", reason: "checkout-not-reached" };
+        // 抵達同場次付款頁才完成。
+        return await waitForPaymentPage(page, session, control, options);
     } catch (error) {
         if (clicked) return { outcome: "unknown", reason: "checkout-not-reached" };
         if (error instanceof InformationStop) return { outcome: "stopped", reason: error.reason };
