@@ -93,3 +93,47 @@ test("確認選位：已停止時不點擊，回報使用者停止", async () =>
         assert.deepEqual(await counts(), { next: 0, cancel: 0 });
     });
 });
+
+test("確認選位：兩張相符時按一次下一步；別的場次或下一步不唯一時零點擊", async () => {
+    // 兩張同票區相符
+    await withSeatPage(
+        [observedSeat, { ...observedSeat, position: "25 排 8 號" }],
+        "to-information",
+        async (page, counts) => {
+            const result = await confirmTicketPlusSeats(
+                page,
+                { ...settings, target: { ...settings.target, quantity: 2 } },
+                session,
+                new TicketPlusRunControl(),
+            );
+            assert.equal(result.outcome, "confirmed");
+            assert.deepEqual(await counts(), { next: 1, cancel: 0 });
+        },
+    );
+
+    // 網址是別的場次
+    await withSeatPage([observedSeat], "to-information", async (page, counts) => {
+        const result = await confirmTicketPlusSeats(
+            page,
+            settings,
+            { ...session, sessionId: "session-A" },
+            new TicketPlusRunControl(),
+        );
+        assert.deepEqual(result, { outcome: "stopped", reason: "seat-mismatch" });
+        assert.deepEqual(await counts(), { next: 0, cancel: 0 });
+    });
+
+    // 讀取後又多出一顆下一步：點擊前重讀發現不唯一
+    await withSeatPage([observedSeat], "to-information", async (page, counts) => {
+        await page.evaluate(() => {
+            const original = document.querySelector('[data-seat="next"]')!;
+            original.insertAdjacentHTML(
+                "afterend",
+                '<button type="button" class="nextBtn v-btn" data-seat="next">下一步</button>',
+            );
+        });
+        const result = await confirmTicketPlusSeats(page, settings, session, new TicketPlusRunControl());
+        assert.equal(result.outcome, "stopped");
+        assert.deepEqual(await counts(), { next: 0, cancel: 0 });
+    });
+});
