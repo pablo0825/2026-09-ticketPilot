@@ -156,6 +156,7 @@ interface PageObservationOptions {
     submissionTarget?: SubmittedSelectionTarget;
     activityName?: string;
     activityTarget?: ActivityLoadingTarget;
+    onSnapshot?: (dom: TicketPlusDom) => void;
 }
 
 export interface PageObservation {
@@ -175,6 +176,37 @@ export async function readTicketPlusPage(
         activityName,
     });
     return observation.page;
+}
+
+// 頁面分類之外附帶同一份快照的公開標記，供資料頁送出與抽選收尾分辨頁面；不含任何欄位值。
+export interface TicketPlusPageMarkers {
+    origin: string;
+    pathname: string;
+    participantSections: number;
+    registerButtons: boolean[];
+    paymentButtons: boolean[];
+    dialogs: number;
+    queue: number;
+}
+
+export async function readTicketPlusPageWithMarkers(
+    page: Page,
+): Promise<{ page: TicketPlusPage; markers?: TicketPlusPageMarkers }> {
+    let markers: TicketPlusPageMarkers | undefined;
+    const observation = await readPageObservation(page, {
+        onSnapshot: dom => {
+            markers = {
+                origin: dom.origin,
+                pathname: dom.pathname,
+                participantSections: dom.participantSectionCount,
+                registerButtons: [...dom.registerButtons],
+                paymentButtons: [...dom.paymentButtons],
+                dialogs: dom.dialogs.length,
+                queue: dom.queueCount,
+            };
+        },
+    });
+    return { page: observation.page, markers };
 }
 
 // 點擊前專用入口：等待證據直接回傳，不依賴診斷回呼。
@@ -225,6 +257,7 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
         before = page.url();
         step = "capture-dom";
         snapshot = await readTicketPlusDom(page, options.refreshMonitor);
+        options.onSnapshot?.(snapshot);
         step = "read-url-after";
         after = page.url();
         step = "validate-url";

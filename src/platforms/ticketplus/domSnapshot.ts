@@ -400,6 +400,13 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                     refreshButtons: buttons(document, "更新票數"),
                     paymentButtons: buttons(document, "前往付款"),
                     cancelButtons: buttons(document, "取消購票"),
+                    registerButtons: buttons(document, "確認登記"),
+                    // 抽選輸入資料頁的區塊標題；排除彈窗內同名的編輯表單標題。
+                    participantSectionCount: all(document, ".bg-tranparent-yellow").filter(
+                        element =>
+                            text(element) === "參加者資訊" &&
+                            !element.closest('[role="dialog"], .v-dialog, .v-dialog__content'),
+                    ).length,
                     checkoutStepCount: checkoutSteps.length,
                     // 確認選位結果頁的區塊標題；座位列沿用 checkout 摘要列的同一 class。
                     seatResultHeadingCount: all(document, ".bg-tranparent-yellow").filter(
