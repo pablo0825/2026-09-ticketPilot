@@ -118,7 +118,7 @@ function resultMessage(result: TicketPlusRunResult): string {
     if ("priorityFailure" in result && result.priorityFailure) {
         const detail =
             result.priorityFailure === "all-targets-sold-out"
-                ? "本次檢查的設定順位皆明確售完"
+                ? "本次檢查的設定順位皆已售完或暫無票券"
                 : `順位核對未通過（${result.priorityFailure}），不能據此判定售完`;
         return `${detail}。${prior}不刷新或重跑。`;
     }

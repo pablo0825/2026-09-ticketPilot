@@ -15,6 +15,7 @@ export type PriorityReason =
     | "ticket-missing"
     | "ticket-ambiguous"
     | "extra-tickets"
+    // 所有目標都已售完或暫無票券；沿用原名稱以相容既有紀錄與更新流程。
     | "all-targets-sold-out"
     | "operation-timeout";
 export class TicketPlusPriorityError extends Error {
@@ -63,7 +64,7 @@ export async function selectTicketPlusPriority(
         return value;
     };
 
-    // 每個順位重新讀完整頁面；只有唯一且明確售完的票種能被略過。
+    // 每個順位重新讀完整頁面；只有唯一且明確售完或暫無票券的票種能被略過。
     for (let priorityIndex = start; priorityIndex < settings.targets.length; priorityIndex++) {
         const target = settings.targets[priorityIndex]!;
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -95,18 +96,18 @@ export async function selectTicketPlusPriority(
         if (matches.length === 0) throw new TicketPlusPriorityError("ticket-missing");
         if (matches.length !== 1) throw new TicketPlusPriorityError("ticket-ambiguous");
         const ticket = matches[0]!;
+        // 售完或暫無票券（他人保留中）都不能購買，跳下一順位；暫無票券不記為售完。
+        const closed = ticket.saleStatus !== "selling";
         if (
             snapshot.tickets.some(
-                other =>
-                    other.selectedQuantity !== 0 &&
-                    (priorityIndex > 0 || ticket.saleStatus === "sold-out" || other !== ticket),
+                other => other.selectedQuantity !== 0 && (priorityIndex > 0 || closed || other !== ticket),
             )
         ) {
             throw new TicketPlusPriorityError("extra-tickets");
         }
-        if (ticket.saleStatus === "sold-out") continue;
+        if (closed) continue;
 
-        // 選定後不得候補；略過售完順位後，調張數的首次讀取也必須保持零張。
+        // 選定後不得候補；略過售完或暫無票券順位後，調張數的首次讀取也必須保持零張。
         const selection = { ...first, target };
         const selected = await selectTicketPlusTickets(
             page,
