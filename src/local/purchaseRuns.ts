@@ -493,7 +493,8 @@ export class PurchaseRuns {
                     value?.type === "result" &&
                     (["failed", "unknown"].includes(value.outcome) ||
                         (record.snapshot.platform === "klook" && value.outcome === "payment-ready") ||
-                        (record.snapshot.platform === "ticketplus" && value.outcome === "information-ready"))
+                        (record.snapshot.platform === "ticketplus" &&
+                            ["information-ready", "payment-ready"].includes(value.outcome)))
                 ) {
                     record.snapshot.status = value.outcome;
                     record.snapshot.message = value.message;

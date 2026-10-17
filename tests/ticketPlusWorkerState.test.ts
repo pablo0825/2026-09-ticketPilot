@@ -164,3 +164,41 @@ test("更新進度：新 stage 通過 schema 且呈現受限更新提示，歷�
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+test("TicketPlus 付款頁結果：主服務接受 payment-ready 與送出資料頁階段，畫面顯示已到付款頁", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-payment-ready-"));
+    const previous = { outcome: process.env.FIXTURE_OUTCOME, stage: process.env.FIXTURE_STAGE };
+    process.env.FIXTURE_OUTCOME = "payment-ready";
+    process.env.FIXTURE_STAGE = "submitting-information";
+    try {
+        const runs = new PurchaseRuns(directory, new URL("./fixtures/ticketplus/resultWorker.ts", import.meta.url));
+        runs.start(
+            "1f9a3d2e-5c6b-4a7d-8e9f-0a1b2c3d4e5f",
+            {
+                platform: "ticketplus",
+                eventUrl: "https://ticketplus.com.tw/activity/fixture",
+                eventName: "付款頁活動",
+                targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 1 }],
+                maxRunMinutes: 10,
+            },
+            undefined,
+        );
+        const deadline = Date.now() + 10_000;
+        while (runs.busy() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
+        const snapshot = runs.snapshot()!;
+        assert.equal(snapshot.status, "payment-ready");
+        assert(
+            snapshot.events.some(
+                item => item.event.type === "ticketplus" && item.event.stage === "submitting-information",
+            ),
+        );
+        assert.equal(purchaseStatus(snapshot, false, Date.now()).title, "已到付款頁");
+        runs.close();
+    } finally {
+        process.env.FIXTURE_OUTCOME = previous.outcome;
+        process.env.FIXTURE_STAGE = previous.stage;
+        if (previous.outcome === undefined) delete process.env.FIXTURE_OUTCOME;
+        if (previous.stage === undefined) delete process.env.FIXTURE_STAGE;
+        await rm(directory, { recursive: true, force: true });
+    }
+});
