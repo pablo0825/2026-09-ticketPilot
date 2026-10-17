@@ -91,3 +91,20 @@ test("TicketPlus 期限表單：新活動與舊缺值預填 10，讀取不修改
         assert.equal(old.maxRunMinutes, minutes);
     }
 });
+
+test("TicketPlus 表單：流程類型預設購票，購票不寫入設定，切換列為未儲存變更", () => {
+    // 新活動與舊設定都預設購票，購票存檔不寫入欄位
+    assert.equal(activityForm().flowType, "purchase");
+    const form = activityForm(settings);
+    assert.equal(form.flowType, "purchase");
+    assert.equal("flowType" in activityInput(form, settings), false);
+
+    // 改成抽選後才寫入設定，且草稿比較視為變更
+    const baseline = draftFingerprint(form);
+    form.flowType = "lottery";
+    assert.notEqual(draftFingerprint(form), baseline);
+    assert.equal(activityInput(form, settings).flowType, "lottery");
+
+    // 讀回抽選設定時保留類型
+    assert.equal(activityForm({ ...settings, flowType: "lottery" }).flowType, "lottery");
+});

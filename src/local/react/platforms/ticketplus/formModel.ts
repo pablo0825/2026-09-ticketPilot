@@ -4,7 +4,7 @@ import {
     ticketPlusDefaultRunMinutes,
     validateTicketPlusRunSettings,
 } from "../../../../config/ticketPlusActivity.js";
-import type { TicketPlusActivitySettings } from "../../../../config/ticketPlusActivity.js";
+import type { TicketPlusActivitySettings, TicketPlusFlowType } from "../../../../config/ticketPlusActivity.js";
 import type { ActivityRecord } from "../../../../config/activityStore.js";
 
 export type TicketPlusActivityRecord = ActivityRecord & { settings: TicketPlusActivitySettings };
@@ -18,6 +18,7 @@ export interface TargetDraft {
 export interface ActivityForm {
     eventName: string;
     eventUrl: string;
+    flowType: TicketPlusFlowType;
     targets: TargetDraft[];
 }
 
@@ -104,6 +105,7 @@ export function activityForm(settings?: TicketPlusActivitySettings): ActivityFor
     return {
         eventName: settings?.eventName ?? "",
         eventUrl: settings?.eventUrl ?? "",
+        flowType: settings?.flowType ?? "purchase",
         targets: settings?.targets.map(target => ({
             ...target,
             key: crypto.randomUUID(),
@@ -117,6 +119,7 @@ export function draftFingerprint(form: ActivityForm): string {
     return JSON.stringify({
         eventName: form.eventName,
         eventUrl: form.eventUrl,
+        flowType: form.flowType,
         targets: form.targets.map(({ key: _key, ...target }) => target),
     });
 }
@@ -140,6 +143,8 @@ export function activityInput(form: ActivityForm, saved?: TicketPlusActivitySett
             ticketType: target.ticketType.trim(),
             quantity: positiveInteger(target.quantity, `順位 ${index + 1} 的張數`),
         })),
+        // 購票是預設值，不寫入設定，舊活動重新存檔時歷史指紋不變。
+        ...(form.flowType === "lottery" ? { flowType: "lottery" as const } : {}),
         ...(saved?.maxRunMinutes === undefined ? {} : { maxRunMinutes: saved.maxRunMinutes }),
         ...(saved?.saleSchedule ? { saleSchedule: { ...saved.saleSchedule } } : {}),
     };
