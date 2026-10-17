@@ -2,7 +2,9 @@ import { refreshReadiness } from "./refreshReadiness.js";
 import type { RefreshMonitorRequest } from "./domSnapshot.js";
 import type { VerifiedTicketPlusSession } from "./ticketQuantity.js";
 import { diagnoseReadFailure, diagnosticRouteKind } from "./readFailure.js";
-import type { ReadFailureDiagnostic, ReadStep } from "./readFailure.js";
+import type { ReadFailureDiagnostic, ReadStep, RouteKind } from "./readFailure.js";
+import { parseSeatConfirmationPage } from "./seatConfirmationPage.js";
+import type { SeatConfirmationPage } from "./seatConfirmationPage.js";
 import type { SubmittedSelectionTarget } from "./submissionValidation.js";
 import { activityReadiness, selectionReadiness, informationReadiness } from "./pageReadiness.js";
 import type { PageReadiness, SelectionEntryTarget } from "./pageReadiness.js";
@@ -36,13 +38,14 @@ export type TicketPlusPage =
     | TicketSelectionPage
     | InformationPage
     | CheckoutPage
+    | SeatConfirmationPage
     | (PageIdentity & { kind: "queue" })
     | UnknownPage;
 
 export interface TicketPlusPageDiagnostic {
     pageKind: TicketPlusPage["kind"];
     readiness?: PageReadiness;
-    routeKind?: "activity" | "order" | "confirm" | "checkout" | "other";
+    routeKind?: RouteKind;
     unknownReason?: UnknownPage["reason"];
     readFailure?: ReadFailureDiagnostic;
     emptyActivityLoading?: boolean;
@@ -74,7 +77,7 @@ function classifyPage(dom: TicketPlusDom): TicketPlusPage {
     // 網址採明確白名單，不接受其他站台、額外路徑或不明參數。
     if (dom.origin !== "https://ticketplus.com.tw" || dom.extraUrlParts) return unknownPage("unsupported-url");
     const activity = /^\/activity\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
-    const order = /^\/(order|confirm|checkout)\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
+    const order = /^\/(order|confirmSeat|confirm|checkout)\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
     if (!activity && !order) return unknownPage("unsupported-url");
 
     // 僅同 order 頁可辨識失敗；資料頁帶彈窗不能誤報抵達成功。
@@ -130,6 +133,13 @@ function classifyPage(dom: TicketPlusDom): TicketPlusPage {
         return parseTicketSelectionPage(dom, identity);
     }
     if (dom.queueCount || dom.tickets.length) return unknownPage("conflicting-page");
+    if (order![1] === "confirmSeat") {
+        // 選位結果頁不應有資料頁或付款標記。
+        const hasPaymentControls = dom.checkoutStepCount > 0 || dom.paymentButtons.length > 0;
+        return hasInformation || hasPaymentControls
+            ? unknownPage("conflicting-page")
+            : parseSeatConfirmationPage(dom, identity);
+    }
     if (order![1] === "confirm") {
         // 資料頁可以有摘要列，但付款操作標記仍屬衝突。
         const hasPaymentControls = dom.checkoutStepCount > 0 || dom.paymentButtons.length > 0;

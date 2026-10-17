@@ -718,3 +718,42 @@ test("TicketPlus 資料頁：A 坐席與抽選輸入資料頁皆解析為資料�
         }
     });
 });
+
+test("TicketPlus 確認選位：confirmSeat 解析座位列，不被當成付款頁", async () => {
+    const { seatConfirmPage, observedSeat } = await import("./fixtures/ticketplus/seatConfirmPage.js");
+    const seatUrl = `${origin}/confirmSeat/${eventId}/${sessionId}`;
+    await withPage(async page => {
+        // 實站結構：一列座位、取消購票與啟用的下一步
+        await show(page, seatUrl, seatConfirmPage());
+        assert.deepEqual(await readTicketPlusPage(page), {
+            kind: "seat-confirmation",
+            eventId,
+            sessionId,
+            seats: [{ area: observedSeat.area, position: observedSeat.position, ticketType: observedSeat.ticketType }],
+            nextEnabled: true,
+        });
+
+        // 缺標題、兩個下一步、混入條款都不判讀
+        for (const html of [
+            seatConfirmPage().replace(">確認選位結果<", ">其他標題<"),
+            seatConfirmPage([observedSeat], '<button type="button">下一步</button>'),
+            seatConfirmPage(
+                [observedSeat],
+                '<label><input type="checkbox">我已經閱讀並同意 會員服務條款 與 隱私權政策</label>',
+            ),
+        ]) {
+            await show(page, seatUrl, html);
+            assert.equal((await readTicketPlusPage(page)).kind, "unknown");
+        }
+
+        // 座位欄位空白不判讀
+        await show(page, seatUrl, seatConfirmPage([{ ...observedSeat, position: "" }]));
+        assert.equal((await readTicketPlusPage(page)).kind, "unknown");
+    });
+});
+
+test("TicketPlus 確認選位：診斷路徑種類為 confirmSeat", async () => {
+    const { diagnosticRouteKind } = await import("../src/platforms/ticketplus/readFailure.js");
+    assert.equal(diagnosticRouteKind(`/confirmSeat/${eventId}/${sessionId}`), "confirmSeat");
+    assert.equal(diagnosticRouteKind(`/confirm/${eventId}/${sessionId}`), "confirm");
+});

@@ -32,7 +32,9 @@ function emptyDom(): TicketPlusDom {
         refreshButtons: [],
         refreshEvidence: undefined,
         paymentButtons: [],
+        cancelButtons: [],
         checkoutStepCount: 0,
+        seatResultHeadingCount: 0,
     };
 }
 

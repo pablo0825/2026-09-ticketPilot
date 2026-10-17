@@ -399,7 +399,12 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                     nextButtons: buttons(document, "下一步"),
                     refreshButtons: buttons(document, "更新票數"),
                     paymentButtons: buttons(document, "前往付款"),
+                    cancelButtons: buttons(document, "取消購票"),
                     checkoutStepCount: checkoutSteps.length,
+                    // 確認選位結果頁的區塊標題；座位列沿用 checkout 摘要列的同一 class。
+                    seatResultHeadingCount: all(document, ".bg-tranparent-yellow").filter(
+                        element => text(element) === "確認選位結果",
+                    ).length,
                 };
             } catch (error) {
                 if (detail) return { captureFailure: detail };
