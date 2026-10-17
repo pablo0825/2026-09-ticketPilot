@@ -9,6 +9,8 @@ export interface FoundTicketRow {
 }
 
 export interface FoundTicketArea {
+    // 票區標題元素，只供點擊展開使用；不會帶出瀏覽器。
+    header: Element;
     // 標題上的名稱候選；正常為一個。
     names: string[];
     // 標題上的庫存文字（剩餘 N、熱賣中…），已合併空白。
@@ -122,17 +124,16 @@ function findTicketLayout(): TicketLayout {
         .all(document.body, ".v-expansion-panel")
         .filter(panel => rules.areaHeader(panel) !== null)
         .map(panel => {
-            const header = rules.areaHeader(panel);
-            const expanded = header?.getAttribute("aria-expanded") === "true";
+            const header = rules.areaHeader(panel)!;
+            const expanded = header.getAttribute("aria-expanded") === "true";
             return {
-                names: header ? rules.nameTexts(header) : [],
-                stock: header
-                    ? rules
-                          .all(header, "*")
-                          .filter(element => !Array.from(element.children).some(rules.visible))
-                          .map(element => rules.directText(element).replace(/\s+/g, " "))
-                          .filter(value => /^(剩餘 \d+|熱賣中|已售完|暫無票券)$/.test(value))
-                    : [],
+                header,
+                names: rules.nameTexts(header),
+                stock: rules
+                    .all(header, "*")
+                    .filter(element => !Array.from(element.children).some(rules.visible))
+                    .map(element => rules.directText(element).replace(/\s+/g, " "))
+                    .filter(value => /^(剩餘 \d+|熱賣中|已售完|暫無票券)$/.test(value)),
                 expanded,
                 hiddenQuantities: expanded
                     ? []
@@ -200,4 +201,11 @@ export const locateTargetRow = withTicketRows((findLayout, query: TargetRowQuery
         plus: plus.length === 1 ? plus[0]! : null,
         minus: minus.length === 1 ? minus[0]! : null,
     };
+});
+
+// 展開前用同一套規則找目標票區的標題：名稱完全相等、恰好一個，且目前未展開。
+// 不符合時回 null，由呼叫端停止；已展開的票區不回傳，避免點擊後反而收合。
+export const locateAreaHeader = withTicketRows((findLayout, areaName: string) => {
+    const matches = findLayout().areas.filter(area => area.names.length === 1 && area.names[0] === areaName);
+    return matches.length === 1 && !matches[0]!.expanded ? matches[0]!.header : null;
 });

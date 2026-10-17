@@ -123,7 +123,7 @@ test("TicketPlus 票區：資料不完整或矛盾時不判讀", async () => {
         rows: [fixture.ticketRow("預售票", "8,900", fixture.counter(1))],
     });
     const cases: [string, string, string][] = [
-        ["展開票區有兩種票", fixture.areaOrder([twoRows]), "incomplete-data"],
+        ["展開票區有兩種票", fixture.areaOrder([twoRows]), "ambiguous-data"],
         ["票區標題沒有庫存文字", fixture.areaOrder([noStock]), "incomplete-data"],
         ["已售完但標題剩餘不為 0", fixture.areaOrder([soldOutWithStock]), "incomplete-data"],
         ["收合票區的隱藏張數非零", fixture.areaOrder([retainedSelected, fixture.areaB]), "incomplete-data"],

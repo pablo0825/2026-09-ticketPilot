@@ -1,3 +1,4 @@
+import type { Page } from "playwright";
 import { eventHeader } from "./pages.js";
 
 // 票區面板版型，依 2026-10-17 實站觀察（LOOKMHEE 選票頁）重建的最小 DOM，不是完整網頁存檔。
@@ -72,3 +73,71 @@ export function areaOrder(panels: string[] = [vip, areaA, areaB, areaC]): string
 <div class="v-item-group theme--light v-expansion-panels seats-area">${panels.join("")}</div>
 <button type="button">更新票數</button><button type="button">下一步</button>`;
 }
+
+export interface AccordionOptions {
+    // 每個票區展開後要出現的票種列 HTML；收合票區一開始沒有 content。
+    rows: Record<string, string>;
+    // true：點了標題也不展開，用來測試展開逾時。
+    ignoreHeaderClicks?: boolean;
+    // 標題先標成展開，內容延遲這麼多毫秒才出現；實站畫出內容的時間未量測，用來確認程式會等待。
+    contentDelayMs?: number;
+}
+
+// 依實站行為模擬手風琴：展開一個票區會收合目前展開的票區；收合後 content 以 display:none 留著。
+// 同時記錄點擊：「展開:票區」與「票區+／票區-」，並讓加減按鈕改變張數。
+export async function installAccordion(page: Page, options: AccordionOptions): Promise<void> {
+    await page.evaluate(options => {
+        const clicks: string[] = [];
+        (window as unknown as { areaClicks: string[] }).areaClicks = clicks;
+        // 用物件方法，避免 tsx 替瀏覽器內的箭頭函式加入 __name。
+        const fixtureDom = {
+            nameOf(panel: Element): string {
+                return panel
+                    .querySelector(".v-expansion-panel-header .d-flex.align-center .d-flex.align-center")!
+                    .childNodes[0]!.textContent!.trim();
+            },
+        };
+
+        document.addEventListener("click", event => {
+            const target = event.target as Element;
+            const panel = target.closest(".v-expansion-panel")!;
+            const counterButton = target.closest(".count-button button");
+            if (counterButton) {
+                const delta = counterButton.querySelector(".mdi-plus") ? 1 : -1;
+                clicks.push(`${fixtureDom.nameOf(panel)}${delta > 0 ? "+" : "-"}`);
+                const count = counterButton.closest(".count-button")!.querySelector(":scope > div")!;
+                count.textContent = String(Number(count.textContent) + delta);
+                return;
+            }
+            const header = target.closest(".v-expansion-panel-header");
+            if (!header) return;
+            clicks.push(`展開:${fixtureDom.nameOf(panel)}`);
+            if (options.ignoreHeaderClicks) return;
+
+            // 收合其他票區，再展開被點的票區；已展開再點會收合。
+            const wasExpanded = header.getAttribute("aria-expanded") === "true";
+            for (const other of document.querySelectorAll(".v-expansion-panel")) {
+                other.querySelector(":scope > .v-expansion-panel-header")!.removeAttribute("aria-expanded");
+                const content = other.querySelector<HTMLElement>(":scope > .v-expansion-panel-content");
+                if (content) content.style.display = "none";
+            }
+            if (wasExpanded) return;
+            header.setAttribute("aria-expanded", "true");
+            const name = fixtureDom.nameOf(panel);
+            setTimeout(() => {
+                let content = panel.querySelector<HTMLElement>(":scope > .v-expansion-panel-content");
+                if (!content) {
+                    panel.insertAdjacentHTML(
+                        "beforeend",
+                        `<div class="v-expansion-panel-content"><div class="v-expansion-panel-content__wrap">${options.rows[name] ?? ""}</div></div>`,
+                    );
+                    content = panel.querySelector<HTMLElement>(":scope > .v-expansion-panel-content")!;
+                }
+                content.style.display = "";
+            }, options.contentDelayMs ?? 0);
+        });
+    }, options);
+}
+
+export const areaClicks = (page: Page) =>
+    page.evaluate(() => (window as unknown as { areaClicks: string[] }).areaClicks);

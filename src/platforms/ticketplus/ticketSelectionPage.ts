@@ -150,6 +150,8 @@ function parseAreaLayout(dom: TicketPlusDom): { tickets: TicketRow[]; areas: Tic
     const tickets: TicketRow[] = [];
     for (const area of areas) {
         const rows = dom.tickets.filter(row => row.area === area.name);
+        // 展開票區有多種票時無法確定目標（設定只寫票區名稱），回報歧義。
+        if (area.expanded && rows.length > 1) return unknownPage("ambiguous-data");
         if (rows.length !== (area.expanded ? 1 : 0)) return unknownPage("incomplete-data");
         if (rows.length === 0) continue;
 

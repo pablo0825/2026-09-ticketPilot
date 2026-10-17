@@ -361,7 +361,13 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                     activity,
                     identities,
                     tickets,
-                    areas: layout.areas,
+                    // 票區標題元素不能帶出瀏覽器，只回傳讀到的文字與狀態。
+                    areas: layout.areas.map(area => ({
+                        names: area.names,
+                        stock: area.stock,
+                        expanded: area.expanded,
+                        hiddenQuantities: area.hiddenQuantities,
+                    })),
                     information,
                     checkout,
                     activityNames: all(document, "h1").map(text),
