@@ -35,15 +35,17 @@ const activitySchema = z
     .object({
         ...activityIdentity,
         targets: z.array(targetSchema).min(1),
+        flowType: z.enum(["purchase", "lottery"]).optional(),
         saleSchedule: scheduleSchema.optional(),
         maxRunMinutes: z.number().int().min(1).max(1440).optional(),
     })
     .strict();
 const invalidSettings =
-    "TicketPlus 活動設定格式錯誤，請檢查活動網址、名稱、日期、時間、票種、張數、開賣時間與提前秒數，以及最長執行時間（1～1440 整數分鐘）。";
+    "TicketPlus 活動設定格式錯誤，請檢查活動網址、名稱、流程類型、日期、時間、票種、張數、開賣時間與提前秒數，以及最長執行時間（1～1440 整數分鐘）。";
 
 export type TicketPlusActivitySettings = z.infer<typeof activitySchema>;
 export type TicketPlusSelection = z.infer<typeof selectionSchema>;
+export type TicketPlusFlowType = "purchase" | "lottery";
 export class TicketPlusCapabilityError extends Error {}
 
 export const ticketPlusDefaultRunMinutes = 10;
@@ -59,6 +61,11 @@ export function validateTicketPlusRunSettings(settings: TicketPlusActivitySettin
     ) {
         throw new TicketPlusCapabilityError("最長執行時間必須填寫 10～1440 的整數分鐘。");
     }
+}
+
+// 舊設定沒有流程類型時一律視為購票。
+export function ticketPlusFlowType(settings: TicketPlusActivitySettings): TicketPlusFlowType {
+    return settings.flowType ?? "purchase";
 }
 
 export function parseTicketPlusActivity(value: unknown): TicketPlusActivitySettings {
