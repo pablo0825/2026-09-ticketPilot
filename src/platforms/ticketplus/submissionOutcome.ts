@@ -35,7 +35,17 @@ export function stoppedSubmissionResult(
         sawQueue: reported.sawQueue || observed.sawQueue,
         failure: reported.failure ?? observed.failure,
     });
-    const outcome = progress.failure ? "rejected" : progress.submitAttempted ? "unknown" : "stopped";
+    // 座位核對不符或找不到下一步時沒有再點擊，屬於明確停止而非結果未確認。
+    const stoppedBeforeSeatClick =
+        error instanceof TicketPlusSubmissionError &&
+        (error.reason === "seat-mismatch" || error.reason === "seat-button-unavailable");
+    const outcome = progress.failure
+        ? "rejected"
+        : stoppedBeforeSeatClick
+          ? "stopped"
+          : progress.submitAttempted
+            ? "unknown"
+            : "stopped";
     const reason =
         error instanceof TicketPlusSubmissionError
             ? error.reason

@@ -83,3 +83,16 @@ test("提醒彈窗無法關閉的停止訊息說明尚未選場次", async () =>
 test("場次停止訊息：流程類型不符說明檢查設定", () => {
     assert.match(ticketPlusSessionMessage({ reason: "flow-mismatch", stage: "before-click" }), /流程類型/);
 });
+
+test("確認選位停止訊息：不符與未確認各有說明，不會重試", async () => {
+    const { ticketPlusResultMessage } = await import("../src/app/ticketPlusPresentation.js");
+    const progress = Object.freeze({ submitAttempted: true, dismissAttempted: false, sawQueue: false }) as never;
+    assert.match(
+        ticketPlusResultMessage({ outcome: "stopped", reason: "seat-mismatch", progress }),
+        /選位結果與設定的票區或張數不符.*座位仍在網站保留中/,
+    );
+    assert.match(
+        ticketPlusResultMessage({ outcome: "unknown", reason: "seat-confirm-unconfirmed", progress }),
+        /已確認選位，但未能確認抵達資料頁.*不會重試/,
+    );
+});

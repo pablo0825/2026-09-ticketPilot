@@ -112,7 +112,7 @@ export function informationReadiness(
 ): PageReadiness {
     // 網址仍須同場次；排隊與失敗沿用原本分支及額度。
     if (!dom) return { status: "pending", reason: "read-failed" };
-    const route = /^\/(order|confirm)\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
+    const route = /^\/(order|confirmSeat|confirm)\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
     if (
         dom.origin !== "https://ticketplus.com.tw" ||
         dom.extraUrlParts ||
@@ -124,6 +124,8 @@ export function informationReadiness(
     if (result.kind === "queue" || result.kind === "order-failure") {
         return { status: "pending", reason: result.kind };
     }
+    // 確認選位結果交由提交流程核對座位；不在此判斷是否抵達資料頁。
+    if (result.kind === "seat-confirmation") return { status: "ready", reason: "seat-confirmation" };
     if (
         dom.dialogs.length ||
         dom.queueCount ||

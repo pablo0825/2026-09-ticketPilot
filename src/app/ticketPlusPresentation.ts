@@ -89,6 +89,12 @@ function resultMessage(result: TicketPlusRunResult): string {
             return "已依要求停止自動操作；已確認購票失敗，請人工檢查彈窗與頁面，不會繼續關閉或重試。";
         return `已依要求停止自動操作。${prior}瀏覽器保留供人工檢查，關閉後才解除購票占用。`;
     }
+    if ("reason" in result && (result.reason === "seat-mismatch" || result.reason === "seat-button-unavailable")) {
+        return "選位結果與設定的票區或張數不符，已停止；座位仍在網站保留中，請自行取消或處理。不會重試。";
+    }
+    if ("reason" in result && result.reason === "seat-confirm-unconfirmed") {
+        return "已確認選位，但未能確認抵達資料頁，請檢查瀏覽器，不會重試。";
+    }
     if (result.outcome === "unknown") return "已嘗試提交，結果未確認。請檢查原頁面及訂單；不會重送。";
     if (result.outcome === "rejected") {
         const reason = result.progress.failure === "sold-out" ? "已售完" : "購票失敗";
