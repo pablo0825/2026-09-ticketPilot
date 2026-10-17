@@ -97,7 +97,7 @@ export async function prepareTicketPlusSale(
 
     // 唯讀快照有獨立上限；空白只短暫等待，不視為尚未開賣。
     const readReady = async (): Promise<"available" | "not-on-sale"> => {
-        const readDeadline = performance.now() + Math.min(5_000, remaining());
+        let readDeadline = performance.now() + Math.min(5_000, remaining());
         while (true) {
             requireActivityUrl();
             const timeout = Math.min(readDeadline - performance.now(), remaining());
@@ -124,6 +124,7 @@ export async function prepareTicketPlusSale(
             }
             if (snapshot.kind === "unknown" && snapshot.reason === "notice-dialog") {
                 await dismissNotice();
+                readDeadline = performance.now() + Math.min(5_000, remaining());
                 continue;
             }
             if (snapshot.kind !== "activity") throw new TicketPlusSaleError("page-unrecognized");

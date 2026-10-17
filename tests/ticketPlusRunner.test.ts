@@ -645,3 +645,35 @@ test("TicketPlus runner：活動頁有入場規定提醒時先按確定一次，
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+test(
+    "TicketPlus runner：活動頁是未知彈窗時不當成提醒處理，按確定無效的提醒則回報無法關閉",
+    { timeout: 30_000 },
+    async () => {
+        const stuck = activity + noticeDialog(noticeTitles.entry).replace('data-notice="ok"', 'data-notice="stuck"');
+        for (const [html, noticeFailure] of [
+            [activity + '<div role="dialog">未知提示</div>', undefined],
+            [stuck, "notice-dismiss-failed"],
+        ] as const) {
+            const directory = await mkdtemp(join(tmpdir(), "ticketplus-runner-"));
+            const browser = await chromium.launch();
+            const context = await browser.newContext();
+            await setup(context, false, html);
+            const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+            try {
+                const result = await runTicketPlus(settings, { lease: acquirePurchaseLease(directory) });
+                assert.equal(result.outcome, "stopped");
+                assert.equal("noticeFailure" in result ? result.noticeFailure : undefined, noticeFailure);
+                const counts = await context
+                    .pages()[0]!
+                    .evaluate(() => JSON.parse(sessionStorage.getItem("counts") ?? "{}"));
+                assert.equal(counts.session ?? 0, 0);
+                await context.close();
+            } finally {
+                launch.mock.restore();
+                await browser.close();
+                await rm(directory, { recursive: true, force: true });
+            }
+        }
+    },
+);

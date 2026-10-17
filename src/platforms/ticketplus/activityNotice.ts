@@ -52,8 +52,28 @@ export async function dismissTicketPlusActivityNotice(
     options: ActivityNoticeOptions = {},
 ): Promise<"none" | "dismissed"> {
     const fail = () => new TicketPlusNoticeError("notice-dismiss-failed");
-    const read = async () => noticeState(await control.read(() => readTicketPlusDom(page)));
+    const timeoutMs = options.timeoutMs ?? 5_000;
+    const deadline = performance.now() + timeoutMs;
     const pause = (milliseconds: number) => control.wait(Math.max(1, milliseconds));
+
+    // 每次讀取都受整體上限限制；開賣前沒有全程期限，讀取卡住也不能無限等待。
+    const read = async (): Promise<NoticeState> => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+            const dom = await control.read(() =>
+                Promise.race([
+                    readTicketPlusDom(page),
+                    new Promise<undefined>(resolve => {
+                        timer = setTimeout(() => resolve(undefined), Math.max(1, deadline - performance.now()));
+                    }),
+                ]),
+            );
+            if (!dom) throw fail();
+            return noticeState(dom);
+        } finally {
+            clearTimeout(timer);
+        }
+    };
 
     // 先確認目前只有一個已知提醒；沒有彈窗就不動作。
     const before = await read();
@@ -69,7 +89,7 @@ export async function dismissTicketPlusActivityNotice(
     }
     try {
         control.check();
-        await button.click({ timeout: options.timeoutMs ?? 5_000 });
+        await button.click({ timeout: Math.max(1, deadline - performance.now()) });
     } catch {
         control.check();
         throw fail();
@@ -79,7 +99,6 @@ export async function dismissTicketPlusActivityNotice(
 
     // 等待彈窗消失，再觀察一小段時間確認沒有重現。
     const interval = options.pollIntervalMs ?? 50;
-    const deadline = performance.now() + (options.timeoutMs ?? 5_000);
     let goneAt: number | undefined;
     while (performance.now() < deadline) {
         const state = await read();

@@ -22,6 +22,7 @@ import type {
 } from "../platforms/ticketplus/sessionSelection.js";
 import { TicketPlusSessionError, selectTicketPlusSession } from "../platforms/ticketplus/sessionSelection.js";
 import { dismissTicketPlusActivityNotice, TicketPlusNoticeError } from "../platforms/ticketplus/activityNotice.js";
+import { readTicketPlusPage } from "../platforms/ticketplus/pageState.js";
 import { TicketPlusPriorityError } from "../platforms/ticketplus/ticketPriority.js";
 import { runTicketPlusCycle } from "../platforms/ticketplus/purchaseCycle.js";
 import type {
@@ -188,9 +189,24 @@ export async function runTicketPlus(
         const targetResponse = await page.goto(settings.eventUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
         control.check();
         if (targetResponse && !targetResponse.ok()) throw new Error("活動頁無法載入。");
-        // 開啟活動頁後先關閉已知提醒，之後才核對登入與場次。
-        await dismissTicketPlusActivityNotice(page, control);
-        control.check();
+        // 開啟活動頁後若已顯示已知提醒就先關閉；其他狀態交給後續登入與場次核對。
+        let openingReadTimer: ReturnType<typeof setTimeout> | undefined;
+        try {
+            const opening = await control.read(() =>
+                Promise.race([
+                    readTicketPlusPage(page),
+                    new Promise<undefined>(resolve => {
+                        openingReadTimer = setTimeout(() => resolve(undefined), 5_000);
+                    }),
+                ]),
+            );
+            control.check();
+            if (opening?.kind === "unknown" && opening.reason === "notice-dialog") {
+                await dismissTicketPlusActivityNotice(page, control);
+            }
+        } finally {
+            clearTimeout(openingReadTimer);
+        }
         let loginReadTimer: ReturnType<typeof setTimeout> | undefined;
         try {
             const targetLogin = await control.read(() =>
