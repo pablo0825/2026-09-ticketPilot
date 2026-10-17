@@ -153,7 +153,8 @@ test("TicketPlus GUI：活動保存保留原排程與期限，跨場次保存但
     await fixture(async h => {
         const { page } = h;
         await page.getByRole("button", { name: "編輯活動" }).click();
-        await page.getByRole("note").filter({ hasText: settings.saleSchedule.saleAt }).waitFor();
+        await page.getByRole("heading", { name: `編輯活動：${settings.eventName}` }).waitFor();
+        assert.equal(await page.getByRole("note").count(), 0);
         assert.equal(await page.locator("#maxRunMinutes").count(), 0);
         await page.getByRole("button", { name: "複製" }).click();
         await page.getByRole("group", { name: "順位 2", exact: true }).getByLabel("演出日期").fill("2026-11-23");
