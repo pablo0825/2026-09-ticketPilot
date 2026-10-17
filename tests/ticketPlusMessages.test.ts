@@ -55,3 +55,27 @@ test("順位全部沒票的訊息同時涵蓋已售完與暫無票券，不只�
     } as unknown as Result);
     assert.match(message, /皆已售完或暫無票券/);
 });
+
+test("提醒彈窗無法關閉的停止訊息說明尚未選場次", async () => {
+    const { ticketPlusResultMessage } = await import("../src/app/ticketPlusPresentation.js");
+    const progress = Object.freeze({
+        submitAttempted: false,
+        dismissAttempted: false,
+        sawQueue: false,
+    }) as never;
+    const opening = ticketPlusResultMessage({
+        outcome: "stopped",
+        reason: "startup-stopped",
+        noticeFailure: "notice-dismiss-failed",
+        progress,
+    });
+    assert.match(opening, /提醒彈窗無法確認關閉/);
+    assert.match(opening, /尚未選場次/);
+    const sale = ticketPlusResultMessage({
+        outcome: "stopped",
+        reason: "sale-wait-stopped",
+        saleFailure: "notice-dismiss-failed",
+        progress,
+    });
+    assert.match(sale, /提醒彈窗無法確認關閉/);
+});

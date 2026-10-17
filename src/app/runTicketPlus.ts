@@ -21,6 +21,7 @@ import type {
     SessionEntryStage,
 } from "../platforms/ticketplus/sessionSelection.js";
 import { TicketPlusSessionError, selectTicketPlusSession } from "../platforms/ticketplus/sessionSelection.js";
+import { dismissTicketPlusActivityNotice, TicketPlusNoticeError } from "../platforms/ticketplus/activityNotice.js";
 import { TicketPlusPriorityError } from "../platforms/ticketplus/ticketPriority.js";
 import { runTicketPlusCycle } from "../platforms/ticketplus/purchaseCycle.js";
 import type {
@@ -71,6 +72,7 @@ export type TicketPlusRunResult = (
           saleFailure?: TicketPlusSaleReason;
           stopReason?: TicketPlusStopReason;
           sessionFailure?: { reason: SessionEntryReason; stage: SessionEntryStage; diagnostic?: SessionDiagnostic };
+          noticeFailure?: "notice-dismiss-failed";
       }
 ) & { loginDiagnostic?: TicketPlusLoginSummary };
 export interface TicketPlusRunOptions {
@@ -186,6 +188,9 @@ export async function runTicketPlus(
         const targetResponse = await page.goto(settings.eventUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
         control.check();
         if (targetResponse && !targetResponse.ok()) throw new Error("活動頁無法載入。");
+        // 開啟活動頁後先關閉已知提醒，之後才核對登入與場次。
+        await dismissTicketPlusActivityNotice(page, control);
+        control.check();
         let loginReadTimer: ReturnType<typeof setTimeout> | undefined;
         try {
             const targetLogin = await control.read(() =>
@@ -280,6 +285,7 @@ export async function runTicketPlus(
                 ? { loginFailure: { reason: error.reason, summary: error.summary } }
                 : {}),
             ...(error instanceof TicketPlusPriorityError ? { priorityFailure: error.reason } : {}),
+            ...(error instanceof TicketPlusNoticeError ? { noticeFailure: error.reason } : {}),
         };
     } finally {
         settled = true;

@@ -3,6 +3,7 @@ import type { Page } from "playwright";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { SaleSchedule } from "../../core/types.js";
 import { validateSaleSchedule } from "../../core/purchaseValidation.js";
+import { dismissTicketPlusActivityNotice, TicketPlusNoticeError } from "./activityNotice.js";
 import { readTicketPlusPage } from "./pageState.js";
 import type { TicketPlusPage } from "./pageState.js";
 import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
@@ -19,7 +20,8 @@ export type TicketPlusSaleReason =
     | "session-disabled"
     | "page-unrecognized"
     | "read-timeout"
-    | "refresh-failed";
+    | "refresh-failed"
+    | "notice-dismiss-failed";
 
 export class TicketPlusSaleError extends Error {
     constructor(readonly reason: TicketPlusSaleReason) {
@@ -80,6 +82,19 @@ export async function prepareTicketPlusSale(
         remaining();
     };
 
+    // 每次載入最多關閉一次已知提醒；同一次載入再出現就停止。
+    let noticeDismissed = false;
+    const dismissNotice = async () => {
+        if (noticeDismissed) throw new TicketPlusSaleError("notice-dismiss-failed");
+        noticeDismissed = true;
+        try {
+            await dismissTicketPlusActivityNotice(page, control, { timeoutMs: Math.min(5_000, remaining()) });
+        } catch (error) {
+            if (error instanceof TicketPlusNoticeError) throw new TicketPlusSaleError("notice-dismiss-failed");
+            throw error;
+        }
+    };
+
     // 唯讀快照有獨立上限；空白只短暫等待，不視為尚未開賣。
     const readReady = async (): Promise<"available" | "not-on-sale"> => {
         const readDeadline = performance.now() + Math.min(5_000, remaining());
@@ -105,6 +120,10 @@ export async function prepareTicketPlusSale(
             if (performance.now() >= readDeadline) throw new TicketPlusSaleError("read-timeout");
             if (snapshot.kind === "unknown" && snapshot.reason === "incomplete-data") {
                 await pause(readDeadline - performance.now());
+                continue;
+            }
+            if (snapshot.kind === "unknown" && snapshot.reason === "notice-dialog") {
+                await dismissNotice();
                 continue;
             }
             if (snapshot.kind !== "activity") throw new TicketPlusSaleError("page-unrecognized");
@@ -149,6 +168,7 @@ export async function prepareTicketPlusSale(
             const refreshedAt = performance.now();
             const refreshBudget = Math.min(15_000, remaining());
             try {
+                noticeDismissed = false;
                 const response = await page.reload({
                     waitUntil: "domcontentloaded",
                     timeout: Math.max(1, refreshBudget),

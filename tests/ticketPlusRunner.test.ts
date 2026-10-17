@@ -13,6 +13,7 @@ import { acquirePurchaseLease, purchaseOccupied } from "../src/app/purchaseLock.
 import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
 import { activity } from "./fixtures/ticketplus/pages.js";
 import { readyInformation, readyOrder, failureDialog } from "./fixtures/ticketplus/submissionPage.js";
+import { noticeDialog, noticeTitles } from "./fixtures/ticketplus/activityNotice.js";
 
 const settings: TicketPlusActivitySettings = {
     platform: "ticketplus",
@@ -21,7 +22,7 @@ const settings: TicketPlusActivitySettings = {
     eventName: "2026孿生姐妹之夜之鬼迷心竅",
     targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 }],
 };
-async function setup(context: BrowserContext, rejected: boolean) {
+async function setup(context: BrowserContext, rejected: boolean, activityHtml = activity) {
     // 模擬 persistent context 啟動時已有的初始分頁。
     await context.newPage();
     const requests: string[] = [];
@@ -34,7 +35,7 @@ async function setup(context: BrowserContext, rejected: boolean) {
                 path === "/"
                     ? loggedInHome
                     : path.startsWith("/activity/")
-                      ? activity
+                      ? activityHtml
                       : path.startsWith("/confirm/")
                         ? readyInformation
                         : readyOrder.replace("<div>2</div>", "<div>0</div>"),
@@ -65,6 +66,11 @@ async function setup(context: BrowserContext, rejected: boolean) {
                     recorder.record("plus");
                     const value = button.parentElement!.querySelector("div")!;
                     value.textContent = String(Number(value.textContent) + 1);
+                    return;
+                }
+                if (button.dataset.notice === "ok") {
+                    recorder.record("notice");
+                    button.closest(".v-dialog__content")!.remove();
                     return;
                 }
                 if (button.dataset.fixture === "dismiss") {
@@ -613,6 +619,27 @@ test("登入診斷：同狀態不洗版，欄位變化與人工停止保留最�
         assert.doesNotMatch(JSON.stringify({ events, result, logs }), /PRIVATE_DIALOG|PRIVATE_PASSWORD|0987/);
     } finally {
         controller.abort();
+        launch.mock.restore();
+        await browser.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus runner：活動頁有入場規定提醒時先按確定一次，再照常選場次到資料頁", { timeout: 20_000 }, async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-runner-"));
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    await setup(context, false, activity + noticeDialog(noticeTitles.entry));
+    const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+    try {
+        const result = await runTicketPlus(settings, { lease: acquirePurchaseLease(directory) });
+        assert.equal(result.outcome, "information-ready");
+        const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
+        assert.equal(counts.notice, 1);
+        assert.equal(counts.session, 1);
+        assert.equal(counts.other, 0);
+        await context.close();
+    } finally {
         launch.mock.restore();
         await browser.close();
         await rm(directory, { recursive: true, force: true });

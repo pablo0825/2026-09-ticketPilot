@@ -37,6 +37,7 @@ const saleReasons: Record<TicketPlusSaleReason, string> = {
     "page-unrecognized": "無法確認頁面或場次狀態",
     "read-timeout": "等待活動頁資料完整逾時",
     "refresh-failed": "活動頁刷新未確認成功",
+    "notice-dismiss-failed": "活動頁提醒彈窗無法確認關閉",
 };
 
 export function ticketPlusSessionMessage(failure: {
@@ -126,6 +127,8 @@ function resultMessage(result: TicketPlusRunResult): string {
         const detail = "saleFailure" in result && result.saleFailure ? saleReasons[result.saleFailure] : "等待已中斷";
         return `開賣等待停止：${detail}。尚未選場次或提交選票，請檢查購票瀏覽器；不會自動重跑。`;
     }
+    if ("noticeFailure" in result && result.noticeFailure)
+        return "活動頁提醒彈窗無法確認關閉，尚未選場次或提交選票，請檢查購票瀏覽器；不會自動重跑。";
     return `流程已停止（${result.reason}）。${prior}請檢查購票瀏覽器；不會自動重跑。`;
 }
 export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | undefined {
