@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { normalizePurchaseConfig } from "../src/core/purchaseValidation.js";
 import { fixtureConfig } from "./fixtures/purchaseConfig.js";
 
-test("CLI 忽略舊幣種及價格，內部只保留活動名稱且不修改原輸入", () => {
+test("舊格式輸入忽略舊幣種及價格，內部只保留活動名稱且不修改原輸入", () => {
     const target = fixtureConfig.targets[0]!;
     for (const currency of [undefined, "TWD", "HKD", "USD", null]) {
         const expectation = { ...target.expectation, currency, unitPrice: -1, totalPrice: NaN };
@@ -27,7 +27,7 @@ test("移除價格後，活動名稱及票數無效仍在啟動前拒絕", () =>
     }
 });
 
-test("CLI 套票缺值拒絕，關閉後移除殘值且不改原輸入", () => {
+test("套票缺值拒絕，關閉後移除殘值且不改原輸入", () => {
     assert.throws(() => normalizePurchaseConfig({ ...fixtureConfig, bundleEnabled: true }), /每個順位/);
     const input = {
         ...fixtureConfig,

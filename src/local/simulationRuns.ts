@@ -73,7 +73,6 @@ export class SimulationRuns {
         const child = fork(fileURLToPath(new URL("./simulationWorker.ts", import.meta.url)), [], {
             cwd: projectRoot,
             execArgv: ["--import", "tsx"],
-            env: { ...process.env, FLOW_PAUSE: "" },
             stdio: ["ignore", "ignore", "ignore", "ipc"],
         });
 

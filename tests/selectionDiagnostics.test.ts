@@ -30,37 +30,30 @@ test("實站 adapter 路徑遇未支援彈窗零點擊，診斷不保存敏感�
         assert.equal(output.includes("SECRET"), false);
         assert.equal(output.includes("選位失敗，請重試"), true);
         await page.goto("https://www.klook.com/zh-TW/event/payment/");
-        await assert.rejects(captureSelectionDiagnostics(page, eventUrl, directory, "returned"), /略過/);
+        await assert.rejects(captureSelectionDiagnostics(page, eventUrl, directory, "failure"), /略過/);
     } finally {
         await browser.close();
         await rm(directory, { recursive: true, force: true });
     }
 });
 
-test("診斷 Enter 只採集返回，保存失敗也不重試購買；非互動只採一次", async () => {
-    const input = Object.assign(new PassThrough(), { isTTY: true });
+test("停止診斷只採集一次失敗畫面，保存失敗也不拋錯或重試", async () => {
     const output = new PassThrough();
+    let written = "";
+    output.on("data", chunk => (written += String(chunk)));
+
     const labels: string[] = [];
-    output.on("data", chunk => {
-        if (String(chunk).includes("本次購買已終止")) setImmediate(() => input.write("\n"));
-    });
-    await collectStoppedDiagnostics(
-        async label => {
-            labels.push(label);
-            if (label === "failure") throw new Error("disk error");
-        },
-        input,
-        output,
-    );
-    assert.deepEqual(labels, ["failure", "returned"]);
+    await collectStoppedDiagnostics(async label => {
+        labels.push(label);
+        throw new Error("disk error");
+    }, output);
+    assert.deepEqual(labels, ["failure"]);
+    assert.match(written, /無法安全保存診斷/);
+
     const once: string[] = [];
-    await collectStoppedDiagnostics(
-        async label => {
-            once.push(label);
-        },
-        new PassThrough(),
-        new PassThrough(),
-    );
+    await collectStoppedDiagnostics(async label => {
+        once.push(label);
+    }, new PassThrough());
     assert.deepEqual(once, ["failure"]);
 });
 

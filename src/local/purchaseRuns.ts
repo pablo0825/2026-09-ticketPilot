@@ -191,7 +191,7 @@ export class PurchaseRuns {
                 status: "interrupted",
                 browserOpen: false,
                 occupied: true,
-                message: "CLI 或上次購票仍占用瀏覽器，請先檢查原流程。",
+                message: "其他程序或上次購票仍占用瀏覽器，請先檢查原流程。",
                 events: [],
                 historyTruncated: false,
             };
@@ -347,7 +347,6 @@ export class PurchaseRuns {
             cwd: projectRoot,
             detached: true,
             execArgv: ["--import", "tsx"],
-            env: { ...process.env, FLOW_PAUSE: "" },
             stdio: ["ignore", "ignore", "ignore", "ipc"],
         });
         this.child = child;

@@ -8,7 +8,7 @@ export async function captureSelectionDiagnostics(
     page: Page,
     eventUrl: string,
     directory: string,
-    label: "failure" | "returned",
+    label: "failure",
 ): Promise<void> {
     // 只在原活動頁採集
     if (!isEventPage(page.url(), eventUrl)) {
