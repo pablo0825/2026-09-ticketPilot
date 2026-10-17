@@ -92,6 +92,19 @@ test(
                     list.activities.find((item: { id: string }) => item.id === created.id).executionStatus,
                     "已執行",
                 );
+                // 明寫購票不算設定變更，改成抽選才算
+                const status = async (body: object) => {
+                    const response = await fetch(h.url + "/api/activities/" + created.id, {
+                        method: "PUT",
+                        headers: h.headers,
+                        body: JSON.stringify(body),
+                    });
+                    assert.equal(response.status, 200);
+                    const listed = await (await h.request("/api/activities")).json();
+                    return listed.activities.find((item: { id: string }) => item.id === created.id).executionStatus;
+                };
+                assert.equal(await status({ ...identity, targets: [target], flowType: "purchase" }), "已執行");
+                assert.equal(await status({ ...identity, targets: [target], flowType: "lottery" }), "設定已更新");
                 const update = await fetch(h.url + "/api/activities/" + created.id, {
                     method: "PUT",
                     headers: h.headers,

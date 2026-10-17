@@ -44,9 +44,12 @@ interface Record {
 
 export type ActivityExecutionStatus = "尚無執行紀錄" | "等待開賣" | "執行中" | "已執行" | "設定已更新" | "舊版執行紀錄";
 
-// 以正規化後的購票條件識別新版請求。
+// 以正規化後的購票條件識別新版請求；TicketPlus 明寫購票等同未寫流程類型。
 function fingerprintSettings(settings: ActivitySettings) {
-    return parseActivity(settings);
+    const parsed = parseActivity(settings);
+    if (parsed.platform !== "ticketplus" || parsed.flowType !== "purchase") return parsed;
+    const { flowType: _purchase, ...withoutDefault } = parsed;
+    return withoutDefault;
 }
 
 function settingsHash(settings: ActivitySettings): string {
@@ -259,6 +262,7 @@ export class PurchaseRuns {
         if (record.fingerprintVersion === 4 && activity.settings.platform === "ticketplus") {
             if (
                 activity.settings.targets.length !== 1 ||
+                activity.settings.flowType === "lottery" ||
                 activity.settings.saleSchedule ||
                 activity.settings.maxRunMinutes !== undefined
             ) {
