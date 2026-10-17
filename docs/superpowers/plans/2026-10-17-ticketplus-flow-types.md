@@ -28,19 +28,26 @@
 - TicketPlus 不比對聯絡人、不需要 `contact.local.json`。
 - Commit 原子化：每個 commit 只做一件事且 typecheck 與列出的測試在該 commit 通過；讀取、操作、串接分開提交，讀取與操作模組在串接 commit 前不改變執行行為；新增 union 成員的 commit 同時更新所有 exhaustive 使用處（如 `Record<SessionEntryReason, string>`）；文件另行提交。
 - 每個 commit 後：`npm run typecheck` 與該 commit 列出的相關測試；不在每個 commit 跑 `npm test`。
-- 每個 task 最後一個 commit 後做一次子代理審查，範圍為該 task 全部 commit；確認的問題修正後重跑相關測試再進下一個 task。全部完成後跑一次 `npm test`，再做一次整體審查。
+- 審查採分級制，每次審查由一位子代理同時檢查三項並分段回報：commit 品質（可讀性、單一責任、相容性）、回歸風險、測試套套邏輯（fixture 是否與實站結構相符）。
+  - 會點擊或改變實際行為的 commit：commit 後逐筆審查，模型 Sonnet。
+  - 只讀取、只接受新狀態、純 GUI 的 commit：不逐筆審查，併入 task 結束審查。
+  - 文件 commit：不審查。
+  - 每個 task 最後一個 commit 後做一次 task 審查，範圍為該 task 全部 commit，模型 Opus。
+  - 全部完成後跑一次 `npm test`，再做一次整體審查，模型 Opus。
+  - 有新增或修改 fixture 的 commit，其所屬審查（逐筆或 task）必附 `docs/ticketplus-flow-types-observation.md` 供比對。
+  - 確認的問題修正後重跑相關測試，再進下一個 commit 或 task。
 
-| Task | Commits | 審查重點 |
-| --- | --- | --- |
-| 1 | 1.1–1.3 | 品質、回歸 |
-| 2 | 2.1–2.4 | 品質、回歸、套套邏輯 |
-| 3 | 3.1–3.4 | 品質、回歸 |
-| 4 | 4.1–4.3 | 品質、回歸、套套邏輯 |
-| 5 | 5.1–5.4 | 品質、回歸、套套邏輯 |
-| 6 | 6.1–6.2 | 品質、回歸、套套邏輯 |
-| 7 | 7.1–7.5 | 品質、回歸 |
+| Task | Commits | 逐筆審查（Sonnet） | task 審查（Opus） | 含 fixture |
+| --- | --- | --- | --- | --- |
+| 1 | 1.1–1.3 | — | 1.1–1.3 | — |
+| 2 | 2.1–2.4 | 2.3、2.4 | 2.1–2.4 | 2.1 |
+| 3 | 3.1–3.4 | 3.2、3.3 | 3.1–3.4 | — |
+| 4 | 4.1–4.3 | 4.2、4.3 | 4.1–4.3 | 4.1 |
+| 5 | 5.1–5.4 | 5.1、5.3 | 5.1–5.4 | 5.1 |
+| 6 | 6.1–6.2 | 6.2 | 6.1–6.2 | 6.1 |
+| 7 | 7.1–7.5 | 7.2、7.3 | 7.1–7.5 | — |
 
-套套邏輯審查時提供 `docs/ticketplus-flow-types-observation.md`，比對 fixture 與實站結構。
+共 11 次逐筆審查、7 次 task 審查、1 次整體審查。
 
 ## Review Focus
 
@@ -297,5 +304,5 @@ Files: `docs/gui-usage.md`
 ### 收尾
 
 - [ ] 跑 `npm test` 一次，回報結果。
-- [ ] 整體審查（最強模型），依結果修正並重跑相關測試。
+- [ ] 整體審查（Opus），依結果修正並重跑相關測試。
 - [ ] 實站驗證另由使用者授權進行。
