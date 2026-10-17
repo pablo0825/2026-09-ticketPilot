@@ -235,7 +235,9 @@ async function submitOnce(page: Page, context: Submission, deadline: number): Pr
     const scope = page
         .locator("body")
         .filter({ hasNot: page.getByText("聯絡人資訊", { exact: true }).filter({ visible: true }) })
-        .filter({ hasNot: page.getByRole("heading", { level: 3, name: /排隊購票中/ }).filter({ visible: true }) });
+        .filter({
+            hasNot: page.getByRole("heading", { level: 3, name: /排隊(購票|登記)中/ }).filter({ visible: true }),
+        });
     const locator = scope.getByRole("button", { name: "下一步", exact: true }).filter({ visible: true });
     if ((await readBounded(context, deadline, () => locator.count())) !== 1) throw stop(context, "button-unavailable");
 

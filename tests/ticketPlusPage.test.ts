@@ -676,3 +676,24 @@ test("TicketPlus 活動：抽選的「立即登記」視為可進入，並保留
         assert.equal(diagnoseActivityFields(dom, event.eventName).rows[0]!.knownButtonText, true);
     });
 });
+
+test("TicketPlus 排隊：抽選「排隊登記中 請稍候」在頁面或彈窗內都算排隊", async () => {
+    await withPage(async page => {
+        // 頁面 h3 形式，附加第二句仍為排隊
+        await show(page, orderUrl, fixture.order + fixture.lotteryQueue);
+        assert.deepEqual(await readTicketPlusPage(page), { kind: "queue", eventId, sessionId });
+
+        // 彈窗形式不能被當成未知彈窗
+        await show(
+            page,
+            orderUrl,
+            fixture.order +
+                `<div class="v-dialog__content"><div class="v-dialog" role="dialog">${fixture.lotteryQueue}</div></div>`,
+        );
+        assert.deepEqual(await readTicketPlusPage(page), { kind: "queue", eventId, sessionId });
+
+        // 只有第二句、或文字不同時不算排隊
+        await show(page, orderUrl, fixture.order + "<h3>排隊登記中 請稍後再試</h3>");
+        assert.notEqual((await readTicketPlusPage(page)).kind, "queue");
+    });
+});

@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import { order, information, queue } from "./pages.js";
+import { order, information, queue, lotteryQueue } from "./pages.js";
 
 export const orderUrl = "https://ticketplus.com.tw/order/event-fixture/session-B";
 export const informationUrl = "https://ticketplus.com.tw/confirm/event-fixture/session-B";
@@ -11,6 +11,7 @@ export function failureDialog(message = "您選擇的票種已售完", button = 
     return `<div class="v-dialog__content"><div role="dialog"><div class="v-dialog"><p>${message}</p><button data-fixture="dismiss">${button}</button></div></div></div>`;
 }
 export const queueDialog = `<div class="v-dialog__content"><div class="v-dialog" role="dialog">${queue}</div></div>`;
+export const lotteryQueueDialog = `<div class="v-dialog__content"><div class="v-dialog" role="dialog">${lotteryQueue}</div></div>`;
 export type Mode = "direct" | "queue" | "failure" | "stay";
 export interface FixtureState {
     orderClicks: number;
@@ -32,6 +33,7 @@ export async function installSubmission(
     mode: Mode,
     failureHtml = failureDialog(),
     closeMode = "remove",
+    queueHtml = queueDialog,
 ): Promise<() => number> {
     let requests = 0;
     await page.route("**/*", route => {
@@ -106,7 +108,7 @@ export async function installSubmission(
                 state.otherClicks++;
             });
         },
-        { mode, failureHtml, closeMode, order: readyOrder, information: readyInformation, queue: queueDialog },
+        { mode, failureHtml, closeMode, order: readyOrder, information: readyInformation, queue: queueHtml },
     );
     return () => requests;
 }

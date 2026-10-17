@@ -942,3 +942,22 @@ test("TicketPlus 提交等待：獨立回應讓選票與資料重疊結束，資
         }
     });
 });
+
+test("TicketPlus 提交：抽選排隊彈窗等待後抵達資料頁，只送出一次", async () => {
+    const browser = await chromium.launch();
+    try {
+        const page = await browser.newPage();
+        const { lotteryQueueDialog } = await import("./fixtures/ticketplus/submissionPage.js");
+        const requests = await installSubmission(page, "queue", undefined, undefined, lotteryQueueDialog);
+        const result = submit(page);
+        await page.waitForFunction(
+            () => window.submissionFixture.orderClicks === 1 && window.submissionFixture.reads >= 3,
+        );
+        await page.evaluate(() => window.submissionFixture.show("information"));
+        assert.equal((await result).kind, "information");
+        assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+        assert.equal(requests(), 1);
+    } finally {
+        await browser.close();
+    }
+});

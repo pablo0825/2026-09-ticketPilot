@@ -168,6 +168,6 @@ export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | unde
     }
     if (event.progress.failure === "sold-out") return "偵測到明確售完，處理彈窗後核對是否可以嘗試下一順位。";
     if (event.progress.failure) return "偵測到購票失敗，完成彈窗處理後停止。";
-    if (event.progress.sawQueue) return "排隊購票中，等待網站處理，不重送。";
+    if (event.progress.sawQueue) return "排隊中，等待網站處理，不重送。";
     if (event.progress.submitAttempted) return "已開始一次提交嘗試，結果尚待確認。";
 }

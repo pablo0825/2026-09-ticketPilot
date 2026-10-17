@@ -59,6 +59,8 @@ export const soldOut = `
 export const order = `${eventHeader}<div class="stepText currStep">選擇票種</div>${student}${presale}${soldOut}
 <button type="button">更新票數</button><button type="button">下一步</button>`;
 export const queue = "<h3>排隊購票中<br>請稍候</h3>";
+// 2026-10-17 抽選實站排隊文字；第二句是否在 h3 內未觀察，以兩種形式測試。
+export const lotteryQueue = "<h3>排隊登記中<br>請稍候</h3><p>若人數眾多可能需要較長等待時間</p>";
 
 // label/for 僅重建已觀察的 accessible name；動態 id 不作為正式定位條件。
 export const information = `
