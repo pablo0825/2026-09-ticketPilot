@@ -303,12 +303,32 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                           ? message.slice(4)
                           : "";
                     const failure = Object.hasOwn(messages, key) ? messages[key] : undefined;
-                    const kind: "failure" | "queue" | "unknown" = failure
+
+                    // 活動頁提醒只認白名單標題，且按鈕恰為「回到首頁」「確定」各一。
+                    const firstLine = (element as HTMLElement).innerText
+                        .split("\n")
+                        .map(line => line.trim())
+                        .find(Boolean);
+                    const buttonNames = all(element, 'button, [role="button"]')
+                        .filter(modal.visible)
+                        .filter(enabled)
+                        .map(text)
+                        .sort();
+                    const noticeTitle =
+                        location.pathname.startsWith("/activity/") &&
+                        (firstLine === "實名抽選制售票提醒" || firstLine === "入場規定") &&
+                        buttonNames.join("|") === ["回到首頁", "確定"].sort().join("|")
+                            ? firstLine
+                            : undefined;
+
+                    const kind: "failure" | "queue" | "notice" | "unknown" = failure
                         ? "failure"
                         : message === "排隊購票中請稍候" &&
                             all(element, 'h3, [role="heading"][aria-level="3"]').length === 1
                           ? "queue"
-                          : "unknown";
+                          : noticeTitle
+                            ? "notice"
+                            : "unknown";
                     const dismissNames = all(element, 'button, [role="button"]')
                         .filter(modal.visible)
                         .filter(enabled)
@@ -321,6 +341,7 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                         failure,
                         messageKey: failure ? message : undefined,
                         dismissNames,
+                        noticeTitle,
                     };
                 });
 

@@ -9,6 +9,7 @@ import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
 import { selectTicketPlusSession, TicketPlusSessionError } from "../src/platforms/ticketplus/sessionSelection.js";
 import type { SessionEntryStage, SessionEntryReason } from "../src/platforms/ticketplus/sessionSelection.js";
 import * as fixture from "./fixtures/ticketplus/pages.js";
+import { noticeDialog, noticeTitles } from "./fixtures/ticketplus/activityNotice.js";
 
 const origin = "https://ticketplus.com.tw";
 const activityUrl = `${origin}/activity/event-fixture`;
@@ -1258,5 +1259,16 @@ test("近期觀測診斷：獨立故障注入保留最後八筆，讀取中斷�
             assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
         },
         { html: "<h1></h1>" },
+    );
+});
+
+test("TicketPlus 場次：活動頁有已知提醒時，尚未接上關閉流程前仍零點擊停止", { timeout: 15_000 }, async () => {
+    await withPage(
+        async page => {
+            const result = selectTicketPlusSession(page, settings, { ...options, activityReadyTimeoutMs: 300 });
+            await rejectsEntry(result, "before-click");
+            assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
+        },
+        { html: activity + noticeDialog(noticeTitles.entry) },
     );
 });

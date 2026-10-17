@@ -61,6 +61,7 @@ export interface TicketPlusPageDiagnostic {
         unknownDialogs: number;
         failureDialogs: number;
         queueDialogs: number;
+        noticeDialogs: number;
         informationHeadings: number;
         terms: number;
         paymentButtons: number;
@@ -82,6 +83,8 @@ function classifyPage(dom: TicketPlusDom): TicketPlusPage {
         const queues = dom.dialogs.filter(dialog => dialog.kind === "queue");
         if (failures.length > 1 || queues.length > 1) return unknownPage("ambiguous-data");
         if (dom.dialogs.some(dialog => dialog.kind === "unknown")) return unknownPage("blocking-dialog");
+        // 活動頁只有已知提醒時明確回報，交由呼叫端決定是否關閉。
+        if (activity && dom.dialogs.every(dialog => dialog.kind === "notice")) return unknownPage("notice-dialog");
         if (!order || order[1] !== "order") return unknownPage("conflicting-page");
         if (failures.length === 1) {
             if (
@@ -278,6 +281,7 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
                 unknownDialogs: snapshot.dialogs.filter(dialog => dialog.kind === "unknown").length,
                 failureDialogs: snapshot.dialogs.filter(dialog => dialog.kind === "failure").length,
                 queueDialogs: snapshot.dialogs.filter(dialog => dialog.kind === "queue").length,
+                noticeDialogs: snapshot.dialogs.filter(dialog => dialog.kind === "notice").length,
                 informationHeadings: snapshot.information.headingCount,
                 terms: snapshot.information.terms.length,
                 paymentButtons: snapshot.paymentButtons.length,
