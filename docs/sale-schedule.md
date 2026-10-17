@@ -1,6 +1,6 @@
 # 開賣時間設定
 
-在 `src/config/event.config.ts` 的 eventConfig 加入可選設定：
+在 GUI「確認與開始」指定開賣時間與提前秒數；活動檔以下列可選格式保存：
 
 ```ts
 saleSchedule: {
