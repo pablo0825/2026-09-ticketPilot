@@ -4,7 +4,7 @@
 
 **Goal:** 依使用者勾選的流程類型（購票／抽選）執行 TicketPlus：自動關閉已知活動提醒彈窗、以步驟條驗證流程類型；抽選在使用者人工填完參加者並於 GUI 確認後，勾條款、按一次下一步，停在「確認登記」之前。
 
-**Architecture:** 購票（演唱會 A、C）與抽選共用活動頁、選場次、選票、提交與排隊模組；實站顯示 A 與 C 路徑相同（order → confirm → checkout），不另分流程。流程類型只影響：場次按鈕文字、排隊文案、步驟條驗證，以及抽選到 confirm 頁後的人工確認與停止點。購票成功仍停在 `information-ready`，行為不變。
+**Architecture:** 購票（演唱會 A、C）與抽選共用活動頁、選場次、選票、提交與排隊模組；實站顯示 A 與 C 路徑相同（order → confirm → checkout）；A 坐席在 order 與 confirm 之間多一頁 confirmSeat，由購票流程核對座位後按一次下一步，不另分流程。流程類型只影響：場次按鈕文字、排隊文案、步驟條驗證，以及抽選到 confirm 頁後的人工確認與停止點。購票成功仍停在 `information-ready`，行為不變。
 
 **Tech Stack:** TypeScript (strict)、Playwright、zod、React GUI、`node:test`、`node:assert/strict`、tsx。
 
@@ -28,7 +28,8 @@
 | 3 | 品質、回歸 |
 | 4 | 品質、回歸、套套邏輯 |
 | 5 | 品質、回歸、套套邏輯 |
-| 6 | 品質、回歸 |
+| 6 | 品質、回歸、套套邏輯 |
+| 7 | 品質、回歸 |
 
 ## Review Focus
 
@@ -37,6 +38,8 @@
 - 提醒彈窗按「確定」後同一次載入又出現：必須停止，不可第二次點擊。
 - 使用者在 GUI 確認時編輯表單或「關閉表單」確認仍開著：必須停止，不勾條款、不按下一步。
 - 抽選按下一步後頁面停在 confirm 或出現未知彈窗：回報 `unknown`，不重按下一步。
+
+另：confirmSeat 的座位列與 checkout 摘要列同為 `.row.py-2.py-md-3.no-gutters`，不可被判為 checkout（Task 4 測試涵蓋）。
 
 ---
 
@@ -93,7 +96,33 @@
 - [ ] 實作，跑上列測試與 `ticketPlusCycle`、`ticketPlusRounds` 通過；typecheck。
 - [ ] Commit `feat(ticketplus): support lottery session entry`。
 
-### Task 4: 以步驟條驗證流程類型
+### Task 4: 確認選位結果頁（坐席）
+
+**Files:**
+- Modify: `src/platforms/ticketplus/domSnapshot.ts`（新增 `seatResult: { headingCount: number; rows: { area: string; position: string; ticketType: string }[] }`，只讀「確認選位結果」區塊內的列）
+- Modify: `src/platforms/ticketplus/pageState.ts`（路徑接受 `confirmSeat`；新增頁面 kind）、`src/platforms/ticketplus/readFailure.ts`（`RouteKind` 加 `"confirmSeat"`）
+- Create: `src/platforms/ticketplus/seatConfirmation.ts`
+- Modify: `src/platforms/ticketplus/ticketSubmission.ts`（提交後同場次 confirmSeat 視為可等待的完成頁）、`src/platforms/ticketplus/submissionOutcome.ts`、`src/platforms/ticketplus/purchaseCycle.ts`
+- Create: `tests/fixtures/ticketplus/seatConfirmPage.ts`；Test: `tests/ticketPlusSeatConfirmation.test.ts`、`tests/ticketPlusSubmission.test.ts`、`tests/ticketPlusPage.test.ts`
+
+**Interfaces:**
+- Produces: `export interface SeatConfirmationPage extends PageIdentity { kind: "seat-confirmation"; seats: { area: string; position: string; ticketType: string }[]; nextEnabled: boolean }`；判定：路徑 `/confirmSeat/<eventId>/<sessionId>`、「確認選位結果」標題恰 1 個、每列 4 欄且前三欄非空、唯一 `button.nextBtn`「下一步」與「取消購票」、無彈窗／排隊／條款／聯絡人。
+- Produces: `TicketPlusSubmissionResult` 新增 `outcome: "seat-confirmation"`，帶 `seats`。
+- Produces: `export async function confirmTicketPlusSeats(page: Page, settings: TicketPlusSelection, session: VerifiedTicketPlusSession, control: TicketPlusRunControl, options?: { timeoutMs?: number }): Promise<TicketPlusSubmissionResult>`，預設 `timeoutMs: 15_000`；核對通過後按一次下一步，抵達同場次 confirm 資料頁回 `information-ready`；核對不符在點擊前回 `stopped`，reason `"seat-mismatch"`；點擊後未抵達回 `unknown`，reason `"seat-confirm-unconfirmed"`。
+- Consumes: `runTicketPlusCycle` 在提交結果為 `seat-confirmation` 時呼叫 `confirmTicketPlusSeats`，其結果即本次提交結果；不回到選票、不換順位、不重試。
+
+座位核對：列數等於 `settings.target.quantity`；每列「票區」完全等於目標票區名稱（票區面板版型的 `ticketType`）；位置只要求非空，不比對排號。
+
+- [ ] Fixture：依觀察結構（`.bg-tranparent-yellow`「確認選位結果」、表頭四欄、每座位一列 `.row.py-2.py-md-3.no-gutters`、取消購票、下一步）提供 1 列相符、票區不符、列數不符、位置空白、下一步後轉 confirm 資料頁、下一步後停留原頁六種模式，計數下一步與取消購票點擊。
+- [ ] 測試 reader：confirmSeat 解析為 `seat-confirmation` 而非 checkout；缺標題、兩個下一步、混入條款皆 `unknown`；網址為其他活動或場次時拒絕。
+- [ ] 測試 submission：選票提交後轉到同場次 confirmSeat 得 `seat-confirmation`（不是 `unknown`）；轉到其他場次 confirmSeat 仍拒絕。
+- [ ] 測試 seatConfirmation：相符 → 下一步 1 次、得 `information-ready`；票區不符、列數不符、位置空白 → 0 點擊 `seat-mismatch`；停留原頁 → `unknown` 且下一步總點擊 1；任何情況「取消購票」0 點擊。
+- [ ] 測試 cycle：`seat-confirmation` 後只呼叫一次座位確認，`seat-mismatch` 不換下一順位、不更新票數。
+- [ ] 實作，跑 `ticketPlusSeatConfirmation`、`ticketPlusSubmission`、`ticketPlusPage`、`ticketPlusCycle`、`ticketPlusRounds`、`ticketPlusDomReadDiagnostic` 通過；typecheck。
+- [ ] `ticketPlusPresentation.ts` 補文案：「選位結果與設定的票區或張數不符，已停止；座位仍在網站保留中，請自行取消或處理」「已確認選位，但未能確認抵達資料頁，請檢查瀏覽器，不會重試」。
+- [ ] Commit `feat(ticketplus): confirm seat assignment once`。
+
+### Task 5: 以步驟條驗證流程類型
 
 **Files:**
 - Modify: `src/platforms/ticketplus/domSnapshot.ts`（新增 `steps: { text: string; state: "current" | "checked" | "after" | "unknown" }[]`，讀 `.stepperPadding .stepText` 可見元素）
@@ -112,7 +141,7 @@
 - [ ] `ticketPlusPresentation.ts` 補兩個停止文案：「流程類型與頁面不符，請檢查活動設定」「無法辨識購票步驟」。
 - [ ] 跑相關測試與 typecheck；Commit `feat(ticketplus): verify flow type from stepper`。
 
-### Task 5: 抽選參加者核對與停止點（平台模組）
+### Task 6: 抽選參加者核對與停止點（平台模組）
 
 **Files:**
 - Modify: `src/platforms/ticketplus/domSnapshot.ts`（新增 `applicants: { filled: boolean }[]`、`registerButtons: boolean[]`（「確認登記」enabled））
@@ -120,7 +149,7 @@
 - Create: `tests/fixtures/ticketplus/lotteryPages.ts`；Test: `tests/ticketPlusLotteryCompletion.test.ts`
 
 **Interfaces:**
-- Consumes: `VerifiedTicketPlusSession`、`TicketPlusRunControl`、Task 4 `classifyTicketPlusSteps`。
+- Consumes: `VerifiedTicketPlusSession`、`TicketPlusRunControl`、Task 5 `classifyTicketPlusSteps`。
 - Produces: `export type LotteryCompletionResult = { outcome: "registration-ready" } | { outcome: "stopped" | "unknown"; reason: LotteryStopReason };`，`LotteryStopReason = "not-input-page" | "dialog-open" | "participant-count" | "participant-incomplete" | "terms-missing" | "next-unavailable" | "checkout-not-reached" | "time-limit" | "user-stopped"`。
 - Produces: `export async function completeTicketPlusLottery(page: Page, session: VerifiedTicketPlusSession, quantity: number, control: TicketPlusRunControl, options?: { timeoutMs?: number }): Promise<LotteryCompletionResult>`，預設 `timeoutMs: 15_000`。
 
@@ -131,10 +160,10 @@
 - [ ] 實作：核對 → 勾條款（未勾才點）→ 確認下一步啟用 → 點一次 → 等同場次 `/checkout/`、步驟條抽選且 current 為「登記成功」、唯一「確認登記」存在。
 - [ ] 跑測試、typecheck；Commit `feat(ticketplus): complete lottery up to registration confirm`。
 
-### Task 6: 執行器、worker、API 與 GUI 人工確認
+### Task 7: 執行器、worker、API 與 GUI 人工確認
 
 **Files:**
-- Modify: `src/app/runTicketPlus.ts`（抽選 `information-ready` 後等待確認再呼叫 Task 5）
+- Modify: `src/app/runTicketPlus.ts`（抽選 `information-ready` 後等待確認再呼叫 Task 6）
 - Modify: `src/local/ticketPlusWorker.ts`、`src/local/purchaseWorker.ts`（接收確認訊息）
 - Modify: `src/local/purchaseRuns.ts`、`src/local/server.ts`（新 API、狀態）
 - Modify: `src/local/react/platforms/ticketplus/PurchaseSummary.tsx`、`startPurchase.ts`
@@ -142,7 +171,7 @@
 - Test: `tests/ticketPlusRunner.test.ts`、`tests/ticketPlusWorker.test.ts`、`tests/ticketPlusApi.test.ts`、`tests/ticketPlusStart.gui.test.ts`
 
 **Interfaces:**
-- Consumes: Task 5 `completeTicketPlusLottery`。
+- Consumes: Task 6 `completeTicketPlusLottery`。
 - Produces: `TicketPlusStage` 新增 `"waiting-for-participants"`、`"completing-registration"`；`TicketPlusRunOptions` 新增 `waitForParticipants?: (confirmationId: string) => Promise<void>`（由 worker 注入，resolve 表示收到確認）。
 - Produces: worker 收 `{ type: "confirm-ticketplus-participants", confirmationId }` 只接受一次、ID 須相符；snapshot 新增 `participantConfirmation?: { confirmationId: string }`；`POST /api/purchase/confirm-participants` body `{ runId, confirmationId }`，沿用 token／來源防護；執行狀態新增 `"registration-ready"`（終態，保留瀏覽器與占用，同 `information-ready`）。
 
