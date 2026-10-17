@@ -42,7 +42,14 @@ test("TicketPlus 活動：忽略隱藏標題、區分 tab/button，保存各列�
             eventId,
             eventName: event.eventName,
             sessions: [
-                { name: event.eventName, date: "2026-10-30", time: "20:00", buyEnabled: true, saleState: "available" },
+                {
+                    name: event.eventName,
+                    date: "2026-10-30",
+                    time: "20:00",
+                    buyEnabled: true,
+                    saleState: "available",
+                    buttonText: "立即購買",
+                },
             ],
         });
         // 人工防禦案例：第二場次不得取用第一列按鈕或日期。
@@ -649,5 +656,23 @@ test("TicketPlus 活動欄位診斷：同快照描述缺少、空白、歧義與
             );
             assert.deepEqual(fields, { headings: expected, rows: [] });
         }
+    });
+});
+
+test("TicketPlus 活動：抽選的「立即登記」視為可進入，並保留按鈕文字", async () => {
+    await withPage(async page => {
+        await show(page, activityUrl, fixture.activity.replace("<span>立即購買</span>", "<span>立即登記</span>"));
+        const result = await readTicketPlusPage(page);
+        assert.equal(result.kind, "activity");
+        if (result.kind !== "activity") assert.fail();
+        assert.deepEqual(
+            result.sessions.map(row => [row.saleState, row.buyEnabled, row.buttonText]),
+            [["available", true, "立即登記"]],
+        );
+
+        // 診斷也視為已知按鈕
+        const dom = await readTicketPlusDom(page);
+        const { diagnoseActivityFields } = await import("../src/platforms/ticketplus/activityPage.js");
+        assert.equal(diagnoseActivityFields(dom, event.eventName).rows[0]!.knownButtonText, true);
     });
 });

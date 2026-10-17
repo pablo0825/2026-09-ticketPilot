@@ -12,7 +12,16 @@ export interface ActivityPage {
         time: string;
         buyEnabled: boolean;
         saleState: "available" | "not-on-sale" | "disabled";
+        // 購票為「立即購買」、抽選為「立即登記」；選場次時依流程類型核對。
+        buttonText: SessionButtonText;
     }[];
+}
+
+export type SessionButtonText = "立即購買" | "立即登記" | "尚未開賣";
+const sessionButtonTexts: readonly string[] = ["立即購買", "立即登記", "尚未開賣"];
+
+function isSessionButtonText(text: string): text is SessionButtonText {
+    return sessionButtonTexts.includes(text);
 }
 
 export function parseActivityPage(dom: TicketPlusDom, eventId: string): ActivityPage | UnknownPage {
@@ -38,9 +47,10 @@ export function parseActivityPage(dom: TicketPlusDom, eventId: string): Activity
         if (!name || !date || !time || !button || !validDate(date) || !validTime(time)) {
             return unknownPage("incomplete-data");
         }
-        if (button.text !== "立即購買" && button.text !== "尚未開賣") return unknownPage("incomplete-data");
-        const saleState = button.text === "尚未開賣" ? "not-on-sale" : button.enabled ? "available" : "disabled";
-        sessions.push({ name, date, time, buyEnabled: saleState === "available", saleState });
+        const buttonText = button.text;
+        if (!isSessionButtonText(buttonText)) return unknownPage("incomplete-data");
+        const saleState = buttonText === "尚未開賣" ? "not-on-sale" : button.enabled ? "available" : "disabled";
+        sessions.push({ name, date, time, buyEnabled: saleState === "available", saleState, buttonText });
     }
     return { kind: "activity", eventId, eventName, sessions };
 }
@@ -69,7 +79,7 @@ export function diagnoseActivityFields(dom: TicketPlusDom, expectedName: string)
             times: row.times.length,
             timeValid: time !== undefined && validTime(time),
             buttons: row.saleButtons.length,
-            knownButtonText: button !== undefined && ["立即購買", "尚未開賣"].includes(button.text),
+            knownButtonText: button !== undefined && isSessionButtonText(button.text),
             buttonEnabled: button?.enabled ?? null,
         };
     });
