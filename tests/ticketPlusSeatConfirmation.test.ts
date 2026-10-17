@@ -137,3 +137,12 @@ test("確認選位：兩張相符時按一次下一步；別的場次或下一�
         assert.deepEqual(await counts(), { next: 0, cancel: 0 });
     });
 });
+
+test("確認選位：下一步停用時零點擊，回報按鈕無法使用而非座位不符", async () => {
+    await withSeatPage([observedSeat], "to-information", async (page, counts) => {
+        await page.evaluate(() => document.querySelector('[data-seat="next"]')!.setAttribute("disabled", ""));
+        const result = await confirmTicketPlusSeats(page, settings, session, new TicketPlusRunControl());
+        assert.deepEqual(result, { outcome: "stopped", reason: "button-unavailable" });
+        assert.deepEqual(await counts(), { next: 0, cancel: 0 });
+    });
+});

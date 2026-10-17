@@ -33,7 +33,7 @@ function sameSession(page: TicketPlusPage, session: VerifiedTicketPlusSession): 
 
 // 座位列數等於設定張數，每列票區與設定票區完全相同；位置只要求有值，不比對排號。
 function seatsMatch(page: TicketPlusPage, settings: TicketPlusSelection, session: VerifiedTicketPlusSession): boolean {
-    if (page.kind !== "seat-confirmation" || !page.nextEnabled || !sameSession(page, session)) return false;
+    if (page.kind !== "seat-confirmation" || !sameSession(page, session)) return false;
     return (
         page.seats.length === settings.target.quantity &&
         page.seats.every(seat => seat.area === settings.target.ticketType && seat.position !== "")
@@ -103,6 +103,9 @@ export async function confirmTicketPlusSeats(
         control.check();
         const before = await control.read(() => readTicketPlusPage(page));
         if (!seatsMatch(before, settings, session)) return { outcome: "stopped", reason: "seat-mismatch" };
+        if (before.kind !== "seat-confirmation" || !before.nextEnabled) {
+            return { outcome: "stopped", reason: "button-unavailable" };
+        }
 
         // 只按一次下一步；點擊開始後任何錯誤都視為已嘗試，點擊前的錯誤照常停止。
         const click = await clickNextOnce(page, settings, session, control, options.clickTimeoutMs ?? 5_000, () => {

@@ -29,7 +29,8 @@ ${extra}
 export type SeatNextMode = "to-information" | "stay";
 
 // 計數「下一步」與「取消購票」；下一步依模式轉到同場次 confirm 資料頁或停留原頁。
-export function seatBehavior(mode: SeatNextMode, informationPath: string): string {
+// delayMs 模擬實站 confirmSeat 到 confirm 約數秒的轉頁時間。
+export function seatBehavior(mode: SeatNextMode, informationPath: string, delayMs = 0): string {
     return `<script>
     document.addEventListener("click", event => {
         const button = event.target.closest("[data-seat]");
@@ -37,7 +38,7 @@ export function seatBehavior(mode: SeatNextMode, informationPath: string): strin
         const key = "seat-" + button.dataset.seat;
         sessionStorage.setItem(key, String(Number(sessionStorage.getItem(key) ?? "0") + 1));
         if (button.dataset.seat === "next" && ${JSON.stringify(mode)} === "to-information") {
-            location.assign(${JSON.stringify(informationPath)});
+            setTimeout(() => location.assign(${JSON.stringify(informationPath)}), ${delayMs});
         }
     });
 </script>`;

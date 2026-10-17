@@ -75,6 +75,8 @@ interface Submission {
     progress: SubmissionProgress;
     observer?: SubmissionObserver;
     diagnostic?: SubmissionDiagnostic;
+    // 確認選位步驟每次提交最多一次；再次看到選位頁即停止。
+    seatStepDone?: boolean;
 }
 const defaults: Required<TicketSubmissionOptions> = {
     preflightTimeoutMs: 5_000,
@@ -378,22 +380,27 @@ async function dismissFailure(page: Page, context: Submission, failure: OrderFai
 async function pause(context: Submission, deadline: number): Promise<void> {
     await context.control.wait(Math.min(context.options.pollIntervalMs, remaining(context, deadline)));
 }
-// 坐席多一頁確認選位結果：核對後只按一次下一步，結果即本次提交結果，不重試。
-async function confirmSeats(page: Page, context: Submission, deadline: number): Promise<InformationPage> {
+// 坐席多一頁確認選位結果：核對後只按一次下一步，並給這一步自己的等待時間；
+// 成功時回傳後續等待資料頁的期限，資料頁仍由一般核對判定，不重試。
+const seatStepTimeoutMs = 15_000;
+async function confirmSeats(page: Page, context: Submission): Promise<number> {
+    if (context.seatStepDone) throw stop(context, "seat-confirm-unconfirmed");
+    context.seatStepDone = true;
+    const deadline = Math.min(context.deadline, performance.now() + seatStepTimeoutMs);
     const result = await confirmTicketPlusSeats(page, context.settings, context.selected, context.control, {
         timeoutMs: remaining(context, deadline),
         clickTimeoutMs: context.options.clickTimeoutMs,
         pollIntervalMs: context.options.pollIntervalMs,
     });
-    if (result.outcome === "confirmed") return result.information;
+    if (result.outcome === "confirmed") return deadline;
     context.control.check();
+    const reasons = {
+        "seat-mismatch": "seat-mismatch",
+        "button-unavailable": "seat-button-unavailable",
+    } as const;
     throw stop(
         context,
-        result.reason === "button-unavailable"
-            ? "seat-button-unavailable"
-            : result.reason === "seat-mismatch"
-              ? "seat-mismatch"
-              : "seat-confirm-unconfirmed",
+        result.reason in reasons ? reasons[result.reason as keyof typeof reasons] : "seat-confirm-unconfirmed",
     );
 }
 
@@ -403,7 +410,10 @@ async function waitForInformation(page: Page, context: Submission, initialDeadli
         const value = await snapshot(page, context, deadline, true);
         if (value.kind === "order-failure") return dismissFailure(page, context, value);
         if (value.kind === "information") return value;
-        if (value.kind === "seat-confirmation") return confirmSeats(page, context, deadline);
+        if (value.kind === "seat-confirmation") {
+            deadline = await confirmSeats(page, context);
+            continue;
+        }
 
         // 排隊期限只建立一次，消失後再出現仍沿用原期限。
         if (value.kind === "queue") {
