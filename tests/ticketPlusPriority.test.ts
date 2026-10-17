@@ -204,3 +204,32 @@ test("順位：挑選耗時扣除調張數期限，不替 quantity 重新給完�
         await browser.close();
     }
 });
+
+test("順位：暫無票券同售完一樣略過，改選下一順位，紀錄不當成售完", async () => {
+    const browser = await chromium.launch();
+    try {
+        const page = await browser.newPage();
+        await installQuantityFixture(page, { html: quantityPage.replace("已售完", "暫無票券") });
+        const selected = await selectTicketPlusPriority(page, settings, identity, options);
+        assert.equal(selected.priorityIndex, 1);
+        assert.equal(selected.snapshot.tickets.find(ticket => ticket.name === "身障票")?.saleStatus, "unavailable");
+        assert.deepEqual((await quantityState(page)).clicks, { ...zero, presalePlus: 2 });
+    } finally {
+        await browser.close();
+    }
+});
+
+test("順位：所有順位都是暫無票券或售完時零操作，交給更新流程", async () => {
+    const browser = await chromium.launch();
+    try {
+        const page = await browser.newPage();
+        await installQuantityFixture(page, { html: quantityPage.replace("已售完", "暫無票券") });
+        await assert.rejects(
+            selectTicketPlusPriority(page, { ...settings, targets: [settings.targets[0]!] }, identity, options),
+            (error: any) => error.reason === "all-targets-sold-out",
+        );
+        assert.deepEqual((await quantityState(page)).clicks, zero);
+    } finally {
+        await browser.close();
+    }
+});

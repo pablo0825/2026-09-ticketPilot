@@ -1,9 +1,11 @@
 import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
-import type { Locator, Page } from "playwright";
+import type { ElementHandle, Page } from "playwright";
 import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import { readTicketPlusPage } from "./pageState.js";
+import { findTargetTickets } from "./ticketSelectionPage.js";
 import type { TicketRow, TicketSelectionPage } from "./ticketSelectionPage.js";
+import { locateTargetRow } from "./ticketRowFinder.js";
 
 export type VerifiedTicketPlusSession = Pick<
     TicketSelectionPage,
@@ -19,6 +21,7 @@ export type QuantityReason =
     | "ticket-missing"
     | "ticket-ambiguous"
     | "ticket-sold-out"
+    | "ticket-unavailable"
     | "extra-tickets"
     | "button-unavailable"
     | "quantity-changed"
@@ -128,7 +131,7 @@ async function readSelection(
     ) {
         throw stop(context, "identity-mismatch");
     }
-    const matches = snapshot.tickets.filter(ticket => ticket.name === context.settings.target.ticketType);
+    const matches = findTargetTickets(snapshot.tickets, context.settings.target.ticketType);
     if (matches.length === 0) throw stop(context, "ticket-missing");
     if (matches.length !== 1) throw stop(context, "ticket-ambiguous");
 
@@ -138,32 +141,27 @@ async function readSelection(
         throw stop(context, "extra-tickets");
     }
     if (ticket.saleStatus === "sold-out") throw stop(context, "ticket-sold-out");
+    // 暫無票券（他人保留中）不是售完，但目前不能購買，不點加減。
+    if (ticket.saleStatus === "unavailable") throw stop(context, "ticket-unavailable");
     return { snapshot, ticket };
 }
 
-function xpathLiteral(value: string): string {
-    if (!value.includes("'")) return `'${value}'`;
-    if (!value.includes('"')) return `"${value}"`;
-    return `concat(${value
-        .split("'")
-        .map(part => `'${part}'`)
-        .join(', "\'", ')})`;
-}
-
-function quantityButton(page: Page, name: string, count: number, direction: number): Locator {
-    // 票名是名稱欄的直接文字；不以含庫存／價格的整列文字做 substring 匹配。
-    // XPath 僅用於候選列定位，正式快照仍以未摺疊內部空白的完整票名精確核對。
-    const label = page.locator(
-        `xpath=./div[contains(concat(' ', normalize-space(@class), ' '), ' font-weight-medium ')][text()[normalize-space(.)=${xpathLiteral(name.replace(/\s+/g, " "))}]]`,
-    );
-    const row = page.locator(".row.py-1.py-md-4.rwd-margin.no-gutters").filter({ visible: true, has: label });
-    const currentCount = page
-        .locator(".count-button > div")
-        .filter({ visible: true, hasText: new RegExp(`^\\s*${count}\\s*$`) });
-    return row
-        .filter({ has: currentCount })
-        .getByRole("button")
-        .filter({ visible: true, has: page.locator(direction === 1 ? ".mdi-plus" : ".mdi-minus") });
+async function quantityButton(
+    page: Page,
+    name: string,
+    count: number,
+    direction: number,
+): Promise<ElementHandle<Element> | null> {
+    // 與讀取共用找列規則：票名完全相等、目前張數相符的唯一列，其計數器內唯一的加或減按鈕。
+    const located = await page.evaluateHandle(locateTargetRow, { ticketType: name, quantity: count });
+    try {
+        const button = await located.getProperty(direction === 1 ? "plus" : "minus");
+        const element = button.asElement();
+        if (!element) await button.dispose();
+        return element;
+    } finally {
+        await located.dispose();
+    }
 }
 
 async function waitForChange(
@@ -254,29 +252,48 @@ export async function selectTicketPlusTickets(
             }
             const canClick = direction === 1 ? current.ticket.canIncrease : current.ticket.canDecrease;
             if (!canClick) throw stop(context, "button-unavailable");
-            const button = quantityButton(page, settings.target.ticketType, context.lastVerifiedQuantity!, direction);
-            if (
-                (await readBeforeDeadline(context, context.deadline, () => button.count())) !== 1 ||
-                !(await control.read(() => button.isEnabled({ timeout: Math.min(clickTimeout, remaining(context!)) })))
-            ) {
-                throw stop(context, "button-unavailable");
-            }
-            const latest = await readSelection(page, context);
-            if (latest.ticket.selectedQuantity !== context.lastVerifiedQuantity) {
-                throw stop(context, "quantity-changed");
-            }
-            if (!(direction === 1 ? latest.ticket.canIncrease : latest.ticket.canDecrease)) {
-                throw stop(context, "button-unavailable");
-            }
+            const button = await readBeforeDeadline(context, context.deadline, () =>
+                quantityButton(page, settings.target.ticketType, context!.lastVerifiedQuantity!, direction),
+            );
+            if (!button) throw stop(context, "button-unavailable");
+            try {
+                if (!(await readBeforeDeadline(context, context.deadline, () => button.isEnabled()))) {
+                    throw stop(context, "button-unavailable");
+                }
+                const latest = await readSelection(page, context);
+                if (latest.ticket.selectedQuantity !== context.lastVerifiedQuantity) {
+                    throw stop(context, "quantity-changed");
+                }
+                if (!(direction === 1 ? latest.ticket.canIncrease : latest.ticket.canDecrease)) {
+                    throw stop(context, "button-unavailable");
+                }
 
-            // 先計入嘗試次數，click 拋錯也不再重按；只有精確一張的變化可接續。
-            const expected = context.lastVerifiedQuantity! + direction;
-            const actionTimeout = Math.min(clickTimeout, remaining(context));
-            context.attemptedClicks++;
-            reason = "click-failed";
-            await button.click({ timeout: actionTimeout });
-            reason = "read-failed";
-            await waitForChange(page, context, expected, changeTimeout, interval);
+                // 點擊前再定位一次，必須仍是同一顆按鈕；畫面重繪換了節點或列就停止，不改點新節點。
+                const again = await readBeforeDeadline(context, context.deadline, () =>
+                    quantityButton(page, settings.target.ticketType, context!.lastVerifiedQuantity!, direction),
+                );
+                try {
+                    const same =
+                        again !== null &&
+                        (await readBeforeDeadline(context, context.deadline, () =>
+                            button.evaluate((node, other) => node === other, again),
+                        ));
+                    if (!same) throw stop(context, "button-unavailable");
+                } finally {
+                    await again?.dispose().catch(() => {});
+                }
+
+                // 先計入嘗試次數，click 拋錯也不再重按；只有精確一張的變化可接續。
+                const expected = context.lastVerifiedQuantity! + direction;
+                const actionTimeout = Math.min(clickTimeout, remaining(context));
+                context.attemptedClicks++;
+                reason = "click-failed";
+                await button.click({ timeout: actionTimeout });
+                reason = "read-failed";
+                await waitForChange(page, context, expected, changeTimeout, interval);
+            } finally {
+                await button.dispose().catch(() => {});
+            }
         }
 
         // 目標原已達成也要重新核對全頁；下一步狀態只讀取，不操作。

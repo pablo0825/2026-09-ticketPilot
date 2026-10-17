@@ -30,6 +30,7 @@ const selected: TicketSelectionPage = {
     nextEnabled: true,
     tickets: [
         {
+            area: null,
             name: "預售票",
             selectedQuantity: 2,
             saleStatus: "selling",
@@ -38,6 +39,7 @@ const selected: TicketSelectionPage = {
             canDecrease: true,
         },
     ],
+    areas: [],
 };
 const options = {
     preflightTimeoutMs: 2000,

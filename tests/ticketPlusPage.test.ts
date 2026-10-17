@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
 import { readTicketPlusPage } from "../src/platforms/ticketplus/pageState.js";
+import { readTicketPlusDom } from "../src/platforms/ticketplus/domSnapshot.js";
 import * as fixture from "./fixtures/ticketplus/pages.js";
 
 const origin = "https://ticketplus.com.tw";
@@ -69,8 +70,10 @@ test("TicketPlus 選票：讀出所有票種、真實張數與售票文案，不
             kind: "ticket-selection",
             ...event,
             nextEnabled: true,
+            areas: [],
             tickets: [
                 {
+                    area: null,
                     name: "學生票",
                     selectedQuantity: 0,
                     saleStatus: "selling",
@@ -79,6 +82,7 @@ test("TicketPlus 選票：讀出所有票種、真實張數與售票文案，不
                     canDecrease: false,
                 },
                 {
+                    area: null,
                     name: "預售票",
                     selectedQuantity: 1,
                     saleStatus: "selling",
@@ -87,6 +91,7 @@ test("TicketPlus 選票：讀出所有票種、真實張數與售票文案，不
                     canDecrease: true,
                 },
                 {
+                    area: null,
                     name: "身障票",
                     selectedQuantity: 0,
                     saleStatus: "sold-out",
@@ -152,6 +157,78 @@ test("TicketPlus 網址與 DOM：拒絕錯站、額外路徑、缺 ID、未知 q
         assert.equal(result.kind, "ticket-selection");
         if (result.kind !== "ticket-selection") assert.fail();
         assert.equal(result.sessionId, "different-session");
+    });
+});
+
+test("TicketPlus 選票：以價格找票種列，列的 class 改變仍讀出相同票種", async () => {
+    await withPage(async page => {
+        await show(page, orderUrl, fixture.order);
+        const expected = await readTicketPlusPage(page);
+        assert.equal(expected.kind, "ticket-selection");
+
+        // 列 class 換掉後，價格仍能把每一列找出來。
+        await page.setContent(fixture.order.replaceAll("row py-1 py-md-4 rwd-margin no-gutters", "ticket-line"));
+        assert.deepEqual(await readTicketPlusPage(page), expected);
+    });
+});
+
+test("TicketPlus 選票：只有一列時，列不會往外擴到包含標題或按鈕的容器", async () => {
+    await withPage(async page => {
+        const row = fixture.student.replace("row py-1 py-md-4 rwd-margin no-gutters", "ticket-line");
+        await show(
+            page,
+            orderUrl,
+            `<div class="page">${fixture.eventHeader}<div class="card"><div class="list">${row}</div></div><button>下一步</button></div>`,
+        );
+        const result = await readTicketPlusPage(page);
+        assert.equal(result.kind, "ticket-selection");
+        if (result.kind !== "ticket-selection") assert.fail();
+        assert.deepEqual(
+            result.tickets.map(ticket => [ticket.name, ticket.remainingQuantity]),
+            [["學生票", 14]],
+        );
+    });
+});
+
+test("TicketPlus 選票：價格格式不同而找不到列時，以資料不完整停止，不默默少一列", async () => {
+    await withPage(async page => {
+        await show(page, orderUrl, fixture.order.replace("NT. 450", "NT. <b>450</b>"));
+        assert.deepEqual(await readTicketPlusPage(page), { kind: "unknown", reason: "incomplete-data" });
+    });
+});
+
+test("TicketPlus 選票：只有一列且只剩名稱與價格（更新空窗）時，列仍停在票種列", async () => {
+    await withPage(async page => {
+        const row = fixture.student
+            .replace("<span>剩餘 14</span>", "")
+            .replace(/<div class="count-button[\s\S]*?<\/div><\/div>/, "</div>");
+        await show(
+            page,
+            orderUrl,
+            `<div class="page">${fixture.eventHeader}<div class="card"><div class="list">${row}</div></div><button>下一步</button></div>`,
+        );
+        const dom = await readTicketPlusDom(page);
+        assert.deepEqual(
+            dom.tickets.map(ticket => [ticket.names, ticket.counterCount]),
+            [[["學生票"], 0]],
+        );
+    });
+});
+
+test("TicketPlus 選票：票種列的暫無票券（防禦案例，實站未觀察）是 unavailable，不是售完", async () => {
+    await withPage(async page => {
+        await show(page, orderUrl, fixture.order.replace("已售完", "暫無票券"));
+        const result = await readTicketPlusPage(page);
+        assert.equal(result.kind, "ticket-selection");
+        if (result.kind !== "ticket-selection") assert.fail();
+        assert.deepEqual(
+            result.tickets.map(ticket => [ticket.name, ticket.saleStatus]),
+            [
+                ["學生票", "selling"],
+                ["預售票", "selling"],
+                ["身障票", "unavailable"],
+            ],
+        );
     });
 });
 

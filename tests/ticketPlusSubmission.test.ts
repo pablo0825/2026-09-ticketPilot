@@ -42,6 +42,7 @@ const selection: TicketSelectionPage = {
     nextEnabled: true,
     tickets: [
         {
+            area: null,
             name: "預售票",
             selectedQuantity: 2,
             saleStatus: "selling",
@@ -50,6 +51,7 @@ const selection: TicketSelectionPage = {
             canDecrease: true,
         },
     ],
+    areas: [],
 };
 const options: TicketSubmissionOptions = {
     preflightTimeoutMs: 2_000,
@@ -125,6 +127,19 @@ test("TicketPlus 提交：直接抵達同場次資料頁，資料頁下一步可
         assert.equal(result.nextEnabled, true);
         assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
         assert.equal(requests(), 1);
+    });
+});
+
+test("TicketPlus 提交：票種列 class 不同時，仍以同一套找列規則確認目標列後送出一次", async () => {
+    await withPage("direct", async page => {
+        await page.evaluate(() => {
+            document.querySelectorAll(".rwd-margin").forEach(row => {
+                row.className = "ticket-line";
+            });
+        });
+        const result = await submit(page);
+        assert.equal(result.kind, "information");
+        assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
     });
 });
 

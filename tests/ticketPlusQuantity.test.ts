@@ -77,6 +77,62 @@ test("TicketPlus 張數：0/1/2/3 → 2 各按所需次數，其他控制項零�
     }
 });
 
+test("TicketPlus 張數：票種列 class 不同時，仍以讀取同一套找列規則點對列", { timeout: 20_000 }, async () => {
+    const html = quantityPage.replaceAll("row py-1 py-md-4 rwd-margin no-gutters", "ticket-line");
+    await withPage(
+        async page => {
+            const result = await selectTicketPlusTickets(page, settings, identity, options);
+            assert.equal(result.tickets.find(ticket => ticket.name === "預售票")?.selectedQuantity, 2);
+            assert.deepEqual((await quantityState(page)).clicks, { ...noClicks, presalePlus: 2 });
+        },
+        { count: 0, html },
+    );
+});
+
+test("TicketPlus 張數：visibility hidden 的重複加號不算候選，仍點唯一可見加號", { timeout: 20_000 }, async () => {
+    await withPage(
+        async page => {
+            await page.evaluate(() => {
+                const plus = document.querySelector('[data-fixture="presale"] button:has(.mdi-plus)')!;
+                const hidden = plus.cloneNode(true) as HTMLElement;
+                hidden.style.visibility = "hidden";
+                plus.after(hidden);
+            });
+            await selectTicketPlusTickets(page, settings, identity, options);
+            assert.deepEqual((await quantityState(page)).clicks, { ...noClicks, presalePlus: 2 });
+        },
+        { count: 0 },
+    );
+});
+
+test("TicketPlus 張數：定位後畫面重繪換了按鈕節點，點擊前停止且零點擊", { timeout: 20_000 }, async context => {
+    await withPage(
+        async page => {
+            const original = page.evaluateHandle.bind(page);
+            let calls = 0;
+            context.mock.method(page, "evaluateHandle", async (...args: Parameters<Page["evaluateHandle"]>) => {
+                // 第二次定位（點擊前的再確認）之前，把目標列換成內容相同的新節點，模擬重繪。
+                if (++calls === 2) {
+                    await page.evaluate(() => {
+                        const row = document.querySelector('[data-fixture="presale"]')!;
+                        row.outerHTML = row.outerHTML;
+                    });
+                }
+                return original(...args);
+            });
+            await rejectsQuantity(
+                selectTicketPlusTickets(page, settings, identity, options),
+                "before-click",
+                "button-unavailable",
+                0,
+                0,
+            );
+            assert.deepEqual((await quantityState(page)).clicks, noClicks);
+        },
+        { count: 0 },
+    );
+});
+
 test("TicketPlus 張數：全形區名、引號、特殊字元可匹配；半形或名稱前綴不替代", { timeout: 20_000 }, async () => {
     for (const name of ["Ａ區", "預售票 '特別' \"A\" [1]", "A  區"]) {
         await withPage(

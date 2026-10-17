@@ -59,6 +59,77 @@ test("TicketPlus 更新完成：完整過渡後庫存不變也能完成，按鈕
     });
 });
 
+// 實站約 140ms 空窗、再約 500ms 資料已恢復但按鈕未回；保留超過一次 50ms 輪詢，讓輪詢確實讀到這兩段。
+async function restoreLikeLiveSite(page: Page) {
+    await page.waitForTimeout(150);
+    await page.evaluate(() => window.refreshExample.restoreData());
+    await page.waitForTimeout(150);
+    await page.evaluate(() => window.refreshExample.restoreButton());
+}
+
+test("TicketPlus 更新完成：實站空窗保留計數器、售完列暫時出現計數器，仍可完成", async () => {
+    await withPage(async page => {
+        await installRefreshExample(page, "live");
+        const pending = refreshTicketPlusTickets(page, session, new TicketPlusRunControl());
+        await page.waitForFunction(() => window.refreshExample.phase === "partial");
+        assert.equal(await page.locator(".count-button").count(), 3);
+        assert.equal(await page.getByText("已售完", { exact: true }).count(), 0);
+        await restoreLikeLiveSite(page);
+        const result = await pending;
+        assert.equal(result.kind, "completed");
+        assert.equal(await page.getByText("已售完", { exact: true }).count(), 1);
+        assert.equal((await quantityState(page)).clicks.refresh, 1);
+    });
+});
+
+test("TicketPlus 更新完成：實站空窗中計數器張數非零，以殘留張數停止且不補按", async () => {
+    await withPage(async page => {
+        await installRefreshExample(page, "live");
+        const pending = refreshTicketPlusTickets(page, session, new TicketPlusRunControl());
+        await page.waitForFunction(() => window.refreshExample.phase === "partial");
+        await page.evaluate(() => {
+            document.querySelector('[data-fixture="student"] .count-button > div')!.textContent = "1";
+        });
+        await restoreLikeLiveSite(page);
+        const result = await pending;
+        assert.equal(result.kind, "stopped");
+        if (result.kind === "stopped") assert.equal(result.reason, "remaining-quantity");
+        assert.equal((await quantityState(page)).clicks.refresh, 1);
+    });
+});
+
+test("TicketPlus 更新完成：空窗只消失庫存或只消失已售完，不算空窗而停止", async () => {
+    for (const mode of ["keep-status", "keep-sold-out"] as const) {
+        await withPage(async page => {
+            await installRefreshExample(page, mode);
+            const pending = refreshTicketPlusTickets(page, session, new TicketPlusRunControl());
+            await page.waitForFunction(() => window.refreshExample.phase === "partial");
+            await restoreLikeLiveSite(page);
+            const result = await pending;
+            assert.equal(result.kind, "stopped", mode);
+            if (result.kind === "stopped") assert.equal(result.reason, "unexpected-page", mode);
+            assert.equal((await quantityState(page)).clicks.refresh, 1);
+        });
+    }
+});
+
+test("TicketPlus 更新完成：空窗中一列有兩組計數器，不算空窗而停止", async () => {
+    await withPage(async page => {
+        await installRefreshExample(page, "live");
+        const pending = refreshTicketPlusTickets(page, session, new TicketPlusRunControl());
+        await page.waitForFunction(() => window.refreshExample.phase === "partial");
+        await page.evaluate(() => {
+            const counter = document.querySelector('[data-fixture="student"] .count-button')!;
+            counter.after(counter.cloneNode(true));
+        });
+        await restoreLikeLiveSite(page);
+        const result = await pending;
+        assert.equal(result.kind, "stopped");
+        if (result.kind === "stopped") assert.equal(result.reason, "unexpected-page");
+        assert.equal((await quantityState(page)).clicks.refresh, 1);
+    });
+});
+
 test("TicketPlus 更新完成：沒有過渡或只有按鈕冷卻，不可回報完成", async () => {
     for (const mode of ["none", "button-only"] as const) {
         await withPage(async page => {

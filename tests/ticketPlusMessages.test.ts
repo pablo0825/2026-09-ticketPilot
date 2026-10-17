@@ -43,3 +43,15 @@ test("順位紀錄區分初次、同輪候補與更新後的新輪次", async ()
         "前次提交已確認售完且重新選票核對通過，檢查本輪剩餘順位。",
     );
 });
+
+test("順位全部沒票的訊息同時涵蓋已售完與暫無票券，不只寫售完", async () => {
+    const { ticketPlusResultMessage } = await import("../src/app/ticketPlusPresentation.js");
+    type Result = Parameters<typeof ticketPlusResultMessage>[0];
+    const message = ticketPlusResultMessage({
+        outcome: "stopped",
+        reason: "priority-stopped",
+        progress: { submitAttempted: false },
+        priorityFailure: "all-targets-sold-out",
+    } as unknown as Result);
+    assert.match(message, /皆已售完或暫無票券/);
+});

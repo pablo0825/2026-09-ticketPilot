@@ -2,9 +2,11 @@ import { TicketPlusRunControl } from "./runControl.js";
 import type { Page } from "playwright";
 import { parseTicketPlusActivity, ticketPlusSessionSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusActivitySettings, TicketPlusSelection } from "../../config/ticketPlusActivity.js";
+import { expandTicketPlusArea } from "./areaExpansion.js";
 import { readTicketPlusPage } from "./pageState.js";
 import { selectTicketPlusTickets } from "./ticketQuantity.js";
 import type { TicketQuantityOptions, VerifiedTicketPlusSession } from "./ticketQuantity.js";
+import { findTargetTickets } from "./ticketSelectionPage.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 
 export type PriorityReason =
@@ -14,7 +16,10 @@ export type PriorityReason =
     | "ticket-missing"
     | "ticket-ambiguous"
     | "extra-tickets"
+    // 所有目標都已售完或暫無票券；沿用原名稱以相容既有紀錄與更新流程。
     | "all-targets-sold-out"
+    // 目標票區收合，點擊展開後沒有在期限內出現唯一的票種列；不重點。
+    | "area-expansion-failed"
     | "operation-timeout";
 export class TicketPlusPriorityError extends Error {
     constructor(public readonly reason: PriorityReason) {
@@ -26,7 +31,8 @@ export interface TicketPriorityOptions extends TicketQuantityOptions {
     startPriorityIndex?: number;
 }
 
-// 唯讀挑選候選；所有張數操作只交給單目標模組一次，錯誤不能變成換順位。
+// 挑選候選只讀取；唯一的點擊是交給展開模組展開收合的目標票區。
+// 所有張數操作只交給單目標模組一次，錯誤不能變成換順位。
 export async function selectTicketPlusPriority(
     page: Page,
     input: TicketPlusActivitySettings,
@@ -62,9 +68,8 @@ export async function selectTicketPlusPriority(
         return value;
     };
 
-    // 每個順位重新讀完整頁面；只有唯一且明確售完的票種能被略過。
-    for (let priorityIndex = start; priorityIndex < settings.targets.length; priorityIndex++) {
-        const target = settings.targets[priorityIndex]!;
+    // 讀完整選票頁並核對同場次；讀取受同一期限限制。
+    const readCurrentPage = async (): Promise<TicketSelectionPage> => {
         let timer: ReturnType<typeof setTimeout> | undefined;
         let snapshot;
         try {
@@ -90,22 +95,44 @@ export async function selectTicketPlusPriority(
         ) {
             throw new TicketPlusPriorityError("identity-mismatch");
         }
-        const matches = snapshot.tickets.filter(ticket => ticket.name === target.ticketType);
+        return snapshot;
+    };
+
+    // 每個順位重新讀完整頁面；只有唯一且明確售完或暫無票券的票種能被略過。
+    for (let priorityIndex = start; priorityIndex < settings.targets.length; priorityIndex++) {
+        const target = settings.targets[priorityIndex]!;
+        let snapshot = await readCurrentPage();
+
+        // 票區面板版型：目標票區收合時先展開（每次輪到此順位最多點一次），再重新讀取。
+        const area = snapshot.areas.find(value => value.name === target.ticketType);
+        if (area && !area.expanded) {
+            const expansion = await expandTicketPlusArea(page, area.name, deadline, control);
+            if (expansion === "ambiguous") throw new TicketPlusPriorityError("ticket-ambiguous");
+            if (expansion === "unexpected-page") throw new TicketPlusPriorityError("unexpected-page");
+            if (expansion === "not-expanded") {
+                // 共用期限已到時回報 operation-timeout，與其他步驟一致。
+                remaining();
+                throw new TicketPlusPriorityError("area-expansion-failed");
+            }
+            snapshot = await readCurrentPage();
+        }
+
+        const matches = findTargetTickets(snapshot.tickets, target.ticketType);
         if (matches.length === 0) throw new TicketPlusPriorityError("ticket-missing");
         if (matches.length !== 1) throw new TicketPlusPriorityError("ticket-ambiguous");
         const ticket = matches[0]!;
+        // 售完或暫無票券（他人保留中）都不能購買，跳下一順位；暫無票券不記為售完。
+        const closed = ticket.saleStatus !== "selling";
         if (
             snapshot.tickets.some(
-                other =>
-                    other.selectedQuantity !== 0 &&
-                    (priorityIndex > 0 || ticket.saleStatus === "sold-out" || other !== ticket),
+                other => other.selectedQuantity !== 0 && (priorityIndex > 0 || closed || other !== ticket),
             )
         ) {
             throw new TicketPlusPriorityError("extra-tickets");
         }
-        if (ticket.saleStatus === "sold-out") continue;
+        if (closed) continue;
 
-        // 選定後不得候補；略過售完順位後，調張數的首次讀取也必須保持零張。
+        // 選定後不得候補；略過售完或暫無票券順位後，調張數的首次讀取也必須保持零張。
         const selection = { ...first, target };
         const selected = await selectTicketPlusTickets(
             page,
