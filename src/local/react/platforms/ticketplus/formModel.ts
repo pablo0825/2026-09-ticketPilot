@@ -2,6 +2,7 @@ import { validateSaleSchedule } from "../../../../core/purchaseValidation.js";
 import {
     parseTicketPlusActivity,
     ticketPlusDefaultRunMinutes,
+    ticketPlusFlowType,
     validateTicketPlusRunSettings,
 } from "../../../../config/ticketPlusActivity.js";
 import type { TicketPlusActivitySettings, TicketPlusFlowType } from "../../../../config/ticketPlusActivity.js";
@@ -105,7 +106,7 @@ export function activityForm(settings?: TicketPlusActivitySettings): ActivityFor
     return {
         eventName: settings?.eventName ?? "",
         eventUrl: settings?.eventUrl ?? "",
-        flowType: settings?.flowType ?? "purchase",
+        flowType: settings ? ticketPlusFlowType(settings) : "purchase",
         targets: settings?.targets.map(target => ({
             ...target,
             key: crypto.randomUUID(),

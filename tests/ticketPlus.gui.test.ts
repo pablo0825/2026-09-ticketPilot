@@ -479,6 +479,19 @@ test("TicketPlus GUI：活動網址下方以單選設定購票流程，抽選才
                 .count(),
             1,
         );
-        assert.equal("flowType" in (await disk(h, h.id)).settings, false);
+
+        // 舊活動改名後以購票重新存檔，設定檔不寫流程類型
+        await page
+            .locator("#activities tr")
+            .filter({ hasText: "同名活動" })
+            .getByRole("button", { name: "編輯活動" })
+            .click();
+        assert.equal(await page.locator("#flowPurchase").isChecked(), true);
+        await page.getByLabel("活動名稱", { exact: true }).fill("同名活動改名");
+        await page.getByRole("button", { name: "儲存活動" }).click();
+        await page.getByRole("alert").filter({ hasText: "活動已儲存" }).waitFor();
+        const resaved = (await disk(h, h.id)).settings;
+        assert.equal(resaved.eventName, "同名活動改名");
+        assert.equal("flowType" in resaved, false);
     });
 });
