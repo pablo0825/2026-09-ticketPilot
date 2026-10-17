@@ -701,3 +701,20 @@ test("TicketPlus 排隊：抽選「排隊登記中 請稍候」在頁面或彈�
         assert.notEqual((await readTicketPlusPage(page)).kind, "queue");
     });
 });
+
+test("TicketPlus 資料頁：A 坐席與抽選輸入資料頁皆解析為資料頁，聯絡欄位只回報狀態", async () => {
+    await withPage(async page => {
+        for (const html of [fixture.seatedInformation, fixture.lotteryInput]) {
+            await show(page, confirmUrl, html);
+            const result = await readTicketPlusPage(page);
+            assert.equal(result.kind, "information", html.slice(0, 80));
+            if (result.kind !== "information") assert.fail();
+            const field = { present: true, hasValue: true, disabled: true };
+            assert.deepEqual(result.contactFields, { name: field, phone: field, email: field });
+            assert.equal(result.termsChecked, false);
+            assert.equal(result.nextEnabled, false);
+            // 遮罩值不帶出瀏覽器
+            assert.doesNotMatch(JSON.stringify(result), /測\*名|0900/);
+        }
+    });
+});
