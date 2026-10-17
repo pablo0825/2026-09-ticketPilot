@@ -65,10 +65,6 @@ export function PurchaseSummary({
                 </div>
             )}
             {children}
-            <p>
-                開始後會開啟 TicketPlus
-                首頁並等待登入狀態。若已登入，會自動前往活動頁並依設定繼續；未登入時請在購票瀏覽器完成登入。
-            </p>
             <label className="check">
                 <input
                     type="checkbox"
