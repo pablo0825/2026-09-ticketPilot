@@ -1295,12 +1295,30 @@ test("TicketPlus 場次：提醒關閉後同一次載入又出現，停止且不
         },
         { html: activity + noticeDialog(noticeTitles.entry) + noticeBehavior("reappear") },
     );
+    // 確認期間過後才重現：同一次載入的關閉額度已用完，不能再點
+    await withPage(
+        async page => {
+            await rejectsEntry(
+                selectTicketPlusSession(page, settings, options),
+                "before-click",
+                "notice-dismiss-failed",
+            );
+            assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 1 });
+        },
+        {
+            html:
+                heading +
+                noticeDialog(noticeTitles.entry) +
+                noticeBehavior("reappear-late") +
+                `<script>setTimeout(() => document.body.insertAdjacentHTML("beforeend", ${JSON.stringify(rowA + rowB)}), 1500);</script>`,
+        },
+    );
 });
 
 test("TicketPlus 場次：提醒與未知彈窗並存時零點擊停止", { timeout: 15_000 }, async () => {
     await withPage(
         async page => {
-            await rejectsEntry(selectTicketPlusSession(page, settings, options), "before-click");
+            await rejectsEntry(selectTicketPlusSession(page, settings, options), "before-click", "unexpected-page");
             assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
         },
         { html: activity + noticeDialog(noticeTitles.entry) + '<div role="dialog">未知提示</div>' + noticeBehavior() },

@@ -677,3 +677,39 @@ test(
         }
     },
 );
+
+test("TicketPlus runner：開啟活動頁已關過提醒，同一次載入又出現時選場次不再點", { timeout: 20_000 }, async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-runner-"));
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    // 開頁即有提醒；關閉 700ms 後同一次載入重現，場次列 1.5 秒後才畫出
+    const late = `<script>
+        document.addEventListener("click", event => {
+            const button = event.target.closest('[data-notice="ok"]');
+            if (!button) return;
+            const html = button.closest(".v-dialog__content").outerHTML;
+            setTimeout(() => document.body.insertAdjacentHTML("beforeend", html), 700);
+        }, true);
+    </script>`;
+    const rows = activity.slice(activity.indexOf('<div class="sesstion-item'));
+    const html =
+        activity.slice(0, activity.indexOf('<div class="sesstion-item')) +
+        noticeDialog(noticeTitles.entry) +
+        late +
+        `<script>setTimeout(() => document.body.insertAdjacentHTML("beforeend", ${JSON.stringify(rows)}), 1500);</script>`;
+    await setup(context, false, html);
+    const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+    try {
+        const result = await runTicketPlus(settings, { lease: acquirePurchaseLease(directory) });
+        assert.equal(result.outcome, "stopped");
+        assert.equal("sessionFailure" in result ? result.sessionFailure?.reason : undefined, "notice-dismiss-failed");
+        const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
+        assert.equal(counts.notice, 1);
+        assert.equal(counts.session ?? 0, 0);
+        await context.close();
+    } finally {
+        launch.mock.restore();
+        await browser.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});

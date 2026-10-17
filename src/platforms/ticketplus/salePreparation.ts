@@ -82,11 +82,8 @@ export async function prepareTicketPlusSale(
         remaining();
     };
 
-    // 每次載入最多關閉一次已知提醒；同一次載入再出現就停止。
-    let noticeDismissed = false;
+    // 關閉已知提醒；每次載入的點擊額度由關閉模組記在頁面上，同一次載入再出現就停止。
     const dismissNotice = async () => {
-        if (noticeDismissed) throw new TicketPlusSaleError("notice-dismiss-failed");
-        noticeDismissed = true;
         try {
             await dismissTicketPlusActivityNotice(page, control, { timeoutMs: Math.min(5_000, remaining()) });
         } catch (error) {
@@ -169,7 +166,6 @@ export async function prepareTicketPlusSale(
             const refreshedAt = performance.now();
             const refreshBudget = Math.min(15_000, remaining());
             try {
-                noticeDismissed = false;
                 const response = await page.reload({
                     waitUntil: "domcontentloaded",
                     timeout: Math.max(1, refreshBudget),

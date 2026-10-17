@@ -168,8 +168,6 @@ interface ActivityWaitState {
     started: number;
     deadline: number;
     observations: number;
-    // 選場次期間不重新載入，已知提醒最多關閉一次。
-    noticeDismissed?: boolean;
 }
 
 function requireActivityRoute(page: Page, settings: TicketPlusSelection): void {
@@ -183,10 +181,8 @@ function requireActivityRoute(page: Page, settings: TicketPlusSelection): void {
     }
 }
 
-// 關閉一次已知提醒；同一次載入再出現或關閉失敗都在點擊前停止。
-async function dismissNoticeOnce(page: Page, state: ActivityWaitState, control: TicketPlusRunControl): Promise<void> {
-    if (state.noticeDismissed) throw new TicketPlusSessionError("before-click", "notice-dismiss-failed");
-    state.noticeDismissed = true;
+// 關閉已知提醒；每次載入的點擊額度由關閉模組記在頁面上，同一次載入再出現或關閉失敗都在點擊前停止。
+async function dismissNotice(page: Page, state: ActivityWaitState, control: TicketPlusRunControl): Promise<void> {
     try {
         await dismissTicketPlusActivityNotice(page, control, {
             timeoutMs: Math.max(1, Math.min(5_000, state.deadline - performance.now())),
@@ -235,8 +231,8 @@ async function waitForActivitySession(
         if (observation.readiness.status === "stop") {
             throw new TicketPlusSessionError("before-click", "unexpected-page");
         }
-        if (observation.readiness.reason === "notice-dialog") {
-            await dismissNoticeOnce(page, state, control);
+        if (observation.readiness.status === "pending" && observation.readiness.reason === "notice-dialog") {
+            await dismissNotice(page, state, control);
             continue;
         }
         if (observation.page.kind === "activity") return requireTargetSession(observation.page, settings);

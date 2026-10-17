@@ -30,7 +30,7 @@ export function noticeDialog(title: string, buttons: string[] = ["回到首頁",
 </div>`;
 }
 
-export type NoticeMode = "dismiss" | "reappear" | "stuck";
+export type NoticeMode = "dismiss" | "reappear" | "reappear-late" | "stuck";
 
 // 計數兩顆按鈕；「確定」依模式移除、移除後重現或不移除彈窗，「回到首頁」只計數。
 export function noticeBehavior(mode: NoticeMode = "dismiss"): string {
@@ -45,9 +45,9 @@ export function noticeBehavior(mode: NoticeMode = "dismiss"): string {
         const dialog = button.closest(".v-dialog__content");
         const html = dialog.outerHTML;
         dialog.remove();
-        if (${JSON.stringify(mode)} === "reappear") {
-            setTimeout(() => document.body.insertAdjacentHTML("beforeend", html), 100);
-        }
+        // reappear 在確認期間內重現；reappear-late 在確認期間過後才重現（同一次載入）
+        const delay = { reappear: 100, "reappear-late": 700 }[${JSON.stringify(mode)}];
+        if (delay) setTimeout(() => document.body.insertAdjacentHTML("beforeend", html), delay);
     });
 </script>`;
 }

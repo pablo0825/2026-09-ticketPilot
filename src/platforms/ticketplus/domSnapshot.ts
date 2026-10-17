@@ -312,12 +312,11 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                     const buttonNames = all(element, 'button, [role="button"]')
                         .filter(modal.visible)
                         .filter(enabled)
-                        .map(text)
-                        .sort();
+                        .map(text);
                     const noticeTitle =
                         location.pathname.startsWith("/activity/") &&
                         (firstLine === "實名抽選制售票提醒" || firstLine === "入場規定") &&
-                        buttonNames.join("|") === ["回到首頁", "確定"].sort().join("|")
+                        [...buttonNames].sort().join("|") === ["回到首頁", "確定"].sort().join("|")
                             ? firstLine
                             : undefined;
 
@@ -329,11 +328,9 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                           : noticeTitle
                             ? "notice"
                             : "unknown";
-                    const dismissNames = all(element, 'button, [role="button"]')
-                        .filter(modal.visible)
-                        .filter(enabled)
-                        .map(text)
-                        .filter(value => ["我知道了", "知道了", "確定", "OK", "Ok"].includes(value));
+                    const dismissNames = buttonNames.filter(value =>
+                        ["我知道了", "知道了", "確定", "OK", "Ok"].includes(value),
+                    );
                     // 只有白名單訊息回傳固定 key，未知文字與個資不離開瀏覽器。
                     return {
                         index: candidates.indexOf(element),
