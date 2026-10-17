@@ -160,6 +160,7 @@ async function executePurchase(
             confirmSeats: async ({ target, value: { seatSelector, allocation } }) => {
                 selecting = false;
                 reportState("SEATS_VERIFIED");
+
                 reportState("SEAT_CONFIRMATION");
                 await seatSelector.confirmVerifiedSeats(target, allocation);
                 await waitForPersonalInfoPage(page, eventConfig.eventUrl);
