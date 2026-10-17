@@ -22,6 +22,7 @@ const sessionReasons: Record<SessionEntryReason, string> = {
     "arrival-mismatch": "進入的選票頁與設定活動或場次不符，請核對活動及日期時間",
     "arrival-timeout": "等待選票頁逾時，請檢查目前是否仍在處理或已完成跳轉",
     "read-failed": "無法完成頁面資料讀取，請檢查瀏覽器是否關閉、頁面載入或變動",
+    "notice-dismiss-failed": "活動頁提醒彈窗無法確認關閉，請檢查頁面",
 };
 
 const saleReasons: Record<TicketPlusSaleReason, string> = {

@@ -20,6 +20,10 @@ export function activityReadiness(
     if (dom.origin !== "https://ticketplus.com.tw" || dom.extraUrlParts || route?.[1] !== target.eventId) {
         return { status: "stop", reason: "route-mismatch" };
     }
+    // 只有已知提醒時交由選場次關閉；與其他彈窗並存仍停止。
+    if (result.kind === "unknown" && result.reason === "notice-dialog") {
+        return { status: "pending", reason: "notice-dialog" };
+    }
     if (
         dom.dialogs.length ||
         dom.queueCount ||

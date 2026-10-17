@@ -3,6 +3,7 @@ import type { Locator, Page } from "playwright";
 import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { ActivityPage } from "./activityPage.js";
+import { dismissTicketPlusActivityNotice, TicketPlusNoticeError } from "./activityNotice.js";
 import { readTicketPlusActivityObservation, readTicketPlusSelectionObservation } from "./pageState.js";
 import type { TicketPlusPageDiagnostic, TicketPlusPage } from "./pageState.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
@@ -24,6 +25,7 @@ export type SessionEntryReason =
     | "arrival-mismatch"
     | "arrival-timeout"
     | "activity-ready-timeout"
+    | "notice-dismiss-failed"
     | "read-failed";
 
 export type SessionDiagnostic =
@@ -166,6 +168,8 @@ interface ActivityWaitState {
     started: number;
     deadline: number;
     observations: number;
+    // 選場次期間不重新載入，已知提醒最多關閉一次。
+    noticeDismissed?: boolean;
 }
 
 function requireActivityRoute(page: Page, settings: TicketPlusSelection): void {
@@ -176,6 +180,22 @@ function requireActivityRoute(page: Page, settings: TicketPlusSelection): void {
     }
     if (current.pathname.replace(/\/$/, "") !== expected.pathname.replace(/\/$/, "")) {
         throw new TicketPlusSessionError("before-click", "activity-mismatch");
+    }
+}
+
+// 關閉一次已知提醒；同一次載入再出現或關閉失敗都在點擊前停止。
+async function dismissNoticeOnce(page: Page, state: ActivityWaitState, control: TicketPlusRunControl): Promise<void> {
+    if (state.noticeDismissed) throw new TicketPlusSessionError("before-click", "notice-dismiss-failed");
+    state.noticeDismissed = true;
+    try {
+        await dismissTicketPlusActivityNotice(page, control, {
+            timeoutMs: Math.max(1, Math.min(5_000, state.deadline - performance.now())),
+        });
+    } catch (error) {
+        if (error instanceof TicketPlusNoticeError) {
+            throw new TicketPlusSessionError("before-click", "notice-dismiss-failed");
+        }
+        throw error;
     }
 }
 
@@ -214,6 +234,10 @@ async function waitForActivitySession(
         // 先排除阻擋條件，完整頁面仍沿用活動與場次核對。
         if (observation.readiness.status === "stop") {
             throw new TicketPlusSessionError("before-click", "unexpected-page");
+        }
+        if (observation.readiness.reason === "notice-dialog") {
+            await dismissNoticeOnce(page, state, control);
+            continue;
         }
         if (observation.page.kind === "activity") return requireTargetSession(observation.page, settings);
         await control.wait(Math.min(interval, Math.max(0, state.deadline - performance.now())));

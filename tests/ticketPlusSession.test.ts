@@ -9,7 +9,7 @@ import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
 import { selectTicketPlusSession, TicketPlusSessionError } from "../src/platforms/ticketplus/sessionSelection.js";
 import type { SessionEntryStage, SessionEntryReason } from "../src/platforms/ticketplus/sessionSelection.js";
 import * as fixture from "./fixtures/ticketplus/pages.js";
-import { noticeDialog, noticeTitles } from "./fixtures/ticketplus/activityNotice.js";
+import { delayedNotice, noticeBehavior, noticeDialog, noticeTitles } from "./fixtures/ticketplus/activityNotice.js";
 
 const origin = "https://ticketplus.com.tw";
 const activityUrl = `${origin}/activity/event-fixture`;
@@ -1262,13 +1262,47 @@ test("近期觀測診斷：獨立故障注入保留最後八筆，讀取中斷�
     );
 });
 
-test("TicketPlus 場次：活動頁有已知提醒時，尚未接上關閉流程前仍零點擊停止", { timeout: 15_000 }, async () => {
+test("TicketPlus 場次：等待中才出現的提醒先關閉一次，再點目標場次", { timeout: 15_000 }, async () => {
+    for (const html of [
+        activity + noticeDialog(noticeTitles.lottery) + noticeBehavior(),
+        // 模擬 SPA：場次列晚於提醒才畫出，提醒在等待期間出現
+        heading +
+            delayedNotice(noticeTitles.entry, 100) +
+            noticeBehavior() +
+            `<script>setTimeout(() => document.body.insertAdjacentHTML("beforeend", ${JSON.stringify(rowA + rowB)}), 400);</script>`,
+    ]) {
+        await withPage(
+            async page => {
+                const result = await selectTicketPlusSession(page, settings, options);
+                assert.equal(result.sessionId, "session-B");
+                // 「確定」計入 other；只點一次提醒、一次場次
+                assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 1 });
+            },
+            { html },
+        );
+    }
+});
+
+test("TicketPlus 場次：提醒關閉後同一次載入又出現，停止且不點場次", { timeout: 15_000 }, async () => {
     await withPage(
         async page => {
-            const result = selectTicketPlusSession(page, settings, { ...options, activityReadyTimeoutMs: 300 });
-            await rejectsEntry(result, "before-click");
+            await rejectsEntry(
+                selectTicketPlusSession(page, settings, options),
+                "before-click",
+                "notice-dismiss-failed",
+            );
+            assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 1 });
+        },
+        { html: activity + noticeDialog(noticeTitles.entry) + noticeBehavior("reappear") },
+    );
+});
+
+test("TicketPlus 場次：提醒與未知彈窗並存時零點擊停止", { timeout: 15_000 }, async () => {
+    await withPage(
+        async page => {
+            await rejectsEntry(selectTicketPlusSession(page, settings, options), "before-click");
             assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
         },
-        { html: activity + noticeDialog(noticeTitles.entry) },
+        { html: activity + noticeDialog(noticeTitles.entry) + '<div role="dialog">未知提示</div>' + noticeBehavior() },
     );
 });
