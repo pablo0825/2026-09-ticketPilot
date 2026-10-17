@@ -1324,3 +1324,35 @@ test("TicketPlus 場次：提醒與未知彈窗並存時零點擊停止", { time
         { html: activity + noticeDialog(noticeTitles.entry) + '<div role="dialog">未知提示</div>' + noticeBehavior() },
     );
 });
+
+test("TicketPlus 場次：抽選設定只點「立即登記」，按鈕與流程類型不符時零點擊停止", { timeout: 20_000 }, async () => {
+    const lotteryActivity = heading.replace("立即購買", "立即登記") + (rowA + rowB).replaceAll("立即購買", "立即登記");
+
+    // 抽選設定點「立即登記」一次
+    await withPage(
+        async page => {
+            const result = await selectTicketPlusSession(page, settings, { ...options, flowType: "lottery" });
+            assert.equal(result.sessionId, "session-B");
+            assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
+        },
+        { html: lotteryActivity },
+    );
+
+    // 購票設定遇到「立即登記」、抽選設定遇到「立即購買」都在點擊前停止
+    for (const [html, flowType] of [
+        [lotteryActivity, "purchase"],
+        [activity, "lottery"],
+    ] as const) {
+        await withPage(
+            async page => {
+                await rejectsEntry(
+                    selectTicketPlusSession(page, settings, { ...options, flowType }),
+                    "before-click",
+                    "flow-mismatch",
+                );
+                assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
+            },
+            { html },
+        );
+    }
+});

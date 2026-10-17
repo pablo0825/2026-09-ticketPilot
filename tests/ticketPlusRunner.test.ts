@@ -241,7 +241,7 @@ test("TicketPlus runner：活動不符保留具體原因，訊息指出設定欄
         assert.equal(result.sessionFailure?.diagnostic?.check, "page-state");
         assert.match(ticketPlusResultMessage(result), /"pageKind":"activity"/);
         assert.match(ticketPlusResultMessage(result), /eventName 與 eventUrl/);
-        assert.match(ticketPlusResultMessage(result), /尚未嘗試點擊立即購買/);
+        assert.match(ticketPlusResultMessage(result), /尚未嘗試點擊場次按鈕/);
         assert.deepEqual(requests, ["/", "/activity/event-fixture"]);
         assert.equal(await context.pages()[0]!.evaluate(() => sessionStorage.getItem("counts")), null);
         assert(purchaseOccupied(dir));
@@ -705,6 +705,26 @@ test("TicketPlus runner：開啟活動頁已關過提醒，同一次載入又出
         assert.equal("sessionFailure" in result ? result.sessionFailure?.reason : undefined, "notice-dismiss-failed");
         const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
         assert.equal(counts.notice, 1);
+        assert.equal(counts.session ?? 0, 0);
+        await context.close();
+    } finally {
+        launch.mock.restore();
+        await browser.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus runner：抽選設定遇到購票活動頁，在點擊場次前回報流程類型不符", { timeout: 20_000 }, async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-runner-"));
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    await setup(context, false);
+    const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+    try {
+        const result = await runTicketPlus({ ...settings, flowType: "lottery" }, { lease: acquirePurchaseLease(directory) });
+        assert.equal(result.outcome, "stopped");
+        assert.equal("sessionFailure" in result ? result.sessionFailure?.reason : undefined, "flow-mismatch");
+        const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts") ?? "{}"));
         assert.equal(counts.session ?? 0, 0);
         await context.close();
     } finally {

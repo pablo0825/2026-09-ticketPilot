@@ -1,7 +1,7 @@
 import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
 import type { Locator, Page } from "playwright";
 import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
-import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
+import type { TicketPlusFlowType, TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { ActivityPage } from "./activityPage.js";
 import { dismissTicketPlusActivityNotice, TicketPlusNoticeError } from "./activityNotice.js";
 import { readTicketPlusActivityObservation, readTicketPlusSelectionObservation } from "./pageState.js";
@@ -26,6 +26,7 @@ export type SessionEntryReason =
     | "arrival-timeout"
     | "activity-ready-timeout"
     | "notice-dismiss-failed"
+    | "flow-mismatch"
     | "read-failed";
 
 export type SessionDiagnostic =
@@ -74,9 +75,17 @@ export interface SessionSelectionOptions {
     clickTimeoutMs?: number;
     arrivalTimeoutMs?: number;
     pollIntervalMs?: number;
+    // 未指定時視為購票，既有呼叫不受影響。
+    flowType?: TicketPlusFlowType;
 }
 
-function requireTargetSession(snapshot: TicketPlusPage, settings: TicketPlusSelection): Session {
+const entryButtonText = { purchase: "立即購買", lottery: "立即登記" } as const;
+
+function requireTargetSession(
+    snapshot: TicketPlusPage,
+    settings: TicketPlusSelection,
+    flowType: TicketPlusFlowType,
+): Session {
     // 先核對活動身分，再以日期與時間找唯一場次。
     if (snapshot.kind !== "activity") throw new TicketPlusSessionError("before-click", "unexpected-page");
     const eventId = new URL(settings.eventUrl).pathname.split("/")[2];
@@ -92,6 +101,9 @@ function requireTargetSession(snapshot: TicketPlusPage, settings: TicketPlusSele
     // 停用列也參與唯一性檢查，不能先排除它來消除歧義。
     const session = matches[0]!;
     if (session.saleState === "not-on-sale") throw new TicketPlusSessionError("before-click", "not-on-sale");
+    if (session.buttonText !== entryButtonText[flowType]) {
+        throw new TicketPlusSessionError("before-click", "flow-mismatch");
+    }
     if (!session.buyEnabled) throw new TicketPlusSessionError("before-click", "session-disabled");
     return session;
 }
@@ -100,7 +112,12 @@ function exactText(value: string): RegExp {
     return new RegExp(`^\\s*${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`);
 }
 
-function sessionButton(page: Page, settings: TicketPlusSelection, session: Session): Locator {
+function sessionButton(
+    page: Page,
+    settings: TicketPlusSelection,
+    session: Session,
+    flowType: TicketPlusFlowType,
+): Locator {
     // 定位條件隨 DOM 重新解析，不保存列表索引，也不使用整列模糊文字。
     const body = page
         .locator("body")
@@ -116,7 +133,7 @@ function sessionButton(page: Page, settings: TicketPlusSelection, session: Sessi
         })
         .filter({ has: page.getByText(date).filter({ visible: true }) })
         .filter({ has: page.getByText(exactText(session.time)).filter({ visible: true }) });
-    return row.getByRole("button", { name: "立即購買", exact: true }).filter({ visible: true });
+    return row.getByRole("button", { name: entryButtonText[flowType], exact: true }).filter({ visible: true });
 }
 
 function arrivalRouteFailure(page: Page, settings: TicketPlusSelection): SessionDiagnostic | undefined {
@@ -198,6 +215,7 @@ async function dismissNotice(page: Page, state: ActivityWaitState, control: Tick
 async function waitForActivitySession(
     page: Page,
     settings: TicketPlusSelection,
+    flowType: TicketPlusFlowType,
     state: ActivityWaitState,
     interval: number,
     readTimeout: number,
@@ -235,7 +253,7 @@ async function waitForActivitySession(
             await dismissNotice(page, state, control);
             continue;
         }
-        if (observation.page.kind === "activity") return requireTargetSession(observation.page, settings);
+        if (observation.page.kind === "activity") return requireTargetSession(observation.page, settings, flowType);
         await control.wait(Math.min(interval, Math.max(0, state.deadline - performance.now())));
     }
     throw new TicketPlusSessionError("before-click", "activity-ready-timeout");
@@ -345,6 +363,7 @@ export async function selectTicketPlusSession(
         // 複製並驗證設定，操作途中不受呼叫端修改設定影響。
         control.check();
         const settings = parseTicketPlusSelection(input);
+        const flowType = options.flowType ?? "purchase";
         const clickTimeout = options.clickTimeoutMs ?? 5_000;
         const arrivalTimeout = options.arrivalTimeoutMs ?? 15_000;
         const interval = options.pollIntervalMs ?? 100;
@@ -365,13 +384,14 @@ export async function selectTicketPlusSession(
         const target = await waitForActivitySession(
             page,
             settings,
+            flowType,
             activityWait,
             activityInterval,
             clickTimeout,
             control,
             onDiagnostic,
         );
-        const button = sessionButton(page, settings, target);
+        const button = sessionButton(page, settings, target, flowType);
         if (
             (await control.read(() => button.count())) !== 1 ||
             !(await control.read(() => button.isEnabled({ timeout: Math.min(clickTimeout, control.remainingMs()) })))
@@ -381,6 +401,7 @@ export async function selectTicketPlusSession(
         const latest = await waitForActivitySession(
             page,
             settings,
+            flowType,
             activityWait,
             activityInterval,
             clickTimeout,

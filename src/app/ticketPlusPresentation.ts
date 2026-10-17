@@ -15,14 +15,16 @@ const sessionReasons: Record<SessionEntryReason, string> = {
     "session-missing": "找不到符合日期與時間的場次，請核對 該順位的日期與時間",
     "session-ambiguous": "同日期與時間有多個場次，無法唯一選擇，請人工確認",
     "not-on-sale": "目標場次尚未開賣，尚未嘗試點擊購票按鈕",
-    "session-disabled": "目標場次的立即購買按鈕目前停用，請查看網站狀態；不能僅據此判定尚未開賣或已售完",
+    "session-disabled":
+        "目標場次的場次按鈕（立即購買／立即登記）目前停用，請查看網站狀態；不能僅據此判定尚未開賣或已售完",
     "session-changed": "點擊前場次資料已改變，請重新核對頁面",
-    "button-unavailable": "無法唯一定位可用的立即購買按鈕，請檢查頁面是否已變動",
-    "click-failed": "立即購買的點擊結果未確認，請檢查目前頁面",
+    "button-unavailable": "無法唯一定位可用的場次按鈕（立即購買／立即登記），請檢查頁面是否已變動",
+    "click-failed": "場次按鈕的點擊結果未確認，請檢查目前頁面",
     "arrival-mismatch": "進入的選票頁與設定活動或場次不符，請核對活動及日期時間",
     "arrival-timeout": "等待選票頁逾時，請檢查目前是否仍在處理或已完成跳轉",
     "read-failed": "無法完成頁面資料讀取，請檢查瀏覽器是否關閉、頁面載入或變動",
     "notice-dismiss-failed": "活動頁提醒彈窗無法確認關閉，請檢查頁面",
+    "flow-mismatch": "場次按鈕與設定的流程類型不符（購票為立即購買、登記抽選為立即登記），請檢查活動設定的購票流程",
 };
 
 const saleReasons: Record<TicketPlusSaleReason, string> = {
@@ -34,7 +36,7 @@ const saleReasons: Record<TicketPlusSaleReason, string> = {
     "activity-mismatch": "活動名稱或 ID 與設定不符",
     "session-missing": "找不到設定的日期與時間",
     "session-ambiguous": "同日期與時間有多個場次",
-    "session-disabled": "目標的立即購買按鈕停用，不能據此判定尚未開賣",
+    "session-disabled": "目標的場次按鈕停用，不能據此判定尚未開賣",
     "page-unrecognized": "無法確認頁面或場次狀態",
     "read-timeout": "等待活動頁資料完整逾時",
     "refresh-failed": "活動頁刷新未確認成功",
@@ -48,8 +50,8 @@ export function ticketPlusSessionMessage(failure: {
 }): string {
     const attempt =
         failure.stage === "before-click"
-            ? "尚未嘗試點擊立即購買"
-            : "已嘗試點擊立即購買，請先人工確認目前頁面，不會再次點擊";
+            ? "尚未嘗試點擊場次按鈕"
+            : "已嘗試點擊場次按鈕，請先人工確認目前頁面，不會再次點擊";
     const diagnostic = failure.diagnostic
         ? ` 診斷（${failure.stage}；最後一次觀測）：${JSON.stringify(failure.diagnostic)}`
         : "";

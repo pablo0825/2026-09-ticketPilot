@@ -11,6 +11,7 @@ import {
     parseTicketPlusActivity,
     ticketPlusSessionSelection,
     validateTicketPlusRunSettings,
+    ticketPlusFlowType,
 } from "../config/ticketPlusActivity.js";
 import type { TicketPlusActivitySettings } from "../config/ticketPlusActivity.js";
 import { acquirePurchaseLease, releasePurchaseLease, verifyPurchaseLease } from "./purchaseLock.js";
@@ -240,7 +241,10 @@ export async function runTicketPlus(
         const session = await selectTicketPlusSession(
             page,
             settings,
-            { onActivityWait: summary => notify(options, { type: "activity-wait", ...summary }) },
+            {
+                flowType: ticketPlusFlowType(activity),
+                onActivityWait: summary => notify(options, { type: "activity-wait", ...summary }),
+            },
             control,
         );
         // 同場次候補與更新後循環由獨立模組編排；本次結果與歷史提交不混用。
