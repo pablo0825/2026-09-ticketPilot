@@ -147,7 +147,11 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
 
                 // 僅讀已觀察的流程標記，不把隱藏標題或空對話框當成排隊；抽選為「排隊登記中」。
                 const queueCount = all(document, 'h3, [role="heading"][aria-level="3"]').filter(element =>
-                    ["排隊購票中 請稍候", "排隊登記中 請稍候"].includes(text(element).replace(/\s+/g, " ")),
+                    [
+                        "排隊購票中 請稍候",
+                        "排隊登記中 請稍候",
+                        "排隊登記中 請稍候 若人數眾多可能需要較長等待時間",
+                    ].includes(text(element).replace(/\s+/g, " ")),
                 ).length;
                 const sessions = all(document, ".sesstion-item");
                 // 選票頁以價格找列；其他頁面沿用原 class，只用來偵測殘留的選票列，行為不變。

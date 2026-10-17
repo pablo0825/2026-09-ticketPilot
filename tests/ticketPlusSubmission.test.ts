@@ -17,6 +17,7 @@ import { selectTicketPlusTickets } from "../src/platforms/ticketplus/ticketQuant
 import { selectTicketPlusSession } from "../src/platforms/ticketplus/sessionSelection.js";
 import {
     installSubmission,
+    lotteryQueueDialog,
     submissionCounts,
     failureDialog,
     queueDialog,
@@ -947,7 +948,6 @@ test("TicketPlus 提交：抽選排隊彈窗等待後抵達資料頁，只送出
     const browser = await chromium.launch();
     try {
         const page = await browser.newPage();
-        const { lotteryQueueDialog } = await import("./fixtures/ticketplus/submissionPage.js");
         const requests = await installSubmission(page, "queue", undefined, undefined, lotteryQueueDialog);
         const result = submit(page);
         await page.waitForFunction(

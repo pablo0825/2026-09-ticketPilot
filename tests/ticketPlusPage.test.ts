@@ -692,7 +692,11 @@ test("TicketPlus 排隊：抽選「排隊登記中 請稍候」在頁面或彈�
         );
         assert.deepEqual(await readTicketPlusPage(page), { kind: "queue", eventId, sessionId });
 
-        // 只有第二句、或文字不同時不算排隊
+        // 第二句在 h3 內時仍為排隊
+        await show(page, orderUrl, fixture.order + "<h3>排隊登記中<br>請稍候<br>若人數眾多可能需要較長等待時間</h3>");
+        assert.deepEqual(await readTicketPlusPage(page), { kind: "queue", eventId, sessionId });
+
+        // 文字不同時不算排隊
         await show(page, orderUrl, fixture.order + "<h3>排隊登記中 請稍後再試</h3>");
         assert.notEqual((await readTicketPlusPage(page)).kind, "queue");
     });
