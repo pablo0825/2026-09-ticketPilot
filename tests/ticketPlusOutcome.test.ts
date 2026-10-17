@@ -24,6 +24,7 @@ const selected: TicketSelectionPage = {
     nextEnabled: true,
     tickets: [
         {
+            area: null,
             name: "預售票",
             selectedQuantity: 2,
             saleStatus: "selling",
@@ -32,6 +33,7 @@ const selected: TicketSelectionPage = {
             canDecrease: true,
         },
     ],
+    areas: [],
 };
 
 test("TicketPlus 結果：未提交停止、提交後未知、明確失敗保留關閉狀態", () => {

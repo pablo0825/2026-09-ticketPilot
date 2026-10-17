@@ -42,6 +42,7 @@ const selection: TicketSelectionPage = {
     nextEnabled: true,
     tickets: [
         {
+            area: null,
             name: "預售票",
             selectedQuantity: 2,
             saleStatus: "selling",
@@ -50,6 +51,7 @@ const selection: TicketSelectionPage = {
             canDecrease: true,
         },
     ],
+    areas: [],
 };
 const options: TicketSubmissionOptions = {
     preflightTimeoutMs: 2_000,

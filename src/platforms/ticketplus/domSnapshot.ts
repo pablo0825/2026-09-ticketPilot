@@ -18,7 +18,7 @@ export interface RefreshMonitorRequest {
 }
 
 // 整頁讀取在瀏覽器內執行；找票種列的規則來自 ticketRowFinder，與點擊共用。
-const readInPage = withTicketRows((findRows, request: RefreshMonitorRequest | undefined) => {
+const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | undefined) => {
     const visibility = {
         visible(element: Element): boolean {
             const style = getComputedStyle(element);
@@ -151,11 +151,14 @@ const readInPage = withTicketRows((findRows, request: RefreshMonitorRequest | un
                 ).length;
                 const sessions = all(document, ".sesstion-item");
                 // 選票頁以價格找列；其他頁面沿用原 class，只用來偵測殘留的選票列，行為不變。
-                const ticketRows = location.pathname.startsWith("/order/")
-                    ? findRows()
+                const onOrderPage = location.pathname.startsWith("/order/");
+                const layout = onOrderPage ? findLayout() : { rows: [], areas: [] };
+                const ticketRows = onOrderPage
+                    ? layout.rows
                     : all(document, ".row.py-1.py-md-4.rwd-margin.no-gutters").map(row => ({
                           row,
                           names: all(row, ":scope > .font-weight-medium").map(directText),
+                          area: null,
                       }));
                 const summaryRows = all(document, ".row.py-2.py-md-3.no-gutters");
                 const terms = all(document, 'input[type="checkbox"]').filter(element => {
@@ -213,11 +216,14 @@ const readInPage = withTicketRows((findRows, request: RefreshMonitorRequest | un
                     });
 
                 // 每一票種列獨立讀取；保留重複票名，不合併或選第一筆。
-                const tickets = ticketRows.map(({ row, names }, rowIndex) => {
+                const tickets = ticketRows.map(({ row, names, area }, rowIndex) => {
                     const labels = all(row, ":scope > .font-weight-medium");
                     const counters = all(row, ".count-button");
+                    // 售完與暫無票券共用同一次葉節點讀取；讀取失敗診斷仍標為 tickets.soldOut 欄位。
+                    const leaves = leafTexts(row, "tickets.soldOut", rowIndex);
                     return {
                         names,
+                        area,
                         statuses: labels
                             .flatMap(label =>
                                 Array.from(label.children)
@@ -226,7 +232,8 @@ const readInPage = withTicketRows((findRows, request: RefreshMonitorRequest | un
                                     .map(text),
                             )
                             .filter(Boolean),
-                        soldOut: leafTexts(row, "tickets.soldOut", rowIndex).filter(value => value === "已售完").length,
+                        soldOut: leaves.filter(value => value === "已售完").length,
+                        unavailable: leaves.filter(value => value === "暫無票券").length,
                         counterCount: counters.length,
                         quantities: counters.flatMap(counter => all(counter, ":scope > div").map(text)),
                         plus: all(row, "button")
@@ -354,6 +361,7 @@ const readInPage = withTicketRows((findRows, request: RefreshMonitorRequest | un
                     activity,
                     identities,
                     tickets,
+                    areas: layout.areas,
                     information,
                     checkout,
                     activityNames: all(document, "h1").map(text),
@@ -424,14 +432,17 @@ const readInPage = withTicketRows((findRows, request: RefreshMonitorRequest | un
                     }
                     if (current.refreshButtons.length === 0) evidence.buttonAbsent = true;
                     // 空窗看庫存與售完文字消失；實站計數器可能保留，但形狀須完整（與 refreshReadiness 相同）。
+                    // 票區面板版型的空窗看票區標題，另行處理；此處只認票種列版型。
                     // 張數非零已在上方判為無效。
                     if (
                         names === JSON.stringify(current.tickets.map(row => row.names)) &&
+                        current.areas.length === 0 &&
                         current.tickets.length > 0 &&
                         current.tickets.every(
                             row =>
                                 row.statuses.length === 0 &&
                                 row.soldOut === 0 &&
+                                row.unavailable === 0 &&
                                 row.counterCount <= 1 &&
                                 row.quantities.length === row.counterCount &&
                                 row.plus.length === row.counterCount &&

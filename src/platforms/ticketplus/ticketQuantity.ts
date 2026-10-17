@@ -21,6 +21,7 @@ export type QuantityReason =
     | "ticket-missing"
     | "ticket-ambiguous"
     | "ticket-sold-out"
+    | "ticket-unavailable"
     | "extra-tickets"
     | "button-unavailable"
     | "quantity-changed"
@@ -140,6 +141,8 @@ async function readSelection(
         throw stop(context, "extra-tickets");
     }
     if (ticket.saleStatus === "sold-out") throw stop(context, "ticket-sold-out");
+    // 暫無票券（他人保留中）不是售完，但目前不能購買，不點加減。
+    if (ticket.saleStatus === "unavailable") throw stop(context, "ticket-unavailable");
     return { snapshot, ticket };
 }
 

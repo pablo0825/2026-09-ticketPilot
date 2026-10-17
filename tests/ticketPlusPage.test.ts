@@ -70,8 +70,10 @@ test("TicketPlus 選票：讀出所有票種、真實張數與售票文案，不
             kind: "ticket-selection",
             ...event,
             nextEnabled: true,
+            areas: [],
             tickets: [
                 {
+                    area: null,
                     name: "學生票",
                     selectedQuantity: 0,
                     saleStatus: "selling",
@@ -80,6 +82,7 @@ test("TicketPlus 選票：讀出所有票種、真實張數與售票文案，不
                     canDecrease: false,
                 },
                 {
+                    area: null,
                     name: "預售票",
                     selectedQuantity: 1,
                     saleStatus: "selling",
@@ -88,6 +91,7 @@ test("TicketPlus 選票：讀出所有票種、真實張數與售票文案，不
                     canDecrease: true,
                 },
                 {
+                    area: null,
                     name: "身障票",
                     selectedQuantity: 0,
                     saleStatus: "sold-out",
@@ -207,6 +211,23 @@ test("TicketPlus 選票：只有一列且只剩名稱與價格（更新空窗）
         assert.deepEqual(
             dom.tickets.map(ticket => [ticket.names, ticket.counterCount]),
             [[["學生票"], 0]],
+        );
+    });
+});
+
+test("TicketPlus 選票：票種列的暫無票券（防禦案例，實站未觀察）是 unavailable，不是售完", async () => {
+    await withPage(async page => {
+        await show(page, orderUrl, fixture.order.replace("已售完", "暫無票券"));
+        const result = await readTicketPlusPage(page);
+        assert.equal(result.kind, "ticket-selection");
+        if (result.kind !== "ticket-selection") assert.fail();
+        assert.deepEqual(
+            result.tickets.map(ticket => [ticket.name, ticket.saleStatus]),
+            [
+                ["學生票", "selling"],
+                ["預售票", "selling"],
+                ["身障票", "unavailable"],
+            ],
         );
     });
 });

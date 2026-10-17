@@ -59,7 +59,9 @@ export function refreshReadiness(
 
     // 僅缺少庫存與售完文字的票列等待；計數器可保留但形狀須完整（與 domSnapshot 監測相同），
     // 張數非零已於上方停止，票名缺失仍拒絕。
+    // 票區面板版型的空窗看票區標題，另行處理；此處只認票種列版型。
     const gap =
+        dom.areas.length === 0 &&
         dom.tickets.length > 0 &&
         dom.tickets.every(
             row =>
@@ -67,6 +69,7 @@ export function refreshReadiness(
                 row.names[0]?.trim() &&
                 row.statuses.length === 0 &&
                 row.soldOut === 0 &&
+                row.unavailable === 0 &&
                 row.counterCount <= 1 &&
                 row.quantities.length === row.counterCount &&
                 row.plus.length === row.counterCount &&

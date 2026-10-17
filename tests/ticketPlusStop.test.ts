@@ -31,6 +31,7 @@ const selection: TicketSelectionPage = {
     nextEnabled: true,
     tickets: [
         {
+            area: null,
             name: "預售票",
             selectedQuantity: 2,
             saleStatus: "selling",
@@ -39,6 +40,7 @@ const selection: TicketSelectionPage = {
             canDecrease: true,
         },
     ],
+    areas: [],
 };
 const submissionOptions = { totalTimeoutMs: 5000, clickTimeoutMs: 1000, pollIntervalMs: 20 };
 const zero = { orderClicks: 0, dismissClicks: 0, infoClicks: 0, otherClicks: 0, termsChanges: 0 };

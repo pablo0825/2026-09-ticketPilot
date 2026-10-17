@@ -24,6 +24,7 @@ function emptyDom(): TicketPlusDom {
         activity: [],
         identities: [],
         tickets: [],
+        areas: [],
         information: { contact: [[], [], []], terms: [], headingCount: 0 },
         checkout: [],
         activityNames: [],
