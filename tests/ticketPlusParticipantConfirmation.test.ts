@@ -54,7 +54,7 @@ test("參加者確認 API：等待中提供確認 ID，錯 ID 拒絕，正確確
             runId: waiting.id,
             confirmationId: randomUUID(),
         });
-        assert.notEqual(wrong.status, 200);
+        assert.equal(wrong.status, 400);
         const noToken = await fetch(h.url + "/api/purchase/confirm-participants", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -67,7 +67,7 @@ test("參加者確認 API：等待中提供確認 ID，錯 ID 拒絕，正確確
         const ok = await h.request("/api/purchase/confirm-participants", { runId: waiting.id, confirmationId });
         assert.equal(ok.status, 200);
         const again = await h.request("/api/purchase/confirm-participants", { runId: waiting.id, confirmationId });
-        assert.notEqual(again.status, 200);
+        assert.equal(again.status, 400);
         const done = await h.until(run => run?.status === "registration-ready");
         assert.equal(done.participantConfirmation, undefined);
         const report = await h.counts();

@@ -468,8 +468,11 @@ export class PurchaseRuns {
     // 只有本服務現行的 TicketPlus 執行、最後進度為等待參加者且尚未送出確認時，才提供確認 ID。
     private pendingParticipants(): { confirmationId: string } | undefined {
         const record = this.current;
-        if (!record || record.snapshot.platform !== "ticketplus" || record.snapshot.status !== "running")
+        if (!record || record.snapshot.platform !== "ticketplus" || record.snapshot.status !== "running") {
             return undefined;
+        }
+        // 已提出停止要求後不再提供確認，避免停止中又繼續收尾。
+        if (this.stopRequest?.record === record) return undefined;
         if (!this.child?.connected) return undefined;
         const event = record.snapshot.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
         if (event?.type !== "ticketplus" || event.stage !== "waiting-for-participants") return undefined;
@@ -483,7 +486,7 @@ export class PurchaseRuns {
     async confirmParticipants(
         runId: string,
         confirmationId: string,
-    ): Promise<{ status: "sent"; message: string; run: PurchaseSnapshot }> {
+    ): Promise<{ status: "sent" | "unconfirmed"; message: string; run: PurchaseSnapshot }> {
         const record = this.current;
         if (!record || record.snapshot.id !== runId) throw new Error("執行紀錄已變更，請重新查看目前狀態。");
         const pending = this.pendingParticipants();
@@ -495,14 +498,20 @@ export class PurchaseRuns {
         // 先記錄已送出，再傳送；傳送失敗也不重送，由 worker 結果決定後續。
         this.participantsSent = { record, confirmationId };
         this.notify();
-        await new Promise<void>(resolve => {
-            child.send({ type: "confirm-ticketplus-participants", confirmationId }, () => resolve());
+        const delivered = await new Promise<boolean>(resolve => {
+            child.send({ type: "confirm-ticketplus-participants", confirmationId }, error => resolve(!error));
         });
-        return {
-            status: "sent",
-            message: "已送出參加者已填完，程式會核對後勾選條款並按一次下一步。",
-            run: this.snapshot()!,
-        };
+        return delivered
+            ? {
+                  status: "sent",
+                  message: "已送出參加者已填完，程式會核對後勾選條款並按一次下一步。",
+                  run: this.snapshot()!,
+              }
+            : {
+                  status: "unconfirmed",
+                  message: "參加者確認傳送結果未確認，請檢查目前流程；不會自動重送。",
+                  run: this.snapshot()!,
+              };
     }
 
     async confirmLogin(
