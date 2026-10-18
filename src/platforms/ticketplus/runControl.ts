@@ -28,6 +28,18 @@ export class TicketPlusRunControl {
         if (minutes !== undefined) this.deadline = this.now() + minutes * 60_000;
     }
 
+    // 等待使用者操作的期間暫停全程期限，結束後以暫停前的剩餘時間繼續；手動停止仍立即生效。
+    async excludeFromDeadline<T>(work: () => Promise<T>): Promise<T> {
+        this.check();
+        const remaining = this.deadline === undefined ? undefined : this.deadline - this.now();
+        this.deadline = undefined;
+        try {
+            return await work();
+        } finally {
+            if (remaining !== undefined) this.deadline = this.now() + remaining;
+        }
+    }
+
     check(): void {
         if (!this.stopped) {
             if (this.signal?.aborted) this.stopped = new TicketPlusStopError();

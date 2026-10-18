@@ -145,3 +145,29 @@ test("資料頁送出前達期限或停止：說明已保留在資料頁未送�
         assert.doesNotMatch(message, /尚未嘗試選票提交|提交後停止原因/);
     }
 });
+
+test("抽選結果訊息：停在確認登記前、等待中停止或頁面改變都說明未送出登記", async () => {
+    const { ticketPlusResultMessage } = await import("../src/app/ticketPlusPresentation.js");
+    const progress = Object.freeze({ submitAttempted: true, dismissAttempted: false, sawQueue: false }) as never;
+    assert.match(
+        ticketPlusResultMessage({ outcome: "registration-ready", progress, submissionAttempts: 1 }),
+        /已停在確認登記前.*不會送出登記/,
+    );
+    for (const [lotteryFailure, stopReason, pattern] of [
+        ["participant-page-changed", undefined, /離開輸入資料頁/],
+        ["user-stopped", "user-stop", /已依要求停止/],
+        ["participant-incomplete", undefined, /participant-incomplete/],
+    ] as const) {
+        const message = ticketPlusResultMessage({
+            outcome: "stopped",
+            reason: "lottery-stopped",
+            lotteryFailure,
+            progress,
+            submissionAttempts: 1,
+            ...(stopReason ? { stopReason } : {}),
+        });
+        assert.match(message, pattern);
+        assert.match(message, /未送出登記/);
+        assert.doesNotMatch(message, /結果未確認|提交後停止原因/);
+    }
+});

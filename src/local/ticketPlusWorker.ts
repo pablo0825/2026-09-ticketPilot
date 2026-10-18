@@ -39,8 +39,16 @@ export async function runTicketPlusWorker(
                     progress = { ...event.progress };
                     if (progress.submitAttempted) onSubmitAttempt();
                 }
-                if (event.type === "stage") sendEvent({ type: "ticketplus", stage: event.stage });
-                else if (event.type === "submission" && event.progress.sawQueue && !event.progress.failure) {
+                // 等待參加者的階段由帶確認 ID 的事件回報，避免送出缺 ID 的同名階段。
+                if (event.type === "participants-wait") {
+                    sendEvent({
+                        type: "ticketplus",
+                        stage: "waiting-for-participants",
+                        confirmationId: event.confirmationId,
+                    });
+                } else if (event.type === "stage" && event.stage !== "waiting-for-participants") {
+                    sendEvent({ type: "ticketplus", stage: event.stage });
+                } else if (event.type === "submission" && event.progress.sawQueue && !event.progress.failure) {
                     sendEvent({ type: "ticketplus", stage: "queue" });
                 }
                 const message = ticketPlusEventMessage(event);
@@ -55,9 +63,11 @@ export async function runTicketPlusWorker(
                     ? "information-ready"
                     : result.outcome === "payment-ready"
                       ? "payment-ready"
-                      : result.outcome === "unknown"
-                        ? "unknown"
-                        : "failed",
+                      : result.outcome === "registration-ready"
+                        ? "registration-ready"
+                        : result.outcome === "unknown"
+                          ? "unknown"
+                          : "failed",
             message: ticketPlusResultMessage(result),
         };
     } catch (error) {

@@ -26,6 +26,8 @@ import { dismissTicketPlusActivityNotice, TicketPlusNoticeError } from "../platf
 import { readTicketPlusPage } from "../platforms/ticketplus/pageState.js";
 import { TicketPlusPriorityError } from "../platforms/ticketplus/ticketPriority.js";
 import { runTicketPlusCycle } from "../platforms/ticketplus/purchaseCycle.js";
+import { finishTicketPlusLottery } from "./ticketPlusLottery.js";
+import type { TicketPlusLotteryResult } from "./ticketPlusLottery.js";
 import type {
     TicketPlusCycleEvent,
     TicketPlusCycleResult,
@@ -48,6 +50,8 @@ export type TicketPlusStage =
     | "refreshing-activity"
     | "waiting-for-availability"
     | "selecting-session"
+    | "waiting-for-participants"
+    | "completing-registration"
     | TicketPlusCycleStage;
 export type TicketPlusRunEvent =
     | { type: "stage"; stage: TicketPlusStage }
@@ -56,10 +60,12 @@ export type TicketPlusRunEvent =
     | { type: "login-wait"; elapsedMs: number; observations: number }
     | { type: "activity-wait"; elapsedMs: number; observations: number }
     | TicketPlusCycleEvent
+    | { type: "participants-wait"; confirmationId: string }
     | { type: "lease-release-failed" };
 export type TicketPlusRunResult = (
     | TicketPlusSubmissionResult
     | TicketPlusCycleResult
+    | TicketPlusLotteryResult
     | {
           outcome: "stopped";
           reason:
@@ -85,6 +91,8 @@ export interface TicketPlusRunOptions {
     onBrowser?: (context: BrowserContext) => void;
     lease?: PurchaseLease;
     webdriverExperiment?: boolean;
+    // 抽選在輸入資料頁等待 GUI 確認參加者已填完；未提供時抽選停在資料頁（information-ready）。
+    waitForParticipants?: (confirmationId: string) => Promise<void>;
 }
 
 function notify(options: TicketPlusRunOptions, event: TicketPlusRunEvent): void {
@@ -248,12 +256,38 @@ export async function runTicketPlus(
             control,
         );
         // 同場次候補與更新後循環由獨立模組編排；本次結果與歷史提交不混用。
-        return await runTicketPlusCycle(page, activity, session, control, event => {
+        const cycle = await runTicketPlusCycle(page, activity, session, control, event => {
             if (event.type === "stage") stage = event.stage;
             if (event.type === "attempt-reset") progress = emptySubmissionProgress();
             if (event.type === "submission") progress = { ...event.progress };
             notify(options, event);
         });
+
+        // 抽選到輸入資料頁：等待人工確認參加者後收尾，停在確認登記前。
+        if (
+            cycle.outcome !== "information-ready" ||
+            ticketPlusFlowType(activity) !== "lottery" ||
+            !options.waitForParticipants ||
+            cycle.submittedQuantity === undefined
+        ) {
+            return cycle;
+        }
+        const waitForParticipants = options.waitForParticipants;
+        return await finishTicketPlusLottery(
+            page,
+            session,
+            cycle.submittedQuantity,
+            control,
+            {
+                waitForParticipants,
+                onWaiting: confirmationId => {
+                    report("waiting-for-participants");
+                    notify(options, { type: "participants-wait", confirmationId });
+                },
+                onCompleting: () => report("completing-registration"),
+            },
+            { submissionAttempts: cycle.submissionAttempts, progress: cycle.progress },
+        );
     } catch (error) {
         let stopError = error instanceof TicketPlusStopError ? error : undefined;
         if (!stopError) {

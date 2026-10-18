@@ -150,3 +150,26 @@ test("剩餘不足一毫秒時，順位與張數讀取不會把全程期限誤�
         });
     }
 });
+
+test("排除期限的等待：期間不計時，結束後以剩餘時間繼續；期間停止仍立即生效", async () => {
+    let now = 0;
+    const control = new TicketPlusRunControl(undefined, () => now);
+    control.startDeadline(1);
+    now = 20_000;
+    await control.excludeFromDeadline(async () => {
+        now = 500_000;
+        control.check();
+    });
+    assert.equal(control.remainingMs(), 40_000);
+
+    const abort = new AbortController();
+    const stoppable = new TicketPlusRunControl(abort.signal, () => now);
+    stoppable.startDeadline(1);
+    await assert.rejects(
+        stoppable.excludeFromDeadline(async () => {
+            abort.abort();
+            await stoppable.wait(10);
+        }),
+        (error: unknown) => error instanceof TicketPlusStopError && error.stopReason === "user-stop",
+    );
+});

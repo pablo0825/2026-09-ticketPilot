@@ -65,7 +65,8 @@ export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
         !result.progress.submitAttempted ||
         result.outcome === "information-ready" ||
         !("reason" in result) ||
-        "informationFailure" in result
+        "informationFailure" in result ||
+        "lotteryFailure" in result
     ) {
         return message;
     }
@@ -74,6 +75,23 @@ export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
 }
 
 function resultMessage(result: TicketPlusRunResult): string {
+    if (result.outcome === "registration-ready") {
+        return "已停在確認登記前，已勾選服務條款並按一次下一步。請自行檢查登記內容並按確認登記；程式不會送出登記。";
+    }
+    if ("lotteryFailure" in result && result.outcome === "stopped") {
+        const lead =
+            result.stopReason === "time-limit"
+                ? "已達最長執行時間，停止自動操作"
+                : result.stopReason === "user-stop"
+                  ? "已依要求停止自動操作"
+                  : result.lotteryFailure === "participant-page-changed"
+                    ? "頁面已離開輸入資料頁（可能是網站倒數結束），停止等待"
+                    : `抽選送出前停止（${result.lotteryFailure}）`;
+        return `${lead}：未送出登記。請檢查購票瀏覽器；不會自動重跑。`;
+    }
+    if ("lotteryFailure" in result && result.outcome === "unknown") {
+        return "已在輸入資料頁按下一步，但未能確認抵達確認登記頁。請檢查購票瀏覽器；不會重按或送出登記。";
+    }
     if (result.outcome === "payment-ready") {
         return "已到同場次付款頁，已勾選服務條款並送出資料頁一次。請自行確認金額、選擇付款方式並付款；程式不會按前往付款。";
     }
@@ -193,10 +211,14 @@ export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | unde
             "selecting-tickets": "核對票種並調整張數。",
             submitting: "核對選票並提交，等待資料頁。",
             "submitting-information": "已到資料頁，勾選服務條款並按一次下一步，等待付款頁。",
+            "waiting-for-participants":
+                "已到輸入資料頁，請在購票瀏覽器填寫所有參加者，完成後在 GUI 按「參加者已填完」。",
+            "completing-registration": "核對參加者已填，勾選服務條款並按一次下一步，等待確認登記頁。",
             "waiting-to-refresh": "本輪設定順位已耗盡，短暫等待後核對更新票數；可要求停止。",
             refreshing: "核對並嘗試一次更新票數；更新完成未確認前不開始新一輪。",
         }[event.stage];
     }
+    if (event.type === "participants-wait") return undefined;
     if (event.progress.failure === "sold-out") return "偵測到明確售完，處理彈窗後核對是否可以嘗試下一順位。";
     if (event.progress.failure) return "偵測到購票失敗，完成彈窗處理後停止。";
     if (event.progress.sawQueue) return "排隊中，等待網站處理，不重送。";

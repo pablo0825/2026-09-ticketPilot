@@ -57,6 +57,8 @@ export type TicketPlusCycleResult = (
 ) & {
     submissionAttempts: number;
     reselectionFailure?: ReselectionBlockedReason;
+    // 抵達資料頁時本次提交的張數；抽選核對參加者列數使用。
+    submittedQuantity?: number;
 };
 export interface TicketPlusCycleOptions {
     refreshDelayMs?: number;
@@ -172,6 +174,13 @@ export async function runTicketPlusCycle(
                     notify({ type: "stage", stage: "submitting-information" });
                     const submitted = await submitTicketPlusInformation(page, session, control, options.information);
                     return informationCycleResult(submitted, progress, submissionAttempts);
+                }
+                if (result.outcome === "information-ready") {
+                    return {
+                        ...result,
+                        submissionAttempts,
+                        submittedQuantity: activity.targets[selected.priorityIndex]!.quantity,
+                    };
                 }
                 if (result.outcome !== "rejected" || result.progress.failure !== "sold-out" || result.stopReason) {
                     return { ...result, submissionAttempts };
