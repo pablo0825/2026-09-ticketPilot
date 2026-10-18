@@ -72,6 +72,7 @@ export function App() {
                         displayed={runs.displayed}
 
                         stopControl={runs.stopControl}
+                        participantsControl={runs.participantsControl}
                         closing={runs.closing}
                         canClose={
                             runs.displayed?.kind === "purchase" &&

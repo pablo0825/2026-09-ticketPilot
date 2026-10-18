@@ -10,9 +10,10 @@ interface Props {
     onClose: () => void;
     onCopy: (text: string) => void;
     stopControl?: { available: boolean; progress?: StopRequestStatus; onStop: () => void };
+    participantsControl?: { onConfirm: () => void };
 }
 
-export function RunStatus({ displayed, canClose, closing, onClose, onCopy, stopControl }: Props) {
+export function RunStatus({ displayed, canClose, closing, onClose, onCopy, stopControl, participantsControl }: Props) {
     const [now, setNow] = useState(Date.now());
     const logElement = useRef<HTMLPreElement>(null);
     const followLog = useRef(true);
@@ -55,6 +56,11 @@ export function RunStatus({ displayed, canClose, closing, onClose, onCopy, stopC
         <div className="card">
             <h2 id="status">{title}</h2>
             <p id="instruction">{instruction}</p>
+            {participantsControl && (
+                <button type="button" onClick={participantsControl.onConfirm}>
+                    參加者已填完
+                </button>
+            )}
             {stopControl?.available && (
                 <button type="button" className="secondary" onClick={stopControl.onStop}>
                     停止購票

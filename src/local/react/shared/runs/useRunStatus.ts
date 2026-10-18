@@ -17,6 +17,9 @@ export function useRunStatus(onError: (message: string) => void) {
     const closingRef = useRef(false);
     const purchaseVersion = useRef(0);
     const attemptedStops = useRef(new Set<string>());
+    // 參加者確認依確認 ID 鎖定：同頁連點、回應遺失都不重送。
+    const attemptedParticipants = useRef(new Set<string>());
+    const [participantsSending, setParticipantsSending] = useState<string | null>(null);
     const [stopAttempt, setStopAttempt] = useState<{ runId: string; status: StopRequestStatus } | null>(null);
 
     const receivePurchase = useCallback((run: PurchaseSnapshot | null) => {
@@ -152,7 +155,49 @@ export function useRunStatus(onError: (message: string) => void) {
         }
     }
 
+    async function confirmParticipants() {
+        // 只確認目前顯示、後端正提供確認 ID 的這一輪。
+        const run = latestPurchase.current;
+        const confirmationId = run?.participantConfirmation?.confirmationId;
+        if (
+            !run ||
+            !confirmationId ||
+            run.platform !== "ticketplus" ||
+            run.status !== "running" ||
+            attemptedParticipants.current.has(confirmationId) ||
+            displayed?.kind !== "purchase" ||
+            displayed.run.id !== run.id
+        ) {
+            return;
+        }
+
+        // 送出前同步鎖定，錯誤也不重送。
+        attemptedParticipants.current.add(confirmationId);
+        setParticipantsSending(confirmationId);
+        try {
+            const result = await api<{ run: PurchaseSnapshot }>("/api/purchase/confirm-participants", "POST", {
+                runId: run.id,
+                confirmationId,
+            });
+            if (result?.run?.id === run.id && latestPurchase.current?.id === run.id) receivePurchase(result.run);
+        } catch (error) {
+            onError((error as Error).message);
+        } finally {
+            setParticipantsSending(null);
+        }
+    }
+
     const currentDisplayed = displayed?.kind === "purchase" && displayed.run.id === purchase?.id;
+    const pendingParticipants = purchase?.participantConfirmation?.confirmationId;
+    const participantsControl =
+        currentDisplayed &&
+        purchase?.platform === "ticketplus" &&
+        purchase.status === "running" &&
+        pendingParticipants &&
+        !attemptedParticipants.current.has(pendingParticipants) &&
+        participantsSending === null
+            ? { onConfirm: () => void confirmParticipants() }
+            : undefined;
     const stopRequested = Boolean(purchase && (purchase.stopRequest || attemptedStops.current.has(purchase.id)));
     const stopControl =
         currentDisplayed && purchase?.platform === "ticketplus" && purchase.status === "running"
@@ -192,6 +237,7 @@ export function useRunStatus(onError: (message: string) => void) {
         closing,
         closeBrowser,
         stopControl,
+        participantsControl,
         showCurrent,
         showResult,
         showAccepted,
