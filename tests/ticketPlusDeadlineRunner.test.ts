@@ -9,9 +9,8 @@ import type { BrowserContext } from "playwright";
 import { runTicketPlus } from "../src/app/runTicketPlus.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../src/app/purchaseLock.js";
 import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
-import { activity } from "./fixtures/ticketplus/pages.js";
 import { readyInformation, readyOrder, failureDialog, queueDialog } from "./fixtures/ticketplus/submissionPage.js";
-import { checkout } from "./fixtures/ticketplus/pages.js";
+import { activity, checkout } from "./fixtures/ticketplus/pages.js";
 
 const settings: TicketPlusActivitySettings = {
     platform: "ticketplus",

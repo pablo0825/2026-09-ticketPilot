@@ -124,3 +124,24 @@ test("付款頁與資料頁停止訊息：點擊前停止說明未送出，點�
         /未能確認抵達付款頁.*不會重按/,
     );
 });
+
+test("資料頁送出前達期限或停止：說明已保留在資料頁未送出，不寫尚未提交選票", async () => {
+    const { ticketPlusResultMessage } = await import("../src/app/ticketPlusPresentation.js");
+    const progress = Object.freeze({ submitAttempted: true, dismissAttempted: false, sawQueue: false }) as never;
+    for (const [failure, stopReason, pattern] of [
+        ["time-limit", "time-limit", /已達最長執行時間/],
+        ["user-stopped", "user-stop", /已依要求停止/],
+    ] as const) {
+        const message = ticketPlusResultMessage({
+            outcome: "stopped",
+            reason: "information-stopped",
+            informationFailure: failure,
+            stopReason,
+            progress,
+            submissionAttempts: 1,
+        });
+        assert.match(message, pattern);
+        assert.match(message, /已保留在資料頁、未送出/);
+        assert.doesNotMatch(message, /尚未嘗試選票提交|提交後停止原因/);
+    }
+});

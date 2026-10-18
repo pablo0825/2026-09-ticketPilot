@@ -12,6 +12,7 @@ export type InformationSubmissionReason =
     | "terms-unchecked"
     | "next-unavailable"
     | "checkout-not-reached"
+    | "read-failed"
     | "time-limit"
     | "user-stopped";
 export type InformationSubmissionResult =
@@ -179,7 +180,8 @@ export async function submitTicketPlusInformation(
         if (error instanceof TicketPlusStopError) {
             return { outcome: "stopped", reason: error.stopReason === "time-limit" ? "time-limit" : "user-stopped" };
         }
-        throw error;
+        // 點擊前的其他錯誤（頁面重繪、讀取失敗）仍是未送出，明確停止而非未確認。
+        return { outcome: "stopped", reason: "read-failed" };
     } finally {
         await handle?.dispose().catch(() => {});
     }

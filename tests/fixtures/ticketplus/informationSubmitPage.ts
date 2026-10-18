@@ -64,7 +64,7 @@ export const purchaseCheckout = `${eventHeader}
 <button type="button" data-info="back">上一步</button>
 <button type="button" class="nextBtn" data-info="pay">前往付款</button>`;
 
-export type NextMode = "to-checkout" | "stay" | "dialog" | "terms-inert";
+export type NextMode = "to-checkout" | "stay" | "dialog" | "terms-inert" | "checkout-dialog";
 
 // 計數各按鈕；點條款控制項切換勾選並啟用下一步；下一步依模式轉付款頁、停留或跳出未知彈窗。
 export function informationBehavior(mode: NextMode, checkoutPath: string): string {
@@ -81,10 +81,21 @@ export function informationBehavior(mode: NextMode, checkoutPath: string): strin
             input.checked = !input.checked;
             document.querySelector('[data-info="next"]').disabled = !input.checked;
         }
-        if (kind === "next" && ${JSON.stringify(mode)} === "to-checkout") location.assign(${JSON.stringify(checkoutPath)});
+        if (kind === "next" && ["to-checkout", "checkout-dialog"].includes(${JSON.stringify(mode)})) {
+            location.assign(${JSON.stringify(checkoutPath)});
+        }
         if (kind === "next" && ${JSON.stringify(mode)} === "dialog") {
             document.body.insertAdjacentHTML("beforeend", '<div class="v-dialog__content" role="dialog"><div class="v-dialog">未知提示<button>確定</button></div></div>');
         }
     });
+    // checkout-dialog：付款頁載入後跳出未知彈窗
+    if (${JSON.stringify(mode)} === "checkout-dialog" && location.pathname.startsWith("/checkout/")) {
+        document.body.insertAdjacentHTML("beforeend", '<div class="v-dialog__content" role="dialog"><div class="v-dialog">未知提示<button>確定</button></div></div>');
+    }
 </script>`;
 }
+
+// 同時有前往付款與確認登記：不能當成購票付款頁。
+export const mixedCheckout = `${eventHeader}
+<button type="button" class="nextBtn" data-info="pay">前往付款</button>
+<button type="button" class="nextBtn" data-info="register">確認登記</button>`;

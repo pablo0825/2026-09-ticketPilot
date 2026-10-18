@@ -6,7 +6,11 @@ import {
 } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusActivitySettings } from "../../config/ticketPlusActivity.js";
 import { submitTicketPlusInformation } from "./informationSubmission.js";
-import type { InformationSubmissionOptions, InformationSubmissionReason } from "./informationSubmission.js";
+import type {
+    InformationSubmissionOptions,
+    InformationSubmissionReason,
+    InformationSubmissionResult,
+} from "./informationSubmission.js";
 import { inspectTicketPlusReselection } from "./reselectionReadiness.js";
 import type { ReselectionBlockedReason } from "./reselectionReadiness.js";
 import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
@@ -60,6 +64,31 @@ export interface TicketPlusCycleOptions {
     submission?: TicketSubmissionOptions;
     refresh?: TicketRefreshOptions;
     information?: InformationSubmissionOptions;
+}
+
+// 資料頁送出結果轉成本輪結果；點擊前的期限與停止保留 stopReason，訊息據此說明未送出。
+function informationCycleResult(
+    submitted: InformationSubmissionResult,
+    progress: SubmissionProgress,
+    submissionAttempts: number,
+): TicketPlusCycleResult {
+    const frozen = Object.freeze({ ...progress });
+    if (submitted.outcome === "payment-ready")
+        return { outcome: "payment-ready", progress: frozen, submissionAttempts };
+    const stopReason: TicketPlusStopReason | undefined =
+        submitted.reason === "time-limit"
+            ? "time-limit"
+            : submitted.reason === "user-stopped"
+              ? "user-stop"
+              : undefined;
+    return {
+        outcome: submitted.outcome,
+        reason: "information-stopped",
+        informationFailure: submitted.reason,
+        progress: frozen,
+        submissionAttempts,
+        ...(stopReason ? { stopReason } : {}),
+    };
 }
 
 // 編排同場次順位；只有更新完成且原全程期限有效，才從第一順位開始新一輪。
@@ -142,19 +171,7 @@ export async function runTicketPlusCycle(
                 if (result.outcome === "information-ready" && flowType === "purchase") {
                     notify({ type: "stage", stage: "submitting-information" });
                     const submitted = await submitTicketPlusInformation(page, session, control, options.information);
-                    const frozen = Object.freeze({ ...progress });
-                    return submitted.outcome === "payment-ready"
-                        ? { outcome: "payment-ready", progress: frozen, submissionAttempts }
-                        : {
-                              outcome: submitted.outcome,
-                              reason: "information-stopped",
-                              informationFailure: submitted.reason,
-                              progress: frozen,
-                              submissionAttempts,
-                              ...(submitted.reason === "time-limit" || submitted.reason === "user-stopped"
-                                  ? { stopReason: submitted.reason === "time-limit" ? "time-limit" : "user-stop" }
-                                  : {}),
-                          };
+                    return informationCycleResult(submitted, progress, submissionAttempts);
                 }
                 if (result.outcome !== "rejected" || result.progress.failure !== "sold-out" || result.stopReason) {
                     return { ...result, submissionAttempts };

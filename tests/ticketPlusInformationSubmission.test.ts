@@ -7,6 +7,7 @@ import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js"
 import {
     informationBehavior,
     purchaseCheckout,
+    mixedCheckout,
     purchaseInformation,
     registerCheckout,
 } from "./fixtures/ticketplus/informationSubmitPage.js";
@@ -142,4 +143,36 @@ test("資料頁送出：下一步後到的是確認登記頁，不當成付款�
         },
         registerCheckout,
     );
+});
+
+test("資料頁送出：付款頁跳出彈窗或同時有確認登記時不算抵達", async () => {
+    for (const [mode, checkoutHtml] of [
+        ["checkout-dialog", undefined],
+        ["to-checkout", mixedCheckout],
+    ] as const) {
+        await withInformation(
+            {},
+            mode,
+            async (page, counts) => {
+                assert.deepEqual(
+                    await submitTicketPlusInformation(page, session, new TicketPlusRunControl(), { timeoutMs: 800 }),
+                    { outcome: "unknown", reason: "checkout-not-reached" },
+                );
+                assert.deepEqual(await counts(), { ...none, terms: 1, next: 1 });
+            },
+            checkoutHtml,
+        );
+    }
+});
+
+test("資料頁送出：點擊前的非預期讀取錯誤回報停止，不當成結果未確認", async () => {
+    await withInformation({}, "to-checkout", async (page, counts) => {
+        // 條款定位時頁面內容被替換，讀取丟出一般錯誤
+        page.evaluateHandle = (() => Promise.reject(new Error("Execution context was destroyed"))) as never;
+        assert.deepEqual(await submitTicketPlusInformation(page, session, new TicketPlusRunControl()), {
+            outcome: "stopped",
+            reason: "read-failed",
+        });
+        assert.deepEqual(await counts(), none);
+    });
 });

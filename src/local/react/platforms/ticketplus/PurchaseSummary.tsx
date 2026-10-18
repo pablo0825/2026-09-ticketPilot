@@ -72,7 +72,9 @@ export function PurchaseSummary({
                     checked={confirmed}
                     onChange={event => onConfirm(event.target.checked)}
                 />
-                我已確認活動、順位與張數，並了解程式會在資料頁勾選服務條款並按一次下一步，停在付款頁，付款由我手動處理。
+                {settings?.flowType === "lottery"
+                    ? "我已確認活動、順位與張數，並了解程式會停在輸入資料頁等我填寫參加者，後續由我手動處理。"
+                    : "我已確認活動、順位與張數，並了解程式會在資料頁勾選服務條款並按一次下一步，停在付款頁，付款由我手動處理。"}
             </label>
             {reason && !hideReason && <p role="status">{reason}</p>}
             <button type="button" disabled={disabled || Boolean(reason) || !confirmed} onClick={onStart}>

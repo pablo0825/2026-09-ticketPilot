@@ -61,8 +61,14 @@ export function ticketPlusSessionMessage(failure: {
 export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
     const base = resultMessage(result);
     const message = result.loginDiagnostic ? `${base} 登入停止診斷：${JSON.stringify(result.loginDiagnostic)}` : base;
-    if (!result.progress.submitAttempted || result.outcome === "information-ready" || !("reason" in result))
+    if (
+        !result.progress.submitAttempted ||
+        result.outcome === "information-ready" ||
+        !("reason" in result) ||
+        "informationFailure" in result
+    ) {
         return message;
+    }
     const diagnostic = "diagnostic" in result ? result.diagnostic : undefined;
     return `${message} 提交後停止原因：${result.reason}。${diagnostic ? ` 診斷（最後一次觀測）：${JSON.stringify(diagnostic)}` : ""}`;
 }
@@ -71,8 +77,14 @@ function resultMessage(result: TicketPlusRunResult): string {
     if (result.outcome === "payment-ready") {
         return "已到同場次付款頁，已勾選服務條款並送出資料頁一次。請自行確認金額、選擇付款方式並付款；程式不會按前往付款。";
     }
-    if ("informationFailure" in result && result.outcome === "stopped" && !result.stopReason) {
-        return `資料頁送出前停止（${result.informationFailure}）：已保留在資料頁、未送出。請檢查購票瀏覽器；不會自動重跑。`;
+    if ("informationFailure" in result && result.outcome === "stopped") {
+        const lead =
+            result.stopReason === "time-limit"
+                ? "已達最長執行時間，停止自動操作"
+                : result.stopReason === "user-stop"
+                  ? "已依要求停止自動操作"
+                  : `資料頁送出前停止（${result.informationFailure}）`;
+        return `${lead}：已保留在資料頁、未送出。請檢查購票瀏覽器；不會自動重跑。`;
     }
     if ("informationFailure" in result && result.outcome === "unknown") {
         return "已在資料頁按下一步，但未能確認抵達付款頁。請檢查購票瀏覽器；不會重按或重新購票。";
