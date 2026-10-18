@@ -39,6 +39,8 @@ async function waitForConfirmation(
     pollIntervalMs: number,
 ): Promise<"confirmed" | "page-changed" | "confirmation-failed"> {
     const status: { value: "waiting" | "confirmed" | "failed" } = { value: "waiting" };
+    // 連續兩次讀到離開輸入資料頁才停止，避免儲存參加者後畫面重繪的瞬間被誤判。
+    let otherReads = 0;
     const settled = confirmed.then(
         () => {
             status.value = "confirmed";
@@ -62,7 +64,10 @@ async function waitForConfirmation(
                 return undefined;
             });
         if (status.value !== "waiting") continue;
-        if (read?.markers && readTicketPlusLotteryInput(read, session).kind === "other") return "page-changed";
+        if (read?.markers) {
+            otherReads = readTicketPlusLotteryInput(read, session).kind === "other" ? otherReads + 1 : 0;
+            if (otherReads >= 2) return "page-changed";
+        }
 
         // 等下一次輪詢或確認結果，以先到者為準。
         await Promise.race([control.wait(pollIntervalMs), settled]);
@@ -97,8 +102,11 @@ export async function finishTicketPlusLottery(
         if (waited === "confirmation-failed") return stopped("confirmation-failed");
 
         // 核對參加者後勾條款、按一次下一步。
+        // 收尾步驟自帶點擊與等待上限；使用者花在填寫的時間不應讓它用到等待前殘留的期限。
         hooks.onCompleting();
-        const result = await completeTicketPlusLottery(page, session, quantity, control);
+        const result = await control.excludeFromDeadline(() =>
+            completeTicketPlusLottery(page, session, quantity, control),
+        );
         if (result.outcome === "registration-ready") return { ...base, outcome: "registration-ready" };
         const failure = stopped(result.reason, result.outcome);
         if (result.reason === "time-limit") return { ...failure, stopReason: "time-limit" };

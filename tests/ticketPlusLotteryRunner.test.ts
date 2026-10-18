@@ -220,3 +220,27 @@ test("抽選 runner：確認通道失敗或購票頁被關閉，停止且不勾�
         });
     }
 });
+
+test("抽選 runner：到輸入資料頁時全程期限幾乎用完，確認後的收尾仍不受期限影響", { timeout: 30_000 }, async () => {
+    await withRun(async (context, directory) => {
+        // 真實時間加偏移：全程期限在「選場次」階段開始，抵達輸入資料頁時把剩餘時間調成 50ms
+        let offset = 0;
+        let startedAt = 0;
+        const result = await runTicketPlus(settings, {
+            lease: acquirePurchaseLease(directory),
+            deadlineNow: () => performance.now() + offset,
+            onEvent: event => {
+                if (event.type === "stage" && event.stage === "selecting-session") startedAt = performance.now();
+                if (event.type === "participants-wait") offset = startedAt + 10 * 60_000 - 50 - performance.now();
+            },
+            waitForParticipants: async () => {
+                await new Promise(resolve => setTimeout(resolve, 300));
+            },
+        });
+        assert.equal(result.outcome, "registration-ready", JSON.stringify(result));
+        const after = await counts(context);
+        assert.equal(after["lottery-terms"], 1);
+        assert.equal(after["lottery-next"], 1);
+        await context.close();
+    });
+});
