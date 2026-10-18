@@ -62,6 +62,7 @@ function isRegisterPage(markers: TicketPlusPageMarkers | undefined, session: Ver
         markers.origin === "https://ticketplus.com.tw" &&
         markers.pathname.replace(/\/$/, "") === `/checkout/${session.eventId}/${session.sessionId}` &&
         markers.registerButtons.length === 1 &&
+        markers.registerButtons[0] === true &&
         markers.paymentButtons.length === 0 &&
         markers.dialogs === 0 &&
         markers.queue === 0

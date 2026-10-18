@@ -4,12 +4,14 @@ import { eventHeader } from "./pages.js";
 // 已填列的姓名與證件號碼是假資料，用來確認讀取結果不會帶出這些文字。
 export const fakeParticipant = { name: "王小明", id: "A123456789" };
 
-export type ParticipantRow = "empty" | "filled";
+// badge-only：徽章已非灰色但欄位空白；grey-text：仍為灰色徽章但欄位有字（兩者都不算已填）。
+export type ParticipantRow = "empty" | "filled" | "badge-only" | "grey-text";
 export type LotteryDialog = "edit" | "close-confirm";
 
 function participantRow(row: ParticipantRow, index: number): string {
-    const filled = row === "filled";
-    const cells = filled ? [fakeParticipant.name, "", fakeParticipant.id] : ["", "", ""];
+    const filled = row === "filled" || row === "badge-only";
+    const cells =
+        row === "filled" || row === "grey-text" ? [fakeParticipant.name, "", fakeParticipant.id] : ["", "", ""];
     return `<div class="row applicant-info mx-7">
     <div class="text-left d-flex px-0 px-md-4"><span class="applicant-number${filled ? "" : " grey lighten-1"}">${filled ? "" : index + 1}</span></div>
     <div class="text-left col-sm-9 col-md-9 col-9"><div class="row pl-5">
@@ -60,6 +62,11 @@ ${rows.map(participantRow).join("")}
 <button type="button" class="nextBtn" data-lottery="next"${checked ? "" : " disabled"}>下一步</button>
 ${options.dialog ? dialogs[options.dialog] : ""}`;
 }
+
+// 同時有前往付款：不能當成抽選確認登記頁。
+export const mixedRegisterPage = `${eventHeader}
+<button type="button" class="nextBtn" data-lottery="register">確認登記</button>
+<button type="button" class="nextBtn" data-lottery="pay">前往付款</button>`;
 
 export const registerPage = `${eventHeader}
 <div>請在 4:36 完成填寫資料並確認登記內容</div>

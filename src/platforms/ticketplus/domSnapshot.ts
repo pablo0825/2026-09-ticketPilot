@@ -349,6 +349,18 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                     };
                 });
 
+                // 抽選填寫參加者時的已知彈窗：編輯表單（標題參加者資訊）或關閉表單確認；只回傳數量。
+                const participantDialogCount = contents.filter(element => {
+                    const firstLine = (element as HTMLElement).innerText
+                        .split("\n")
+                        .map(line => line.trim())
+                        .find(Boolean);
+                    return (
+                        firstLine === "關閉表單" ||
+                        all(element, ".bg-tranparent-yellow").some(title => text(title) === "參加者資訊")
+                    );
+                }).length;
+
                 // 個資在瀏覽器內轉成布林值，絕不將原始值帶回執行程序。
                 const contact = ["姓名", "phone_field", "電子郵件"].map(label =>
                     all(document, 'input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])')
@@ -383,6 +395,7 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                     ),
                     queueCount,
                     dialogs,
+                    participantDialogCount,
                     activity,
                     identities,
                     tickets,

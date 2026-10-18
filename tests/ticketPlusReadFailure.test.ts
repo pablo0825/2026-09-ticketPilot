@@ -21,6 +21,7 @@ function emptyDom(): TicketPlusDom {
         extraUrlParts: false,
         queueCount: 0,
         dialogs: [],
+        participantDialogCount: 0,
         activity: [],
         identities: [],
         tickets: [],
