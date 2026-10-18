@@ -10,6 +10,14 @@ export const ticketPlusEventSchema = z.discriminatedUnion("stage", [
             confirmationId: z.string().uuid(),
         })
         .strict(),
+    // 抽選等待使用者在 GUI 確認參加者已填完；確認 ID 只用於本輪轉送。
+    z
+        .object({
+            type: z.literal("ticketplus"),
+            stage: z.literal("waiting-for-participants"),
+            confirmationId: z.string().uuid(),
+        })
+        .strict(),
     z
         .object({
             type: z.literal("ticketplus"),
@@ -27,6 +35,8 @@ export const ticketPlusEventSchema = z.discriminatedUnion("stage", [
                 "queue",
                 "waiting-to-refresh",
                 "refreshing",
+                "submitting-information",
+                "completing-registration",
             ]),
         })
         .strict(),

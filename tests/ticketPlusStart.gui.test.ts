@@ -59,10 +59,10 @@ function starts(requests: RequestLog) {
 }
 
 async function verifyInformation(h: Harness, page: Page) {
-    await h.until(run => run?.status === "information-ready");
-    await eventually(async () => assert.equal(await page.locator("#status").innerText(), "已到填寫資料頁"));
+    await h.until(run => run?.status === "payment-ready");
+    await eventually(async () => assert.equal(await page.locator("#status").innerText(), "已到付款頁"));
     const report = await h.counts();
-    assert.deepEqual(report.counts, { session: 1, plus: 2, submit: 1, dismiss: 0, information: 0, other: 0, terms: 0 });
+    assert.deepEqual(report.counts, { session: 1, plus: 2, submit: 1, dismiss: 0, information: 1, other: 0, terms: 0 });
     assert.deepEqual(report.submissions, [
         [
             { name: "學生票", quantity: 0 },
@@ -80,7 +80,7 @@ test("TicketPlus 啟動 GUI：保存摘要到真 API、網頁登入及資料頁�
         await edit(page);
         await review(page);
         const summary = await page.getByRole("region", { name: "活動摘要" }).innerText();
-        for (const value of ["2026孿生姐妹之夜之鬼迷心竅", "2026-10-30", "20:00", "預售票", "2", "填寫資料頁"])
+        for (const value of ["2026孿生姐妹之夜之鬼迷心竅", "2026-10-30", "20:00", "預售票", "2", "付款頁"])
             assert(summary.includes(value));
         await confirmStart(page);
         await page.getByRole("button", { name: "開始購票", exact: true }).evaluate(button => {

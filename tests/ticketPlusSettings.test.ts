@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseTicketPlusActivity } from "../src/config/ticketPlusActivity.js";
+import { parseTicketPlusActivity, ticketPlusFlowType } from "../src/config/ticketPlusActivity.js";
 import { parseActivity, toPurchaseConfig } from "../src/config/activityStore.js";
 
 function validActivity() {
@@ -159,4 +159,23 @@ test("合法 TicketPlus 設定可解析，但不能轉成 Klook 購票設定", (
     assert.equal(parseTicketPlusActivity(input).platform, "ticketplus");
     assert.deepEqual(parseActivity(input), parseTicketPlusActivity(input));
     assert.throws(() => toPurchaseConfig(parseActivity(input)), /尚未實作/);
+});
+
+test("TicketPlus 流程類型：舊設定視為購票，抽選可解析，未知值拒絕", () => {
+    // 舊設定沒有流程類型時視為購票，且解析結果不補欄位
+    const legacy = parseTicketPlusActivity(validActivity());
+    assert.equal(ticketPlusFlowType(legacy), "purchase");
+    assert.equal("flowType" in legacy, false);
+
+    // 明確設定的兩種類型都保留
+    const lottery = parseTicketPlusActivity({ ...validActivity(), flowType: "lottery" });
+    assert.equal(lottery.flowType, "lottery");
+    assert.equal(ticketPlusFlowType(lottery), "lottery");
+    assert.equal(ticketPlusFlowType(parseTicketPlusActivity({ ...validActivity(), flowType: "purchase" })), "purchase");
+
+    // 未知類型沿用原本的設定錯誤訊息
+    assert.throws(
+        () => parseTicketPlusActivity({ ...validActivity(), flowType: "seated" }),
+        /TicketPlus 活動設定格式錯誤.*流程類型/,
+    );
 });

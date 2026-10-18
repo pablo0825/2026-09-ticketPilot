@@ -59,6 +59,8 @@ export const soldOut = `
 export const order = `${eventHeader}<div class="stepText currStep">選擇票種</div>${student}${presale}${soldOut}
 <button type="button">更新票數</button><button type="button">下一步</button>`;
 export const queue = "<h3>排隊購票中<br>請稍候</h3>";
+// 2026-10-17 抽選實站排隊文字；第二句是否在 h3 內未觀察，以兩種形式測試。
+export const lotteryQueue = "<h3>排隊登記中<br>請稍候</h3><p>若人數眾多可能需要較長等待時間</p>";
 
 // label/for 僅重建已觀察的 accessible name；動態 id 不作為正式定位條件。
 export const information = `
@@ -69,6 +71,47 @@ export const information = `
 <label><input type="checkbox">使用 文化幣 折抵</label>
 <label><input type="checkbox">我已經閱讀並同意 <a>會員服務條款</a> 與 <a>隱私權政策</a></label>
 <button type="button" disabled>下一步</button>`;
+
+// 2026-10-17 A 坐席 confirm 頁：購票明細含位置欄、選擇優惠 radio 與折扣碼，聯絡欄位鎖定遮罩。
+export const seatedInformation = `
+<div class="text-center bg-tranparent-yellow pa-3 text-title font-weight-bold">購票明細</div>
+<div class="row py-2 py-md-3 no-gutters"><div>C 區</div><div>25 排 7 號</div><div>預售票</div><div>NT. 5,800</div></div>
+<div class="text-center bg-tranparent-yellow pa-3 text-title font-weight-bold">選擇優惠</div>
+<div class="v-input"><label for="fixture-discount-none">無</label><input id="fixture-discount-none" type="radio" name="discount" checked></div>
+<div class="v-input"><label for="fixture-discount-code">促銷/優惠折扣碼</label><input id="fixture-discount-code" type="radio" name="discount"></div>
+<div class="v-input"><label for="fixture-code">輸入折扣碼</label><input id="fixture-code" type="text"></div>
+<button type="button" class="nextBtn" disabled>使用</button>
+<h4>聯絡人資訊</h4>
+<label for="fixture-name">姓名</label><input id="fixture-name" value="測*名" disabled>
+<label for="fixture-phone">phone_field</label><input id="fixture-phone" value="0900***000" disabled>
+<label for="fixture-email">電子郵件</label><input id="fixture-email" value="fi*****@example.invalid" disabled>
+<label><input type="checkbox">我已經閱讀並同意 <a>會員服務條款</a> 與 <a>隱私權政策</a></label>
+<button type="button">取消購票</button>
+<button type="button" class="nextBtn" disabled>下一步</button>`;
+
+// 2026-10-17 抽選「輸入資料」頁：登記明細、參加者資訊（未填）、鎖定聯絡人、條款、取消登記。
+export const lotteryInput = `
+<div class="text-center bg-tranparent-yellow pa-3 text-title font-weight-bold">登記明細</div>
+<div><div>3880區~800區皆可</div><div>登記抽選</div><div>1</div><div>NT. 0</div><div>NT. 0</div></div>
+<div class="text-center bg-tranparent-yellow pa-3 text-title font-weight-bold">參加者資訊</div>
+<div class="row applicant-info mx-7">
+    <div class="text-left d-flex px-0 px-md-4"><span class="applicant-number grey lighten-1">1</span></div>
+    <div class="text-left col-sm-9 col-md-9 col-9"><div class="row pl-5">
+        <div class="text-left pl-0 col-sm-6 col-md-3">登記抽選(01)</div>
+        <div class="text-left col-sm-6 col-md-3 col-6"></div>
+        <div class="text-left col-sm-6 col-md-3 col-6"></div>
+        <div class="text-left col-sm-6 col-md-3 col-6"></div>
+    </div></div>
+    <div class="text-right d-flex align-center justify-end"><div class="primary-1--text" role="button"><span>編輯</span></div></div>
+</div>
+<p>※ 請填寫每位參加者之必填欄位。</p>
+<h4>聯絡人資訊</h4>
+<label for="fixture-name">姓名</label><input id="fixture-name" value="測*名" disabled>
+<label for="fixture-phone">phone_field</label><input id="fixture-phone" value="0900***000" disabled>
+<label for="fixture-email">電子郵件</label><input id="fixture-email" value="fi*****@example.invalid" disabled>
+<label><input type="checkbox">我已經閱讀並同意 <a>會員服務條款</a> 與 <a>隱私權政策</a></label>
+<button type="button">取消登記</button>
+<button type="button" class="nextBtn" disabled>下一步</button>`;
 
 export const summary =
     '<div class="row py-2 py-md-3 no-gutters"><div>預售票</div><div>1</div><div>550</div><div>550</div></div>';

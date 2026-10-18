@@ -58,6 +58,29 @@ export function ActivityEditor({ form, saved, disabled, onChange, onSave }: Prop
                     placeholder="https://ticketplus.com.tw/activity/…"
                 />
             </label>
+            <fieldset className="feature-settings" disabled={disabled}>
+                <legend>購票流程</legend>
+                <label className="check">
+                    <input
+                        id="flowPurchase"
+                        type="radio"
+                        name="flowType"
+                        checked={form.flowType === "purchase"}
+                        onChange={() => change({ flowType: "purchase" })}
+                    />
+                    購票
+                </label>
+                <label className="check">
+                    <input
+                        id="flowLottery"
+                        type="radio"
+                        name="flowType"
+                        checked={form.flowType === "lottery"}
+                        onChange={() => change({ flowType: "lottery" })}
+                    />
+                    登記抽選
+                </label>
+            </fieldset>
             <div className="section-title">
                 <h2>購票順位</h2>
                 <button
@@ -175,15 +198,6 @@ export function ActivityEditor({ form, saved, disabled, onChange, onSave }: Prop
                     </div>
                 ))}
             </div>
-            {saved?.saleSchedule && (
-                <div role="note">
-                    <h3>已保存的開賣設定（唯讀）</h3>
-                    <p>
-                        開賣時間：{saved.saleSchedule.saleAt}； 提前刷新：{saved.saleSchedule.advanceSeconds ?? 1} 秒。
-                    </p>
-                    <p>此次儲存會保留原設定。開賣後最多等待 2 分鐘；超過期限會停止。</p>
-                </div>
-            )}
             <footer>
                 <button id="saveActivity" type="submit" disabled={disabled}>
                     儲存活動

@@ -349,6 +349,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                             <RunStatus
                                 displayed={displayedRun}
                                 stopControl={runs.stopControl}
+                                participantsControl={runs.participantsControl}
                                 closing={runs.closing}
                                 canClose={
                                     displayedRun.run.id === runs.purchase?.id && Boolean(runs.purchase?.canCloseBrowser)

@@ -145,9 +145,13 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                 };
                 const { visible, all, text, directText, enabled, buttons, leafTexts } = dom;
 
-                // 僅讀已觀察的流程標記，不把隱藏標題或空對話框當成排隊。
-                const queueCount = all(document, 'h3, [role="heading"][aria-level="3"]').filter(
-                    element => text(element).replace(/\s+/g, " ") === "排隊購票中 請稍候",
+                // 僅讀已觀察的流程標記，不把隱藏標題或空對話框當成排隊；抽選為「排隊登記中」。
+                const queueCount = all(document, 'h3, [role="heading"][aria-level="3"]').filter(element =>
+                    [
+                        "排隊購票中 請稍候",
+                        "排隊登記中 請稍候",
+                        "排隊登記中 請稍候 若人數眾多可能需要較長等待時間",
+                    ].includes(text(element).replace(/\s+/g, " ")),
                 ).length;
                 const sessions = all(document, ".sesstion-item");
                 // 選票頁以價格找列；其他頁面沿用原 class，只用來偵測殘留的選票列，行為不變。
@@ -303,17 +307,37 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                           ? message.slice(4)
                           : "";
                     const failure = Object.hasOwn(messages, key) ? messages[key] : undefined;
-                    const kind: "failure" | "queue" | "unknown" = failure
-                        ? "failure"
-                        : message === "排隊購票中請稍候" &&
-                            all(element, 'h3, [role="heading"][aria-level="3"]').length === 1
-                          ? "queue"
-                          : "unknown";
-                    const dismissNames = all(element, 'button, [role="button"]')
+
+                    // 活動頁提醒只認白名單標題，且按鈕恰為「回到首頁」「確定」各一。
+                    const firstLine = (element as HTMLElement).innerText
+                        .split("\n")
+                        .map(line => line.trim())
+                        .find(Boolean);
+                    const buttonNames = all(element, 'button, [role="button"]')
                         .filter(modal.visible)
                         .filter(enabled)
-                        .map(text)
-                        .filter(value => ["我知道了", "知道了", "確定", "OK", "Ok"].includes(value));
+                        .map(text);
+                    const noticeTitle =
+                        location.pathname.startsWith("/activity/") &&
+                        (firstLine === "實名抽選制售票提醒" || firstLine === "入場規定") &&
+                        [...buttonNames].sort().join("|") === ["回到首頁", "確定"].sort().join("|")
+                            ? firstLine
+                            : undefined;
+
+                    const kind: "failure" | "queue" | "notice" | "unknown" = failure
+                        ? "failure"
+                        : [
+                                "排隊購票中請稍候",
+                                "排隊登記中請稍候",
+                                "排隊登記中請稍候若人數眾多可能需要較長等待時間",
+                            ].includes(message) && all(element, 'h3, [role="heading"][aria-level="3"]').length === 1
+                          ? "queue"
+                          : noticeTitle
+                            ? "notice"
+                            : "unknown";
+                    const dismissNames = buttonNames.filter(value =>
+                        ["我知道了", "知道了", "確定", "OK", "Ok"].includes(value),
+                    );
                     // 只有白名單訊息回傳固定 key，未知文字與個資不離開瀏覽器。
                     return {
                         index: candidates.indexOf(element),
@@ -321,8 +345,21 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                         failure,
                         messageKey: failure ? message : undefined,
                         dismissNames,
+                        noticeTitle,
                     };
                 });
+
+                // 抽選填寫參加者時的已知彈窗：編輯表單（標題參加者資訊）或關閉表單確認；只回傳數量。
+                const participantDialogCount = contents.filter(element => {
+                    const firstLine = (element as HTMLElement).innerText
+                        .split("\n")
+                        .map(line => line.trim())
+                        .find(Boolean);
+                    return (
+                        firstLine === "關閉表單" ||
+                        all(element, ".bg-tranparent-yellow").some(title => text(title) === "參加者資訊")
+                    );
+                }).length;
 
                 // 個資在瀏覽器內轉成布林值，絕不將原始值帶回執行程序。
                 const contact = ["姓名", "phone_field", "電子郵件"].map(label =>
@@ -358,6 +395,7 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                     ),
                     queueCount,
                     dialogs,
+                    participantDialogCount,
                     activity,
                     identities,
                     tickets,
@@ -374,7 +412,32 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                     nextButtons: buttons(document, "下一步"),
                     refreshButtons: buttons(document, "更新票數"),
                     paymentButtons: buttons(document, "前往付款"),
+                    cancelButtons: buttons(document, "取消購票"),
+                    registerButtons: buttons(document, "確認登記"),
+                    // 抽選參加者列只回傳是否已填；姓名與證件號碼留在瀏覽器內，不帶回執行程序。
+                    applicants: all(document, ".row.applicant-info")
+                        .filter(row => !row.closest('[role="dialog"], .v-dialog, .v-dialog__content'))
+                        .map(row => {
+                            const badge = row.querySelector(".applicant-number");
+                            const cells = Array.from(row.querySelectorAll(".row.pl-5 > div")).slice(1);
+                            return {
+                                filled:
+                                    badge !== null &&
+                                    !badge.classList.contains("grey") &&
+                                    cells.some(cell => text(cell).length > 0),
+                            };
+                        }),
+                    // 抽選輸入資料頁的區塊標題；排除彈窗內同名的編輯表單標題。
+                    participantSectionCount: all(document, ".bg-tranparent-yellow").filter(
+                        element =>
+                            text(element) === "參加者資訊" &&
+                            !element.closest('[role="dialog"], .v-dialog, .v-dialog__content'),
+                    ).length,
                     checkoutStepCount: checkoutSteps.length,
+                    // 確認選位結果頁的區塊標題；座位列沿用 checkout 摘要列的同一 class。
+                    seatResultHeadingCount: all(document, ".bg-tranparent-yellow").filter(
+                        element => text(element) === "確認選位結果",
+                    ).length,
                 };
             } catch (error) {
                 if (detail) return { captureFailure: detail };

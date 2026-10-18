@@ -11,8 +11,9 @@ import type { BrowserContext } from "playwright";
 import { runTicketPlus } from "../src/app/runTicketPlus.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../src/app/purchaseLock.js";
 import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
-import { activity } from "./fixtures/ticketplus/pages.js";
+import { activity, checkout } from "./fixtures/ticketplus/pages.js";
 import { readyInformation, readyOrder, failureDialog } from "./fixtures/ticketplus/submissionPage.js";
+import { noticeDialog, noticeTitles } from "./fixtures/ticketplus/activityNotice.js";
 
 const settings: TicketPlusActivitySettings = {
     platform: "ticketplus",
@@ -21,7 +22,7 @@ const settings: TicketPlusActivitySettings = {
     eventName: "2026孿生姐妹之夜之鬼迷心竅",
     targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 }],
 };
-async function setup(context: BrowserContext, rejected: boolean) {
+async function setup(context: BrowserContext, rejected: boolean, activityHtml = activity) {
     // 模擬 persistent context 啟動時已有的初始分頁。
     await context.newPage();
     const requests: string[] = [];
@@ -34,10 +35,12 @@ async function setup(context: BrowserContext, rejected: boolean) {
                 path === "/"
                     ? loggedInHome
                     : path.startsWith("/activity/")
-                      ? activity
+                      ? activityHtml
                       : path.startsWith("/confirm/")
                         ? readyInformation
-                        : readyOrder.replace("<div>2</div>", "<div>0</div>"),
+                        : path.startsWith("/checkout/")
+                          ? checkout
+                          : readyOrder.replace("<div>2</div>", "<div>0</div>"),
         });
     });
     await context.addInitScript(
@@ -67,6 +70,11 @@ async function setup(context: BrowserContext, rejected: boolean) {
                     value.textContent = String(Number(value.textContent) + 1);
                     return;
                 }
+                if (button.dataset.notice === "ok") {
+                    recorder.record("notice");
+                    button.closest(".v-dialog__content")!.remove();
+                    return;
+                }
                 if (button.dataset.fixture === "dismiss") {
                     recorder.record("dismiss");
                     document.querySelector(".v-dialog__content")!.remove();
@@ -74,7 +82,9 @@ async function setup(context: BrowserContext, rejected: boolean) {
                 }
                 if (button.textContent === "下一步") {
                     if (location.pathname.startsWith("/confirm/")) {
+                        // 資料頁下一步比照實站轉到付款頁
                         recorder.record("information");
+                        location.assign("/checkout/event-fixture/session-B");
                         return;
                     }
                     recorder.record("submit");
@@ -103,14 +113,14 @@ test("TicketPlus runner：真實本機頁面串接到資料頁／失敗停止，
                 lease,
                 webdriverExperiment: rejected,
             });
-            assert.equal(result.outcome, rejected ? "rejected" : "information-ready");
+            assert.equal(result.outcome, rejected ? "rejected" : "payment-ready");
             const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
             assert.deepEqual(counts, {
                 session: 1,
                 plus: 2,
                 submit: 1,
                 dismiss: rejected ? 1 : 0,
-                information: 0,
+                information: rejected ? 0 : 1,
                 other: 0,
             });
             assert.equal(context.pages()[0]!.isClosed(), false);
@@ -120,7 +130,7 @@ test("TicketPlus runner：真實本機頁面串接到資料頁／失敗停止，
                 "/",
                 "/activity/event-fixture",
                 "/order/event-fixture/session-B",
-                ...(rejected ? [] : ["/confirm/event-fixture/session-B"]),
+                ...(rejected ? [] : ["/confirm/event-fixture/session-B", "/checkout/event-fixture/session-B"]),
             ]);
             const args = launch.mock.calls[0]!.arguments;
             assert(String(args[0]).endsWith("browser-profile-ticketplus"));
@@ -235,7 +245,7 @@ test("TicketPlus runner：活動不符保留具體原因，訊息指出設定欄
         assert.equal(result.sessionFailure?.diagnostic?.check, "page-state");
         assert.match(ticketPlusResultMessage(result), /"pageKind":"activity"/);
         assert.match(ticketPlusResultMessage(result), /eventName 與 eventUrl/);
-        assert.match(ticketPlusResultMessage(result), /尚未嘗試點擊立即購買/);
+        assert.match(ticketPlusResultMessage(result), /尚未嘗試點擊場次按鈕/);
         assert.deepEqual(requests, ["/", "/activity/event-fixture"]);
         assert.equal(await context.pages()[0]!.evaluate(() => sessionStorage.getItem("counts")), null);
         assert(purchaseOccupied(dir));
@@ -491,7 +501,7 @@ test("TicketPlus runner：外部登入狀態到達前不導航或購票，確認
         assert.equal(requests.length, 0);
         assert.equal(await context.pages()[0]!.evaluate(() => sessionStorage.getItem("counts")), null);
         release();
-        assert.equal((await pending).outcome, "information-ready");
+        assert.equal((await pending).outcome, "payment-ready");
         assert.equal(requests.filter(path => path.startsWith("/activity/")).length, 1);
         const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
         assert.equal(counts.session, 1);
@@ -613,6 +623,118 @@ test("登入診斷：同狀態不洗版，欄位變化與人工停止保留最�
         assert.doesNotMatch(JSON.stringify({ events, result, logs }), /PRIVATE_DIALOG|PRIVATE_PASSWORD|0987/);
     } finally {
         controller.abort();
+        launch.mock.restore();
+        await browser.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus runner：活動頁有入場規定提醒時先按確定一次，再照常選場次到資料頁", { timeout: 20_000 }, async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-runner-"));
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    await setup(context, false, activity + noticeDialog(noticeTitles.entry));
+    const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+    try {
+        const result = await runTicketPlus(settings, { lease: acquirePurchaseLease(directory) });
+        assert.equal(result.outcome, "payment-ready");
+        const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
+        assert.equal(counts.notice, 1);
+        assert.equal(counts.session, 1);
+        assert.equal(counts.other, 0);
+        await context.close();
+    } finally {
+        launch.mock.restore();
+        await browser.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test(
+    "TicketPlus runner：活動頁是未知彈窗時不當成提醒處理，按確定無效的提醒則回報無法關閉",
+    { timeout: 30_000 },
+    async () => {
+        const stuck = activity + noticeDialog(noticeTitles.entry).replace('data-notice="ok"', 'data-notice="stuck"');
+        for (const [html, noticeFailure] of [
+            [activity + '<div role="dialog">未知提示</div>', undefined],
+            [stuck, "notice-dismiss-failed"],
+        ] as const) {
+            const directory = await mkdtemp(join(tmpdir(), "ticketplus-runner-"));
+            const browser = await chromium.launch();
+            const context = await browser.newContext();
+            await setup(context, false, html);
+            const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+            try {
+                const result = await runTicketPlus(settings, { lease: acquirePurchaseLease(directory) });
+                assert.equal(result.outcome, "stopped");
+                assert.equal("noticeFailure" in result ? result.noticeFailure : undefined, noticeFailure);
+                const counts = await context
+                    .pages()[0]!
+                    .evaluate(() => JSON.parse(sessionStorage.getItem("counts") ?? "{}"));
+                assert.equal(counts.session ?? 0, 0);
+                await context.close();
+            } finally {
+                launch.mock.restore();
+                await browser.close();
+                await rm(directory, { recursive: true, force: true });
+            }
+        }
+    },
+);
+
+test("TicketPlus runner：開啟活動頁已關過提醒，同一次載入又出現時選場次不再點", { timeout: 20_000 }, async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-runner-"));
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    // 開頁即有提醒；關閉 700ms 後同一次載入重現，場次列 1.5 秒後才畫出
+    const late = `<script>
+        document.addEventListener("click", event => {
+            const button = event.target.closest('[data-notice="ok"]');
+            if (!button) return;
+            const html = button.closest(".v-dialog__content").outerHTML;
+            setTimeout(() => document.body.insertAdjacentHTML("beforeend", html), 700);
+        }, true);
+    </script>`;
+    const rows = activity.slice(activity.indexOf('<div class="sesstion-item'));
+    const html =
+        activity.slice(0, activity.indexOf('<div class="sesstion-item')) +
+        noticeDialog(noticeTitles.entry) +
+        late +
+        `<script>setTimeout(() => document.body.insertAdjacentHTML("beforeend", ${JSON.stringify(rows)}), 1500);</script>`;
+    await setup(context, false, html);
+    const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+    try {
+        const result = await runTicketPlus(settings, { lease: acquirePurchaseLease(directory) });
+        assert.equal(result.outcome, "stopped");
+        assert.equal("sessionFailure" in result ? result.sessionFailure?.reason : undefined, "notice-dismiss-failed");
+        const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
+        assert.equal(counts.notice, 1);
+        assert.equal(counts.session ?? 0, 0);
+        await context.close();
+    } finally {
+        launch.mock.restore();
+        await browser.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus runner：抽選設定遇到購票活動頁，在點擊場次前回報流程類型不符", { timeout: 20_000 }, async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-runner-"));
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    await setup(context, false);
+    const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+    try {
+        const result = await runTicketPlus(
+            { ...settings, flowType: "lottery" },
+            { lease: acquirePurchaseLease(directory) },
+        );
+        assert.equal(result.outcome, "stopped");
+        assert.equal("sessionFailure" in result ? result.sessionFailure?.reason : undefined, "flow-mismatch");
+        const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts") ?? "{}"));
+        assert.equal(counts.session ?? 0, 0);
+        await context.close();
+    } finally {
         launch.mock.restore();
         await browser.close();
         await rm(directory, { recursive: true, force: true });

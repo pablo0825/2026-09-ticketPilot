@@ -164,3 +164,136 @@ test("更新進度：新 stage 通過 schema 且呈現受限更新提示，歷�
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+test("TicketPlus 付款頁結果：主服務接受 payment-ready 與送出資料頁階段，畫面顯示已到付款頁", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-payment-ready-"));
+    const previous = { outcome: process.env.FIXTURE_OUTCOME, stage: process.env.FIXTURE_STAGE };
+    process.env.FIXTURE_OUTCOME = "payment-ready";
+    process.env.FIXTURE_STAGE = "submitting-information";
+    try {
+        const runs = new PurchaseRuns(directory, new URL("./fixtures/ticketplus/resultWorker.ts", import.meta.url));
+        runs.start(
+            "1f9a3d2e-5c6b-4a7d-8e9f-0a1b2c3d4e5f",
+            {
+                platform: "ticketplus",
+                eventUrl: "https://ticketplus.com.tw/activity/fixture",
+                eventName: "付款頁活動",
+                targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 1 }],
+                maxRunMinutes: 10,
+            },
+            undefined,
+        );
+        const deadline = Date.now() + 10_000;
+        while (runs.busy() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
+        const snapshot = runs.snapshot()!;
+        assert.equal(snapshot.status, "payment-ready");
+        assert(
+            snapshot.events.some(
+                item => item.event.type === "ticketplus" && item.event.stage === "submitting-information",
+            ),
+        );
+        assert.equal(purchaseStatus(snapshot, false, Date.now()).title, "已到付款頁");
+        runs.close();
+    } finally {
+        process.env.FIXTURE_OUTCOME = previous.outcome;
+        process.env.FIXTURE_STAGE = previous.stage;
+        if (previous.outcome === undefined) delete process.env.FIXTURE_OUTCOME;
+        if (previous.stage === undefined) delete process.env.FIXTURE_STAGE;
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus 抽選結果：主服務接受等待參加者階段與 registration-ready，畫面顯示停在確認登記前", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-registration-ready-"));
+    const keys = ["FIXTURE_OUTCOME", "FIXTURE_STAGE", "FIXTURE_CONFIRMATION"] as const;
+    const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+    process.env.FIXTURE_OUTCOME = "registration-ready";
+    process.env.FIXTURE_STAGE = "waiting-for-participants";
+    process.env.FIXTURE_CONFIRMATION = "6a1f0c7e-2b3d-4e5f-8a9b-0c1d2e3f4a5b";
+    try {
+        const runs = new PurchaseRuns(directory, new URL("./fixtures/ticketplus/resultWorker.ts", import.meta.url));
+        runs.start(
+            "2a9b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+            {
+                platform: "ticketplus",
+                eventUrl: "https://ticketplus.com.tw/activity/fixture",
+                eventName: "抽選活動",
+                flowType: "lottery",
+                targets: [{ date: "2026-12-26", time: "17:00", ticketType: "3880區~800區皆可", quantity: 1 }],
+                maxRunMinutes: 10,
+            },
+            undefined,
+        );
+        const deadline = Date.now() + 10_000;
+        while (runs.busy() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
+        const snapshot = runs.snapshot()!;
+        assert.equal(snapshot.status, "registration-ready");
+        assert(
+            snapshot.events.some(
+                item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-participants",
+            ),
+        );
+        const presentation = purchaseStatus(snapshot, false, Date.now());
+        assert.equal(presentation.title, "已停在確認登記前");
+        assert.match(presentation.instruction, /確認登記/);
+        runs.close();
+    } finally {
+        for (const key of keys) {
+            if (previous[key] === undefined) delete process.env[key];
+            else process.env[key] = previous[key];
+        }
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus 等待參加者階段：顯示請填寫參加者，其他平台不能帶 registration-ready", () => {
+    const event = {
+        type: "ticketplus",
+        stage: "waiting-for-participants",
+        confirmationId: "6a1f0c7e-2b3d-4e5f-8a9b-0c1d2e3f4a5b",
+    };
+    assert.equal(ticketPlusEventSchema.safeParse(event).success, true);
+    assert.equal(ticketPlusEventSchema.safeParse({ ...event, confirmationId: "not-uuid" }).success, false);
+    assert.equal(
+        ticketPlusEventSchema.safeParse({ type: "ticketplus", stage: "completing-registration" }).success,
+        true,
+    );
+    const running = {
+        ...record.snapshot,
+        status: "running",
+        occupied: true,
+        browserOpen: true,
+        events: [{ sequence: 1, at: "2026-10-18T00:00:00Z", event }],
+    };
+    const presentation = purchaseStatus(
+        { ...running, participantConfirmation: { confirmationId: event.confirmationId } } as never,
+        false,
+        Date.now(),
+    );
+    assert.equal(presentation.title, "請填寫參加者");
+    assert.match(presentation.instruction, /參加者已填完/);
+});
+
+test("TicketPlus 等待參加者階段：確認已送出後不再顯示按按鈕的提示", () => {
+    const event = {
+        type: "ticketplus",
+        stage: "waiting-for-participants",
+        confirmationId: "6a1f0c7e-2b3d-4e5f-8a9b-0c1d2e3f4a5b",
+    };
+    const running = {
+        ...record.snapshot,
+        status: "running",
+        occupied: true,
+        browserOpen: true,
+        participantConfirmation: undefined,
+        events: [{ sequence: 1, at: "2026-10-18T00:00:00Z", event }],
+    };
+    const sent = purchaseStatus(running as never, false, Date.now());
+    assert.match(sent.instruction, /已送出參加者已填完/);
+    const pending = purchaseStatus(
+        { ...running, participantConfirmation: { confirmationId: event.confirmationId } } as never,
+        false,
+        Date.now(),
+    );
+    assert.match(pending.instruction, /按「參加者已填完」/);
+});

@@ -153,7 +153,8 @@ test("TicketPlus GUI：活動保存保留原排程與期限，跨場次保存但
     await fixture(async h => {
         const { page } = h;
         await page.getByRole("button", { name: "編輯活動" }).click();
-        await page.getByRole("note").filter({ hasText: settings.saleSchedule.saleAt }).waitFor();
+        await page.getByRole("heading", { name: `編輯活動：${settings.eventName}` }).waitFor();
+        assert.equal(await page.getByRole("note").count(), 0);
         assert.equal(await page.locator("#maxRunMinutes").count(), 0);
         await page.getByRole("button", { name: "複製" }).click();
         await page.getByRole("group", { name: "順位 2", exact: true }).getByLabel("演出日期").fill("2026-11-23");
@@ -415,7 +416,7 @@ test("TicketPlus GUI：最後一列清空仍保留一列，不保存不完整設
     await fixture(async h => {
         await h.page.getByRole("button", { name: "編輯活動" }).click();
         await h.page.getByRole("button", { name: "清空", exact: true }).click();
-        assert.equal(await h.page.getByRole("group").count(), 1);
+        assert.equal(await h.page.getByRole("group", { name: /^順位 / }).count(), 1);
         assert.equal(await h.page.getByLabel("票種名稱").inputValue(), "");
         assert.equal(await h.page.getByLabel("張數", { exact: true }).inputValue(), "1");
         await h.page.getByRole("button", { name: "儲存活動" }).click();
@@ -432,5 +433,65 @@ test("TicketPlus GUI：儲存成功訊息保留無法載入設定檔的警告", 
         await h.page.getByRole("alert").filter({ hasText: "活動已儲存" }).waitFor();
         assert.match(await h.page.getByRole("alert").innerText(), /1 個設定檔無法載入，未覆寫/);
         assert.equal(await readFile(join(h.directory, "events", "broken.json"), "utf8"), "{invalid");
+    });
+});
+
+test("TicketPlus GUI：活動網址下方以單選設定購票流程，抽選才寫入設定並顯示於列表", async () => {
+    await fixture(async h => {
+        const { page } = h;
+        await fillNew(page, "抽選活動");
+
+        // 單選框位於活動網址正下方，預設購票
+        const group = page.getByRole("group", { name: "購票流程" });
+        const urlField = page.getByLabel("活動網址", { exact: true });
+        const fieldset = page.locator("fieldset.feature-settings");
+        assert.equal(await fieldset.count(), 1);
+        assert.equal(
+            await urlField.evaluate(input =>
+                input.closest("label")?.nextElementSibling?.matches("fieldset.feature-settings"),
+            ),
+            true,
+        );
+        assert.equal(await page.locator("#flowPurchase").isChecked(), true);
+        assert.equal(await page.locator("#flowLottery").isChecked(), false);
+        assert.equal(await group.locator('label.check input[type="radio"][name="flowType"]').count(), 2);
+
+        // 選抽選後另一個取消，存檔寫入 lottery
+        await group.getByLabel("登記抽選").check();
+        assert.equal(await page.locator("#flowPurchase").isChecked(), false);
+        await page.getByRole("button", { name: "儲存活動" }).click();
+        await page.getByRole("alert").filter({ hasText: "活動已儲存" }).waitFor();
+        const saved = (await h.store.list()).activities.find(record => record.settings.eventName === "抽選活動")!;
+        assert.equal((await disk(h, saved.id)).settings.flowType, "lottery");
+
+        // 列表顯示類型；舊活動顯示購票且存檔不寫欄位
+        await page.locator("#homeButton").click();
+        await page
+            .locator("#activities tr")
+            .filter({ hasText: "抽選活動" })
+            .getByText("登記抽選", { exact: true })
+            .waitFor();
+        assert.equal(
+            await page
+                .locator("#activities tr")
+                .filter({ hasText: "同名活動" })
+                .getByText("購票", { exact: true })
+                .count(),
+            1,
+        );
+
+        // 舊活動改名後以購票重新存檔，設定檔不寫流程類型
+        await page
+            .locator("#activities tr")
+            .filter({ hasText: "同名活動" })
+            .getByRole("button", { name: "編輯活動" })
+            .click();
+        assert.equal(await page.locator("#flowPurchase").isChecked(), true);
+        await page.getByLabel("活動名稱", { exact: true }).fill("同名活動改名");
+        await page.getByRole("button", { name: "儲存活動" }).click();
+        await page.getByRole("alert").filter({ hasText: "活動已儲存" }).waitFor();
+        const resaved = (await disk(h, h.id)).settings;
+        assert.equal(resaved.eventName, "同名活動改名");
+        assert.equal("flowType" in resaved, false);
     });
 });

@@ -1,5 +1,5 @@
 import type { BrowserContext, Page } from "playwright";
-import { activity, eventHeader, student, soldOut, information } from "./pages.js";
+import { activity, eventHeader, student, soldOut, information, checkout } from "./pages.js";
 
 export type RoundMode = "fifth-A" | "both" | "only-B" | "never" | "second-inert";
 interface RoundState {
@@ -26,9 +26,17 @@ export async function installRoundPage(context: BrowserContext, mode: RoundMode)
         }),
     );
     await context.addInitScript(
-        ({ mode, empty, availableA, availableB, information, soldOut, order }) => {
+        ({ mode, empty, availableA, availableB, information, checkout, soldOut, order }) => {
             const state: RoundState = { actions: [], refreshes: 0, submissions: [] };
             window.ticketRoundsFixture = state;
+            // 資料頁條款勾選後啟用下一步（比照實站）
+            document.addEventListener("change", event => {
+                const input = event.target as HTMLInputElement;
+                if (!location.pathname.startsWith("/confirm/") || input.type !== "checkbox") return;
+                state.actions.push("terms");
+                [...document.querySelectorAll("button")].find(item => item.textContent === "下一步")!.disabled =
+                    !input.checked;
+            });
             document.addEventListener("click", event => {
                 const button = (event.target as Element).closest("button");
                 if (!button) return;
@@ -79,8 +87,15 @@ export async function installRoundPage(context: BrowserContext, mode: RoundMode)
                         false;
                     return;
                 }
+                if (button.textContent === "下一步" && location.pathname.startsWith("/confirm/")) {
+                    // 資料頁下一步比照實站轉到付款頁
+                    state.actions.push("information-next");
+                    history.replaceState(null, "", "/checkout/event-fixture/session-B");
+                    document.body.innerHTML = checkout;
+                    return;
+                }
                 if (button.textContent === "下一步") {
-                    state.actions.push(location.pathname.startsWith("/confirm/") ? "information-next" : "submit");
+                    state.actions.push("submit");
                     state.submissions.push(
                         [...document.querySelectorAll(".rwd-margin")]
                             .map(row => ({
@@ -94,7 +109,7 @@ export async function installRoundPage(context: BrowserContext, mode: RoundMode)
                 }
             });
         },
-        { mode, empty, availableA, availableB, information, soldOut, order },
+        { mode, empty, availableA, availableB, information, checkout, soldOut, order },
     );
 }
 export async function roundState(page: Page): Promise<RoundState> {

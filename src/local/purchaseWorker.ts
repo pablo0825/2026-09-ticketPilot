@@ -6,6 +6,7 @@ import type { PurchaseLease } from "../app/purchaseLock.js";
 import type { BrowserContext } from "playwright";
 import type { RunEvent } from "../core/logger.js";
 import { PurchaseStop } from "../core/purchaseStop.js";
+import { createParticipantGate } from "./participantConfirmation.js";
 
 // 父服務失聯即停止程序，保留占用標記供人工檢查；不能偷偷續購。
 let finished = false;
@@ -51,6 +52,13 @@ async function startWorker(input: { activity: unknown; contact?: unknown; lease:
     };
     process.on("message", receiveStop);
 
+    // 抽選等待參加者時，只接受本輪等待中的確認 ID 一次。
+    const participants = createParticipantGate();
+    const receiveParticipants = (message: unknown) => {
+        if (ticketPlus && !settled) participants.receive(message);
+    };
+    process.on("message", receiveParticipants);
+
     // 收到關閉指令時，關閉購票瀏覽器
     process.on("message", async (message: unknown) => {
         if (!message || typeof message !== "object" || !("type" in message) || message.type !== "close-browser") return;
@@ -87,6 +95,7 @@ async function startWorker(input: { activity: unknown; contact?: unknown; lease:
                     submitted = true;
                 },
                 controller.signal,
+                confirmationId => participants.wait(confirmationId),
             );
             settled = true;
             process.send?.({ type: "result", ...result });

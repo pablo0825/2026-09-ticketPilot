@@ -11,6 +11,7 @@ import {
     parseTicketPlusActivity,
     ticketPlusSessionSelection,
     validateTicketPlusRunSettings,
+    ticketPlusFlowType,
 } from "../config/ticketPlusActivity.js";
 import type { TicketPlusActivitySettings } from "../config/ticketPlusActivity.js";
 import { acquirePurchaseLease, releasePurchaseLease, verifyPurchaseLease } from "./purchaseLock.js";
@@ -21,8 +22,12 @@ import type {
     SessionEntryStage,
 } from "../platforms/ticketplus/sessionSelection.js";
 import { TicketPlusSessionError, selectTicketPlusSession } from "../platforms/ticketplus/sessionSelection.js";
+import { dismissTicketPlusActivityNotice, TicketPlusNoticeError } from "../platforms/ticketplus/activityNotice.js";
+import { readTicketPlusPage } from "../platforms/ticketplus/pageState.js";
 import { TicketPlusPriorityError } from "../platforms/ticketplus/ticketPriority.js";
 import { runTicketPlusCycle } from "../platforms/ticketplus/purchaseCycle.js";
+import { finishTicketPlusLottery } from "./ticketPlusLottery.js";
+import type { TicketPlusLotteryResult } from "./ticketPlusLottery.js";
 import type {
     TicketPlusCycleEvent,
     TicketPlusCycleResult,
@@ -45,6 +50,8 @@ export type TicketPlusStage =
     | "refreshing-activity"
     | "waiting-for-availability"
     | "selecting-session"
+    | "waiting-for-participants"
+    | "completing-registration"
     | TicketPlusCycleStage;
 export type TicketPlusRunEvent =
     | { type: "stage"; stage: TicketPlusStage }
@@ -53,10 +60,12 @@ export type TicketPlusRunEvent =
     | { type: "login-wait"; elapsedMs: number; observations: number }
     | { type: "activity-wait"; elapsedMs: number; observations: number }
     | TicketPlusCycleEvent
+    | { type: "participants-wait"; confirmationId: string }
     | { type: "lease-release-failed" };
 export type TicketPlusRunResult = (
     | TicketPlusSubmissionResult
     | TicketPlusCycleResult
+    | TicketPlusLotteryResult
     | {
           outcome: "stopped";
           reason:
@@ -71,6 +80,7 @@ export type TicketPlusRunResult = (
           saleFailure?: TicketPlusSaleReason;
           stopReason?: TicketPlusStopReason;
           sessionFailure?: { reason: SessionEntryReason; stage: SessionEntryStage; diagnostic?: SessionDiagnostic };
+          noticeFailure?: "notice-dismiss-failed";
       }
 ) & { loginDiagnostic?: TicketPlusLoginSummary };
 export interface TicketPlusRunOptions {
@@ -81,6 +91,8 @@ export interface TicketPlusRunOptions {
     onBrowser?: (context: BrowserContext) => void;
     lease?: PurchaseLease;
     webdriverExperiment?: boolean;
+    // 抽選在輸入資料頁等待 GUI 確認參加者已填完；未提供時抽選停在資料頁（information-ready）。
+    waitForParticipants?: (confirmationId: string) => Promise<void>;
 }
 
 function notify(options: TicketPlusRunOptions, event: TicketPlusRunEvent): void {
@@ -186,6 +198,24 @@ export async function runTicketPlus(
         const targetResponse = await page.goto(settings.eventUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
         control.check();
         if (targetResponse && !targetResponse.ok()) throw new Error("活動頁無法載入。");
+        // 開啟活動頁後若已顯示已知提醒就先關閉；其他狀態交給後續登入與場次核對。
+        let openingReadTimer: ReturnType<typeof setTimeout> | undefined;
+        try {
+            const opening = await control.read(() =>
+                Promise.race([
+                    readTicketPlusPage(page),
+                    new Promise<undefined>(resolve => {
+                        openingReadTimer = setTimeout(() => resolve(undefined), 5_000);
+                    }),
+                ]),
+            );
+            control.check();
+            if (opening?.kind === "unknown" && opening.reason === "notice-dialog") {
+                await dismissTicketPlusActivityNotice(page, control);
+            }
+        } finally {
+            clearTimeout(openingReadTimer);
+        }
         let loginReadTimer: ReturnType<typeof setTimeout> | undefined;
         try {
             const targetLogin = await control.read(() =>
@@ -219,16 +249,45 @@ export async function runTicketPlus(
         const session = await selectTicketPlusSession(
             page,
             settings,
-            { onActivityWait: summary => notify(options, { type: "activity-wait", ...summary }) },
+            {
+                flowType: ticketPlusFlowType(activity),
+                onActivityWait: summary => notify(options, { type: "activity-wait", ...summary }),
+            },
             control,
         );
         // 同場次候補與更新後循環由獨立模組編排；本次結果與歷史提交不混用。
-        return await runTicketPlusCycle(page, activity, session, control, event => {
+        const cycle = await runTicketPlusCycle(page, activity, session, control, event => {
             if (event.type === "stage") stage = event.stage;
             if (event.type === "attempt-reset") progress = emptySubmissionProgress();
             if (event.type === "submission") progress = { ...event.progress };
             notify(options, event);
         });
+
+        // 抽選到輸入資料頁：等待人工確認參加者後收尾，停在確認登記前。
+        if (
+            cycle.outcome !== "information-ready" ||
+            ticketPlusFlowType(activity) !== "lottery" ||
+            !options.waitForParticipants ||
+            cycle.submittedQuantity === undefined
+        ) {
+            return cycle;
+        }
+        const waitForParticipants = options.waitForParticipants;
+        return await finishTicketPlusLottery(
+            page,
+            session,
+            cycle.submittedQuantity,
+            control,
+            {
+                waitForParticipants,
+                onWaiting: confirmationId => {
+                    report("waiting-for-participants");
+                    notify(options, { type: "participants-wait", confirmationId });
+                },
+                onCompleting: () => report("completing-registration"),
+            },
+            { submissionAttempts: cycle.submissionAttempts, progress: cycle.progress },
+        );
     } catch (error) {
         let stopError = error instanceof TicketPlusStopError ? error : undefined;
         if (!stopError) {
@@ -280,6 +339,7 @@ export async function runTicketPlus(
                 ? { loginFailure: { reason: error.reason, summary: error.summary } }
                 : {}),
             ...(error instanceof TicketPlusPriorityError ? { priorityFailure: error.reason } : {}),
+            ...(error instanceof TicketPlusNoticeError ? { noticeFailure: error.reason } : {}),
         };
     } finally {
         settled = true;

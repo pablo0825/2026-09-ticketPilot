@@ -243,3 +243,34 @@ test("TicketPlus 票區：標題剩餘 0、0 張（暫無票券）時不點加�
         assert.deepEqual(await clicks(page), []);
     });
 });
+
+test("TicketPlus 票區：抽選選票頁（全區 NT.0、區內票種「登記抽選」）可讀出目標票區", async () => {
+    await withPage(async page => {
+        // 依 2026-10-17 抽選實站：票區面板、熱賣中、NT.0，展開後唯一票種為「登記抽選」
+        const lotteryArea = (name: string, expanded: boolean) =>
+            fixture.area({
+                name,
+                stock: fixture.selling,
+                price: "0",
+                state: expanded ? "expanded" : "collapsed",
+                rows: [fixture.ticketRow("登記抽選", "0", fixture.counter())],
+            });
+        const result = await read(
+            page,
+            fixture.areaOrder([lotteryArea("全區（不含身障區）", false), lotteryArea("3880區~800區皆可", true)]),
+        );
+        assert.equal(result.kind, "ticket-selection");
+        if (result.kind !== "ticket-selection") assert.fail();
+        assert.deepEqual(
+            result.areas.map(area => [area.name, area.expanded]),
+            [
+                ["全區（不含身障區）", false],
+                ["3880區~800區皆可", true],
+            ],
+        );
+        assert.deepEqual(
+            result.tickets.map(ticket => [ticket.area, ticket.name, ticket.saleStatus, ticket.selectedQuantity]),
+            [["3880區~800區皆可", "登記抽選", "selling", 0]],
+        );
+    });
+});

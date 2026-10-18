@@ -51,7 +51,10 @@ async function withPage(mode: RoundMode, run: (page: Page) => Promise<void>) {
         const page = await context.newPage();
         await page.goto("https://ticketplus.com.tw/order/event-fixture/session-B");
         await run(page);
-        assert(!(await roundState(page)).actions.includes("information-next"));
+        // 資料頁最多勾一次條款、按一次下一步
+        const actions = (await roundState(page)).actions;
+        assert(actions.filter(action => action === "information-next").length <= 1);
+        assert(actions.filter(action => action === "terms").length <= 1);
     } finally {
         await browser.close();
     }
@@ -67,10 +70,16 @@ for (const [mode, count, selected] of [
             const control = new TicketPlusRunControl();
             control.startDeadline(1);
             const result = await runTicketPlusCycle(page, settings, session, control, undefined, options);
-            assert.equal(result.outcome, "information-ready");
+            assert.equal(result.outcome, "payment-ready");
             assert.equal(result.submissionAttempts, 1);
             assert.deepEqual(await roundState(page), {
-                actions: [...Array<string>(count).fill("refresh"), `${selected}+`, "submit"],
+                actions: [
+                    ...Array<string>(count).fill("refresh"),
+                    `${selected}+`,
+                    "submit",
+                    "terms",
+                    "information-next",
+                ],
                 refreshes: count,
                 submissions: [[{ name: selected, quantity: 1 }]],
             });
@@ -204,10 +213,10 @@ test("正式 runner：更新後跨輪成功只啟動一次瀏覽器且保留占�
     const launch = t.mock.method(chromium, "launchPersistentContext", async () => context);
     try {
         const result = await runTicketPlus(settings, { lease: acquirePurchaseLease(directory) });
-        assert.equal(result.outcome, "information-ready");
+        assert.equal(result.outcome, "payment-ready");
         assert.equal(launch.mock.callCount(), 1);
         assert.deepEqual(await roundState(context.pages()[0]!), {
-            actions: ["session", "refresh", "A區+", "submit"],
+            actions: ["session", "refresh", "A區+", "submit", "terms", "information-next"],
             refreshes: 1,
             submissions: [[{ name: "A區", quantity: 1 }]],
         });

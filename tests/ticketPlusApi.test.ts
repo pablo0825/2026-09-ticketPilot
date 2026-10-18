@@ -92,6 +92,19 @@ test(
                     list.activities.find((item: { id: string }) => item.id === created.id).executionStatus,
                     "已執行",
                 );
+                // 明寫購票不算設定變更，改成抽選才算
+                const status = async (body: object) => {
+                    const response = await fetch(h.url + "/api/activities/" + created.id, {
+                        method: "PUT",
+                        headers: h.headers,
+                        body: JSON.stringify(body),
+                    });
+                    assert.equal(response.status, 200);
+                    const listed = await (await h.request("/api/activities")).json();
+                    return listed.activities.find((item: { id: string }) => item.id === created.id).executionStatus;
+                };
+                assert.equal(await status({ ...identity, targets: [target], flowType: "purchase" }), "已執行");
+                assert.equal(await status({ ...identity, targets: [target], flowType: "lottery" }), "設定已更新");
                 const update = await fetch(h.url + "/api/activities/" + created.id, {
                     method: "PUT",
                     headers: h.headers,
@@ -169,7 +182,7 @@ test("TicketPlus API：同場次第一順位售完，第二順位提交一次並
             ),
         );
         await h.login();
-        await h.until(run => run?.status === "information-ready");
+        await h.until(run => run?.status === "payment-ready");
         const report = await h.counts();
         assert.deepEqual(report.submissions, [
             [
@@ -183,7 +196,7 @@ test("TicketPlus API：同場次第一順位售完，第二順位提交一次並
             plus: 2,
             submit: 1,
             dismiss: 0,
-            information: 0,
+            information: 1,
             other: 0,
             terms: 0,
         });
@@ -192,6 +205,7 @@ test("TicketPlus API：同場次第一順位售完，第二順位提交一次並
             "/activity/event-fixture",
             "/order/event-fixture/session-B",
             "/confirm/event-fixture/session-B",
+            "/checkout/event-fixture/session-B",
         ]);
         assert.equal((await h.request("/api/purchase", input)).status, 200);
         assert.equal(await readFile(h.report + ".starts", "utf8"), "started\n");

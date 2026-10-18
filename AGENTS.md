@@ -65,8 +65,11 @@ Preserve strict ticket matching. Never automatically retry seat confirmation.
 After verifying the booking summary and configured contact details, submit once
 and verify arrival at checkout. Currency and prices are checked manually by the user. Stop before confirming
 payment. Never retry contact submission or restart purchasing after an uncertain
-submission result. Require valid contact configuration before opening the browser; missing or invalid
-contact data stops startup before ticket selection.
+submission result. For Klook, require valid contact configuration before opening the browser; missing
+or invalid contact data stops startup before ticket selection.
+Contact configuration and contact-detail checks apply only to Klook. TicketPlus
+fills contact fields from the member profile, so TicketPlus runs neither
+require `contact.local.json` nor compare contact details.
 
 ## Verification & Review
 
@@ -91,5 +94,5 @@ After implementation or edits, automatically commit task-related changes once
 required verification and review pass. Stage only changes made for the current task;
 leave unrelated changes uncommitted. Report the commit hash when finished.
 
-Base required `contact.local.json` on `contact.example.json`.
+Base the Klook `contact.local.json` on `contact.example.json`.
 Never commit personal data, secrets, or `browser-profile/`.

@@ -1,3 +1,4 @@
+import { ticketPlusFlowType } from "../../../../config/ticketPlusActivity.js";
 import type { TicketPlusActivityRecord } from "./formModel.js";
 import type { ActivityExecutionStatus } from "../../../purchaseRuns.js";
 
@@ -24,7 +25,7 @@ export function ActivityList({ activities, disabled, mutationsDisabled, onNew, o
                 <table>
                     <thead>
                         <tr>
-                            {["活動名稱", "執行狀態", "操作"].map(label => (
+                            {["活動名稱", "購票流程", "執行狀態", "操作"].map(label => (
                                 <th key={label} scope="col">
                                     {label}
                                 </th>
@@ -35,6 +36,7 @@ export function ActivityList({ activities, disabled, mutationsDisabled, onNew, o
                         {activities.map(item => (
                             <tr key={item.id}>
                                 <td>{item.settings.eventName}</td>
+                                <td>{ticketPlusFlowType(item.settings) === "lottery" ? "登記抽選" : "購票"}</td>
                                 <td
                                     title={
                                         item.executionStatus === "已執行" ? "已執行不代表購票或付款成功。" : undefined

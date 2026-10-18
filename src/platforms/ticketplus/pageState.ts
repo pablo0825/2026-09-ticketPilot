@@ -2,7 +2,9 @@ import { refreshReadiness } from "./refreshReadiness.js";
 import type { RefreshMonitorRequest } from "./domSnapshot.js";
 import type { VerifiedTicketPlusSession } from "./ticketQuantity.js";
 import { diagnoseReadFailure, diagnosticRouteKind } from "./readFailure.js";
-import type { ReadFailureDiagnostic, ReadStep } from "./readFailure.js";
+import type { ReadFailureDiagnostic, ReadStep, RouteKind } from "./readFailure.js";
+import { parseSeatConfirmationPage } from "./seatConfirmationPage.js";
+import type { SeatConfirmationPage } from "./seatConfirmationPage.js";
 import type { SubmittedSelectionTarget } from "./submissionValidation.js";
 import { activityReadiness, selectionReadiness, informationReadiness } from "./pageReadiness.js";
 import type { PageReadiness, SelectionEntryTarget } from "./pageReadiness.js";
@@ -36,13 +38,14 @@ export type TicketPlusPage =
     | TicketSelectionPage
     | InformationPage
     | CheckoutPage
+    | SeatConfirmationPage
     | (PageIdentity & { kind: "queue" })
     | UnknownPage;
 
 export interface TicketPlusPageDiagnostic {
     pageKind: TicketPlusPage["kind"];
     readiness?: PageReadiness;
-    routeKind?: "activity" | "order" | "confirm" | "checkout" | "other";
+    routeKind?: RouteKind;
     unknownReason?: UnknownPage["reason"];
     readFailure?: ReadFailureDiagnostic;
     emptyActivityLoading?: boolean;
@@ -61,6 +64,7 @@ export interface TicketPlusPageDiagnostic {
         unknownDialogs: number;
         failureDialogs: number;
         queueDialogs: number;
+        noticeDialogs: number;
         informationHeadings: number;
         terms: number;
         paymentButtons: number;
@@ -73,7 +77,7 @@ function classifyPage(dom: TicketPlusDom): TicketPlusPage {
     // 網址採明確白名單，不接受其他站台、額外路徑或不明參數。
     if (dom.origin !== "https://ticketplus.com.tw" || dom.extraUrlParts) return unknownPage("unsupported-url");
     const activity = /^\/activity\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
-    const order = /^\/(order|confirm|checkout)\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
+    const order = /^\/(order|confirmSeat|confirm|checkout)\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
     if (!activity && !order) return unknownPage("unsupported-url");
 
     // 僅同 order 頁可辨識失敗；資料頁帶彈窗不能誤報抵達成功。
@@ -82,6 +86,8 @@ function classifyPage(dom: TicketPlusDom): TicketPlusPage {
         const queues = dom.dialogs.filter(dialog => dialog.kind === "queue");
         if (failures.length > 1 || queues.length > 1) return unknownPage("ambiguous-data");
         if (dom.dialogs.some(dialog => dialog.kind === "unknown")) return unknownPage("blocking-dialog");
+        // 活動頁只有已知提醒時明確回報，交由呼叫端決定是否關閉。
+        if (activity && dom.dialogs.every(dialog => dialog.kind === "notice")) return unknownPage("notice-dialog");
         if (!order || order[1] !== "order") return unknownPage("conflicting-page");
         if (failures.length === 1) {
             if (
@@ -127,6 +133,13 @@ function classifyPage(dom: TicketPlusDom): TicketPlusPage {
         return parseTicketSelectionPage(dom, identity);
     }
     if (dom.queueCount || dom.tickets.length) return unknownPage("conflicting-page");
+    if (order![1] === "confirmSeat") {
+        // 選位結果頁不應有資料頁或付款標記。
+        const hasPaymentControls = dom.checkoutStepCount > 0 || dom.paymentButtons.length > 0;
+        return hasInformation || hasPaymentControls
+            ? unknownPage("conflicting-page")
+            : parseSeatConfirmationPage(dom, identity);
+    }
     if (order![1] === "confirm") {
         // 資料頁可以有摘要列，但付款操作標記仍屬衝突。
         const hasPaymentControls = dom.checkoutStepCount > 0 || dom.paymentButtons.length > 0;
@@ -143,6 +156,7 @@ interface PageObservationOptions {
     submissionTarget?: SubmittedSelectionTarget;
     activityName?: string;
     activityTarget?: ActivityLoadingTarget;
+    onSnapshot?: (dom: TicketPlusDom) => void;
 }
 
 export interface PageObservation {
@@ -162,6 +176,41 @@ export async function readTicketPlusPage(
         activityName,
     });
     return observation.page;
+}
+
+// 頁面分類之外附帶同一份快照的公開標記，供資料頁送出與抽選收尾分辨頁面；不含任何欄位值。
+export interface TicketPlusPageMarkers {
+    origin: string;
+    pathname: string;
+    participantSections: number;
+    registerButtons: boolean[];
+    paymentButtons: boolean[];
+    applicants: { filled: boolean }[];
+    dialogs: number;
+    participantDialogs: number;
+    queue: number;
+}
+
+export async function readTicketPlusPageWithMarkers(
+    page: Page,
+): Promise<{ page: TicketPlusPage; markers?: TicketPlusPageMarkers }> {
+    let markers: TicketPlusPageMarkers | undefined;
+    const observation = await readPageObservation(page, {
+        onSnapshot: dom => {
+            markers = {
+                origin: dom.origin,
+                pathname: dom.pathname,
+                participantSections: dom.participantSectionCount,
+                registerButtons: [...dom.registerButtons],
+                applicants: dom.applicants.map(applicant => ({ ...applicant })),
+                paymentButtons: [...dom.paymentButtons],
+                dialogs: dom.dialogs.length,
+                participantDialogs: dom.participantDialogCount,
+                queue: dom.queueCount,
+            };
+        },
+    });
+    return { page: observation.page, markers };
 }
 
 // 點擊前專用入口：等待證據直接回傳，不依賴診斷回呼。
@@ -212,6 +261,7 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
         before = page.url();
         step = "capture-dom";
         snapshot = await readTicketPlusDom(page, options.refreshMonitor);
+        options.onSnapshot?.(snapshot);
         step = "read-url-after";
         after = page.url();
         step = "validate-url";
@@ -278,6 +328,7 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
                 unknownDialogs: snapshot.dialogs.filter(dialog => dialog.kind === "unknown").length,
                 failureDialogs: snapshot.dialogs.filter(dialog => dialog.kind === "failure").length,
                 queueDialogs: snapshot.dialogs.filter(dialog => dialog.kind === "queue").length,
+                noticeDialogs: snapshot.dialogs.filter(dialog => dialog.kind === "notice").length,
                 informationHeadings: snapshot.information.headingCount,
                 terms: snapshot.information.terms.length,
                 paymentButtons: snapshot.paymentButtons.length,

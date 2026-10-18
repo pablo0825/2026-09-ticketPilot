@@ -31,7 +31,7 @@ test("真 API：登入由網頁觀測確認，舊確認不可放行；導航及�
         assert.equal((await h.counts()).counts.session, 0);
         // 外部測試操作只改網頁會員區，正式 runner 自行讀取並繼續。
         await h.login();
-        const result = await h.until(run => run?.status === "information-ready");
+        const result = await h.until(run => run?.status === "payment-ready");
         assert.equal(result.loginConfirmation, undefined);
         assert.equal(result.occupied, true);
         assert.deepEqual((await h.counts()).requests, [
@@ -39,13 +39,14 @@ test("真 API：登入由網頁觀測確認，舊確認不可放行；導航及�
             "/activity/event-fixture",
             "/order/event-fixture/session-B",
             "/confirm/event-fixture/session-B",
+            "/checkout/event-fixture/session-B",
         ]);
         assert.deepEqual((await h.counts()).counts, {
             session: 1,
             plus: 2,
             submit: 1,
             dismiss: 0,
-            information: 0,
+            information: 1,
             other: 0,
             terms: 0,
         });
@@ -56,7 +57,7 @@ test("真 API：登入由網頁觀測確認，舊確認不可放行；導航及�
         await h.until(run => !run?.occupied);
         assert(!purchaseOccupied(h.runtime));
         const restored = new PurchaseRuns(h.runtime);
-        assert.equal(restored.snapshot()!.status, "information-ready");
+        assert.equal(restored.snapshot()!.status, "payment-ready");
         assert.equal(restored.snapshot()!.loginConfirmation, undefined);
         await assert.rejects(restored.confirmLogin(run.id, stale.confirmationId));
     } finally {

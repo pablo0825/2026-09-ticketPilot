@@ -21,6 +21,7 @@ function emptyDom(): TicketPlusDom {
         extraUrlParts: false,
         queueCount: 0,
         dialogs: [],
+        participantDialogCount: 0,
         activity: [],
         identities: [],
         tickets: [],
@@ -32,7 +33,12 @@ function emptyDom(): TicketPlusDom {
         refreshButtons: [],
         refreshEvidence: undefined,
         paymentButtons: [],
+        cancelButtons: [],
+        registerButtons: [],
+        applicants: [],
+        participantSectionCount: 0,
         checkoutStepCount: 0,
+        seatResultHeadingCount: 0,
     };
 }
 

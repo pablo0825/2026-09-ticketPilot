@@ -138,8 +138,8 @@ test("正式 TicketPlus worker：頁面登入後提交一次、資料頁停止�
         h.child.send({ type: "confirm-ticketplus-login", confirmationId: "early" });
         h.start();
         const result = await h.wait(message => message.type === "result");
-        assert.equal(result.outcome, "information-ready");
-        assert.match(result.message, /填寫資料頁/);
+        assert.equal(result.outcome, "payment-ready");
+        assert.match(result.message, /付款頁/);
         assert.doesNotMatch(JSON.stringify(h.messages), /PRIVATE_INFORMATION_MARKER|information":/);
         assert(purchaseOccupied(h.directory));
         assert(!h.messages.some(message => message.type === "finished"));
@@ -156,7 +156,7 @@ test("正式 TicketPlus worker：頁面登入後提交一次、資料頁停止�
             plus: 2,
             submit: 1,
             dismiss: 0,
-            information: 0,
+            information: 1,
             other: 0,
             terms: 0,
         });
@@ -165,6 +165,7 @@ test("正式 TicketPlus worker：頁面登入後提交一次、資料頁停止�
             "/activity/event-fixture",
             "/order/event-fixture/session-B",
             "/confirm/event-fixture/session-B",
+            "/checkout/event-fixture/session-B",
         ]);
         assert.equal(h.messages.filter(message => message.type === "result").length, 1);
         assert.equal(h.messages.at(-1).type, "finished");
@@ -192,7 +193,7 @@ test("正式 worker：錯誤確認不啟動、已售完關窗停止；queue 經�
                 h.child.send({ type: "fixture-release-queue" });
             }
             const result = await h.wait(message => message.type === "result");
-            assert.equal(result.outcome, mode === "failure" ? "failed" : "information-ready");
+            assert.equal(result.outcome, mode === "failure" ? "failed" : "payment-ready");
             if (mode === "failure") assert.match(result.message, /已售完.*已確認關閉/);
             assert.deepEqual(JSON.parse(await readFile(h.report + ".options", "utf8")).args, []);
             await h.stop();
@@ -202,7 +203,7 @@ test("正式 worker：錯誤確認不啟動、已售完關窗停止；queue 經�
                 plus: 2,
                 submit: 1,
                 dismiss: mode === "failure" ? 1 : 0,
-                information: 0,
+                information: mode === "failure" ? 0 : 1,
                 other: 0,
                 terms: 0,
             });
@@ -210,7 +211,9 @@ test("正式 worker：錯誤確認不啟動、已售完關窗停止；queue 經�
                 "/",
                 "/activity/event-fixture",
                 "/order/event-fixture/session-B",
-                ...(mode === "failure" ? [] : ["/confirm/event-fixture/session-B"]),
+                ...(mode === "failure"
+                    ? []
+                    : ["/confirm/event-fixture/session-B", "/checkout/event-fixture/session-B"]),
             ]);
             assert(!purchaseOccupied(h.directory));
         } finally {
@@ -279,7 +282,7 @@ test("正式 worker：同輪候補結果不被前次售完污染，耗盡更新�
             const result = await h.wait(message => message.type === "result");
             assert.equal(
                 result.outcome,
-                mode === "cycle-success" ? "information-ready" : mode === "cycle-unknown" ? "unknown" : "failed",
+                mode === "cycle-success" ? "payment-ready" : mode === "cycle-unknown" ? "unknown" : "failed",
             );
             if (mode === "cycle-exhausted") {
                 assert.match(result.message, /先前 2 次提交已確認售完/);
@@ -295,7 +298,7 @@ test("正式 worker：同輪候補結果不被前次售完污染，耗盡更新�
             assert.equal(report.counts.submit, 2);
             assert.equal(report.counts.dismiss, mode === "cycle-exhausted" ? 2 : 1);
             assert.equal(report.counts.other, mode === "cycle-exhausted" ? 1 : 0);
-            assert.equal(report.counts.information, 0);
+            assert.equal(report.counts.information, mode === "cycle-success" ? 1 : 0);
             assert.deepEqual(
                 report.submissions.map((tickets: any[]) => tickets.filter(ticket => ticket.quantity > 0)),
                 [[{ name: "預售票", quantity: 2 }], [{ name: "學生票", quantity: 2 }]],

@@ -17,6 +17,8 @@ import { selectTicketPlusTickets } from "../src/platforms/ticketplus/ticketQuant
 import { selectTicketPlusSession } from "../src/platforms/ticketplus/sessionSelection.js";
 import {
     installSubmission,
+    lotteryQueueDialog,
+    orderUrl,
     submissionCounts,
     failureDialog,
     queueDialog,
@@ -940,5 +942,119 @@ test("TicketPlus 提交等待：獨立回應讓選票與資料重疊結束，資
             release();
             await outcome;
         }
+    });
+});
+
+test("TicketPlus 提交：抽選排隊彈窗等待後抵達資料頁，只送出一次", async () => {
+    const browser = await chromium.launch();
+    try {
+        const page = await browser.newPage();
+        const requests = await installSubmission(page, "queue", undefined, undefined, lotteryQueueDialog);
+        const result = submit(page);
+        await page.waitForFunction(
+            () => window.submissionFixture.orderClicks === 1 && window.submissionFixture.reads >= 3,
+        );
+        await page.evaluate(() => window.submissionFixture.show("information"));
+        assert.equal((await result).kind, "information");
+        assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+        assert.equal(requests(), 1);
+    } finally {
+        await browser.close();
+    }
+});
+
+// 坐席實站為票區面板：設定票種填票區名稱「C 區」，選位結果的票區欄也是「C 區」。
+const areaSettings: TicketPlusSelection = { ...settings, target: { ...settings.target, ticketType: "C 區" } };
+const areaSelection: TicketSelectionPage = {
+    ...selection,
+    tickets: [{ ...selection.tickets[0]!, area: "C 區", name: "預售票" }],
+    areas: [{ name: "C 區", remainingQuantity: null, expanded: true }],
+};
+
+async function withSeatedSite(rows: number, run: (page: Page) => Promise<void>, seatDelayMs = 0) {
+    const { seatConfirmPage, seatBehavior, observedSeat } = await import("./fixtures/ticketplus/seatConfirmPage.js");
+    const area = await import("./fixtures/ticketplus/areaPage.js");
+    const order = area.areaOrder([
+        area.area({
+            name: "C 區",
+            stock: area.selling,
+            price: "5,800",
+            state: "expanded",
+            rows: [area.ticketRow("預售票", "5,800", area.counter(2))],
+        }),
+    ]);
+    const browser = await chromium.launch();
+    try {
+        const page = await browser.newPage();
+        // 選票送出後先到 confirmSeat，再按下一步到資料頁
+        const seats = Array.from({ length: rows }, (_, index) => ({
+            ...observedSeat,
+            position: `25 排 ${7 + index} 號`,
+        }));
+        await page.route("**/*", route => {
+            const path = new URL(route.request().url()).pathname;
+            const body = path.startsWith("/confirmSeat/")
+                ? seatConfirmPage(seats) +
+                  seatBehavior("to-information", "/confirm/event-fixture/session-B", seatDelayMs)
+                : path.startsWith("/confirm/")
+                  ? readyInformation
+                  : order;
+            return route.fulfill({ contentType: "text/html; charset=utf-8", body });
+        });
+        await page.addInitScript(() => {
+            document.addEventListener("click", event => {
+                const button = (event.target as Element).closest("button");
+                if (button?.textContent?.trim() !== "下一步" || !location.pathname.startsWith("/order/")) return;
+                sessionStorage.setItem("order-next", String(Number(sessionStorage.getItem("order-next") ?? "0") + 1));
+                location.assign("/confirmSeat/event-fixture/session-B");
+            });
+        });
+        await page.goto(orderUrl);
+        await run(page);
+    } finally {
+        await browser.close();
+    }
+}
+
+async function seatedCounts(page: Page) {
+    return page.evaluate(() => ({
+        order: Number(sessionStorage.getItem("order-next") ?? "0"),
+        seat: Number(sessionStorage.getItem("seat-next") ?? "0"),
+        cancel: Number(sessionStorage.getItem("seat-cancel") ?? "0"),
+    }));
+}
+
+test("TicketPlus 提交：坐席經確認選位結果頁按一次下一步後抵達資料頁", async () => {
+    await withSeatedSite(2, async page => {
+        const result = await submitTicketPlusSelection(page, areaSettings, areaSelection, options);
+        assert.equal(result.kind, "information");
+        assert.deepEqual(await seatedCounts(page), { order: 1, seat: 1, cancel: 0 });
+    });
+});
+
+test("TicketPlus 提交：選位結果轉資料頁比送出等待更久時，座位步驟有自己的等待時間", async () => {
+    await withSeatedSite(
+        2,
+        async page => {
+            const result = await submitTicketPlusSelection(page, areaSettings, areaSelection, {
+                ...options,
+                submitWaitMs: 300,
+            });
+            assert.equal(result.kind, "information");
+            assert.deepEqual(await seatedCounts(page), { order: 1, seat: 1, cancel: 0 });
+        },
+        1_500,
+    );
+});
+
+test("TicketPlus 提交：選位結果張數不符時停止，結果為已提交但停止而非未確認", async () => {
+    const { stoppedSubmissionResult } = await import("../src/platforms/ticketplus/submissionOutcome.js");
+    await withSeatedSite(1, async page => {
+        const error = await failure(submitTicketPlusSelection(page, areaSettings, areaSelection, options));
+        assert.equal(error.reason, "seat-mismatch");
+        assert.equal(error.progress.submitAttempted, true);
+        const result = stoppedSubmissionResult(error);
+        assert.equal(result.outcome, "stopped");
+        assert.deepEqual(await seatedCounts(page), { order: 1, seat: 0, cancel: 0 });
     });
 });

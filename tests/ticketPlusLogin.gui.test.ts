@@ -46,14 +46,14 @@ async function showRun(page: Page, url: string) {
 }
 
 async function verifyInformation(h: Harness, page: Page) {
-    await h.until(run => run?.status === "information-ready");
-    await eventually(async () => assert.equal(await page.locator("#status").innerText(), "已到填寫資料頁"));
+    await h.until(run => run?.status === "payment-ready");
+    await eventually(async () => assert.equal(await page.locator("#status").innerText(), "已到付款頁"));
     assert.deepEqual((await h.counts()).counts, {
         session: 1,
         plus: 2,
         submit: 1,
         dismiss: 0,
-        information: 0,
+        information: 1,
         other: 0,
         terms: 0,
     });

@@ -53,9 +53,11 @@ async function withPage(mode: CycleMode, run: (page: Page) => Promise<void>) {
         const page = await context.newPage();
         await page.goto("https://ticketplus.com.tw/order/event-fixture/session-B");
         await run(page);
-        assert(
-            !(await cycleState(page)).actions.some(action => ["information-next", "change", "other"].includes(action)),
-        );
+        // 資料頁最多勾一次條款、按一次下一步；不得有其他操作
+        const actions = (await cycleState(page)).actions;
+        assert(!actions.some(action => ["change", "other"].includes(action)));
+        assert(actions.filter(action => action === "information-next").length <= 1);
+        assert(actions.filter(action => action === "terms").length <= 1);
     } finally {
         await browser.close();
     }
@@ -71,11 +73,11 @@ test("循環：A 真提交售完清零後只試 B，不額外再試 A；成功�
             undefined,
             options,
         );
-        assert.equal(result.outcome, "information-ready");
+        assert.equal(result.outcome, "payment-ready");
         assert.equal(result.submissionAttempts, 2);
         assert.equal(result.progress.failure, undefined);
         assert.deepEqual(await cycleState(page), {
-            actions: ["A區+", "A區+", "submit", "dismiss", "B區+", "B區+", "submit"],
+            actions: ["A區+", "A區+", "submit", "dismiss", "B區+", "B區+", "submit", "terms", "information-next"],
             submissions: [[{ name: "A區", quantity: 2 }], [{ name: "B區", quantity: 2 }]],
         });
     });
@@ -142,7 +144,7 @@ test("循環：A 畫面售完、B 提交售完，下一個使用原始 C 索引"
             undefined,
             options,
         );
-        assert.equal(result.outcome, "information-ready");
+        assert.equal(result.outcome, "payment-ready");
         assert.deepEqual((await cycleState(page)).submissions, [
             [{ name: "B區", quantity: 2 }],
             [{ name: "C區", quantity: 2 }],
@@ -277,7 +279,7 @@ test("循環：首次保留補差張數；再次選票前畫面被加票仍阻�
             undefined,
             options,
         );
-        assert.equal(result.outcome, "information-ready");
+        assert.equal(result.outcome, "payment-ready");
         assert.equal((await cycleState(page)).actions.filter(action => action === "A區+").length, 1);
     });
     await withPage("success", async page => {
@@ -389,7 +391,7 @@ test("正式 runner：同輪 A 售完轉 B 成功／不明，保留單一瀏覽�
             const result = await runTicketPlus(settings, {
                 lease: acquirePurchaseLease(directory),
             });
-            assert.equal(result.outcome, mode === "success" ? "information-ready" : "unknown");
+            assert.equal(result.outcome, mode === "success" ? "payment-ready" : "unknown");
 
             assert.equal(launch.mock.callCount(), 1);
             assert.equal(
@@ -424,5 +426,22 @@ test("循環：目標售完後未設定全程期限時更新完成仍停止，�
         assert.match(ticketPlusResultMessage(result), /更新.*完成/);
         assert.doesNotMatch(ticketPlusResultMessage(result), /購票成功|取得最新庫存/);
         assert.deepEqual(await cycleState(page), { actions: ["refresh"], submissions: [] });
+    });
+});
+
+test("循環：抽選設定到資料頁即停止，不勾條款也不按下一步", async () => {
+    await withPage("success", async page => {
+        const result = await runTicketPlusCycle(
+            page,
+            { ...settings, flowType: "lottery" },
+            session,
+            new TicketPlusRunControl(),
+            undefined,
+            options,
+        );
+        assert.equal(result.outcome, "information-ready");
+        const actions = (await cycleState(page)).actions;
+        assert(!actions.includes("terms"));
+        assert(!actions.includes("information-next"));
     });
 });

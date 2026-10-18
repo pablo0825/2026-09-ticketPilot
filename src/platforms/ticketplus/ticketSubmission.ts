@@ -8,6 +8,7 @@ import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import { readTicketPlusPage, readTicketPlusInformationObservation } from "./pageState.js";
 import type { OrderFailurePage, TicketPlusPage, TicketPlusPageDiagnostic } from "./pageState.js";
 import type { InformationPage } from "./informationPage.js";
+import { confirmTicketPlusSeats } from "./seatConfirmation.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 import { locateTargetRow } from "./ticketRowFinder.js";
 
@@ -37,7 +38,10 @@ export type SubmissionReason =
     | "order-rejected"
     | "dismiss-unavailable"
     | "dismiss-changed"
-    | "dismiss-unconfirmed";
+    | "dismiss-unconfirmed"
+    | "seat-mismatch"
+    | "seat-button-unavailable"
+    | "seat-confirm-unconfirmed";
 export type Dismissal = "not-attempted" | "disappeared" | "confirmed" | "unconfirmed";
 export interface SubmissionProgress {
     submitAttempted: boolean;
@@ -71,6 +75,8 @@ interface Submission {
     progress: SubmissionProgress;
     observer?: SubmissionObserver;
     diagnostic?: SubmissionDiagnostic;
+    // 確認選位步驟每次提交最多一次；再次看到選位頁即停止。
+    seatStepDone?: boolean;
 }
 const defaults: Required<TicketSubmissionOptions> = {
     preflightTimeoutMs: 5_000,
@@ -136,7 +142,7 @@ function checkRoute(page: Page, context: Submission, orderOnly = false): void {
     if (page.isClosed()) throw stop(context, "read-failed");
     const url = new URL(page.url());
     const suffix = `${context.selected.eventId}/${context.selected.sessionId}`;
-    const paths = [`/order/${suffix}`, ...(orderOnly ? [] : [`/confirm/${suffix}`])];
+    const paths = [`/order/${suffix}`, ...(orderOnly ? [] : [`/confirmSeat/${suffix}`, `/confirm/${suffix}`])];
     const routeFailure =
         url.origin !== "https://ticketplus.com.tw"
             ? "origin-mismatch"
@@ -235,7 +241,9 @@ async function submitOnce(page: Page, context: Submission, deadline: number): Pr
     const scope = page
         .locator("body")
         .filter({ hasNot: page.getByText("聯絡人資訊", { exact: true }).filter({ visible: true }) })
-        .filter({ hasNot: page.getByRole("heading", { level: 3, name: /排隊購票中/ }).filter({ visible: true }) });
+        .filter({
+            hasNot: page.getByRole("heading", { level: 3, name: /排隊(購票|登記)中/ }).filter({ visible: true }),
+        });
     const locator = scope.getByRole("button", { name: "下一步", exact: true }).filter({ visible: true });
     if ((await readBounded(context, deadline, () => locator.count())) !== 1) throw stop(context, "button-unavailable");
 
@@ -372,12 +380,40 @@ async function dismissFailure(page: Page, context: Submission, failure: OrderFai
 async function pause(context: Submission, deadline: number): Promise<void> {
     await context.control.wait(Math.min(context.options.pollIntervalMs, remaining(context, deadline)));
 }
+// 坐席多一頁確認選位結果：核對後只按一次下一步，並給這一步自己的等待時間；
+// 成功時回傳後續等待資料頁的期限，資料頁仍由一般核對判定，不重試。
+const seatStepTimeoutMs = 15_000;
+async function confirmSeats(page: Page, context: Submission): Promise<number> {
+    if (context.seatStepDone) throw stop(context, "seat-confirm-unconfirmed");
+    context.seatStepDone = true;
+    const deadline = Math.min(context.deadline, performance.now() + seatStepTimeoutMs);
+    const result = await confirmTicketPlusSeats(page, context.settings, context.selected, context.control, {
+        timeoutMs: remaining(context, deadline),
+        clickTimeoutMs: context.options.clickTimeoutMs,
+        pollIntervalMs: context.options.pollIntervalMs,
+    });
+    if (result.outcome === "confirmed") return deadline;
+    context.control.check();
+    const reasons = {
+        "seat-mismatch": "seat-mismatch",
+        "button-unavailable": "seat-button-unavailable",
+    } as const;
+    throw stop(
+        context,
+        result.reason in reasons ? reasons[result.reason as keyof typeof reasons] : "seat-confirm-unconfirmed",
+    );
+}
+
 async function waitForInformation(page: Page, context: Submission, initialDeadline: number): Promise<InformationPage> {
     let deadline = initialDeadline;
     while (true) {
         const value = await snapshot(page, context, deadline, true);
         if (value.kind === "order-failure") return dismissFailure(page, context, value);
         if (value.kind === "information") return value;
+        if (value.kind === "seat-confirmation") {
+            deadline = await confirmSeats(page, context);
+            continue;
+        }
 
         // 排隊期限只建立一次，消失後再出現仍沿用原期限。
         if (value.kind === "queue") {

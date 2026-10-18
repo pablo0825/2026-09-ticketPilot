@@ -2,6 +2,7 @@ import type { TicketPlusDom } from "./domSnapshot.js";
 
 export type UnknownReason =
     | "blocking-dialog"
+    | "notice-dialog"
     | "unsupported-url"
     | "page-changed"
     | "read-failed"

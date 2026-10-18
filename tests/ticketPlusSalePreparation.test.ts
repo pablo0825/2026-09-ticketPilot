@@ -6,6 +6,7 @@ import { prepareTicketPlusSale, TicketPlusSaleError } from "../src/platforms/tic
 import { TicketPlusRunControl, TicketPlusStopError } from "../src/platforms/ticketplus/runControl.js";
 import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
 import * as fixture from "./fixtures/ticketplus/pages.js";
+import { noticeBehavior, noticeDialog, noticeTitles } from "./fixtures/ticketplus/activityNotice.js";
 
 const saleAt = "2026-12-06T17:00:00+08:00";
 const sale = Date.parse(saleAt);
@@ -427,4 +428,52 @@ test("開賣準備：到點讀取期間時鐘回撥，不放行可購買場次",
         abort.abort();
         await rejected;
     });
+});
+
+async function withNoticeSite(run: (page: Page, requests: number[]) => Promise<void>, html: (count: number) => string) {
+    const browser = await chromium.launch();
+    try {
+        const page = await browser.newPage();
+        const requests: number[] = [];
+        await page.route("**/*", route => {
+            requests.push(performance.now());
+            return route.fulfill({ contentType: "text/html; charset=utf-8", body: html(requests.length) });
+        });
+        await page.goto(url);
+        await run(page, requests);
+    } finally {
+        await browser.close();
+    }
+}
+
+test("開賣準備：每次重載後的提醒各關閉一次，再讀取開賣狀態", async () => {
+    await withNoticeSite(
+        async (page, requests) => {
+            await prepareTicketPlusSale(page, settings, { saleAt, advanceSeconds: 2 }, new TicketPlusRunControl(), {
+                now: () => sale + 1,
+            });
+            assert.equal(requests.length, 3);
+            const clicks = await page.evaluate(() => (window as unknown as { __noticeClicks: object }).__noticeClicks);
+            assert.deepEqual(clicks, { ok: 1, back: 0 });
+        },
+        count =>
+            (count < 3
+                ? fixture.activity.replace("<span>立即購買</span>", "<span>尚未開賣</span>")
+                : fixture.activity) +
+            noticeDialog(noticeTitles.lottery) +
+            noticeBehavior(),
+    );
+});
+
+test("開賣準備：提醒按確定後仍不消失，停止並回報無法關閉，不再刷新", async () => {
+    await withNoticeSite(
+        async (page, requests) => {
+            await assert.rejects(
+                prepareTicketPlusSale(page, settings, { saleAt }, new TicketPlusRunControl(), { now: () => sale + 1 }),
+                reason("notice-dismiss-failed"),
+            );
+            assert.equal(requests.length, 2);
+        },
+        () => fixture.activity + noticeDialog(noticeTitles.entry) + noticeBehavior("stuck"),
+    );
 });

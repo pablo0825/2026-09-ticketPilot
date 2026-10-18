@@ -8,7 +8,7 @@ import { stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutco
 import type { PurchaseEvent } from "./purchaseEvents.js";
 
 export interface TicketPlusWorkerResult {
-    outcome: "information-ready" | "failed" | "unknown";
+    outcome: "information-ready" | "payment-ready" | "registration-ready" | "failed" | "unknown";
     message: string;
 }
 
@@ -19,6 +19,7 @@ export async function runTicketPlusWorker(
     sendEvent: (event: PurchaseEvent) => void,
     onSubmitAttempt: () => void,
     signal?: AbortSignal,
+    waitForParticipants?: (confirmationId: string) => Promise<void>,
 ): Promise<TicketPlusWorkerResult> {
     // 提交標記先於通知保存；外圍錯誤不能把已嘗試提交改成未提交。
     let progress = emptySubmissionProgress();
@@ -29,6 +30,7 @@ export async function runTicketPlusWorker(
             signal,
             webdriverExperiment: process.env.WEBDRIVER_EXPERIMENT === "1",
             onBrowser,
+            waitForParticipants,
             onEvent: event => {
                 if (event.type === "attempt-reset") {
                     progress = emptySubmissionProgress();
@@ -39,8 +41,16 @@ export async function runTicketPlusWorker(
                     progress = { ...event.progress };
                     if (progress.submitAttempted) onSubmitAttempt();
                 }
-                if (event.type === "stage") sendEvent({ type: "ticketplus", stage: event.stage });
-                else if (event.type === "submission" && event.progress.sawQueue && !event.progress.failure) {
+                // 等待參加者的階段由帶確認 ID 的事件回報，避免送出缺 ID 的同名階段。
+                if (event.type === "participants-wait") {
+                    sendEvent({
+                        type: "ticketplus",
+                        stage: "waiting-for-participants",
+                        confirmationId: event.confirmationId,
+                    });
+                } else if (event.type === "stage" && event.stage !== "waiting-for-participants") {
+                    sendEvent({ type: "ticketplus", stage: event.stage });
+                } else if (event.type === "submission" && event.progress.sawQueue && !event.progress.failure) {
                     sendEvent({ type: "ticketplus", stage: "queue" });
                 }
                 const message = ticketPlusEventMessage(event);
@@ -53,9 +63,13 @@ export async function runTicketPlusWorker(
             outcome:
                 result.outcome === "information-ready"
                     ? "information-ready"
-                    : result.outcome === "unknown"
-                      ? "unknown"
-                      : "failed",
+                    : result.outcome === "payment-ready"
+                      ? "payment-ready"
+                      : result.outcome === "registration-ready"
+                        ? "registration-ready"
+                        : result.outcome === "unknown"
+                          ? "unknown"
+                          : "failed",
             message: ticketPlusResultMessage(result),
         };
     } catch (error) {

@@ -23,11 +23,13 @@ export interface PurchaseSnapshot {
     requestId: string;
     activityName: string;
     saleAt?: string;
-    status: "running" | "payment-ready" | "information-ready" | "failed" | "unknown" | "interrupted";
+    status:
+        "running" | "payment-ready" | "information-ready" | "registration-ready" | "failed" | "unknown" | "interrupted";
     canCloseBrowser?: boolean;
     canStop?: boolean;
     stopRequest?: { status: "sending" | "sent" | "unconfirmed" };
     loginConfirmation?: { confirmationId: string }; // 相容舊快照型別；新流程不產生人工確認資格。
+    participantConfirmation?: { confirmationId: string }; // 抽選等待參加者時才提供，確認送出後即移除。
     browserOpen: boolean;
     occupied: boolean;
     message: string;
@@ -44,9 +46,12 @@ interface Record {
 
 export type ActivityExecutionStatus = "尚無執行紀錄" | "等待開賣" | "執行中" | "已執行" | "設定已更新" | "舊版執行紀錄";
 
-// 以正規化後的購票條件識別新版請求。
+// 以正規化後的購票條件識別新版請求；TicketPlus 明寫購票等同未寫流程類型。
 function fingerprintSettings(settings: ActivitySettings) {
-    return parseActivity(settings);
+    const parsed = parseActivity(settings);
+    if (parsed.platform !== "ticketplus" || parsed.flowType !== "purchase") return parsed;
+    const { flowType: _purchase, ...withoutDefault } = parsed;
+    return withoutDefault;
 }
 
 function settingsHash(settings: ActivitySettings): string {
@@ -60,6 +65,7 @@ export class PurchaseRuns {
     private latestByActivity = new Map<string, Record>();
     private child?: ChildProcess;
     private stopRequest?: { child: ChildProcess; record: Record; status: "sending" | "sent" | "unconfirmed" };
+    private participantsSent?: { record: Record; confirmationId: string };
     private listeners = new Set<() => void>();
     private directory: string;
 
@@ -117,6 +123,7 @@ export class PurchaseRuns {
                             "running",
                             "payment-ready",
                             "information-ready",
+                            "registration-ready",
                             "failed",
                             "unknown",
                             "interrupted",
@@ -150,6 +157,7 @@ export class PurchaseRuns {
             if (
                 platform !== "ticketplus" &&
                 (valid.data.snapshot.status === "information-ready" ||
+                    valid.data.snapshot.status === "registration-ready" ||
                     valid.data.snapshot.events.some(item => item.event.type === "ticketplus"))
             ) {
                 throw new Error("Invalid platform event or result");
@@ -160,6 +168,7 @@ export class PurchaseRuns {
             delete snapshot.canStop;
             delete snapshot.stopRequest;
             delete snapshot.loginConfirmation;
+            delete snapshot.participantConfirmation;
             delete snapshot.canCloseBrowser;
             return { ...record, snapshot };
         } catch (error) {
@@ -204,10 +213,13 @@ export class PurchaseRuns {
             canStop: this.stopAvailable(),
             stopRequest: this.stopRequest?.record === this.current ? { status: this.stopRequest.status } : undefined,
             loginConfirmation: undefined,
+            participantConfirmation: this.pendingParticipants(),
             canCloseBrowser:
                 !!this.child?.connected &&
                 this.current.snapshot.browserOpen &&
-                ["payment-ready", "information-ready", "failed", "unknown"].includes(this.current.snapshot.status),
+                ["payment-ready", "information-ready", "registration-ready", "failed", "unknown"].includes(
+                    this.current.snapshot.status,
+                ),
         };
     }
 
@@ -259,6 +271,7 @@ export class PurchaseRuns {
         if (record.fingerprintVersion === 4 && activity.settings.platform === "ticketplus") {
             if (
                 activity.settings.targets.length !== 1 ||
+                activity.settings.flowType === "lottery" ||
                 activity.settings.saleSchedule ||
                 activity.settings.maxRunMinutes !== undefined
             ) {
@@ -297,6 +310,7 @@ export class PurchaseRuns {
         const legacyFingerprint =
             activity.platform === "ticketplus" &&
             activity.targets.length === 1 &&
+            activity.flowType !== "lottery" &&
             !activity.saleSchedule &&
             activity.maxRunMinutes === undefined
                 ? createHash("sha256")
@@ -451,6 +465,55 @@ export class PurchaseRuns {
         return { status, message: messages[status], run };
     }
 
+    // 只有本服務現行的 TicketPlus 執行、最後進度為等待參加者且尚未送出確認時，才提供確認 ID。
+    private pendingParticipants(): { confirmationId: string } | undefined {
+        const record = this.current;
+        if (!record || record.snapshot.platform !== "ticketplus" || record.snapshot.status !== "running") {
+            return undefined;
+        }
+        // 已提出停止要求後不再提供確認，避免停止中又繼續收尾。
+        if (this.stopRequest?.record === record) return undefined;
+        if (!this.child?.connected) return undefined;
+        const event = record.snapshot.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
+        if (event?.type !== "ticketplus" || event.stage !== "waiting-for-participants") return undefined;
+        if (this.participantsSent?.record === record && this.participantsSent.confirmationId === event.confirmationId) {
+            return undefined;
+        }
+        return { confirmationId: event.confirmationId };
+    }
+
+    // 轉送「參加者已填完」：ID 須與目前等待相同；每個等待只轉送一次，不重送。
+    async confirmParticipants(
+        runId: string,
+        confirmationId: string,
+    ): Promise<{ status: "sent" | "unconfirmed"; message: string; run: PurchaseSnapshot }> {
+        const record = this.current;
+        if (!record || record.snapshot.id !== runId) throw new Error("執行紀錄已變更，請重新查看目前狀態。");
+        const pending = this.pendingParticipants();
+        const child = this.child;
+        if (!pending || pending.confirmationId !== confirmationId || !child) {
+            throw new Error("目前沒有等待中的參加者確認，或確認已送出；不會重送。");
+        }
+
+        // 先記錄已送出，再傳送；傳送失敗也不重送，由 worker 結果決定後續。
+        this.participantsSent = { record, confirmationId };
+        this.notify();
+        const delivered = await new Promise<boolean>(resolve => {
+            child.send({ type: "confirm-ticketplus-participants", confirmationId }, error => resolve(!error));
+        });
+        return delivered
+            ? {
+                  status: "sent",
+                  message: "已送出參加者已填完，程式會核對後勾選條款並按一次下一步。",
+                  run: this.snapshot()!,
+              }
+            : {
+                  status: "unconfirmed",
+                  message: "參加者確認傳送結果未確認，請檢查目前流程；不會自動重送。",
+                  run: this.snapshot()!,
+              };
+    }
+
     async confirmLogin(
         _runId: string,
         _confirmationId: string,
@@ -488,7 +551,8 @@ export class PurchaseRuns {
                     value?.type === "result" &&
                     (["failed", "unknown"].includes(value.outcome) ||
                         (record.snapshot.platform === "klook" && value.outcome === "payment-ready") ||
-                        (record.snapshot.platform === "ticketplus" && value.outcome === "information-ready"))
+                        (record.snapshot.platform === "ticketplus" &&
+                            ["information-ready", "payment-ready", "registration-ready"].includes(value.outcome)))
                 ) {
                     record.snapshot.status = value.outcome;
                     record.snapshot.message = value.message;

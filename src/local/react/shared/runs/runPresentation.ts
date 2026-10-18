@@ -69,6 +69,18 @@ export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, n
             } else if (stage === "refreshing") {
                 title = "更新票數核對中";
                 instruction = "最多嘗試一次更新；未確認完成前不會開始新一輪選票。";
+            } else if (stage === "waiting-for-participants") {
+                title = "請填寫參加者";
+                // 確認已送出後後端不再提供確認 ID，提示改為等待程式核對。
+                instruction = run.participantConfirmation
+                    ? "請在購票瀏覽器填寫所有參加者，完成後按「參加者已填完」；網站倒數結束前須完成。等待期間不計入最長執行時間，程式不會讀取或填寫參加者資料。"
+                    : "已送出參加者已填完，等待程式核對並前往確認登記；如長時間沒有進展，請檢查購票瀏覽器或按停止。";
+            } else if (stage === "completing-registration") {
+                title = "核對參加者並前往確認登記";
+                instruction = "正在核對參加者已填、勾選服務條款並按一次下一步；不會按確認登記。";
+            } else if (stage === "submitting-information") {
+                title = "送出資料頁";
+                instruction = "已到資料頁，正在勾選服務條款並按一次下一步，等待付款頁；不會按前往付款。";
             } else if (stage === "submitting") {
                 title = "提交並等待網站處理";
                 instruction = "正在核對選票並進行一次提交流程，等待填寫資料頁；不會重送。";
@@ -116,6 +128,11 @@ export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, n
             instruction = run.browserOpen
                 ? "本階段完成，請到購票瀏覽器人工接手填寫資料與後續流程；程式未操作條款或付款。" + ending
                 : "購票瀏覽器已關閉；本程式只核對到填寫資料頁，未核對付款結果。" + ending;
+        } else if (run.status === "registration-ready") {
+            title = "已停在確認登記前";
+            instruction = run.browserOpen
+                ? "請到購票瀏覽器自行檢查登記內容並按「確認登記」；程式不會送出登記。" + ending
+                : "購票瀏覽器已關閉；本程式未送出登記，請自行確認登記狀態。" + ending;
         } else if (run.status === "payment-ready") {
             title = "已到付款頁";
             if (run.browserOpen) {

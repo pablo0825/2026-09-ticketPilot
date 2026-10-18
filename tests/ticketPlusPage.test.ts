@@ -42,7 +42,14 @@ test("TicketPlus 活動：忽略隱藏標題、區分 tab/button，保存各列�
             eventId,
             eventName: event.eventName,
             sessions: [
-                { name: event.eventName, date: "2026-10-30", time: "20:00", buyEnabled: true, saleState: "available" },
+                {
+                    name: event.eventName,
+                    date: "2026-10-30",
+                    time: "20:00",
+                    buyEnabled: true,
+                    saleState: "available",
+                    buttonText: "立即購買",
+                },
             ],
         });
         // 人工防禦案例：第二場次不得取用第一列按鈕或日期。
@@ -650,4 +657,103 @@ test("TicketPlus 活動欄位診斷：同快照描述缺少、空白、歧義與
             assert.deepEqual(fields, { headings: expected, rows: [] });
         }
     });
+});
+
+test("TicketPlus 活動：抽選的「立即登記」視為可進入，並保留按鈕文字", async () => {
+    await withPage(async page => {
+        await show(page, activityUrl, fixture.activity.replace("<span>立即購買</span>", "<span>立即登記</span>"));
+        const result = await readTicketPlusPage(page);
+        assert.equal(result.kind, "activity");
+        if (result.kind !== "activity") assert.fail();
+        assert.deepEqual(
+            result.sessions.map(row => [row.saleState, row.buyEnabled, row.buttonText]),
+            [["available", true, "立即登記"]],
+        );
+
+        // 診斷也視為已知按鈕
+        const dom = await readTicketPlusDom(page);
+        const { diagnoseActivityFields } = await import("../src/platforms/ticketplus/activityPage.js");
+        assert.equal(diagnoseActivityFields(dom, event.eventName).rows[0]!.knownButtonText, true);
+    });
+});
+
+test("TicketPlus 排隊：抽選「排隊登記中 請稍候」在頁面或彈窗內都算排隊", async () => {
+    await withPage(async page => {
+        // 頁面 h3 形式，附加第二句仍為排隊
+        await show(page, orderUrl, fixture.order + fixture.lotteryQueue);
+        assert.deepEqual(await readTicketPlusPage(page), { kind: "queue", eventId, sessionId });
+
+        // 彈窗形式不能被當成未知彈窗
+        await show(
+            page,
+            orderUrl,
+            fixture.order +
+                `<div class="v-dialog__content"><div class="v-dialog" role="dialog">${fixture.lotteryQueue}</div></div>`,
+        );
+        assert.deepEqual(await readTicketPlusPage(page), { kind: "queue", eventId, sessionId });
+
+        // 第二句在 h3 內時仍為排隊
+        await show(page, orderUrl, fixture.order + "<h3>排隊登記中<br>請稍候<br>若人數眾多可能需要較長等待時間</h3>");
+        assert.deepEqual(await readTicketPlusPage(page), { kind: "queue", eventId, sessionId });
+
+        // 文字不同時不算排隊
+        await show(page, orderUrl, fixture.order + "<h3>排隊登記中 請稍後再試</h3>");
+        assert.notEqual((await readTicketPlusPage(page)).kind, "queue");
+    });
+});
+
+test("TicketPlus 資料頁：A 坐席與抽選輸入資料頁皆解析為資料頁，聯絡欄位只回報狀態", async () => {
+    await withPage(async page => {
+        for (const html of [fixture.seatedInformation, fixture.lotteryInput]) {
+            await show(page, confirmUrl, html);
+            const result = await readTicketPlusPage(page);
+            assert.equal(result.kind, "information", html.slice(0, 80));
+            if (result.kind !== "information") assert.fail();
+            const field = { present: true, hasValue: true, disabled: true };
+            assert.deepEqual(result.contactFields, { name: field, phone: field, email: field });
+            assert.equal(result.termsChecked, false);
+            assert.equal(result.nextEnabled, false);
+            // 遮罩值不帶出瀏覽器
+            assert.doesNotMatch(JSON.stringify(result), /測\*名|0900/);
+        }
+    });
+});
+
+test("TicketPlus 確認選位：confirmSeat 解析座位列，不被當成付款頁", async () => {
+    const { seatConfirmPage, observedSeat } = await import("./fixtures/ticketplus/seatConfirmPage.js");
+    const seatUrl = `${origin}/confirmSeat/${eventId}/${sessionId}`;
+    await withPage(async page => {
+        // 實站結構：一列座位、取消購票與啟用的下一步
+        await show(page, seatUrl, seatConfirmPage());
+        assert.deepEqual(await readTicketPlusPage(page), {
+            kind: "seat-confirmation",
+            eventId,
+            sessionId,
+            seats: [{ area: observedSeat.area, position: observedSeat.position, ticketType: observedSeat.ticketType }],
+            nextEnabled: true,
+        });
+
+        // 缺標題、兩個下一步、混入條款都不判讀
+        for (const html of [
+            seatConfirmPage().replace(">確認選位結果<", ">其他標題<"),
+            seatConfirmPage([observedSeat], '<button type="button">下一步</button>'),
+            seatConfirmPage(
+                [observedSeat],
+                '<label><input type="checkbox">我已經閱讀並同意 會員服務條款 與 隱私權政策</label>',
+            ),
+        ]) {
+            await show(page, seatUrl, html);
+            assert.equal((await readTicketPlusPage(page)).kind, "unknown");
+        }
+
+        // 座位欄位空白不判讀
+        await show(page, seatUrl, seatConfirmPage([{ ...observedSeat, position: "" }]));
+        assert.equal((await readTicketPlusPage(page)).kind, "unknown");
+    });
+});
+
+test("TicketPlus 確認選位：診斷路徑種類為 confirmSeat", async () => {
+    const { diagnosticRouteKind } = await import("../src/platforms/ticketplus/readFailure.js");
+    assert.equal(diagnosticRouteKind(`/confirmSeat/${eventId}/${sessionId}`), "confirmSeat");
+    assert.equal(diagnosticRouteKind(`/confirm/${eventId}/${sessionId}`), "confirm");
 });

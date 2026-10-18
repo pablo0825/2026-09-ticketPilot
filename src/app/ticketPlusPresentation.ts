@@ -14,14 +14,17 @@ const sessionReasons: Record<SessionEntryReason, string> = {
     "activity-mismatch": "頁面活動名稱或活動 ID 與設定不符，請核對 eventName 與 eventUrl",
     "session-missing": "找不到符合日期與時間的場次，請核對 該順位的日期與時間",
     "session-ambiguous": "同日期與時間有多個場次，無法唯一選擇，請人工確認",
-    "not-on-sale": "目標場次尚未開賣，尚未嘗試點擊購票按鈕",
-    "session-disabled": "目標場次的立即購買按鈕目前停用，請查看網站狀態；不能僅據此判定尚未開賣或已售完",
+    "not-on-sale": "目標場次尚未開賣，尚未嘗試點擊場次按鈕",
+    "session-disabled":
+        "目標場次的場次按鈕（立即購買／立即登記）目前停用，請查看網站狀態；不能僅據此判定尚未開賣或已售完",
     "session-changed": "點擊前場次資料已改變，請重新核對頁面",
-    "button-unavailable": "無法唯一定位可用的立即購買按鈕，請檢查頁面是否已變動",
-    "click-failed": "立即購買的點擊結果未確認，請檢查目前頁面",
+    "button-unavailable": "無法唯一定位可用的場次按鈕（立即購買／立即登記），請檢查頁面是否已變動",
+    "click-failed": "場次按鈕的點擊結果未確認，請檢查目前頁面",
     "arrival-mismatch": "進入的選票頁與設定活動或場次不符，請核對活動及日期時間",
     "arrival-timeout": "等待選票頁逾時，請檢查目前是否仍在處理或已完成跳轉",
     "read-failed": "無法完成頁面資料讀取，請檢查瀏覽器是否關閉、頁面載入或變動",
+    "notice-dismiss-failed": "活動頁提醒彈窗無法確認關閉，請檢查頁面",
+    "flow-mismatch": "場次按鈕與設定的流程類型不符（購票為立即購買、登記抽選為立即登記），請檢查活動設定的購票流程",
 };
 
 const saleReasons: Record<TicketPlusSaleReason, string> = {
@@ -33,10 +36,11 @@ const saleReasons: Record<TicketPlusSaleReason, string> = {
     "activity-mismatch": "活動名稱或 ID 與設定不符",
     "session-missing": "找不到設定的日期與時間",
     "session-ambiguous": "同日期與時間有多個場次",
-    "session-disabled": "目標的立即購買按鈕停用，不能據此判定尚未開賣",
+    "session-disabled": "目標的場次按鈕停用，不能據此判定尚未開賣",
     "page-unrecognized": "無法確認頁面或場次狀態",
     "read-timeout": "等待活動頁資料完整逾時",
     "refresh-failed": "活動頁刷新未確認成功",
+    "notice-dismiss-failed": "活動頁提醒彈窗無法確認關閉",
 };
 
 export function ticketPlusSessionMessage(failure: {
@@ -46,8 +50,8 @@ export function ticketPlusSessionMessage(failure: {
 }): string {
     const attempt =
         failure.stage === "before-click"
-            ? "尚未嘗試點擊立即購買"
-            : "已嘗試點擊立即購買，請先人工確認目前頁面，不會再次點擊";
+            ? "尚未嘗試點擊場次按鈕"
+            : "已嘗試點擊場次按鈕，請先人工確認目前頁面，不會再次點擊";
     const diagnostic = failure.diagnostic
         ? ` 診斷（${failure.stage}；最後一次觀測）：${JSON.stringify(failure.diagnostic)}`
         : "";
@@ -57,13 +61,52 @@ export function ticketPlusSessionMessage(failure: {
 export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
     const base = resultMessage(result);
     const message = result.loginDiagnostic ? `${base} 登入停止診斷：${JSON.stringify(result.loginDiagnostic)}` : base;
-    if (!result.progress.submitAttempted || result.outcome === "information-ready" || !("reason" in result))
+    if (
+        !result.progress.submitAttempted ||
+        result.outcome === "information-ready" ||
+        !("reason" in result) ||
+        "informationFailure" in result ||
+        "lotteryFailure" in result
+    ) {
         return message;
+    }
     const diagnostic = "diagnostic" in result ? result.diagnostic : undefined;
     return `${message} 提交後停止原因：${result.reason}。${diagnostic ? ` 診斷（最後一次觀測）：${JSON.stringify(diagnostic)}` : ""}`;
 }
 
 function resultMessage(result: TicketPlusRunResult): string {
+    if (result.outcome === "registration-ready") {
+        return "已停在確認登記前，已勾選服務條款並按一次下一步。請自行檢查登記內容並按確認登記；程式不會送出登記。";
+    }
+    if ("lotteryFailure" in result && result.outcome === "stopped") {
+        const lead =
+            result.stopReason === "time-limit"
+                ? "已達最長執行時間，停止自動操作"
+                : result.stopReason === "user-stop"
+                  ? "已依要求停止自動操作"
+                  : result.lotteryFailure === "participant-page-changed"
+                    ? "頁面已離開輸入資料頁（可能是網站倒數結束），停止等待"
+                    : `抽選送出前停止（${result.lotteryFailure}）`;
+        return `${lead}：未送出登記。請檢查購票瀏覽器；不會自動重跑。`;
+    }
+    if ("lotteryFailure" in result && result.outcome === "unknown") {
+        return "已在輸入資料頁按下一步，但未能確認抵達確認登記頁。請檢查購票瀏覽器；不會重按或送出登記。";
+    }
+    if (result.outcome === "payment-ready") {
+        return "已到同場次付款頁，已勾選服務條款並送出資料頁一次。請自行確認金額、選擇付款方式並付款；程式不會按前往付款。";
+    }
+    if ("informationFailure" in result && result.outcome === "stopped") {
+        const lead =
+            result.stopReason === "time-limit"
+                ? "已達最長執行時間，停止自動操作"
+                : result.stopReason === "user-stop"
+                  ? "已依要求停止自動操作"
+                  : `資料頁送出前停止（${result.informationFailure}）`;
+        return `${lead}：已保留在資料頁、未送出。請檢查購票瀏覽器；不會自動重跑。`;
+    }
+    if ("informationFailure" in result && result.outcome === "unknown") {
+        return "已在資料頁按下一步，但未能確認抵達付款頁。請檢查購票瀏覽器；不會重按或重新購票。";
+    }
     if (result.outcome === "information-ready")
         return "已到同場次填寫資料頁，本階段完成。請人工接手；未填資料、未勾條款、未操作付款。";
     const priorAttempts = "submissionAttempts" in result ? result.submissionAttempts : 0;
@@ -84,6 +127,15 @@ function resultMessage(result: TicketPlusRunResult): string {
         if (result.outcome === "rejected")
             return "已依要求停止自動操作；已確認購票失敗，請人工檢查彈窗與頁面，不會繼續關閉或重試。";
         return `已依要求停止自動操作。${prior}瀏覽器保留供人工檢查，關閉後才解除購票占用。`;
+    }
+    if ("reason" in result && result.reason === "seat-mismatch") {
+        return "選位結果與設定的票區或張數不符，已停止；座位仍在網站保留中，請自行取消或處理。不會重試。";
+    }
+    if ("reason" in result && result.reason === "seat-button-unavailable") {
+        return "確認選位結果頁的下一步無法使用，已停止；座位仍在網站保留中，請自行處理。不會重試。";
+    }
+    if ("reason" in result && result.reason === "seat-confirm-unconfirmed") {
+        return "已確認選位，但未能確認抵達資料頁，請檢查瀏覽器，不會重試。";
     }
     if (result.outcome === "unknown") return "已嘗試提交，結果未確認。請檢查原頁面及訂單；不會重送。";
     if (result.outcome === "rejected") {
@@ -126,6 +178,9 @@ function resultMessage(result: TicketPlusRunResult): string {
         const detail = "saleFailure" in result && result.saleFailure ? saleReasons[result.saleFailure] : "等待已中斷";
         return `開賣等待停止：${detail}。尚未選場次或提交選票，請檢查購票瀏覽器；不會自動重跑。`;
     }
+    if ("noticeFailure" in result && result.noticeFailure) {
+        return "活動頁提醒彈窗無法確認關閉，尚未選場次或提交選票，請檢查購票瀏覽器；不會自動重跑。";
+    }
     return `流程已停止（${result.reason}）。${prior}請檢查購票瀏覽器；不會自動重跑。`;
 }
 export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | undefined {
@@ -155,12 +210,17 @@ export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | unde
             "selecting-session": "核對活動並選擇場次。",
             "selecting-tickets": "核對票種並調整張數。",
             submitting: "核對選票並提交，等待資料頁。",
+            "submitting-information": "已到資料頁，勾選服務條款並按一次下一步，等待付款頁。",
+            "waiting-for-participants":
+                "已到輸入資料頁，請在購票瀏覽器填寫所有參加者，完成後在 GUI 按「參加者已填完」。",
+            "completing-registration": "核對參加者已填，勾選服務條款並按一次下一步，等待確認登記頁。",
             "waiting-to-refresh": "本輪設定順位已耗盡，短暫等待後核對更新票數；可要求停止。",
             refreshing: "核對並嘗試一次更新票數；更新完成未確認前不開始新一輪。",
         }[event.stage];
     }
+    if (event.type === "participants-wait") return undefined;
     if (event.progress.failure === "sold-out") return "偵測到明確售完，處理彈窗後核對是否可以嘗試下一順位。";
     if (event.progress.failure) return "偵測到購票失敗，完成彈窗處理後停止。";
-    if (event.progress.sawQueue) return "排隊購票中，等待網站處理，不重送。";
+    if (event.progress.sawQueue) return "排隊中，等待網站處理，不重送。";
     if (event.progress.submitAttempted) return "已開始一次提交嘗試，結果尚待確認。";
 }

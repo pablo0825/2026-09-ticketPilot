@@ -3,7 +3,7 @@ import { DomCaptureError } from "./domReadFailure.js";
 import type { DomReadDetail } from "./domReadFailure.js";
 
 export type ReadStep = "read-url-before" | "capture-dom" | "read-url-after" | "validate-url" | "classify-page";
-export type RouteKind = "activity" | "order" | "confirm" | "checkout" | "other";
+export type RouteKind = "activity" | "order" | "confirmSeat" | "confirm" | "checkout" | "other";
 export interface ReadFailureDiagnostic {
     step: ReadStep;
     domRead?: DomReadDetail;
@@ -16,7 +16,7 @@ export interface ReadFailureDiagnostic {
 
 export function diagnosticRouteKind(pathname: string): RouteKind {
     if (/^\/activity\/[A-Za-z0-9_-]+\/?$/.test(pathname)) return "activity";
-    for (const kind of ["order", "confirm", "checkout"] as const) {
+    for (const kind of ["order", "confirmSeat", "confirm", "checkout"] as const) {
         if (new RegExp(`^/${kind}/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/?$`).test(pathname)) return kind;
     }
     return "other";

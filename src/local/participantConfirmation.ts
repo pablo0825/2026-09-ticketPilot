@@ -1,0 +1,30 @@
+// worker 端的參加者確認閘門：只接受目前等待中、ID 相同、格式完全相符的確認一次；
+// 提早、錯誤、重複或多餘欄位的訊息一律忽略，不保留給之後的等待。
+export function createParticipantGate() {
+    let pending: { confirmationId: string; resolve: () => void } | undefined;
+    return {
+        wait(confirmationId: string): Promise<void> {
+            return new Promise(resolve => {
+                pending = { confirmationId, resolve };
+            });
+        },
+        receive(message: unknown): boolean {
+            if (
+                !pending ||
+                !message ||
+                typeof message !== "object" ||
+                Object.keys(message).length !== 2 ||
+                !("type" in message) ||
+                message.type !== "confirm-ticketplus-participants" ||
+                !("confirmationId" in message) ||
+                message.confirmationId !== pending.confirmationId
+            ) {
+                return false;
+            }
+            const { resolve } = pending;
+            pending = undefined;
+            resolve();
+            return true;
+        },
+    };
+}

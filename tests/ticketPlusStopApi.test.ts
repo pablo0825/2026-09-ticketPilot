@@ -214,9 +214,9 @@ test("停止 API：錯誤 ID、額外欄位、缺 token 及跨來源不影響登
         assert.equal((await h.snapshot())!.loginConfirmation, undefined);
         assert.equal((await h.counts()).counts.session, 0);
         await login(h);
-        const finished = await h.until(run => run?.status === "information-ready");
+        const finished = await h.until(run => run?.status === "payment-ready");
         assert.equal((await h.request("/api/purchase/stop", { runId: waiting.id })).status, 400);
-        assert.equal((await h.snapshot())!.status, "information-ready");
+        assert.equal((await h.snapshot())!.status, "payment-ready");
         assert.equal((await h.request("/api/purchase/close-browser", { runId: finished.id })).status, 200);
     } finally {
         await h.dispose();
@@ -325,10 +325,10 @@ test("停止 API：停止傳送回呼晚於成功結果，不覆蓋資料頁終�
         response = h.request("/api/purchase/stop", { runId: run.id });
         await waitFor(async () => Boolean(sent));
         await writeFile(h.report + ".control", "release-queue");
-        await h.until(run => run?.status === "information-ready");
+        await h.until(run => run?.status === "payment-ready");
         sent!();
         assert.equal((await response).status, 200);
-        assert.equal((await h.snapshot())!.status, "information-ready");
+        assert.equal((await h.snapshot())!.status, "payment-ready");
         assert.equal((await h.counts()).counts.submit, 1);
         assert.equal((await h.request("/api/purchase/close-browser", { runId: run.id })).status, 200);
     } finally {

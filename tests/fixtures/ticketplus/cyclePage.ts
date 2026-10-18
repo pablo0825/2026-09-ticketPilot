@@ -1,5 +1,5 @@
 import type { BrowserContext, Page } from "playwright";
-import { activity, eventHeader, student, presale, soldOut, information } from "./pages.js";
+import { activity, eventHeader, student, presale, soldOut, information, checkout } from "./pages.js";
 import { failureDialog, queueDialog } from "./submissionPage.js";
 
 export type CycleMode =
@@ -40,7 +40,7 @@ export async function installCyclePage(context: BrowserContext, mode: CycleMode)
         }),
     );
     await context.addInitScript(
-        ({ mode, order, information, failure, generalFailure, queue }) => {
+        ({ mode, order, information, checkout, failure, generalFailure, queue }) => {
             const state: CycleState = { actions: [], submissions: [] };
             window.ticketCycleFixture = state;
             const dom = {
@@ -53,7 +53,16 @@ export async function installCyclePage(context: BrowserContext, mode: CycleMode)
                     );
                 },
             };
-            document.addEventListener("change", () => state.actions.push("change"));
+            // 資料頁條款勾選後啟用下一步（比照實站）；其他欄位變更另外記錄。
+            document.addEventListener("change", event => {
+                const input = event.target as HTMLInputElement;
+                if (location.pathname.startsWith("/confirm/") && input.type === "checkbox") {
+                    state.actions.push("terms");
+                    dom.next()!.disabled = !input.checked;
+                    return;
+                }
+                state.actions.push("change");
+            });
             document.addEventListener("click", event => {
                 const button = (event.target as Element).closest("button");
                 if (!button) return;
@@ -108,8 +117,11 @@ export async function installCyclePage(context: BrowserContext, mode: CycleMode)
                     return; // 其他模式保留舊 DOM，不能當成更新成功。
                 }
                 if (button.textContent === "下一步") {
+                    // 資料頁下一步：比照實站轉到同場次付款頁。
                     if (location.pathname.startsWith("/confirm/")) {
                         state.actions.push("information-next");
+                        history.replaceState(null, "", "/checkout/event-fixture/session-B");
+                        document.body.innerHTML = checkout;
                         return;
                     }
                     state.actions.push("submit");
@@ -145,6 +157,7 @@ export async function installCyclePage(context: BrowserContext, mode: CycleMode)
             mode,
             order,
             information,
+            checkout,
             failure: failureDialog(),
             generalFailure: failureDialog("購票失敗"),
             queue: queueDialog,

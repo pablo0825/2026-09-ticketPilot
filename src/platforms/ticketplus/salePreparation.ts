@@ -3,6 +3,7 @@ import type { Page } from "playwright";
 import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { SaleSchedule } from "../../core/types.js";
 import { validateSaleSchedule } from "../../core/purchaseValidation.js";
+import { dismissTicketPlusActivityNotice, TicketPlusNoticeError } from "./activityNotice.js";
 import { readTicketPlusPage } from "./pageState.js";
 import type { TicketPlusPage } from "./pageState.js";
 import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
@@ -19,7 +20,8 @@ export type TicketPlusSaleReason =
     | "session-disabled"
     | "page-unrecognized"
     | "read-timeout"
-    | "refresh-failed";
+    | "refresh-failed"
+    | "notice-dismiss-failed";
 
 export class TicketPlusSaleError extends Error {
     constructor(readonly reason: TicketPlusSaleReason) {
@@ -80,9 +82,19 @@ export async function prepareTicketPlusSale(
         remaining();
     };
 
+    // 關閉已知提醒；每次載入的點擊額度由關閉模組記在頁面上，同一次載入再出現就停止。
+    const dismissNotice = async () => {
+        try {
+            await dismissTicketPlusActivityNotice(page, control, { timeoutMs: Math.min(5_000, remaining()) });
+        } catch (error) {
+            if (error instanceof TicketPlusNoticeError) throw new TicketPlusSaleError("notice-dismiss-failed");
+            throw error;
+        }
+    };
+
     // 唯讀快照有獨立上限；空白只短暫等待，不視為尚未開賣。
     const readReady = async (): Promise<"available" | "not-on-sale"> => {
-        const readDeadline = performance.now() + Math.min(5_000, remaining());
+        let readDeadline = performance.now() + Math.min(5_000, remaining());
         while (true) {
             requireActivityUrl();
             const timeout = Math.min(readDeadline - performance.now(), remaining());
@@ -105,6 +117,11 @@ export async function prepareTicketPlusSale(
             if (performance.now() >= readDeadline) throw new TicketPlusSaleError("read-timeout");
             if (snapshot.kind === "unknown" && snapshot.reason === "incomplete-data") {
                 await pause(readDeadline - performance.now());
+                continue;
+            }
+            if (snapshot.kind === "unknown" && snapshot.reason === "notice-dialog") {
+                await dismissNotice();
+                readDeadline = performance.now() + Math.min(5_000, remaining());
                 continue;
             }
             if (snapshot.kind !== "activity") throw new TicketPlusSaleError("page-unrecognized");
