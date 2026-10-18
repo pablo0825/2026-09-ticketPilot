@@ -25,7 +25,8 @@ export interface InformationSubmissionOptions {
     pollIntervalMs?: number;
 }
 
-class InformationStop extends Error {
+// 資料頁操作在點擊前的明確停止原因；抽選收尾共用條款勾選時也使用。
+export class InformationStop extends Error {
     constructor(readonly reason: InformationSubmissionReason) {
         super(reason);
     }

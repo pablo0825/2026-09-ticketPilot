@@ -89,3 +89,67 @@ test("抽選參加者：別的場次、購票資料頁或確認登記頁都不�
         assert.deepEqual(register.markers?.registerButtons, [true]);
     });
 });
+
+const none = { terms: 0, link: 0, next: 0, register: 0, cancel: 0, edit: 0, back: 0 };
+
+test("抽選收尾：參加者已填時勾條款一次、按下一步一次，停在確認登記前", async () => {
+    const { completeTicketPlusLottery } = await import("../src/platforms/ticketplus/lotteryCompletion.js");
+    const { TicketPlusRunControl } = await import("../src/platforms/ticketplus/runControl.js");
+    await withLottery({ rows: ["filled"] }, "to-register", async (page, counts) => {
+        const result = await completeTicketPlusLottery(page, session, 1, new TicketPlusRunControl());
+        assert.deepEqual(result, { outcome: "registration-ready" });
+        assert.deepEqual(await counts(), { ...none, terms: 1, next: 1 });
+        assert(!JSON.stringify(result).includes(fakeParticipant.id));
+    });
+    // 條款已勾時不再點
+    await withLottery({ rows: ["filled", "filled"], termsChecked: true }, "to-register", async (page, counts) => {
+        assert.deepEqual(await completeTicketPlusLottery(page, session, 2, new TicketPlusRunControl()), {
+            outcome: "registration-ready",
+        });
+        assert.deepEqual(await counts(), { ...none, next: 1 });
+    });
+});
+
+test("抽選收尾：每種點擊前的不符各回自己的原因，且零點擊", async () => {
+    const { completeTicketPlusLottery } = await import("../src/platforms/ticketplus/lotteryCompletion.js");
+    const { TicketPlusRunControl } = await import("../src/platforms/ticketplus/runControl.js");
+    for (const [options, quantity, reason] of [
+        [{ rows: ["filled"], dialog: "edit" }, 1, "dialog-open"],
+        [{ rows: ["filled"], dialog: "close-confirm" }, 1, "dialog-open"],
+        [{ rows: ["filled", "filled"] }, 1, "participant-count"],
+        [{ rows: ["filled", "empty"] }, 2, "participant-incomplete"],
+    ] as const) {
+        await withLottery({ ...options, rows: [...options.rows] }, "to-register", async (page, counts) => {
+            assert.deepEqual(await completeTicketPlusLottery(page, session, quantity, new TicketPlusRunControl()), {
+                outcome: "stopped",
+                reason,
+            });
+            assert.deepEqual(await counts(), none);
+        });
+    }
+    // 別的場次不是輸入資料頁
+    await withLottery({ rows: ["filled"] }, "to-register", async (page, counts) => {
+        assert.deepEqual(
+            await completeTicketPlusLottery(
+                page,
+                { ...session, sessionId: "session-A" },
+                1,
+                new TicketPlusRunControl(),
+            ),
+            { outcome: "stopped", reason: "not-input-page" },
+        );
+        assert.deepEqual(await counts(), none);
+    });
+});
+
+test("抽選收尾：按下一步後沒到確認登記頁，回報未確認且不重按", async () => {
+    const { completeTicketPlusLottery } = await import("../src/platforms/ticketplus/lotteryCompletion.js");
+    const { TicketPlusRunControl } = await import("../src/platforms/ticketplus/runControl.js");
+    await withLottery({ rows: ["filled"] }, "stay", async (page, counts) => {
+        assert.deepEqual(
+            await completeTicketPlusLottery(page, session, 1, new TicketPlusRunControl(), { timeoutMs: 800 }),
+            { outcome: "unknown", reason: "checkout-not-reached" },
+        );
+        assert.deepEqual(await counts(), { ...none, terms: 1, next: 1 });
+    });
+});
