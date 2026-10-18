@@ -8,7 +8,7 @@ import { stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutco
 import type { PurchaseEvent } from "./purchaseEvents.js";
 
 export interface TicketPlusWorkerResult {
-    outcome: "information-ready" | "payment-ready" | "failed" | "unknown";
+    outcome: "information-ready" | "payment-ready" | "registration-ready" | "failed" | "unknown";
     message: string;
 }
 

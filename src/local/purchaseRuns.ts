@@ -23,7 +23,8 @@ export interface PurchaseSnapshot {
     requestId: string;
     activityName: string;
     saleAt?: string;
-    status: "running" | "payment-ready" | "information-ready" | "failed" | "unknown" | "interrupted";
+    status:
+        "running" | "payment-ready" | "information-ready" | "registration-ready" | "failed" | "unknown" | "interrupted";
     canCloseBrowser?: boolean;
     canStop?: boolean;
     stopRequest?: { status: "sending" | "sent" | "unconfirmed" };
@@ -120,6 +121,7 @@ export class PurchaseRuns {
                             "running",
                             "payment-ready",
                             "information-ready",
+                            "registration-ready",
                             "failed",
                             "unknown",
                             "interrupted",
@@ -153,6 +155,7 @@ export class PurchaseRuns {
             if (
                 platform !== "ticketplus" &&
                 (valid.data.snapshot.status === "information-ready" ||
+                    valid.data.snapshot.status === "registration-ready" ||
                     valid.data.snapshot.events.some(item => item.event.type === "ticketplus"))
             ) {
                 throw new Error("Invalid platform event or result");
@@ -210,7 +213,9 @@ export class PurchaseRuns {
             canCloseBrowser:
                 !!this.child?.connected &&
                 this.current.snapshot.browserOpen &&
-                ["payment-ready", "information-ready", "failed", "unknown"].includes(this.current.snapshot.status),
+                ["payment-ready", "information-ready", "registration-ready", "failed", "unknown"].includes(
+                    this.current.snapshot.status,
+                ),
         };
     }
 
@@ -494,7 +499,7 @@ export class PurchaseRuns {
                     (["failed", "unknown"].includes(value.outcome) ||
                         (record.snapshot.platform === "klook" && value.outcome === "payment-ready") ||
                         (record.snapshot.platform === "ticketplus" &&
-                            ["information-ready", "payment-ready"].includes(value.outcome)))
+                            ["information-ready", "payment-ready", "registration-ready"].includes(value.outcome)))
                 ) {
                     record.snapshot.status = value.outcome;
                     record.snapshot.message = value.message;
