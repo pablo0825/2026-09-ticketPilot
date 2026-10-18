@@ -96,3 +96,31 @@ test("確認選位停止訊息：不符與未確認各有說明，不會重試",
         /已確認選位，但未能確認抵達資料頁.*不會重試/,
     );
 });
+
+test("付款頁與資料頁停止訊息：點擊前停止說明未送出，點擊後說明未確認", async () => {
+    const { ticketPlusResultMessage } = await import("../src/app/ticketPlusPresentation.js");
+    const progress = Object.freeze({ submitAttempted: true, dismissAttempted: false, sawQueue: false }) as never;
+    assert.match(
+        ticketPlusResultMessage({ outcome: "payment-ready", progress, submissionAttempts: 1 }),
+        /付款頁.*不會按前往付款/,
+    );
+    const before = ticketPlusResultMessage({
+        outcome: "stopped",
+        reason: "information-stopped",
+        informationFailure: "contact-missing",
+        progress,
+        submissionAttempts: 1,
+    });
+    assert.match(before, /已保留在資料頁、未送出/);
+    assert.doesNotMatch(before, /結果未確認/);
+    assert.match(
+        ticketPlusResultMessage({
+            outcome: "unknown",
+            reason: "information-stopped",
+            informationFailure: "checkout-not-reached",
+            progress,
+            submissionAttempts: 1,
+        }),
+        /未能確認抵達付款頁.*不會重按/,
+    );
+});

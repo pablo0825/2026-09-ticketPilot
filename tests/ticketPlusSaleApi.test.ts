@@ -44,11 +44,11 @@ test(
             const remaining = saleTime - Date.now();
             if (remaining > 300) await new Promise(resolve => setTimeout(resolve, remaining - 200));
             assert.deepEqual((await h.counts()).counts, zeroCounts);
-            const completed = await h.until(value => value?.status === "information-ready");
+            const completed = await h.until(value => value?.status === "payment-ready");
             assert(Date.now() >= saleTime);
             assert.equal(completed.id, run.id);
             const report = await h.counts();
-            assert.deepEqual(report.counts, { ...zeroCounts, session: 1, plus: 2, submit: 1 });
+            assert.deepEqual(report.counts, { ...zeroCounts, session: 1, plus: 2, submit: 1, information: 1 });
             assert.equal(report.requests.filter((path: string) => path.startsWith("/activity/")).length, 2);
             const activityLoads = report.timeline.filter((entry: { kind: string }) =>
                 entry.kind.startsWith("/activity/"),

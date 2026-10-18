@@ -11,7 +11,7 @@ import type { BrowserContext } from "playwright";
 import { runTicketPlus } from "../src/app/runTicketPlus.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../src/app/purchaseLock.js";
 import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
-import { activity } from "./fixtures/ticketplus/pages.js";
+import { activity, checkout } from "./fixtures/ticketplus/pages.js";
 import { readyInformation, readyOrder, failureDialog } from "./fixtures/ticketplus/submissionPage.js";
 import { noticeDialog, noticeTitles } from "./fixtures/ticketplus/activityNotice.js";
 
@@ -38,7 +38,9 @@ async function setup(context: BrowserContext, rejected: boolean, activityHtml = 
                       ? activityHtml
                       : path.startsWith("/confirm/")
                         ? readyInformation
-                        : readyOrder.replace("<div>2</div>", "<div>0</div>"),
+                        : path.startsWith("/checkout/")
+                          ? checkout
+                          : readyOrder.replace("<div>2</div>", "<div>0</div>"),
         });
     });
     await context.addInitScript(
@@ -80,7 +82,9 @@ async function setup(context: BrowserContext, rejected: boolean, activityHtml = 
                 }
                 if (button.textContent === "下一步") {
                     if (location.pathname.startsWith("/confirm/")) {
+                        // 資料頁下一步比照實站轉到付款頁
                         recorder.record("information");
+                        location.assign("/checkout/event-fixture/session-B");
                         return;
                     }
                     recorder.record("submit");
@@ -109,14 +113,14 @@ test("TicketPlus runner：真實本機頁面串接到資料頁／失敗停止，
                 lease,
                 webdriverExperiment: rejected,
             });
-            assert.equal(result.outcome, rejected ? "rejected" : "information-ready");
+            assert.equal(result.outcome, rejected ? "rejected" : "payment-ready");
             const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
             assert.deepEqual(counts, {
                 session: 1,
                 plus: 2,
                 submit: 1,
                 dismiss: rejected ? 1 : 0,
-                information: 0,
+                information: rejected ? 0 : 1,
                 other: 0,
             });
             assert.equal(context.pages()[0]!.isClosed(), false);
@@ -126,7 +130,7 @@ test("TicketPlus runner：真實本機頁面串接到資料頁／失敗停止，
                 "/",
                 "/activity/event-fixture",
                 "/order/event-fixture/session-B",
-                ...(rejected ? [] : ["/confirm/event-fixture/session-B"]),
+                ...(rejected ? [] : ["/confirm/event-fixture/session-B", "/checkout/event-fixture/session-B"]),
             ]);
             const args = launch.mock.calls[0]!.arguments;
             assert(String(args[0]).endsWith("browser-profile-ticketplus"));
@@ -497,7 +501,7 @@ test("TicketPlus runner：外部登入狀態到達前不導航或購票，確認
         assert.equal(requests.length, 0);
         assert.equal(await context.pages()[0]!.evaluate(() => sessionStorage.getItem("counts")), null);
         release();
-        assert.equal((await pending).outcome, "information-ready");
+        assert.equal((await pending).outcome, "payment-ready");
         assert.equal(requests.filter(path => path.startsWith("/activity/")).length, 1);
         const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
         assert.equal(counts.session, 1);
@@ -633,7 +637,7 @@ test("TicketPlus runner：活動頁有入場規定提醒時先按確定一次，
     const launch = mock.method(chromium, "launchPersistentContext", async () => context);
     try {
         const result = await runTicketPlus(settings, { lease: acquirePurchaseLease(directory) });
-        assert.equal(result.outcome, "information-ready");
+        assert.equal(result.outcome, "payment-ready");
         const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
         assert.equal(counts.notice, 1);
         assert.equal(counts.session, 1);
@@ -721,7 +725,10 @@ test("TicketPlus runner：抽選設定遇到購票活動頁，在點擊場次前
     await setup(context, false);
     const launch = mock.method(chromium, "launchPersistentContext", async () => context);
     try {
-        const result = await runTicketPlus({ ...settings, flowType: "lottery" }, { lease: acquirePurchaseLease(directory) });
+        const result = await runTicketPlus(
+            { ...settings, flowType: "lottery" },
+            { lease: acquirePurchaseLease(directory) },
+        );
         assert.equal(result.outcome, "stopped");
         assert.equal("sessionFailure" in result ? result.sessionFailure?.reason : undefined, "flow-mismatch");
         const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts") ?? "{}"));

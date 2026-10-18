@@ -1,9 +1,16 @@
 import type { Page } from "playwright";
-import { parseTicketPlusActivity, ticketPlusSessionSelection } from "../../config/ticketPlusActivity.js";
+import {
+    parseTicketPlusActivity,
+    ticketPlusFlowType,
+    ticketPlusSessionSelection,
+} from "../../config/ticketPlusActivity.js";
 import type { TicketPlusActivitySettings } from "../../config/ticketPlusActivity.js";
+import { submitTicketPlusInformation } from "./informationSubmission.js";
+import type { InformationSubmissionOptions, InformationSubmissionReason } from "./informationSubmission.js";
 import { inspectTicketPlusReselection } from "./reselectionReadiness.js";
 import type { ReselectionBlockedReason } from "./reselectionReadiness.js";
 import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
+import type { TicketPlusStopReason } from "./runControl.js";
 import { runTicketPlusSubmission, stoppedSubmissionResult } from "./submissionOutcome.js";
 import type { TicketPlusSubmissionResult } from "./submissionOutcome.js";
 import { selectTicketPlusPriority, TicketPlusPriorityError } from "./ticketPriority.js";
@@ -14,7 +21,8 @@ import type { TicketRefreshOptions, TicketRefreshResult } from "./ticketRefresh.
 import { emptySubmissionProgress } from "./ticketSubmission.js";
 import type { SubmissionProgress, TicketSubmissionOptions } from "./ticketSubmission.js";
 
-export type TicketPlusCycleStage = "selecting-tickets" | "submitting" | "waiting-to-refresh" | "refreshing";
+export type TicketPlusCycleStage =
+    "selecting-tickets" | "submitting" | "submitting-information" | "waiting-to-refresh" | "refreshing";
 export type TicketPlusCycleEvent =
     | { type: "stage"; stage: TicketPlusCycleStage }
     | { type: "submission"; progress: Readonly<SubmissionProgress> }
@@ -26,6 +34,14 @@ export type TicketPlusCycleEvent =
       };
 export type TicketPlusCycleResult = (
     | TicketPlusSubmissionResult
+    | { outcome: "payment-ready"; progress: Readonly<SubmissionProgress>; stopReason?: undefined }
+    | {
+          outcome: "stopped" | "unknown";
+          reason: "information-stopped";
+          informationFailure: InformationSubmissionReason;
+          progress: Readonly<SubmissionProgress>;
+          stopReason?: TicketPlusStopReason;
+      }
     | {
           outcome: "stopped";
           reason: "ticket-selection-stopped" | "refresh-stopped" | "cycle-limit-missing";
@@ -43,6 +59,7 @@ export interface TicketPlusCycleOptions {
     selection?: TicketPriorityOptions;
     submission?: TicketSubmissionOptions;
     refresh?: TicketRefreshOptions;
+    information?: InformationSubmissionOptions;
 }
 
 // 編排同場次順位；只有更新完成且原全程期限有效，才從第一順位開始新一輪。
@@ -71,6 +88,7 @@ export async function runTicketPlusCycle(
         // 複製設定並確認同場次能力，等待使用原本的全程控制。
         control.check();
         const activity = parseTicketPlusActivity(input);
+        const flowType = ticketPlusFlowType(activity);
         ticketPlusSessionSelection(activity);
         const delay = options.refreshDelayMs ?? 1_000;
         if (!Number.isFinite(delay) || delay <= 0 || delay > 2_147_483_647) {
@@ -120,6 +138,24 @@ export async function runTicketPlusCycle(
                     },
                     control,
                 );
+                // 購票到資料頁後勾條款並送出一次，停在付款頁；抽選原樣交回人工確認流程。
+                if (result.outcome === "information-ready" && flowType === "purchase") {
+                    notify({ type: "stage", stage: "submitting-information" });
+                    const submitted = await submitTicketPlusInformation(page, session, control, options.information);
+                    const frozen = Object.freeze({ ...progress });
+                    return submitted.outcome === "payment-ready"
+                        ? { outcome: "payment-ready", progress: frozen, submissionAttempts }
+                        : {
+                              outcome: submitted.outcome,
+                              reason: "information-stopped",
+                              informationFailure: submitted.reason,
+                              progress: frozen,
+                              submissionAttempts,
+                              ...(submitted.reason === "time-limit" || submitted.reason === "user-stopped"
+                                  ? { stopReason: submitted.reason === "time-limit" ? "time-limit" : "user-stop" }
+                                  : {}),
+                          };
+                }
                 if (result.outcome !== "rejected" || result.progress.failure !== "sold-out" || result.stopReason) {
                     return { ...result, submissionAttempts };
                 }

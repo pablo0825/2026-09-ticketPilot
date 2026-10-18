@@ -159,7 +159,8 @@ export async function submitTicketPlusInformation(
         if (!ready.nextEnabled) return { outcome: "stopped", reason: "next-unavailable" };
 
         // 固定唯一的「下一步」節點，點擊前再核對頁面，只按一次。
-        const locator = page.locator("button.nextBtn").filter({ hasText: /^\s*下一步\s*$/, visible: true });
+        // 與快照相同定義：可見且名稱為「下一步」的按鈕（「使用」等其他 nextBtn 不算）。
+        const locator = page.getByRole("button", { name: "下一步", exact: true }).filter({ visible: true });
         if ((await control.read(() => locator.count())) !== 1) {
             return { outcome: "stopped", reason: "next-unavailable" };
         }

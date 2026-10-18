@@ -53,9 +53,11 @@ export async function runTicketPlusWorker(
             outcome:
                 result.outcome === "information-ready"
                     ? "information-ready"
-                    : result.outcome === "unknown"
-                      ? "unknown"
-                      : "failed",
+                    : result.outcome === "payment-ready"
+                      ? "payment-ready"
+                      : result.outcome === "unknown"
+                        ? "unknown"
+                        : "failed",
             message: ticketPlusResultMessage(result),
         };
     } catch (error) {

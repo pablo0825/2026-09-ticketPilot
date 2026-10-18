@@ -111,11 +111,11 @@ test(
             await eventually(async () => assert.match(await page.locator("#status").innerText(), /等待開賣/));
             assert.equal((await h.counts()).counts.session, 0);
             assert.deepEqual(starts(requests)[0]!.body.expectedActivity, saved.settings);
-            await h.until(run => run?.status === "information-ready");
-            await eventually(async () => assert.equal(await page.locator("#status").innerText(), "已到填寫資料頁"));
+            await h.until(run => run?.status === "payment-ready");
+            await eventually(async () => assert.equal(await page.locator("#status").innerText(), "已到付款頁"));
             assert.equal((await h.counts()).counts.session, 1);
             assert.equal((await h.counts()).counts.submit, 1);
-            assert.equal((await h.counts()).counts.information, 0);
+            assert.equal((await h.counts()).counts.information, 1);
             const saleTime = Date.parse(time + "+08:00");
             const loads = (await h.counts()).timeline.filter((entry: { kind: string }) =>
                 entry.kind.startsWith("/activity/"),

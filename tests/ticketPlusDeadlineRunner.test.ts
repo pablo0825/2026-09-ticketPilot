@@ -11,6 +11,7 @@ import { acquirePurchaseLease, purchaseOccupied } from "../src/app/purchaseLock.
 import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
 import { activity } from "./fixtures/ticketplus/pages.js";
 import { readyInformation, readyOrder, failureDialog, queueDialog } from "./fixtures/ticketplus/submissionPage.js";
+import { checkout } from "./fixtures/ticketplus/pages.js";
 
 const settings: TicketPlusActivitySettings = {
     platform: "ticketplus",
@@ -32,7 +33,7 @@ async function install(context: BrowserContext, mode: Mode, requests: string[]) 
         });
     });
     await context.addInitScript(
-        ({ mode, order, information, queue, failure }) => {
+        ({ mode, order, information, checkout, queue, failure }) => {
             const counts = { session: 0, plus: 0, submit: 0, dismiss: 0, other: 0 };
             sessionStorage.setItem("deadlineCounts", JSON.stringify(counts));
             document.addEventListener("click", event => {
@@ -49,6 +50,10 @@ async function install(context: BrowserContext, mode: Mode, requests: string[]) 
                 } else if (button.dataset.fixture === "dismiss") {
                     counts.dismiss++;
                     document.querySelector(".v-dialog__content")!.remove();
+                } else if (button.textContent === "下一步" && location.pathname.startsWith("/confirm/")) {
+                    // 資料頁下一步比照實站轉到付款頁
+                    history.replaceState({}, "", "/checkout/event-fixture/session-B");
+                    document.body.innerHTML = checkout;
                 } else if (button.textContent === "下一步" && location.pathname.startsWith("/order/")) {
                     counts.submit++;
                     if (mode === "direct") {
@@ -63,6 +68,7 @@ async function install(context: BrowserContext, mode: Mode, requests: string[]) 
             mode,
             order: readyOrder.replace("<div>2</div>", "<div>0</div>"),
             information: readyInformation,
+            checkout,
             queue: queueDialog,
             failure: failureDialog(),
         },
@@ -114,7 +120,7 @@ test("TicketPlus 全程期限：登入耗時不計入，期限未滿十分鐘仍
         const result = await pending;
         assert.equal(
             result.outcome,
-            "information-ready",
+            "payment-ready",
             JSON.stringify({ result, counts: await site.counts(), url: site.context.pages()[0]!.url() }),
         );
         assert.equal(result.stopReason, undefined);

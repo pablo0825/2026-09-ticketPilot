@@ -68,6 +68,15 @@ export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
 }
 
 function resultMessage(result: TicketPlusRunResult): string {
+    if (result.outcome === "payment-ready") {
+        return "已到同場次付款頁，已勾選服務條款並送出資料頁一次。請自行確認金額、選擇付款方式並付款；程式不會按前往付款。";
+    }
+    if ("informationFailure" in result && result.outcome === "stopped" && !result.stopReason) {
+        return `資料頁送出前停止（${result.informationFailure}）：已保留在資料頁、未送出。請檢查購票瀏覽器；不會自動重跑。`;
+    }
+    if ("informationFailure" in result && result.outcome === "unknown") {
+        return "已在資料頁按下一步，但未能確認抵達付款頁。請檢查購票瀏覽器；不會重按或重新購票。";
+    }
     if (result.outcome === "information-ready")
         return "已到同場次填寫資料頁，本階段完成。請人工接手；未填資料、未勾條款、未操作付款。";
     const priorAttempts = "submissionAttempts" in result ? result.submissionAttempts : 0;
@@ -171,6 +180,7 @@ export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | unde
             "selecting-session": "核對活動並選擇場次。",
             "selecting-tickets": "核對票種並調整張數。",
             submitting: "核對選票並提交，等待資料頁。",
+            "submitting-information": "已到資料頁，勾選服務條款並按一次下一步，等待付款頁。",
             "waiting-to-refresh": "本輪設定順位已耗盡，短暫等待後核對更新票數；可要求停止。",
             refreshing: "核對並嘗試一次更新票數；更新完成未確認前不開始新一輪。",
         }[event.stage];

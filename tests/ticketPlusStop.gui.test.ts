@@ -264,9 +264,9 @@ test("TicketPlus 停止 GUI：停止回應仍是 running 時，晚到不能覆�
                 await page.locator("#status").textContent();
                 assert(received);
             });
-            current = { ...waitingRun(), status: "information-ready", canStop: false, stopRequest: { status: "sent" } };
+            current = { ...waitingRun(), status: "payment-ready", canStop: false, stopRequest: { status: "sent" } };
             feed.publish(current);
-            await eventually(async () => assert.equal(await page.locator("#status").innerText(), "已到填寫資料頁"));
+            await eventually(async () => assert.equal(await page.locator("#status").innerText(), "已到付款頁"));
             // 停止重播終局，避免後續快照掩蓋舊回應造成的倒退。
             feed.publish(undefined);
             release();
@@ -277,7 +277,7 @@ test("TicketPlus 停止 GUI：停止回應仍是 running 時，晚到不能覆�
             await page.evaluate(
                 () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))),
             );
-            assert.equal(await page.locator("#status").innerText(), "已到填寫資料頁");
+            assert.equal(await page.locator("#status").innerText(), "已到付款頁");
             await unavailable(page, stopLabel);
             await unavailable(page, loginLabel);
         } finally {

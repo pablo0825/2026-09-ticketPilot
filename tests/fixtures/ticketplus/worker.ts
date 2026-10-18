@@ -2,7 +2,7 @@ import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
 import { writeFile, readFile, rename } from "node:fs/promises";
 import { appendFileSync, watchFile, unwatchFile } from "node:fs";
-import { activity, student, presale, soldOut } from "./pages.js";
+import { activity, student, presale, soldOut, checkout } from "./pages.js";
 import { readyOrder, readyInformation, failureDialog, queueDialog } from "./submissionPage.js";
 
 // 只替換瀏覽器環境，正式 worker、runner、DOM 模組與設定解析均照常執行。
@@ -74,7 +74,9 @@ chromium.launchPersistentContext = async (_profile, options) => {
                       ? activity
                       : path.startsWith("/confirm/")
                         ? readyInformation + "<p>PRIVATE_INFORMATION_MARKER</p>"
-                        : order,
+                        : path.startsWith("/checkout/")
+                          ? checkout
+                          : order,
         });
     });
     await context.addInitScript(
@@ -107,7 +109,9 @@ chromium.launchPersistentContext = async (_profile, options) => {
                     await (window as any).recordFixture("dismiss");
                 } else if (button.textContent === "下一步") {
                     if (location.pathname.startsWith("/confirm/")) {
+                        // 資料頁下一步比照實站轉到付款頁
                         await (window as any).recordFixture("information");
+                        location.assign("/checkout/event-fixture/session-B");
                         return;
                     }
                     const tickets = [...document.querySelectorAll(".row.py-1.py-md-4")].map(row => ({
