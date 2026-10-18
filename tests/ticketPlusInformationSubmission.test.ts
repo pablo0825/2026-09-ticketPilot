@@ -81,16 +81,38 @@ test("資料頁送出：條款已勾時不再點條款", async () => {
     });
 });
 
-test("資料頁送出：聯絡欄位缺值或頁面是抽選輸入資料頁時零點擊停止", async () => {
-    for (const [options, reason] of [
-        [{ contactMissing: true }, "contact-missing"],
-        [{ participants: true }, "not-purchase-page"],
-    ] as const) {
-        await withInformation(options, "to-checkout", async (page, counts) => {
-            assert.deepEqual(await submitTicketPlusInformation(page, session, new TicketPlusRunControl()), {
-                outcome: "stopped",
-                reason,
-            });
+test("資料頁送出：三個聯絡欄位空白或不存在仍送出一次並停在付款頁", async () => {
+    for (const missing of [false, true]) {
+        await withInformation({}, "to-checkout", async (page, counts) => {
+            // 模擬會員欄位尚未帶值或無法辨識，不將個資作為送出條件。
+            await page.locator('input[id^="contact-"]').evaluateAll((inputs, remove) => {
+                for (const input of inputs) {
+                    if (remove) {
+                        input.remove();
+                    } else {
+                        (input as HTMLInputElement).value = "";
+                    }
+                }
+            }, missing);
+
+            // 核對只勾條款與按下一步，付款保持未操作。
+            const result = await submitTicketPlusInformation(page, session, new TicketPlusRunControl());
+            assert.deepEqual(result, { outcome: "payment-ready" });
+            assert.deepEqual(await counts(), { ...none, terms: 1, next: 1 });
+            assert.equal(await page.locator('input[name="payment"]:checked').count(), 0);
+        });
+    }
+});
+
+test("資料頁送出：抽選輸入資料頁或活動場次不符時零點擊停止", async () => {
+    for (const expected of [
+        { ...session, eventId: "other-event" },
+        { ...session, sessionId: "other-session" },
+        session,
+    ]) {
+        await withInformation({ participants: expected === session }, "to-checkout", async (page, counts) => {
+            const result = await submitTicketPlusInformation(page, expected, new TicketPlusRunControl());
+            assert.deepEqual(result, { outcome: "stopped", reason: "not-purchase-page" });
             assert.deepEqual(await counts(), none);
         });
     }

@@ -107,7 +107,7 @@ test("付款頁與資料頁停止訊息：點擊前停止說明未送出，點�
     const before = ticketPlusResultMessage({
         outcome: "stopped",
         reason: "information-stopped",
-        informationFailure: "contact-missing",
+        informationFailure: "next-unavailable",
         progress,
         submissionAttempts: 1,
     });
