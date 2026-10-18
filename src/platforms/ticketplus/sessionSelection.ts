@@ -367,8 +367,8 @@ export async function selectTicketPlusSession(
         const clickTimeout = options.clickTimeoutMs ?? 5_000;
         const arrivalTimeout = options.arrivalTimeoutMs ?? 15_000;
         const interval = options.pollIntervalMs ?? 100;
-        const activityTimeout = options.activityReadyTimeoutMs ?? 15_000;
-        const activityInterval = options.activityPollIntervalMs ?? 250;
+        const activityTimeout = options.activityReadyTimeoutMs ?? 60_000;
+        const activityInterval = options.activityPollIntervalMs ?? 500;
         if (
             ![clickTimeout, arrivalTimeout, interval, activityTimeout, activityInterval].every(
                 value => Number.isFinite(value) && value > 0 && value <= 2_147_483_647,

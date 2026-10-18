@@ -398,7 +398,11 @@ test("TicketPlus 場次：未知或矛盾按鈕與同時段預售重複列皆零
     ] as const) {
         await withPage(
             async page => {
-                const result = selectTicketPlusSession(page, settings, { ...options, activityReadyTimeoutMs: 300 });
+                const result = selectTicketPlusSession(page, settings, {
+                    ...options,
+                    activityReadyTimeoutMs: 300,
+                    activityPollIntervalMs: 30,
+                });
                 if (reason === "activity-ready-timeout") {
                     await assert.rejects(result, error => {
                         assert(error instanceof TicketPlusSessionError);
