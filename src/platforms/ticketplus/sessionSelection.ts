@@ -398,6 +398,7 @@ export async function selectTicketPlusSession(
         ) {
             throw new TicketPlusSessionError(stage, "button-unavailable");
         }
+
         const latest = await waitForActivitySession(
             page,
             settings,
@@ -410,6 +411,14 @@ export async function selectTicketPlusSession(
         );
         if (latest.name !== target.name || latest.date !== target.date || latest.time !== target.time) {
             throw new TicketPlusSessionError(stage, "session-changed");
+        }
+
+        // 最後一次核對（可能剛關閉提醒）之後再確認一次按鈕唯一且可用，不沿用關閉前的檢查。
+        if (
+            (await control.read(() => button.count())) !== 1 ||
+            !(await control.read(() => button.isEnabled({ timeout: Math.min(clickTimeout, control.remainingMs()) })))
+        ) {
+            throw new TicketPlusSessionError(stage, "button-unavailable");
         }
 
         // 先記錄已嘗試，再呼叫一次 click。任何錯誤都不重按、不切換場次。
