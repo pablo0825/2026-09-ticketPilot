@@ -192,3 +192,31 @@ test("抽選 runner：等待填寫超過最長執行時間仍繼續等待，確�
         await context.close();
     });
 });
+
+test("抽選 runner：確認通道失敗或購票頁被關閉，停止且不勾條款", { timeout: 40_000 }, async () => {
+    for (const mode of ["rejected", "page-closed"] as const) {
+        await withRun(async (context, directory) => {
+            const page = context.pages()[0]!;
+            const result = await runTicketPlus(settings, {
+                lease: acquirePurchaseLease(directory),
+                waitForParticipants: async () => {
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    if (mode === "rejected") throw new Error("確認通道中斷");
+                    await page.close();
+                    await new Promise(() => {});
+                },
+            });
+            assert.equal(result.outcome, "stopped", JSON.stringify(result));
+            assert.equal(
+                "lotteryFailure" in result ? result.lotteryFailure : undefined,
+                mode === "rejected" ? "confirmation-failed" : "participant-page-changed",
+            );
+            if (mode === "rejected") {
+                const after = await counts(context);
+                assert.equal(after["lottery-terms"], 0);
+                assert.equal(after["lottery-next"], 0);
+            }
+            await context.close();
+        });
+    }
+});

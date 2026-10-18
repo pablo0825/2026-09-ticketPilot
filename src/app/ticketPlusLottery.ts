@@ -9,7 +9,7 @@ import type { TicketPlusRunControl, TicketPlusStopReason } from "../platforms/ti
 import type { VerifiedTicketPlusSession } from "../platforms/ticketplus/ticketQuantity.js";
 import type { SubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
 
-export type LotteryFailure = LotteryStopReason | "participant-page-changed";
+export type LotteryFailure = LotteryStopReason | "participant-page-changed" | "confirmation-failed";
 export type TicketPlusLotteryResult = { submissionAttempts: number; progress: Readonly<SubmissionProgress> } & (
     | { outcome: "registration-ready"; stopReason?: undefined }
     | {
@@ -28,32 +28,40 @@ export interface LotteryWaitHooks {
     pollIntervalMs?: number;
 }
 
-// 等待期間每隔一段時間讀頁：離開輸入資料頁（倒數結束、導頁、未知彈窗）即停止；
+// 等待期間每隔一段時間讀頁：離開輸入資料頁（倒數結束、導頁、未知彈窗、頁面關閉）即停止；
 // 使用者正在編輯參加者或讀取暫時失敗都繼續等待。不讀取、不填寫參加者資料。
+// 確認通道失敗（例如父服務失聯）立即停止，不留下未處理的 rejection。
 async function waitForConfirmation(
     page: Page,
     session: VerifiedTicketPlusSession,
     control: TicketPlusRunControl,
     confirmed: Promise<void>,
     pollIntervalMs: number,
-): Promise<"confirmed" | "page-changed"> {
-    let done = false;
-    const signal = confirmed.then(() => {
-        done = true;
-    });
-    while (!done) {
+): Promise<"confirmed" | "page-changed" | "confirmation-failed"> {
+    const status: { value: "waiting" | "confirmed" | "failed" } = { value: "waiting" };
+    const settled = confirmed.then(
+        () => {
+            status.value = "confirmed";
+        },
+        () => {
+            status.value = "failed";
+        },
+    );
+    while (true) {
         control.check();
+        if (status.value === "confirmed") return "confirmed";
+        if (status.value === "failed") return "confirmation-failed";
+        if (page.isClosed()) return "page-changed";
         const read = await control
             .read(() => readTicketPlusPageWithMarkers(page))
             .catch(error => {
                 if (error instanceof TicketPlusStopError) throw error;
                 return undefined;
             });
-        if (done) break;
+        if (status.value !== "waiting") continue;
         if (read?.markers && readTicketPlusLotteryInput(read, session).kind === "other") return "page-changed";
-        await Promise.race([control.wait(pollIntervalMs), signal]);
+        await Promise.race([control.wait(pollIntervalMs), settled]);
     }
-    return "confirmed";
 }
 
 // 抽選到輸入資料頁後：等待人工確認（不計入全程期限），再勾條款、按一次下一步，停在確認登記前。
@@ -81,6 +89,7 @@ export async function finishTicketPlusLottery(
             ),
         );
         if (waited === "page-changed") return stopped("participant-page-changed");
+        if (waited === "confirmation-failed") return stopped("confirmation-failed");
 
         // 核對參加者後勾條款、按一次下一步。
         hooks.onCompleting();
