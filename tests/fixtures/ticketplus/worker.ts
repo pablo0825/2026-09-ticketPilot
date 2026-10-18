@@ -4,6 +4,7 @@ import { writeFile, readFile, rename } from "node:fs/promises";
 import { appendFileSync, watchFile, unwatchFile } from "node:fs";
 import { activity, student, presale, soldOut, checkout } from "./pages.js";
 import { readyOrder, readyInformation, failureDialog, queueDialog } from "./submissionPage.js";
+import { lotteryInputPage, registerPage } from "./lotteryPages.js";
 
 // 只替換瀏覽器環境，正式 worker、runner、DOM 模組與設定解析均照常執行。
 let context: BrowserContext | undefined;
@@ -71,11 +72,17 @@ chromium.launchPersistentContext = async (_profile, options) => {
                 path === "/"
                     ? loggedOutHome
                     : path.startsWith("/activity/")
-                      ? activity
+                      ? mode === "lottery"
+                          ? activity.replaceAll("立即購買", "立即登記")
+                          : activity
                       : path.startsWith("/confirm/")
-                        ? readyInformation + "<p>PRIVATE_INFORMATION_MARKER</p>"
+                        ? mode === "lottery"
+                            ? lotteryInputPage({ rows: ["filled", "filled"] })
+                            : readyInformation + "<p>PRIVATE_INFORMATION_MARKER</p>"
                         : path.startsWith("/checkout/")
-                          ? checkout
+                          ? mode === "lottery"
+                              ? registerPage
+                              : checkout
                           : order,
         });
     });
@@ -86,9 +93,27 @@ chromium.launchPersistentContext = async (_profile, options) => {
                 void (window as any).recordFixture("terms");
             });
             document.addEventListener("click", async event => {
+                // 抽選輸入資料頁：條款控制項切換並啟用下一步，下一步轉到確認登記頁
+                const lottery = (event.target as Element).closest<HTMLElement>("[data-lottery]");
+                if (lottery?.dataset.lottery === "terms") {
+                    const input = document.getElementById("terms") as HTMLInputElement;
+                    input.checked = !input.checked;
+                    document.querySelector<HTMLButtonElement>('[data-lottery="next"]')!.disabled = !input.checked;
+                    await (window as any).recordFixture("terms");
+                    return;
+                }
+                if (lottery?.dataset.lottery === "next") {
+                    await (window as any).recordFixture("information");
+                    location.assign("/checkout/event-fixture/session-B");
+                    return;
+                }
+                if (lottery) {
+                    await (window as any).recordFixture("other");
+                    return;
+                }
                 const button = (event.target as Element).closest("button");
                 if (!button) return;
-                if (button.textContent === "立即購買") {
+                if (button.textContent === "立即購買" || button.textContent === "立即登記") {
                     await (window as any).recordFixture("session");
                     location.assign("/order/event-fixture/session-B");
                 } else if (button.querySelector(".mdi-plus")) {

@@ -29,6 +29,7 @@ export interface PurchaseSnapshot {
     canStop?: boolean;
     stopRequest?: { status: "sending" | "sent" | "unconfirmed" };
     loginConfirmation?: { confirmationId: string }; // 相容舊快照型別；新流程不產生人工確認資格。
+    participantConfirmation?: { confirmationId: string }; // 抽選等待參加者時才提供，確認送出後即移除。
     browserOpen: boolean;
     occupied: boolean;
     message: string;
@@ -64,6 +65,7 @@ export class PurchaseRuns {
     private latestByActivity = new Map<string, Record>();
     private child?: ChildProcess;
     private stopRequest?: { child: ChildProcess; record: Record; status: "sending" | "sent" | "unconfirmed" };
+    private participantsSent?: { record: Record; confirmationId: string };
     private listeners = new Set<() => void>();
     private directory: string;
 
@@ -166,6 +168,7 @@ export class PurchaseRuns {
             delete snapshot.canStop;
             delete snapshot.stopRequest;
             delete snapshot.loginConfirmation;
+            delete snapshot.participantConfirmation;
             delete snapshot.canCloseBrowser;
             return { ...record, snapshot };
         } catch (error) {
@@ -210,6 +213,7 @@ export class PurchaseRuns {
             canStop: this.stopAvailable(),
             stopRequest: this.stopRequest?.record === this.current ? { status: this.stopRequest.status } : undefined,
             loginConfirmation: undefined,
+            participantConfirmation: this.pendingParticipants(),
             canCloseBrowser:
                 !!this.child?.connected &&
                 this.current.snapshot.browserOpen &&
@@ -459,6 +463,46 @@ export class PurchaseRuns {
                       stopRequest: { status },
                   };
         return { status, message: messages[status], run };
+    }
+
+    // 只有本服務現行的 TicketPlus 執行、最後進度為等待參加者且尚未送出確認時，才提供確認 ID。
+    private pendingParticipants(): { confirmationId: string } | undefined {
+        const record = this.current;
+        if (!record || record.snapshot.platform !== "ticketplus" || record.snapshot.status !== "running")
+            return undefined;
+        if (!this.child?.connected) return undefined;
+        const event = record.snapshot.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
+        if (event?.type !== "ticketplus" || event.stage !== "waiting-for-participants") return undefined;
+        if (this.participantsSent?.record === record && this.participantsSent.confirmationId === event.confirmationId) {
+            return undefined;
+        }
+        return { confirmationId: event.confirmationId };
+    }
+
+    // 轉送「參加者已填完」：ID 須與目前等待相同；每個等待只轉送一次，不重送。
+    async confirmParticipants(
+        runId: string,
+        confirmationId: string,
+    ): Promise<{ status: "sent"; message: string; run: PurchaseSnapshot }> {
+        const record = this.current;
+        if (!record || record.snapshot.id !== runId) throw new Error("執行紀錄已變更，請重新查看目前狀態。");
+        const pending = this.pendingParticipants();
+        const child = this.child;
+        if (!pending || pending.confirmationId !== confirmationId || !child) {
+            throw new Error("目前沒有等待中的參加者確認，或確認已送出；不會重送。");
+        }
+
+        // 先記錄已送出，再傳送；傳送失敗也不重送，由 worker 結果決定後續。
+        this.participantsSent = { record, confirmationId };
+        this.notify();
+        await new Promise<void>(resolve => {
+            child.send({ type: "confirm-ticketplus-participants", confirmationId }, () => resolve());
+        });
+        return {
+            status: "sent",
+            message: "已送出參加者已填完，程式會核對後勾選條款並按一次下一步。",
+            run: this.snapshot()!,
+        };
     }
 
     async confirmLogin(

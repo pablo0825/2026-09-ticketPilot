@@ -19,6 +19,7 @@ export async function runTicketPlusWorker(
     sendEvent: (event: PurchaseEvent) => void,
     onSubmitAttempt: () => void,
     signal?: AbortSignal,
+    waitForParticipants?: (confirmationId: string) => Promise<void>,
 ): Promise<TicketPlusWorkerResult> {
     // 提交標記先於通知保存；外圍錯誤不能把已嘗試提交改成未提交。
     let progress = emptySubmissionProgress();
@@ -29,6 +30,7 @@ export async function runTicketPlusWorker(
             signal,
             webdriverExperiment: process.env.WEBDRIVER_EXPERIMENT === "1",
             onBrowser,
+            waitForParticipants,
             onEvent: event => {
                 if (event.type === "attempt-reset") {
                     progress = emptySubmissionProgress();

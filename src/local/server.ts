@@ -187,6 +187,20 @@ export async function startLocalServer(
                 return;
             }
 
+            if (request.method === "POST" && url.pathname === "/api/purchase/confirm-participants") {
+                const input = await body(request);
+                if (
+                    Object.keys(input).length !== 2 ||
+                    typeof input.runId !== "string" ||
+                    !input.runId.trim() ||
+                    typeof input.confirmationId !== "string"
+                ) {
+                    throw new Error("參加者確認請求格式錯誤。");
+                }
+                json(response, 200, await purchases.confirmParticipants(input.runId, input.confirmationId));
+                return;
+            }
+
             if (request.method === "POST" && url.pathname === "/api/purchase/close-browser") {
                 const input = await body(request);
                 if (Object.keys(input).some(key => key !== "runId") || typeof input.runId !== "string") {
