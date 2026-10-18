@@ -19,7 +19,7 @@ export function useRunStatus(onError: (message: string) => void) {
     const attemptedStops = useRef(new Set<string>());
     // 參加者確認依確認 ID 鎖定：同頁連點、回應遺失都不重送。
     const attemptedParticipants = useRef(new Set<string>());
-    const [participantsSending, setParticipantsSending] = useState<string | null>(null);
+    const [participantsSending, setParticipantsSending] = useState(false);
     const [stopAttempt, setStopAttempt] = useState<{ runId: string; status: StopRequestStatus } | null>(null);
 
     const receivePurchase = useCallback((run: PurchaseSnapshot | null) => {
@@ -173,7 +173,7 @@ export function useRunStatus(onError: (message: string) => void) {
 
         // 送出前同步鎖定，錯誤也不重送。
         attemptedParticipants.current.add(confirmationId);
-        setParticipantsSending(confirmationId);
+        setParticipantsSending(true);
         try {
             const result = await api<{ run: PurchaseSnapshot }>("/api/purchase/confirm-participants", "POST", {
                 runId: run.id,
@@ -183,7 +183,7 @@ export function useRunStatus(onError: (message: string) => void) {
         } catch (error) {
             onError((error as Error).message);
         } finally {
-            setParticipantsSending(null);
+            setParticipantsSending(false);
         }
     }
 
@@ -195,7 +195,7 @@ export function useRunStatus(onError: (message: string) => void) {
         purchase.status === "running" &&
         pendingParticipants &&
         !attemptedParticipants.current.has(pendingParticipants) &&
-        participantsSending === null
+        !participantsSending
             ? { onConfirm: () => void confirmParticipants() }
             : undefined;
     const stopRequested = Boolean(purchase && (purchase.stopRequest || attemptedStops.current.has(purchase.id)));

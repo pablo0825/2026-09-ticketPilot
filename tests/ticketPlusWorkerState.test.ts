@@ -265,7 +265,35 @@ test("TicketPlus 等待參加者階段：顯示請填寫參加者，其他平台
         browserOpen: true,
         events: [{ sequence: 1, at: "2026-10-18T00:00:00Z", event }],
     };
-    const presentation = purchaseStatus(running as never, false, Date.now());
+    const presentation = purchaseStatus(
+        { ...running, participantConfirmation: { confirmationId: event.confirmationId } } as never,
+        false,
+        Date.now(),
+    );
     assert.equal(presentation.title, "請填寫參加者");
     assert.match(presentation.instruction, /參加者已填完/);
+});
+
+test("TicketPlus 等待參加者階段：確認已送出後不再顯示按按鈕的提示", () => {
+    const event = {
+        type: "ticketplus",
+        stage: "waiting-for-participants",
+        confirmationId: "6a1f0c7e-2b3d-4e5f-8a9b-0c1d2e3f4a5b",
+    };
+    const running = {
+        ...record.snapshot,
+        status: "running",
+        occupied: true,
+        browserOpen: true,
+        participantConfirmation: undefined,
+        events: [{ sequence: 1, at: "2026-10-18T00:00:00Z", event }],
+    };
+    const sent = purchaseStatus(running as never, false, Date.now());
+    assert.match(sent.instruction, /已送出參加者已填完/);
+    const pending = purchaseStatus(
+        { ...running, participantConfirmation: { confirmationId: event.confirmationId } } as never,
+        false,
+        Date.now(),
+    );
+    assert.match(pending.instruction, /按「參加者已填完」/);
 });

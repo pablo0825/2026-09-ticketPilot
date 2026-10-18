@@ -71,8 +71,10 @@ export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, n
                 instruction = "最多嘗試一次更新；未確認完成前不會開始新一輪選票。";
             } else if (stage === "waiting-for-participants") {
                 title = "請填寫參加者";
-                instruction =
-                    "請在購票瀏覽器填寫所有參加者，完成後按「參加者已填完」；網站倒數結束前須完成。等待期間不計入最長執行時間，程式不會讀取或填寫參加者資料。";
+                // 確認已送出後後端不再提供確認 ID，提示改為等待程式核對。
+                instruction = run.participantConfirmation
+                    ? "請在購票瀏覽器填寫所有參加者，完成後按「參加者已填完」；網站倒數結束前須完成。等待期間不計入最長執行時間，程式不會讀取或填寫參加者資料。"
+                    : "已送出參加者已填完，等待程式核對並前往確認登記；如長時間沒有進展，請檢查購票瀏覽器或按停止。";
             } else if (stage === "completing-registration") {
                 title = "核對參加者並前往確認登記";
                 instruction = "正在核對參加者已填、勾選服務條款並按一次下一步；不會按確認登記。";

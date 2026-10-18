@@ -80,3 +80,33 @@ test("參加者確認 API：等待中提供確認 ID，錯 ID 拒絕，正確確
         await h.dispose();
     }
 });
+
+test("參加者確認 API：提出停止後不再提供確認 ID，確認請求拒絕且不勾條款", async () => {
+    const h = await apiHarness("lottery");
+    try {
+        const activity = { ...apiActivity, flowType: "lottery" };
+        const created = await (await h.request("/api/activities", activity)).json();
+        await h.request("/api/purchase", {
+            requestId: randomUUID(),
+            activityId: created.id,
+            expectedActivity: activity,
+        });
+        await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+            ),
+        );
+        await h.login();
+        const waiting = await h.until(run => Boolean(run?.participantConfirmation));
+        const confirmationId = waiting.participantConfirmation!.confirmationId;
+        assert.equal((await h.request("/api/purchase/stop", { runId: waiting.id })).status, 200);
+        const stopping = await h.snapshot();
+        assert.equal(stopping?.participantConfirmation, undefined);
+        const late = await h.request("/api/purchase/confirm-participants", { runId: waiting.id, confirmationId });
+        assert.equal(late.status, 400);
+        await h.until(run => run?.status !== "running");
+        assert.equal((await h.counts()).counts.terms, 0);
+    } finally {
+        await h.dispose();
+    }
+});
