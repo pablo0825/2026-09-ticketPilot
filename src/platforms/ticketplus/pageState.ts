@@ -185,6 +185,7 @@ export interface TicketPlusPageMarkers {
     participantSections: number;
     registerButtons: boolean[];
     paymentButtons: boolean[];
+    applicants: { filled: boolean }[];
     dialogs: number;
     queue: number;
 }
@@ -200,6 +201,7 @@ export async function readTicketPlusPageWithMarkers(
                 pathname: dom.pathname,
                 participantSections: dom.participantSectionCount,
                 registerButtons: [...dom.registerButtons],
+                applicants: dom.applicants.map(applicant => ({ ...applicant })),
                 paymentButtons: [...dom.paymentButtons],
                 dialogs: dom.dialogs.length,
                 queue: dom.queueCount,

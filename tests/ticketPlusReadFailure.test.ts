@@ -34,6 +34,7 @@ function emptyDom(): TicketPlusDom {
         paymentButtons: [],
         cancelButtons: [],
         registerButtons: [],
+        applicants: [],
         participantSectionCount: 0,
         checkoutStepCount: 0,
         seatResultHeadingCount: 0,

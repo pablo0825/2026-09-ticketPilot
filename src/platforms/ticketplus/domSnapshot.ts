@@ -401,6 +401,19 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                     paymentButtons: buttons(document, "前往付款"),
                     cancelButtons: buttons(document, "取消購票"),
                     registerButtons: buttons(document, "確認登記"),
+                    // 抽選參加者列只回傳是否已填；姓名與證件號碼留在瀏覽器內，不帶回執行程序。
+                    applicants: all(document, ".row.applicant-info")
+                        .filter(row => !row.closest('[role="dialog"], .v-dialog, .v-dialog__content'))
+                        .map(row => {
+                            const badge = row.querySelector(".applicant-number");
+                            const cells = Array.from(row.querySelectorAll(".row.pl-5 > div")).slice(1);
+                            return {
+                                filled:
+                                    badge !== null &&
+                                    !badge.classList.contains("grey") &&
+                                    cells.some(cell => text(cell).length > 0),
+                            };
+                        }),
                     // 抽選輸入資料頁的區塊標題；排除彈窗內同名的編輯表單標題。
                     participantSectionCount: all(document, ".bg-tranparent-yellow").filter(
                         element =>
