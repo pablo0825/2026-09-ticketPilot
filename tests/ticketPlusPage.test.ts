@@ -633,6 +633,7 @@ test("TicketPlus 活動欄位診斷：同快照描述缺少、空白、歧義與
             assert.deepEqual(fields, {
                 headings: { count: 1, nonEmptyCount: 1, matchingCount: 1 },
                 rows: [item.expected],
+                matchingRows: 0,
             });
             assert.doesNotMatch(JSON.stringify(fields), /PRIVATE|孿生|https:|2026|20:00/);
         }
@@ -654,7 +655,7 @@ test("TicketPlus 活動欄位診斷：同快照描述缺少、空白、歧義與
                 },
                 event.eventName,
             );
-            assert.deepEqual(fields, { headings: expected, rows: [] });
+            assert.deepEqual(fields, { headings: expected, rows: [], matchingRows: 0 });
         }
     });
 });

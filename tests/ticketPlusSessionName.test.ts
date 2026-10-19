@@ -75,7 +75,7 @@ test("名稱定位：名稱空白正規化，標點仍完整比對", async () =>
         },
         order.replace(name, expected),
     );
-    await withPage(session.replace(name, name + "加場"), page => expectStopped(page, "activity-ready-timeout"));
+    await withPage(session.replace(name, name + "加場"), page => expectStopped(page, "session-missing"));
 });
 
 test("名稱定位：資料延遲出現才點擊，載入時不刷新", async () => {

@@ -5,6 +5,7 @@ import { normalizeSessionName, parseActivityPage } from "./activityPage.js";
 import { readEventDetails } from "./readResult.js";
 import type { TicketPlusDom } from "./domSnapshot.js";
 import type { TicketPlusPage } from "./pageState.js";
+import { isActivityFullyLoaded } from "./activityLoading.js";
 import type { ActivityLoadingTarget } from "./activityLoading.js";
 
 export type PageReadiness = { status: "ready" | "pending" | "stop"; reason: string };
@@ -46,7 +47,12 @@ export function activityReadiness(
     const matches = dom.activity.filter(row =>
         row.names.some(name => normalizeSessionName(name) === normalizeSessionName(target.eventName)),
     );
-    if (matches.length === 0) return { status: "pending", reason: "session-missing" };
+    // 列表已完整載入仍無同名列時立即停止；仍在載入才繼續等待。
+    if (matches.length === 0) {
+        return isActivityFullyLoaded(dom)
+            ? { status: "stop", reason: "session-missing" }
+            : { status: "pending", reason: "activity-not-ready" };
+    }
     if (matches.length > 1 || (result.kind === "unknown" && result.reason === "ambiguous-data")) {
         return { status: "stop", reason: "session-ambiguous" };
     }
