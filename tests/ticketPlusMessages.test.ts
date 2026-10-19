@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ticketPlusSessionMessage } from "../src/app/ticketPlusPresentation.js";
+import { ticketPlusSessionDiagnostic, ticketPlusSessionMessage } from "../src/app/ticketPlusPresentation.js";
 
 test("場次停止訊息區分點擊前後，不誤報重試", () => {
     const message = ticketPlusSessionMessage({ reason: "arrival-timeout", stage: "after-click-attempt" });
@@ -9,20 +9,25 @@ test("場次停止訊息區分點擊前後，不誤報重試", () => {
     assert.match(message, /不會再次點擊/);
     assert.doesNotMatch(message, /尚未嘗試點擊場次按鈕/);
     assert.match(ticketPlusSessionMessage({ reason: "session-disabled", stage: "before-click" }), /不能僅據此判定/);
-    assert.match(ticketPlusSessionMessage({ reason: "session-missing", stage: "before-click" }), /該順位的日期與時間/);
+    assert.match(ticketPlusSessionMessage({ reason: "session-missing", stage: "before-click" }), /符合設定名稱的場次/);
 });
 
-test("場次診斷會出現在使用者訊息，既有停止說明維持不變", () => {
-    const message = ticketPlusSessionMessage({
-        reason: "unexpected-page",
-        stage: "after-click-attempt",
+test("場次診斷只放在診斷資料，使用者訊息維持停止說明", () => {
+    const failure = {
+        reason: "unexpected-page" as const,
+        stage: "after-click-attempt" as const,
         diagnostic: { check: "page-state", snapshot: { pageKind: "unknown", unknownReason: "conflicting-page" } },
-    });
-    assert.match(message, /conflicting-page/);
-    assert.match(message, /最後一次觀測/);
-    assert.match(message, /after-click-attempt/);
+    };
+    const message = ticketPlusSessionMessage(failure);
+    assert.doesNotMatch(message, /conflicting-page|最後一次觀測/);
     assert.match(message, /不會再次點擊/);
     assert.match(message, /尚未嘗試選票提交/);
+
+    const diagnostic = ticketPlusSessionDiagnostic(failure as Parameters<typeof ticketPlusSessionDiagnostic>[0]);
+    assert.match(diagnostic ?? "", /conflicting-page/);
+    assert.match(diagnostic ?? "", /最後一次觀測/);
+    assert.match(diagnostic ?? "", /after-click-attempt/);
+    assert.equal(ticketPlusSessionDiagnostic({ stage: "before-click" }), undefined);
 });
 
 test("活動頁等待紀錄呈現耗時與觀測次數", async () => {
@@ -107,7 +112,7 @@ test("付款頁與資料頁停止訊息：點擊前停止說明未送出，點�
     const before = ticketPlusResultMessage({
         outcome: "stopped",
         reason: "information-stopped",
-        informationFailure: "contact-missing",
+        informationFailure: "next-unavailable",
         progress,
         submissionAttempts: 1,
     });
@@ -156,7 +161,7 @@ test("抽選結果訊息：停在確認登記前、等待中停止或頁面改�
     for (const [lotteryFailure, stopReason, pattern] of [
         ["participant-page-changed", undefined, /離開輸入資料頁/],
         ["user-stopped", "user-stop", /已依要求停止/],
-        ["participant-incomplete", undefined, /participant-incomplete/],
+        ["participant-incomplete", undefined, /參加者資料尚未填完/],
     ] as const) {
         const message = ticketPlusResultMessage({
             outcome: "stopped",
@@ -169,5 +174,87 @@ test("抽選結果訊息：停在確認登記前、等待中停止或頁面改�
         assert.match(message, pattern);
         assert.match(message, /未送出登記/);
         assert.doesNotMatch(message, /結果未確認|提交後停止原因/);
+    }
+});
+
+test("使用者訊息不含英文原因代碼，代碼改放在診斷資料", async () => {
+    const { ticketPlusResultDiagnostic, ticketPlusResultMessage } =
+        await import("../src/app/ticketPlusPresentation.js");
+    type Result = Parameters<typeof ticketPlusResultMessage>[0];
+    const progress = Object.freeze({ submitAttempted: false, dismissAttempted: false, sawQueue: false });
+    const cases: [Result, string, RegExp][] = [
+        [
+            {
+                outcome: "stopped",
+                reason: "login-stopped",
+                progress,
+                loginFailure: { reason: "menu-failed", summary: {} },
+            } as unknown as Result,
+            "menu-failed",
+            /無法開啟會員選單/,
+        ],
+        [
+            {
+                outcome: "stopped",
+                reason: "session-selection-stopped",
+                progress,
+                sessionFailure: { reason: "session-missing", stage: "before-click" },
+            } as unknown as Result,
+            "session-missing",
+            /找不到符合設定名稱的場次/,
+        ],
+        [
+            {
+                outcome: "stopped",
+                reason: "ticket-selection-stopped",
+                progress,
+                priorityFailure: "ticket-missing",
+            } as unknown as Result,
+            "ticket-missing",
+            /找不到設定的票種/,
+        ],
+        [
+            {
+                outcome: "stopped",
+                reason: "lottery-stopped",
+                progress,
+                lotteryFailure: "terms-unchecked",
+                submissionAttempts: 1,
+            } as unknown as Result,
+            "terms-unchecked",
+            /服務條款勾選未確認/,
+        ],
+        [
+            {
+                outcome: "stopped",
+                reason: "information-stopped",
+                progress,
+                informationFailure: "next-unavailable",
+                submissionAttempts: 1,
+            } as unknown as Result,
+            "next-unavailable",
+            /下一步按鈕無法使用/,
+        ],
+        [
+            {
+                outcome: "stopped",
+                reason: "startup-stopped",
+                progress,
+                activityLoginFailure: "unconfirmed",
+            } as unknown as Result,
+            "startup-stopped",
+            /開啟活動頁後無法確認登入狀態/,
+        ],
+        [
+            { outcome: "stopped", reason: "startup-stopped", progress } as unknown as Result,
+            "startup-stopped",
+            /流程已停止/,
+        ],
+    ];
+    for (const [result, code, pattern] of cases) {
+        const message = ticketPlusResultMessage(result);
+        assert.match(message, pattern);
+        assert.doesNotMatch(message, /[a-z]+-[a-z]+/);
+        assert.match(ticketPlusResultDiagnostic(result) ?? "", new RegExp(`停止代碼：.*${code}`));
     }
 });

@@ -141,9 +141,9 @@ test("活動佔位：專用觀測不依賴診斷，嚴格 reader 仍拒絕，不
             throw new Error("log failed");
         });
         assert.deepEqual(withoutLog, {
-            page: strict,
+            page: { kind: "unknown", reason: "incomplete-data" },
             loading: "loading-placeholder",
-            readiness: { status: "pending", reason: "activity-not-ready" },
+            readiness: { status: "pending", reason: "session-missing" },
         });
         assert.deepEqual(brokenLog, withoutLog);
         assert.equal((await readTicketPlusActivityObservation(page, { ...target, eventId: "wrong" })).loading, "none");
@@ -185,7 +185,6 @@ test("活動等待：殘缺與重複同名內容只等待到期限，始終零�
         heading + loadingSession.replace("立即購買", "未知按鈕"),
         heading + loadingSession.replace("</button>", "</button><button>立即購買</button>"),
         heading + loadingSession + loadingSession,
-        activity + loadingSession,
         heading + heading + loadingSession,
     ];
     for (const html of cases) {
@@ -208,9 +207,8 @@ test("活動等待：殘缺與重複同名內容只等待到期限，始終零�
     }
 });
 
-test("活動等待：錯標題與跨流程內容仍立即停止", async () => {
+test("活動等待：跨流程內容仍立即停止", async () => {
     const cases = [
-        "<h1>其他活動</h1>" + loadingSession,
         heading + loadingSession + '<div role="dialog">PRIVATE_DIALOG</div>',
         heading + loadingSession + '<label>姓名<input value="PRIVATE_CONTACT"></label>',
         heading + loadingSession + "<button>下一步</button>",

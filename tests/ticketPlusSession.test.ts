@@ -20,13 +20,20 @@ const settings: TicketPlusSelection = {
     eventName,
     target: { date: "2026-10-30", time: "21:00", ticketType: "預售票", quantity: 2 },
 };
-const options = { clickTimeoutMs: 3_000, arrivalTimeoutMs: 5_000, pollIntervalMs: 20 };
+const options = {
+    clickTimeoutMs: 3_000,
+    arrivalTimeoutMs: 5_000,
+    pollIntervalMs: 20,
+    activityReadyTimeoutMs: 3_000,
+    activityPollIntervalMs: 30,
+};
 
 // 每列目的地固定，與傳給正式程式的 settings 無關。data-fixture 僅供測試事件辨識。
-const rowA = fixture.session.replace('class="sesstion-item"', 'class="sesstion-item" data-fixture="A"');
+const rowA = fixture.session
+    .replace(eventName, "早場 A")
+    .replace('class="sesstion-item"', 'class="sesstion-item" data-fixture="A"');
 const rowB = fixture.session
     .replace("20:00", "21:00")
-    .replace(eventName, "晚場 [B] (特別)")
     .replace('class="sesstion-item"', 'class="sesstion-item" data-fixture="B"');
 const heading = `<h1>${eventName}</h1><div role="tab">立即購買</div>`;
 const activity = heading + rowA + rowB;
@@ -140,10 +147,10 @@ test("TicketPlus 場次：列重排與隱藏副本仍選 B，不依舊索引", {
     );
 });
 
-test("TicketPlus 場次：活動不符、無目標、停用與重複列皆零點擊", { timeout: 15_000 }, async () => {
+test("TicketPlus 場次：日期不符、無目標、停用與重複列皆零點擊", { timeout: 15_000 }, async () => {
     const cases: { html: string; reason: SessionEntryReason }[] = [
-        { html: activity.replace(`<h1>${eventName}</h1>`, "<h1>另一活動</h1>"), reason: "activity-mismatch" },
-        { html: heading + rowA, reason: "session-missing" },
+        { html: heading + rowB.replace("2026-10-30", "2026-10-31"), reason: "session-date-mismatch" },
+        { html: heading + rowA, reason: "activity-ready-timeout" },
         { html: heading + rowB.replace('type="button"', 'type="button" disabled'), reason: "session-disabled" },
         { html: activity + rowB, reason: "session-ambiguous" },
         { html: activity + rowB.replace('type="button"', 'type="button" disabled'), reason: "session-ambiguous" },
@@ -320,15 +327,11 @@ test("TicketPlus 場次：讀後重排、改名與新增同時間列，重新核
                     },
                 });
             }, mode);
-            if (mode === "reorder") {
+            if (mode === "reorder" || mode === "different-name-duplicate") {
                 assert.equal((await selectTicketPlusSession(page, settings, options)).sessionId, "session-B");
                 assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
             } else {
-                await rejectsEntry(
-                    selectTicketPlusSession(page, settings, options),
-                    "before-click",
-                    mode === "different-name-duplicate" ? "session-ambiguous" : undefined,
-                );
+                await rejectsEntry(selectTicketPlusSession(page, settings, options), "before-click", undefined);
                 assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
             }
         });
@@ -393,12 +396,16 @@ test("TicketPlus 場次：目標尚未開賣不點其他可買場次，其他尚
 test("TicketPlus 場次：未知或矛盾按鈕與同時段預售重複列皆零點擊", { timeout: 15_000 }, async () => {
     for (const [html, reason] of [
         [heading + rowB.replace("立即購買", "未知操作"), "activity-ready-timeout"],
-        [heading + rowB.replace("</button>", "</button><button>尚未開賣</button>"), "activity-ready-timeout"],
+        [heading + rowB.replace("</button>", "</button><button>尚未開賣</button>"), "session-ambiguous"],
         [activity + rowB.replace("立即購買", "尚未開賣"), "session-ambiguous"],
     ] as const) {
         await withPage(
             async page => {
-                const result = selectTicketPlusSession(page, settings, { ...options, activityReadyTimeoutMs: 300 });
+                const result = selectTicketPlusSession(page, settings, {
+                    ...options,
+                    activityReadyTimeoutMs: 300,
+                    activityPollIntervalMs: 30,
+                });
                 if (reason === "activity-ready-timeout") {
                     await assert.rejects(result, error => {
                         assert(error instanceof TicketPlusSessionError);
@@ -575,9 +582,7 @@ test("TicketPlus 入場過渡：殘留不消失沿用期限停止，診斷保留
 
 test("TicketPlus 入場過渡：身分不符或跨流程標記立即停止", { timeout: 30_000 }, async () => {
     const cases = [
-        activity.replace(`<h1>${eventName}</h1>`, "<h1>其他活動</h1>"),
-        heading + rowA,
-        activity.replace("晚場 [B] (特別)", "其他場次"),
+        heading + rowB.replace("21:00", "22:00"),
         activity + rowB,
         activity + '<div role="dialog">請確認</div>',
         activity + "<h3>排隊購票中 請稍候</h3>",
@@ -656,15 +661,15 @@ test("TicketPlus 入場診斷：保留原始欄位與等待決策，不輸出頁
         },
         {
             html: activity.replace(`<h1>${eventName}</h1>`, "<h1>PRIVATE_EVENT</h1>"),
-            status: "stop",
-            reason: "event-name-mismatch",
+            status: "pending",
+            reason: "selection-not-ready",
         },
-        { html: heading + rowA, status: "stop", reason: "activity-session-mismatch" },
+        { html: heading + rowB.replace("21:00", "22:00"), status: "stop", reason: "activity-session-mismatch" },
         { html: activity + rowB, status: "stop", reason: "activity-session-mismatch" },
         {
-            html: activity.replace("晚場 [B] (特別)", "PRIVATE_SESSION"),
-            status: "stop",
-            reason: "activity-session-mismatch",
+            html: heading + rowB.replace(eventName, "PRIVATE_SESSION"),
+            status: "pending",
+            reason: "selection-not-ready",
         },
         {
             html: activity + '<div class="stepText checkedStep">付款結帳</div>',
@@ -747,11 +752,8 @@ test("TicketPlus 入場過渡：重複標題持續存在仍逾時，保留原標
     );
 });
 
-test("TicketPlus 重複標題：非目標標題、重複場次與點擊前歧義仍停止", { timeout: 20_000 }, async () => {
-    for (const html of [
-        heading + rowB + "<h1>其他活動</h1>",
-        heading + rowB + `<h1>${eventName}</h1><div role="dialog">提示</div>`,
-    ]) {
+test("TicketPlus 重複標題：標題不阻擋購票，彈窗仍停止", { timeout: 20_000 }, async () => {
+    for (const html of [heading + rowB + `<h1>${eventName}</h1><div role="dialog">提示</div>`]) {
         await withPage(
             async page => {
                 await rejectsEntry(
@@ -766,12 +768,9 @@ test("TicketPlus 重複標題：非目標標題、重複場次與點擊前歧義
     }
     await withPage(
         async page => {
-            await rejectsEntry(
-                selectTicketPlusSession(page, settings, { ...options, activityReadyTimeoutMs: 300 }),
-                "before-click",
-                "activity-ready-timeout",
-            );
-            assert.deepEqual(await counts(page), { A: 0, B: 0, tab: 0, other: 0 });
+            const result = await selectTicketPlusSession(page, settings, options);
+            assert.equal(result.sessionId, "session-B");
+            assert.deepEqual(await counts(page), { A: 0, B: 1, tab: 0, other: 0 });
         },
         { html: activity + `<h1>${eventName}</h1>` },
     );
@@ -849,8 +848,8 @@ test("TicketPlus 活動網址過渡：持續重疊逾時，不重按並保留驗
     );
 });
 
-test("TicketPlus 活動網址過渡：不同標題、重複場次與混合標記仍停止", { timeout: 20_000 }, async () => {
-    for (const extra of ["<h1>另一活動</h1>", `<h1>${eventName}</h1><div role="dialog">提示</div>`]) {
+test("TicketPlus 活動網址過渡：重複場次與混合標記仍停止", { timeout: 20_000 }, async () => {
+    for (const extra of [rowB, `<h1>${eventName}</h1><div role="dialog">提示</div>`]) {
         await withPage(
             async page => {
                 await page.evaluate(html => {
@@ -942,9 +941,8 @@ test("TicketPlus 活動載入：持續空白有固定期限與診斷，不點擊
     );
 });
 
-test("TicketPlus 活動載入：錯標題和跨頁標記不等待", async () => {
+test("TicketPlus 活動載入：跨頁標記不等待", async () => {
     for (const html of [
-        "<h1>其他活動</h1>",
         '<div role="dialog">未知提示</div>',
         '<label>姓名<input value="PRIVATE"></label>',
         "<button>下一步</button>",
@@ -1106,6 +1104,7 @@ test("TicketPlus 點擊前診斷：缺時間等待到期限，保留欄位與等
                     assert.equal(snapshot.emptyActivityLoading, false);
                     assert.deepEqual(snapshot.activityFields, {
                         headings: { count: 1, nonEmptyCount: 1, matchingCount: 1 },
+                        matchingRows: 1,
                         rows: [
                             {
                                 names: 1,
@@ -1139,7 +1138,6 @@ test("TicketPlus 入場等待：殘缺與重疊內容到期限仍只點一次", 
         activity.replace("21:00", "未知時間"),
         activity + orderB,
         heading + rowB + "<h1> </h1>",
-        heading + rowB + rowB + `<h1>${eventName}</h1>`,
         "<button>下一步</button>",
     ]) {
         await withPage(

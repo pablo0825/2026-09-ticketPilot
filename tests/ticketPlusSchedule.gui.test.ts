@@ -146,6 +146,7 @@ test("TicketPlus 排程 GUI：等待中停止，倒數及切步驟不重啟，�
         assert(await page.getByLabel(timeLabel, { exact: true }).isDisabled());
         assert(await page.getByRole("combobox", { name: advanceLabel }).isDisabled());
         await page.getByRole("button", { name: "③ 執行狀態", exact: true }).click();
+        page.once("dialog", dialog => void dialog.accept()); // 停止前的確認框
         await page.getByRole("button", { name: "停止購票", exact: true }).click();
         await h.until(run => run?.status === "failed");
         await eventually(async () => assert.match(await page.locator("#status").innerText(), /購票已停止/));

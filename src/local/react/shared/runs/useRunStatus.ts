@@ -7,7 +7,16 @@ import type { StopRequestStatus } from "./runPresentation.js";
 export type DisplayedRun =
     { kind: "purchase"; run: PurchaseSnapshot } | { kind: "simulation"; run: SimulationSnapshot };
 
-export function useRunStatus(onError: (message: string) => void) {
+function isRunningTicketPlus(run: PurchaseSnapshot): boolean {
+    return run.platform === "ticketplus" && run.status === "running";
+}
+
+// 只更新正在顯示的同一輪，不切換到其他流程。
+function replaceIfDisplayed(previous: DisplayedRun | null, next: DisplayedRun): DisplayedRun | null {
+    return previous?.kind === next.kind && previous.run.id === next.run.id ? next : previous;
+}
+
+export function useRunStatus(showMessage: (message: string) => void) {
     const [purchase, setPurchase] = useState<PurchaseSnapshot | null>(null);
     const [simulation, setSimulation] = useState<SimulationSnapshot | null>(null);
     const [displayed, setDisplayed] = useState<DisplayedRun | null>(null);
@@ -26,10 +35,9 @@ export function useRunStatus(onError: (message: string) => void) {
         purchaseVersion.current++;
         latestPurchase.current = run;
         setPurchase(run);
-        if (run)
-            setDisplayed(previous =>
-                previous?.kind === "purchase" && previous.run.id === run.id ? { kind: "purchase", run } : previous,
-            );
+        if (run) {
+            setDisplayed(previous => replaceIfDisplayed(previous, { kind: "purchase", run }));
+        }
     }, []);
 
     useEffect(() => {
@@ -41,7 +49,7 @@ export function useRunStatus(onError: (message: string) => void) {
             stream.onmessage = event => {
                 if (active) receive(JSON.parse(event.data));
             };
-            stream.onerror = () => active && onError("狀態連線中斷，正在重新連線；不會重新開始購票。");
+            stream.onerror = () => active && showMessage("狀態連線中斷，正在重新連線；不會重新開始購票。");
             streams.push(stream);
         };
         subscribe<PurchaseSnapshot | null>("/api/purchase/events", run => {
@@ -50,12 +58,9 @@ export function useRunStatus(onError: (message: string) => void) {
         });
         subscribe("/api/events", (run: SimulationSnapshot | null) => {
             setSimulation(run);
-            if (run)
-                setDisplayed(previous =>
-                    previous?.kind === "simulation" && previous.run.id === run.id
-                        ? { kind: "simulation", run }
-                        : previous,
-                );
+            if (run) {
+                setDisplayed(previous => replaceIfDisplayed(previous, { kind: "simulation", run }));
+            }
         });
 
         // 初始讀取不能覆蓋較晚收到的 SSE 快照
@@ -67,25 +72,30 @@ export function useRunStatus(onError: (message: string) => void) {
                     setReady(true);
                 }
             },
-            error => active && onError(error.message),
+            error => active && showMessage(error.message),
         );
 
         return () => {
             active = false;
             streams.forEach(stream => stream.close());
         };
-    }, [onError, receivePurchase]);
+    }, [showMessage, receivePurchase]);
+
+    function isDisplayedPurchase(run: PurchaseSnapshot): boolean {
+        return displayed?.kind === "purchase" && displayed.run.id === run.id;
+    }
 
     async function closeBrowser() {
         // 只允許關閉目前顯示且仍受服務管理的購票瀏覽器
         const run = latestPurchase.current;
-        if (
-            closingRef.current ||
-            !run?.canCloseBrowser ||
-            displayed?.kind !== "purchase" ||
-            displayed.run.id !== run.id
-        )
+        if (!run || !isDisplayedPurchase(run)) {
             return;
+        }
+
+        // 已在關閉或後端不允許時，不送出要求。
+        if (closingRef.current || !run.canCloseBrowser) {
+            return;
+        }
         const prompt =
             run.status === "payment-ready"
                 ? "關閉購票瀏覽器後將離開付款頁。請確認已完成付款，或確定不再付款，再關閉。"
@@ -95,34 +105,39 @@ export function useRunStatus(onError: (message: string) => void) {
         // 防止重複送出，回應也不能覆蓋另一輪執行
         closingRef.current = true;
         setClosing(true);
-        onError("");
+        showMessage("");
         try {
             const result = await api<PurchaseSnapshot>("/api/purchase/close-browser", "POST", { runId: run.id });
             if (latestPurchase.current?.id === run.id) receivePurchase(result);
         } catch (error) {
-            onError((error as Error).message);
+            showMessage((error as Error).message);
         } finally {
             closingRef.current = false;
             setClosing(false);
         }
     }
 
-    async function stopPurchase() {
-        // 只停止目前顯示且由後端允許控制的這一輪。
+    // 只有畫面上正在執行、後端允許且尚未要求停止的 TicketPlus 這一輪可以停止。
+    function stoppableRun(): PurchaseSnapshot | undefined {
         const run = latestPurchase.current;
-        if (
-            !run ||
-            run.platform !== "ticketplus" ||
-            run.status !== "running" ||
-            !run.canStop ||
-            run.stopRequest ||
-            attemptedStops.current.has(run.id) ||
-            closingRef.current ||
-            displayed?.kind !== "purchase" ||
-            displayed.run.id !== run.id
-        ) {
-            return;
+        if (!run || !isRunningTicketPlus(run) || !isDisplayedPurchase(run)) return undefined;
+        if (!run.canStop || run.stopRequest || attemptedStops.current.has(run.id) || closingRef.current) {
+            return undefined;
         }
+        return run;
+    }
+
+    async function stopPurchase() {
+        // 不能停止時不跳確認框。
+        if (!stoppableRun()) return;
+
+        // 請使用者確認；按確認後再檢查一次，最後由後端判斷是否仍可停止。
+        const confirmed = window.confirm(
+            "確定要停止自動操作嗎？停止後不會自動重新開始；若已送出選票，請到購票瀏覽器確認訂單狀態。",
+        );
+        if (!confirmed) return;
+        const run = stoppableRun();
+        if (!run) return;
 
         // 送出前同步鎖定本輪，避免重複停止要求。
         attemptedStops.current.add(run.id);
@@ -156,43 +171,48 @@ export function useRunStatus(onError: (message: string) => void) {
     }
 
     async function confirmParticipants() {
-        // 只確認目前顯示、後端正提供確認 ID 的這一輪。
+        // 只操作畫面上正在執行的 TicketPlus 這一輪。
         const run = latestPurchase.current;
-        const confirmationId = run?.participantConfirmation?.confirmationId;
-        if (
-            !run ||
-            !confirmationId ||
-            run.platform !== "ticketplus" ||
-            run.status !== "running" ||
-            attemptedParticipants.current.has(confirmationId) ||
-            displayed?.kind !== "purchase" ||
-            displayed.run.id !== run.id
-        ) {
+        if (!run || !isRunningTicketPlus(run) || !isDisplayedPurchase(run)) {
             return;
         }
 
-        // 送出前同步鎖定，錯誤也不重送。
+        // 後端未提供確認 ID 或已送出時，不再確認。
+        const confirmationId = run.participantConfirmation?.confirmationId;
+        if (!confirmationId || attemptedParticipants.current.has(confirmationId)) {
+            return;
+        }
+
+        // ref 立即擋住重送，state 讓畫面更新按鈕狀態；錯誤也不解鎖。
         attemptedParticipants.current.add(confirmationId);
         setParticipantsSending(true);
+        const version = purchaseVersion.current;
         try {
             const result = await api<{ run: PurchaseSnapshot }>("/api/purchase/confirm-participants", "POST", {
                 runId: run.id,
                 confirmationId,
             });
-            if (result?.run?.id === run.id && latestPurchase.current?.id === run.id) receivePurchase(result.run);
+            // 確認回應晚於即時快照時，保留已收到的新狀態。
+            if (
+                result?.run?.id === run.id &&
+                latestPurchase.current?.id === run.id &&
+                purchaseVersion.current === version
+            ) {
+                receivePurchase(result.run);
+            }
         } catch (error) {
-            onError((error as Error).message);
+            showMessage((error as Error).message);
         } finally {
             setParticipantsSending(false);
         }
     }
 
-    const currentDisplayed = displayed?.kind === "purchase" && displayed.run.id === purchase?.id;
+    const currentDisplayed = purchase !== null && isDisplayedPurchase(purchase);
     const pendingParticipants = purchase?.participantConfirmation?.confirmationId;
     const participantsControl =
         currentDisplayed &&
-        purchase?.platform === "ticketplus" &&
-        purchase.status === "running" &&
+        purchase &&
+        isRunningTicketPlus(purchase) &&
         pendingParticipants &&
         !attemptedParticipants.current.has(pendingParticipants) &&
         !participantsSending
@@ -200,7 +220,7 @@ export function useRunStatus(onError: (message: string) => void) {
             : undefined;
     const stopRequested = Boolean(purchase && (purchase.stopRequest || attemptedStops.current.has(purchase.id)));
     const stopControl =
-        currentDisplayed && purchase?.platform === "ticketplus" && purchase.status === "running"
+        currentDisplayed && purchase && isRunningTicketPlus(purchase)
             ? {
                   available: !closing && purchase.canStop === true && !stopRequested,
                   progress:

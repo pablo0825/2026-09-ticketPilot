@@ -8,7 +8,6 @@ import type { VerifiedTicketPlusSession } from "./ticketQuantity.js";
 
 export type InformationSubmissionReason =
     | "not-purchase-page"
-    | "contact-missing"
     | "terms-missing"
     | "terms-unchecked"
     | "next-unavailable"
@@ -64,7 +63,7 @@ function isPaymentPage(markers: TicketPlusPageMarkers | undefined, session: Veri
     );
 }
 
-// 購票資料頁：確認聯絡欄位有值、勾條款、按一次下一步，停在付款頁「前往付款」之前；不付款、不重按。
+// 購票資料頁：核對同活動與場次、勾條款、按一次下一步，停在付款頁「前往付款」之前；不付款、不重按。
 export async function submitTicketPlusInformation(
     page: Page,
     session: VerifiedTicketPlusSession,
@@ -74,13 +73,9 @@ export async function submitTicketPlusInformation(
     const clickTimeoutMs = options.clickTimeoutMs ?? 5_000;
     let clicked = false;
     try {
-        // 核對同場次購票資料頁與聯絡欄位（只看有無值，不比對內容）。
+        // 核對同活動、同場次的購票資料頁。
         control.check();
-        const information = await readPurchaseInformation(page, session, control);
-        const fields = Object.values(information.contactFields);
-        if (!fields.every(field => field.present && field.hasValue)) {
-            return { outcome: "stopped", reason: "contact-missing" };
-        }
+        await readPurchaseInformation(page, session, control);
 
         // 勾選條款後重新核對下一步已啟用。
         const isChecked = async () => (await readPurchaseInformation(page, session, control)).termsChecked;

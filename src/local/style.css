@@ -395,3 +395,161 @@ th {
     outline: 2px solid #254d71;
     outline-offset: 5px;
 }
+.status-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.status-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.status-heading h2 {
+    margin: 0;
+}
+.status-actions {
+    display: flex;
+    gap: 8px;
+}
+.status-badge {
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.status-badge.info {
+    background: #e6eef7;
+    color: #254d71;
+}
+.status-badge.action {
+    background: #fff3e0;
+    color: #7a4a00;
+}
+.status-badge.neutral {
+    background: #eef1f4;
+    color: #526575;
+}
+.status-badge.error {
+    background: #fdecea;
+    color: #8a2318;
+}
+.status-badge.unknown {
+    background: #fff8d6;
+    color: #6b5400;
+}
+button.danger {
+    border-color: #e2a39b;
+    color: #c0392b;
+}
+.run-steps {
+    list-style: none;
+    margin: 16px 0;
+    padding: 6px 20px;
+    border: 1px solid #e3e7ec;
+    border-radius: 10px;
+}
+.run-step {
+    display: grid;
+    grid-template-columns: 22px 1fr;
+    gap: 12px;
+    padding: 9px 0;
+}
+.run-step + .run-step {
+    border-top: 1px solid #f0f2f5;
+}
+.run-step-icon {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+}
+.run-step.pending .run-step-icon {
+    border: 1.5px dashed #a8b1bb;
+}
+.run-step.skipped .run-step-icon {
+    border: 1.5px solid #d5dbe2;
+}
+.run-step.done .run-step-icon {
+    background: #1f8a4c;
+}
+.run-step.action .run-step-icon {
+    background: #b26a00;
+}
+.run-step.failed .run-step-icon {
+    background: #c0392b;
+}
+.run-step.stopped .run-step-icon {
+    background: #7b8794;
+    font-size: 8px;
+}
+.run-step.unknown .run-step-icon {
+    background: #d4a600;
+}
+.run-step.running .run-step-icon {
+    border: 2px solid #d5dbe2;
+    border-top-color: #254d71;
+    animation: run-step-spin 0.9s linear infinite;
+}
+@keyframes run-step-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .run-step.running .run-step-icon {
+        animation: none;
+    }
+}
+.run-step.pending .run-step-label,
+.run-step.skipped .run-step-label {
+    color: #9aa3ad;
+}
+.run-step.running .run-step-label,
+.run-step.action .run-step-label,
+.run-step.failed .run-step-label,
+.run-step.unknown .run-step-label {
+    font-weight: 700;
+}
+.run-step-note {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    background: #f3f5f8;
+    color: #233342;
+}
+.run-step.action .run-step-note {
+    background: #fff3e0;
+    color: #7a4a00;
+}
+.run-step.failed .run-step-note {
+    background: #fdecea;
+    color: #8a2318;
+}
+.run-step.unknown .run-step-note {
+    background: #fff8d6;
+    color: #6b5400;
+}
+.run-step-note button {
+    margin-top: 8px;
+}
+.dev-log {
+    border: 1px solid #e3e7ec;
+    border-radius: 10px;
+    padding: 10px 16px;
+}
+.dev-log summary {
+    color: #526575;
+}
+/* 開發者紀錄展開後只有複製按鈕，維持靠右 */
+.dev-log .section-title {
+    justify-content: flex-end;
+}

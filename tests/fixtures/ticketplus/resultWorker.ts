@@ -10,7 +10,13 @@ process.once("message", (input: { lease: PurchaseLease }) => {
             event: { type: "ticketplus", stage, ...(confirmationId ? { confirmationId } : {}) },
         });
     }
-    process.send?.({ type: "result", outcome: process.env.FIXTURE_OUTCOME, message: "fixture 結果" });
+    const stopReason = process.env.FIXTURE_STOP_REASON;
+    process.send?.({
+        type: "result",
+        outcome: process.env.FIXTURE_OUTCOME,
+        message: "fixture 結果",
+        ...(stopReason ? { stopReason } : {}),
+    });
     releasePurchaseLease(input.lease);
     process.send?.({ type: "finished" }, () => process.disconnect?.());
 });

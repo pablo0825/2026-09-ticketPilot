@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import type { DisplayedRun } from "./useRunStatus.js";
 import { eventLogs, purchaseStatus, stopRequestPresentation } from "./runPresentation.js";
 import type { StopRequestStatus } from "./runPresentation.js";
+import { ticketPlusStepsView } from "./ticketPlusSteps.js";
+import type { TicketPlusStepsView } from "./ticketPlusSteps.js";
+import { RunSteps } from "./RunSteps.js";
 
 interface Props {
     displayed: DisplayedRun | null;
@@ -25,11 +28,19 @@ export function RunStatus({ displayed, canClose, closing, onClose, onCopy, stopC
     let title = "尚未執行";
     let instruction = "請在第三步確認設定並開始。";
     let logs = "尚無紀錄。";
+    let stepsView: TicketPlusStepsView | undefined;
     if (displayed?.kind === "purchase") {
         const run = displayed.run;
         ({ title, instruction } = purchaseStatus(run, closing, now));
+
+        // 有流程類型的 TicketPlus 執行改用步驟清單與較短的說明。
+        stepsView = ticketPlusStepsView(run, closing, now);
+        if (stepsView) ({ title, summary: instruction } = stepsView);
+
+        // 畫面送出的停止要求優先於階段提示。
         if (run.platform === "ticketplus" && run.status === "running" && stopControl?.progress) {
             ({ title, instruction } = stopRequestPresentation(stopControl.progress));
+            if (stepsView) stepsView = { ...stepsView, badge: { text: "停止中", tone: "info" } };
         }
         const recordedAt = run.events[0]?.at;
         logs =
@@ -52,25 +63,13 @@ export function RunStatus({ displayed, canClose, closing, onClose, onCopy, stopC
         if (logElement.current && followLog.current) logElement.current.scrollTop = logElement.current.scrollHeight;
     }, [logs]);
 
-    return (
-        <div className="card">
-            <h2 id="status">{title}</h2>
-            <p id="instruction">{instruction}</p>
-            {participantsControl && (
-                <button type="button" onClick={participantsControl.onConfirm}>
-                    參加者已填完
-                </button>
-            )}
-            {stopControl?.available && (
-                <button type="button" className="secondary" onClick={stopControl.onStop}>
-                    停止購票
-                </button>
-            )}
-            <button id="closeBrowser" className="secondary" hidden={!canClose} disabled={closing} onClick={onClose}>
-                {closing ? "關閉中…" : "關閉購票瀏覽器"}
-            </button>
+    // 步驟裡沒有顯示「參加者已填完」時，保留原本的獨立按鈕。
+    const participantsInSteps = Boolean(stepsView?.steps.some(step => step.participantsButton));
+    const logSection = (
+        <>
             <div className="section-title">
-                <h3>執行紀錄</h3>
+                {/* 步驟畫面已由收合標題寫明「開發者紀錄」，展開後不再重複標題 */}
+                {!stepsView && <h3>執行紀錄</h3>}
                 <div>
                     <button id="copy" className="secondary" onClick={() => onCopy(logs)}>
                         複製紀錄
@@ -89,6 +88,50 @@ export function RunStatus({ displayed, canClose, closing, onClose, onCopy, stopC
             >
                 {logs}
             </pre>
+        </>
+    );
+
+    return (
+        <div className="card">
+            <div className="status-header">
+                <div className="status-heading">
+                    <h2 id="status">{title}</h2>
+                    {stepsView && (
+                        <span className={`status-badge ${stepsView.badge.tone}`}>{stepsView.badge.text}</span>
+                    )}
+                </div>
+                <div className="status-actions">
+                    {stopControl?.available && (
+                        <button type="button" className="secondary danger" onClick={stopControl.onStop}>
+                            停止購票
+                        </button>
+                    )}
+                    <button
+                        id="closeBrowser"
+                        className="secondary"
+                        hidden={!canClose}
+                        disabled={closing}
+                        onClick={onClose}
+                    >
+                        {closing ? "關閉中…" : "關閉購票瀏覽器"}
+                    </button>
+                </div>
+            </div>
+            <p id="instruction">{instruction}</p>
+            {stepsView && <RunSteps steps={stepsView.steps} participantsControl={participantsControl} />}
+            {participantsControl && !participantsInSteps && (
+                <button type="button" onClick={participantsControl.onConfirm}>
+                    參加者已填完
+                </button>
+            )}
+            {stepsView ? (
+                <details className="dev-log">
+                    <summary>開發者紀錄</summary>
+                    {logSection}
+                </details>
+            ) : (
+                logSection
+            )}
         </div>
     );
 }

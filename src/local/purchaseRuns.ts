@@ -10,9 +10,12 @@ import { validateSaleSchedule } from "../core/purchaseValidation.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
 import {
     singleTicketPlusSelection,
+    ticketPlusFlowType,
     ticketPlusSessionSelection,
     validateTicketPlusRunSettings,
 } from "../config/ticketPlusActivity.js";
+import type { TicketPlusFlowType } from "../config/ticketPlusActivity.js";
+import type { TicketPlusStopReason } from "../platforms/ticketplus/runControl.js";
 import { ticketPlusEventSchema } from "./purchaseEvents.js";
 import { sendTicketPlusStop } from "./sendTicketPlusStop.js";
 import type { PurchaseEvent } from "./purchaseEvents.js";
@@ -23,6 +26,8 @@ export interface PurchaseSnapshot {
     requestId: string;
     activityName: string;
     saleAt?: string;
+    flowType?: TicketPlusFlowType; // 只有 TicketPlus 新紀錄才有；舊紀錄沒有時畫面退回純紀錄。
+    stopReason?: TicketPlusStopReason; // TicketPlus 因使用者停止或時間上限結束時才有。
     status:
         "running" | "payment-ready" | "information-ready" | "registration-ready" | "failed" | "unknown" | "interrupted";
     canCloseBrowser?: boolean;
@@ -119,6 +124,8 @@ export class PurchaseRuns {
                         requestId: z.literal(id),
                         activityName: z.string(),
                         saleAt: z.string().optional(),
+                        flowType: z.enum(["purchase", "lottery"]).optional(),
+                        stopReason: z.enum(["user-stop", "time-limit"]).optional(),
                         status: z.enum([
                             "running",
                             "payment-ready",
@@ -158,6 +165,8 @@ export class PurchaseRuns {
                 platform !== "ticketplus" &&
                 (valid.data.snapshot.status === "information-ready" ||
                     valid.data.snapshot.status === "registration-ready" ||
+                    valid.data.snapshot.flowType !== undefined ||
+                    valid.data.snapshot.stopReason !== undefined ||
                     valid.data.snapshot.events.some(item => item.event.type === "ticketplus"))
             ) {
                 throw new Error("Invalid platform event or result");
@@ -342,6 +351,7 @@ export class PurchaseRuns {
                 requestId,
                 activityName: activity.eventName,
                 ...(activity.saleSchedule ? { saleAt: activity.saleSchedule.saleAt } : {}),
+                ...(activity.platform === "ticketplus" ? { flowType: ticketPlusFlowType(activity) } : {}),
                 status: "running",
                 browserOpen: false,
                 occupied: true,
@@ -556,6 +566,13 @@ export class PurchaseRuns {
                 ) {
                     record.snapshot.status = value.outcome;
                     record.snapshot.message = value.message;
+                    // 只保留 TicketPlus 已知的停止原因，其他值不寫入紀錄。
+                    if (
+                        record.snapshot.platform === "ticketplus" &&
+                        (value.stopReason === "user-stop" || value.stopReason === "time-limit")
+                    ) {
+                        record.snapshot.stopReason = value.stopReason;
+                    }
                 } else if (value?.type === "finished") {
                     clean = true;
                 } else {

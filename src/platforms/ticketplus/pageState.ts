@@ -73,7 +73,7 @@ export interface TicketPlusPageDiagnostic {
     };
 }
 
-function classifyPage(dom: TicketPlusDom): TicketPlusPage {
+function classifyPage(dom: TicketPlusDom, targetName?: string): TicketPlusPage {
     // 網址採明確白名單，不接受其他站台、額外路徑或不明參數。
     if (dom.origin !== "https://ticketplus.com.tw" || dom.extraUrlParts) return unknownPage("unsupported-url");
     const activity = /^\/activity\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
@@ -120,7 +120,7 @@ function classifyPage(dom: TicketPlusDom): TicketPlusPage {
         if (dom.queueCount || dom.tickets.length || hasInformation || hasCheckout) {
             return unknownPage("conflicting-page");
         }
-        return parseActivityPage(dom, activity[1]!);
+        return parseActivityPage(dom, activity[1]!, targetName);
     }
     const identity = { eventId: order![2]!, sessionId: order![3]! };
     if (dom.activity.length) {
@@ -273,7 +273,7 @@ async function readPageObservation(page: Page, options: PageObservationOptions):
             result = unknownPage("page-changed");
         } else {
             step = "classify-page";
-            result = classifyPage(snapshot);
+            result = classifyPage(snapshot, activityTarget?.eventName);
         }
     } catch (error) {
         readFailure = diagnoseReadFailure(error, page, step, before, after);
