@@ -9,7 +9,7 @@ test("場次停止訊息區分點擊前後，不誤報重試", () => {
     assert.match(message, /不會再次點擊/);
     assert.doesNotMatch(message, /尚未嘗試點擊場次按鈕/);
     assert.match(ticketPlusSessionMessage({ reason: "session-disabled", stage: "before-click" }), /不能僅據此判定/);
-    assert.match(ticketPlusSessionMessage({ reason: "session-missing", stage: "before-click" }), /該順位的日期與時間/);
+    assert.match(ticketPlusSessionMessage({ reason: "session-missing", stage: "before-click" }), /符合設定名稱的場次/);
 });
 
 test("場次診斷會出現在使用者訊息，既有停止說明維持不變", () => {

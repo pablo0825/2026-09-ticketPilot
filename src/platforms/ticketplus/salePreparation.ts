@@ -4,7 +4,7 @@ import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { SaleSchedule } from "../../core/types.js";
 import { validateSaleSchedule } from "../../core/purchaseValidation.js";
 import { dismissTicketPlusActivityNotice, TicketPlusNoticeError } from "./activityNotice.js";
-import { readTicketPlusPage } from "./pageState.js";
+import { readTicketPlusActivityObservation } from "./pageState.js";
 import type { TicketPlusPage } from "./pageState.js";
 import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
 
@@ -104,7 +104,10 @@ export async function prepareTicketPlusSale(
             try {
                 snapshot = await control.read(() =>
                     Promise.race([
-                        readTicketPlusPage(page),
+                        readTicketPlusActivityObservation(page, {
+                            eventId: new URL(settings.eventUrl).pathname.split("/")[2]!,
+                            eventName: settings.eventName,
+                        }).then(observation => observation.page),
                         new Promise<never>((_, reject) => {
                             timer = setTimeout(() => reject(new TicketPlusSaleError("read-timeout")), timeout);
                         }),

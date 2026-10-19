@@ -2,6 +2,7 @@ import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
 import type { Locator, Page } from "playwright";
 import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
 import type { TicketPlusFlowType, TicketPlusSelection } from "../../config/ticketPlusActivity.js";
+import { normalizeSessionName } from "./activityPage.js";
 import type { ActivityPage } from "./activityPage.js";
 import { dismissTicketPlusActivityNotice, TicketPlusNoticeError } from "./activityNotice.js";
 import { readTicketPlusActivityObservation, readTicketPlusSelectionObservation } from "./pageState.js";
@@ -15,6 +16,9 @@ export type SessionEntryReason =
     | "invalid-options"
     | "unexpected-page"
     | "activity-mismatch"
+    | "session-date-mismatch"
+    | "session-time-mismatch"
+    | "session-time-invalid"
     | "session-missing"
     | "session-ambiguous"
     | "session-disabled"
@@ -86,20 +90,26 @@ function requireTargetSession(
     settings: TicketPlusSelection,
     flowType: TicketPlusFlowType,
 ): Session {
-    // 先核對活動身分，再以日期與時間找唯一場次。
+    // 先核對活動網址，再以設定名稱找唯一場次。
     if (snapshot.kind !== "activity") throw new TicketPlusSessionError("before-click", "unexpected-page");
     const eventId = new URL(settings.eventUrl).pathname.split("/")[2];
-    if (snapshot.eventId !== eventId || snapshot.eventName !== settings.eventName) {
+    if (snapshot.eventId !== eventId) {
         throw new TicketPlusSessionError("before-click", "activity-mismatch");
     }
     const matches = snapshot.sessions.filter(
-        session => session.date === settings.target.date && session.time === settings.target.time,
+        session => normalizeSessionName(session.name) === normalizeSessionName(settings.eventName),
     );
     if (matches.length === 0) throw new TicketPlusSessionError("before-click", "session-missing");
     if (matches.length !== 1) throw new TicketPlusSessionError("before-click", "session-ambiguous");
 
     // 停用列也參與唯一性檢查，不能先排除它來消除歧義。
     const session = matches[0]!;
+    if (session.date !== settings.target.date) {
+        throw new TicketPlusSessionError("before-click", "session-date-mismatch");
+    }
+    if (session.time !== settings.target.time) {
+        throw new TicketPlusSessionError("before-click", "session-time-mismatch");
+    }
     if (session.saleState === "not-on-sale") throw new TicketPlusSessionError("before-click", "not-on-sale");
     if (session.buttonText !== entryButtonText[flowType]) {
         throw new TicketPlusSessionError("before-click", "flow-mismatch");
@@ -112,16 +122,15 @@ function exactText(value: string): RegExp {
     return new RegExp(`^\\s*${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`);
 }
 
-function sessionButton(
-    page: Page,
-    settings: TicketPlusSelection,
-    session: Session,
-    flowType: TicketPlusFlowType,
-): Locator {
+function sessionNamePattern(value: string): RegExp {
+    const words = normalizeSessionName(value).split(" ");
+    const pattern = words.map(word => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+");
+    return new RegExp(`^\\s*${pattern}\\s*$`);
+}
+
+function sessionButton(page: Page, session: Session, flowType: TicketPlusFlowType): Locator {
     // 定位條件隨 DOM 重新解析，不保存列表索引，也不使用整列模糊文字。
-    const body = page
-        .locator("body")
-        .filter({ has: page.getByRole("heading", { level: 1, name: settings.eventName, exact: true }) });
+    const body = page.locator("body");
     const date = new RegExp(`^\\s*${session.date}(?:\\([一二三四五六日]\\))?\\s*$`);
     const row = body
         .locator(".sesstion-item")
@@ -129,7 +138,7 @@ function sessionButton(
         .filter({
             has: page
                 .locator(".font-weight-bold.is-word-break")
-                .filter({ visible: true, hasText: exactText(session.name) }),
+                .filter({ visible: true, hasText: sessionNamePattern(session.name) }),
         })
         .filter({ has: page.getByText(date).filter({ visible: true }) })
         .filter({ has: page.getByText(exactText(session.time)).filter({ visible: true }) });
@@ -247,7 +256,11 @@ async function waitForActivitySession(
 
         // 先排除阻擋條件，完整頁面仍沿用活動與場次核對。
         if (observation.readiness.status === "stop") {
-            throw new TicketPlusSessionError("before-click", "unexpected-page");
+            const reason = observation.readiness.reason;
+            throw new TicketPlusSessionError(
+                "before-click",
+                reason === "session-ambiguous" || reason === "session-time-invalid" ? reason : "unexpected-page",
+            );
         }
         if (observation.readiness.status === "pending" && observation.readiness.reason === "notice-dialog") {
             await dismissNotice(page, state, control);
@@ -391,7 +404,7 @@ export async function selectTicketPlusSession(
             control,
             onDiagnostic,
         );
-        const button = sessionButton(page, settings, target, flowType);
+        const button = sessionButton(page, target, flowType);
         if (
             (await control.read(() => button.count())) !== 1 ||
             !(await control.read(() => button.isEnabled({ timeout: Math.min(clickTimeout, control.remainingMs()) })))

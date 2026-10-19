@@ -24,15 +24,30 @@ function isSessionButtonText(text: string): text is SessionButtonText {
     return sessionButtonTexts.includes(text);
 }
 
-export function parseActivityPage(dom: TicketPlusDom, eventId: string): ActivityPage | UnknownPage {
-    // 活動名稱只接受唯一可見標題，場次列表不得空白。
-    if (dom.activityNames.length > 1) return unknownPage("ambiguous-data");
-    const eventName = single(dom.activityNames);
-    if (!eventName || dom.activity.length === 0) return unknownPage("incomplete-data");
+export function normalizeSessionName(value: string): string {
+    return value.trim().replace(/\s+/g, " ");
+}
+
+export function parseActivityPage(
+    dom: TicketPlusDom,
+    eventId: string,
+    targetName?: string,
+): ActivityPage | UnknownPage {
+    // 指定目標時只解析同名場次，其他列的時間範圍不影響目標。
+    const rows =
+        targetName === undefined
+            ? dom.activity
+            : dom.activity.filter(row =>
+                  row.names.some(name => normalizeSessionName(name) === normalizeSessionName(targetName)),
+              );
+    if (targetName !== undefined && rows.length > 1) return unknownPage("ambiguous-data");
+    if (targetName === undefined && dom.activityNames.length > 1) return unknownPage("ambiguous-data");
+    const eventName = targetName ?? single(dom.activityNames);
+    if (!eventName || rows.length === 0) return unknownPage("incomplete-data");
 
     // 逐列保存場次與該列按鈕；不推測按鈕沒有提供的場次 ID。
     const sessions: ActivityPage["sessions"] = [];
-    for (const row of dom.activity) {
+    for (const row of rows) {
         if ([row.names, row.dates, row.times, row.saleButtons].some(values => values.length > 1)) {
             return unknownPage("ambiguous-data");
         }
@@ -83,5 +98,8 @@ export function diagnoseActivityFields(dom: TicketPlusDom, expectedName: string)
             buttonEnabled: button?.enabled ?? null,
         };
     });
-    return { headings, rows };
+    const matchingRows = dom.activity.filter(row =>
+        row.names.some(name => normalizeSessionName(name) === normalizeSessionName(expectedName)),
+    ).length;
+    return { headings, rows, matchingRows };
 }

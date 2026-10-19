@@ -100,7 +100,7 @@ test("開賣準備：已超過固定截止時間或錯誤網址完全不刷新",
 test("開賣準備：停用、活動不符與矛盾按鈕停止，不補刷", async () => {
     for (const [html, expected] of [
         [fixture.activity.replace('type="button"', 'type="button" disabled'), "session-disabled"],
-        [fixture.activity.replace(/<h1>.*?<\/h1>/, "<h1>其他活動</h1>"), "activity-mismatch"],
+        [fixture.activity.replaceAll("2026-10-30", "2026-10-31"), "session-missing"],
         [fixture.activity.replace("</button>", "</button><button>尚未開賣</button>"), "page-unrecognized"],
     ]) {
         await withSite(

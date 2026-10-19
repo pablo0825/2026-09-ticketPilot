@@ -225,7 +225,7 @@ test("TicketPlus runner：登入等待時關閉瀏覽器，流程停止後解除
     }
 });
 
-test("TicketPlus runner：活動不符保留具體原因，訊息指出設定欄位且不點擊", async () => {
+test("TicketPlus runner：目標日期不符保留具體原因且不點擊", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticketplus-mismatch-"));
     const browser = await chromium.launch();
     const context = await browser.newContext();
@@ -233,18 +233,18 @@ test("TicketPlus runner：活動不符保留具體原因，訊息指出設定欄
     const launch = mock.method(chromium, "launchPersistentContext", async () => context);
     try {
         const result = await runTicketPlus(
-            { ...settings, eventName: "不同活動" },
+            { ...settings, targets: [{ ...settings.targets[0]!, date: "2026-10-31" }] },
             {
                 lease: acquirePurchaseLease(dir),
             },
         );
         assert.equal(result.outcome, "stopped");
         assert("sessionFailure" in result);
-        assert.equal(result.sessionFailure?.reason, "activity-mismatch");
+        assert.equal(result.sessionFailure?.reason, "session-date-mismatch");
         assert.equal(result.sessionFailure?.stage, "before-click");
         assert.equal(result.sessionFailure?.diagnostic?.check, "page-state");
         assert.match(ticketPlusResultMessage(result), /"pageKind":"activity"/);
-        assert.match(ticketPlusResultMessage(result), /eventName 與 eventUrl/);
+        assert.match(ticketPlusResultMessage(result), /目標場次日期與設定不符/);
         assert.match(ticketPlusResultMessage(result), /尚未嘗試點擊場次按鈕/);
         assert.deepEqual(requests, ["/", "/activity/event-fixture"]);
         assert.equal(await context.pages()[0]!.evaluate(() => sessionStorage.getItem("counts")), null);

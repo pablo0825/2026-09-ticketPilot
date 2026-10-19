@@ -1,7 +1,7 @@
 import { parseTicketSelectionPage } from "./ticketSelectionPage.js";
 import { matchesSubmittedSelection } from "./submissionValidation.js";
 import type { SubmittedSelectionTarget } from "./submissionValidation.js";
-import { parseActivityPage } from "./activityPage.js";
+import { normalizeSessionName, parseActivityPage } from "./activityPage.js";
 import { readEventDetails } from "./readResult.js";
 import type { TicketPlusDom } from "./domSnapshot.js";
 import type { TicketPlusPage } from "./pageState.js";
@@ -39,12 +39,21 @@ export function activityReadiness(
         return { status: "stop", reason: "conflicting-content" };
     }
 
-    // 完整活動交回既有核對；未完成的同名內容只等待，不去重或授予點擊資格。
-    if (result.kind === "activity") return { status: "ready", reason: "activity-parsed" };
-    if (dom.activityNames.some(name => name.trim() && name !== target.eventName)) {
-        return { status: "stop", reason: "event-name-mismatch" };
+    // 依場次名稱等待目標，不以活動頁的一級標題判定身分。
+    if (result.kind === "unknown" && ["read-failed", "page-changed"].includes(result.reason)) {
+        return { status: "stop", reason: result.reason };
     }
-    return { status: "pending", reason: "activity-not-ready" };
+    const matches = dom.activity.filter(row =>
+        row.names.some(name => normalizeSessionName(name) === normalizeSessionName(target.eventName)),
+    );
+    if (matches.length === 0) return { status: "pending", reason: "session-missing" };
+    if (matches.length > 1 || (result.kind === "unknown" && result.reason === "ambiguous-data")) {
+        return { status: "stop", reason: "session-ambiguous" };
+    }
+    if (matches[0]!.timeRanges.length > 0) return { status: "stop", reason: "session-time-invalid" };
+    return result.kind === "activity"
+        ? { status: "ready", reason: "activity-parsed" }
+        : { status: "pending", reason: "activity-not-ready" };
 }
 export interface SelectionEntryTarget extends ActivityLoadingTarget {
     sessionName: string;
@@ -82,9 +91,6 @@ export function selectionReadiness(
     }
 
     // 明確錯誤的活動或完整場次仍停止；重疊及殘缺不改寫成合法頁面。
-    if (dom.activityNames.some(name => name.trim() && name !== target.eventName)) {
-        return { status: "stop", reason: "event-name-mismatch" };
-    }
     if (result.kind === "ticket-selection") return { status: "ready", reason: "selection-parsed" };
     const details = readEventDetails(dom);
     if (
@@ -93,12 +99,19 @@ export function selectionReadiness(
     ) {
         return { status: "stop", reason: "selection-identity-mismatch" };
     }
-    const activity = parseActivityPage(dom, target.eventId);
+    const matchingRows = dom.activity.filter(row =>
+        row.names.some(name => normalizeSessionName(name) === normalizeSessionName(target.eventName)),
+    );
+    if (matchingRows.length > 1) return { status: "stop", reason: "activity-session-mismatch" };
+    const activity = parseActivityPage(dom, target.eventId, target.eventName);
     if (activity.kind === "activity") {
         const matches = activity.sessions.filter(
             session => session.date === target.date && session.time === target.time,
         );
-        if (matches.length !== 1 || matches[0]!.name !== target.sessionName) {
+        if (
+            matches.length !== 1 ||
+            normalizeSessionName(matches[0]!.name) !== normalizeSessionName(target.sessionName)
+        ) {
             return { status: "stop", reason: "activity-session-mismatch" };
         }
     }

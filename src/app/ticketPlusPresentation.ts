@@ -18,8 +18,11 @@ const sessionReasons: Record<SessionEntryReason, string> = {
     "invalid-options": "場次操作的等待時間設定無效",
     "unexpected-page": "目前頁面不是可辨識的預期頁面，請確認登入狀態、活動頁及是否有彈窗",
     "activity-mismatch": "頁面活動名稱或活動 ID 與設定不符，請核對 eventName 與 eventUrl",
-    "session-missing": "找不到符合日期與時間的場次，請核對 該順位的日期與時間",
-    "session-ambiguous": "同日期與時間有多個場次，無法唯一選擇，請人工確認",
+    "session-date-mismatch": "目標場次日期與設定不符",
+    "session-time-mismatch": "目標場次時間與設定不符",
+    "session-time-invalid": "目標場次使用時間範圍，目前只接受單一時間",
+    "session-missing": "找不到符合設定名稱的場次，請核對活動名稱",
+    "session-ambiguous": "目標場次名稱或欄位不唯一，請人工確認",
     "not-on-sale": "目標場次尚未開賣，尚未嘗試點擊場次按鈕",
     "session-disabled":
         "目標場次的場次按鈕（立即購買／立即登記）目前停用，請查看網站狀態；不能僅據此判定尚未開賣或已售完",
