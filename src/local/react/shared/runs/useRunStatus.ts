@@ -174,12 +174,20 @@ export function useRunStatus(onError: (message: string) => void) {
         // 送出前同步鎖定，錯誤也不重送。
         attemptedParticipants.current.add(confirmationId);
         setParticipantsSending(true);
+        const version = purchaseVersion.current;
         try {
             const result = await api<{ run: PurchaseSnapshot }>("/api/purchase/confirm-participants", "POST", {
                 runId: run.id,
                 confirmationId,
             });
-            if (result?.run?.id === run.id && latestPurchase.current?.id === run.id) receivePurchase(result.run);
+            // 確認回應晚於即時快照時，保留已收到的新狀態。
+            if (
+                result?.run?.id === run.id &&
+                latestPurchase.current?.id === run.id &&
+                purchaseVersion.current === version
+            ) {
+                receivePurchase(result.run);
+            }
         } catch (error) {
             onError((error as Error).message);
         } finally {
