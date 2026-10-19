@@ -68,7 +68,8 @@ export function RunStatus({ displayed, canClose, closing, onClose, onCopy, stopC
     const logSection = (
         <>
             <div className="section-title">
-                <h3>{stepsView ? "開發者紀錄" : "執行紀錄"}</h3>
+                {/* 步驟畫面已由收合標題寫明「開發者紀錄」，展開後不再重複標題 */}
+                {!stepsView && <h3>執行紀錄</h3>}
                 <div>
                     <button id="copy" className="secondary" onClick={() => onCopy(logs)}>
                         複製紀錄

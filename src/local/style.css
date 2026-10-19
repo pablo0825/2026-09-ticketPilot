@@ -549,3 +549,7 @@ button.danger {
 .dev-log summary {
     color: #526575;
 }
+/* 開發者紀錄展開後只有複製按鈕，維持靠右 */
+.dev-log .section-title {
+    justify-content: flex-end;
+}

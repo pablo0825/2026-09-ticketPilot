@@ -65,6 +65,9 @@ test(
             assert.equal(await page.locator("#logs").isVisible(), false);
             await page.locator("details.dev-log > summary", { hasText: "開發者紀錄" }).click();
             assert.equal(await page.locator("#logs").isVisible(), true);
+            // 展開後只保留複製按鈕，不再重複一個「開發者紀錄」標題
+            assert.equal(await page.locator("details.dev-log h3").count(), 0);
+            assert.equal(await page.locator("details.dev-log #copy").isVisible(), true);
 
             // 連點只送出一次，之後按鈕消失
             await confirm.evaluate(button => {
