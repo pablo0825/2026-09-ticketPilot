@@ -57,14 +57,24 @@ test("TicketPlus 停止 GUI：同輪連點只送一次停止，關窗前保留�
         await start(h);
         await showRun(page, h.url);
         await unavailable(page, loginLabel);
-        // 連點兩次都會跳出確認框，兩次都按確認。
-        const acceptStop = (dialog: Dialog) => void dialog.accept();
+
+        // 購票流程顯示 7 個步驟，開發者紀錄預設收合。
+        assert.equal(await page.getByRole("list", { name: "執行步驟" }).getByRole("listitem").count(), 7);
+        assert.equal(await page.locator("#logs").isVisible(), false);
+
+        // 連點兩次只會跳出一次確認框；第二次已鎖定，不再詢問。
+        let dialogs = 0;
+        const acceptStop = (dialog: Dialog) => {
+            dialogs++;
+            void dialog.accept();
+        };
         page.on("dialog", acceptStop);
         await page.getByRole("button", { name: stopLabel, exact: true }).evaluate(element => {
             (element as HTMLButtonElement).click();
             (element as HTMLButtonElement).click();
         });
         page.off("dialog", acceptStop);
+        assert.equal(dialogs, 1);
         const finished = await h.until(run => run?.status === "failed");
         assert.equal(finished.occupied, true);
         assert.equal(finished.browserOpen, true);
@@ -234,7 +244,7 @@ test("TicketPlus 停止 GUI：確認框按取消不送出停止，流程繼續",
         const dialog = page.waitForEvent("dialog");
         const click = page.getByRole("button", { name: stopLabel, exact: true }).click();
         const shown = await dialog;
-        assert.match(shown.message(), /確定要停止購票嗎/);
+        assert.match(shown.message(), /確定要停止自動操作嗎/);
         await shown.dismiss();
         await click;
         assert.equal(requests.filter(path => path === "/api/purchase/stop").length, 0);

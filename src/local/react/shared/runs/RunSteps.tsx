@@ -29,7 +29,7 @@ export function RunSteps({ steps, participantsControl }: Props) {
         <ol className="run-steps" aria-label="執行步驟">
             {steps.map(step => (
                 <li key={step.label} className={`run-step ${step.state}`}>
-                    <span className="run-step-icon" aria-label={stateNames[step.state]}>
+                    <span className="run-step-icon" role="img" aria-label={stateNames[step.state]}>
                         {icons[step.state] ?? ""}
                     </span>
                     <div>

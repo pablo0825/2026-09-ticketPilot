@@ -117,23 +117,27 @@ export function useRunStatus(showMessage: (message: string) => void) {
         }
     }
 
+    // 只有畫面上正在執行、後端允許且尚未要求停止的 TicketPlus 這一輪可以停止。
+    function stoppableRun(): PurchaseSnapshot | undefined {
+        const run = latestPurchase.current;
+        if (!run || !isRunningTicketPlus(run) || !isDisplayedPurchase(run)) return undefined;
+        if (!run.canStop || run.stopRequest || attemptedStops.current.has(run.id) || closingRef.current) {
+            return undefined;
+        }
+        return run;
+    }
+
     async function stopPurchase() {
-        // 先請使用者確認；確認期間流程可能已結束，所以確認後才讀取並檢查目前這一輪。
+        // 不能停止時不跳確認框。
+        if (!stoppableRun()) return;
+
+        // 請使用者確認；按確認後再檢查一次，最後由後端判斷是否仍可停止。
         const confirmed = window.confirm(
-            "確定要停止購票嗎？停止後不會自動重新開始；若已送出選票，請到購票瀏覽器確認訂單狀態。",
+            "確定要停止自動操作嗎？停止後不會自動重新開始；若已送出選票，請到購票瀏覽器確認訂單狀態。",
         );
         if (!confirmed) return;
-
-        // 只操作畫面上正在執行的 TicketPlus 這一輪。
-        const run = latestPurchase.current;
-        if (!run || !isRunningTicketPlus(run) || !isDisplayedPurchase(run)) {
-            return;
-        }
-
-        // 後端不允許、已要求停止或正在關閉時，不再送出。
-        if (!run.canStop || run.stopRequest || attemptedStops.current.has(run.id) || closingRef.current) {
-            return;
-        }
+        const run = stoppableRun();
+        if (!run) return;
 
         // 送出前同步鎖定本輪，避免重複停止要求。
         attemptedStops.current.add(run.id);

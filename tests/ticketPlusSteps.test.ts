@@ -83,7 +83,7 @@ test("執行中：已經過的步驟完成，目前步驟轉圈，還沒輪到�
     assert.equal(view!.summary, "請勿操作購票瀏覽器。");
 });
 
-test("換順位、更新票數與晚到的排隊進度都不讓步驟倒退", () => {
+test("換順位與更新票數重複回報選票階段時，步驟不倒退", () => {
     const stages: TicketPlusWorkerEvent["stage"][] = [
         "starting",
         "checking-login",
@@ -94,11 +94,10 @@ test("換順位、更新票數與晚到的排隊進度都不讓步驟倒退", ()
         "waiting-to-refresh",
         "refreshing",
         "selecting-tickets",
-        "submitting-information",
-        "queue",
+        "selecting-tickets",
     ];
     const view = ticketPlusStepsView(run({}, stages), false, now);
-    assert.deepEqual(states(view), ["done", "done", "done", "done", "done", "running", "pending"]);
+    assert.deepEqual(states(view), ["done", "done", "done", "done", "running", "pending", "pending"]);
 });
 
 test("等待登入：確認登入這步輪到使用者", () => {
@@ -227,4 +226,38 @@ test("等待開賣時說明顯示倒數", () => {
     );
     assert.equal(view!.steps[3]!.state, "running");
     assert.match(view!.summary, /距開賣 42 秒/);
+});
+
+test("較早紀錄被省略時，仍依留下的最新階段計算目前步驟", () => {
+    const view = ticketPlusStepsView(
+        run({ historyTruncated: true }, ["selecting-tickets", "submitting", "submitting-information"]),
+        false,
+        now,
+    );
+    assert.deepEqual(states(view), ["done", "done", "done", "done", "done", "running", "pending"]);
+});
+
+test("瀏覽器已關閉但程序尚未結束時，說明提醒先檢查", () => {
+    for (const status of ["payment-ready", "failed", "unknown"] as const) {
+        const view = ticketPlusStepsView(
+            run({ status, browserOpen: false, occupied: true }, ["submitting"]),
+            false,
+            now,
+        );
+        assert.match(view!.summary, /尚未確認程序正常結束/);
+    }
+    const ended = ticketPlusStepsView(run({ status: "failed", browserOpen: false, occupied: false }), false, now);
+    assert.doesNotMatch(ended!.summary, /尚未確認程序正常結束|關閉購票瀏覽器/);
+});
+
+test("使用者停止時即使網站已確認購票失敗，也顯示已停止並附原因", () => {
+    const view = ticketPlusStepsView(
+        run({ status: "failed", stopReason: "user-stop", message: "已依要求停止自動操作；已確認購票失敗。" }, [
+            "submitting",
+        ]),
+        false,
+        now,
+    );
+    assert.equal(view!.steps[4]!.state, "stopped");
+    assert.match(view!.steps[4]!.note ?? "", /已確認購票失敗/);
 });

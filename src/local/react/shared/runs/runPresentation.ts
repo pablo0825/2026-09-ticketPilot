@@ -105,7 +105,7 @@ export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, n
     return stateRunningStatus(run, now);
 }
 
-function latestTicketPlusStage(run: PurchaseSnapshot): TicketPlusStage | undefined {
+export function latestTicketPlusStage(run: PurchaseSnapshot): TicketPlusStage | undefined {
     const event = run.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
     return event?.type === "ticketplus" ? event.stage : undefined;
 }

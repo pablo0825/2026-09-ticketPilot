@@ -190,19 +190,22 @@ export function ticketPlusResultDiagnostic(result: TicketPlusRunResult): string 
 
 function stopCodes(result: TicketPlusRunResult): string | undefined {
     if (!("reason" in result)) return undefined;
-    const fields = result as unknown as Record<string, unknown>;
     const codes: Record<string, unknown> = { reason: result.reason };
-    for (const key of [
-        "priorityFailure",
-        "saleFailure",
-        "noticeFailure",
-        "lotteryFailure",
-        "informationFailure",
-        "reselectionFailure",
-        "activityLoginFailure",
-    ]) {
-        if (typeof fields[key] === "string") codes[key] = fields[key];
+
+    // 各階段的細部原因代碼。
+    if ("priorityFailure" in result && result.priorityFailure) codes.priorityFailure = result.priorityFailure;
+    if ("saleFailure" in result && result.saleFailure) codes.saleFailure = result.saleFailure;
+    if ("noticeFailure" in result && result.noticeFailure) codes.noticeFailure = result.noticeFailure;
+    if ("lotteryFailure" in result) codes.lotteryFailure = result.lotteryFailure;
+    if ("informationFailure" in result) codes.informationFailure = result.informationFailure;
+    if ("reselectionFailure" in result && result.reselectionFailure) {
+        codes.reselectionFailure = result.reselectionFailure;
     }
+    if ("activityLoginFailure" in result && result.activityLoginFailure) {
+        codes.activityLoginFailure = result.activityLoginFailure;
+    }
+
+    // 登入、場次與更新票數的原因放在各自的物件裡。
     if ("loginFailure" in result && result.loginFailure) codes.loginFailure = result.loginFailure.reason;
     if ("sessionFailure" in result && result.sessionFailure) {
         codes.sessionFailure = `${result.sessionFailure.reason}／${result.sessionFailure.stage}`;

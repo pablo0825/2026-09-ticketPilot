@@ -1,6 +1,6 @@
 import type { TicketPlusWorkerEvent } from "../../../purchaseEvents.js";
 import type { PurchaseSnapshot } from "../../../purchaseRuns.js";
-import { purchaseStatus } from "./runPresentation.js";
+import { latestTicketPlusStage, purchaseStatus } from "./runPresentation.js";
 
 export type StepState = "done" | "running" | "pending" | "action" | "failed" | "stopped" | "unknown" | "skipped";
 
@@ -79,7 +79,7 @@ export function ticketPlusStepsView(
     // 依流程類型與開賣時間決定步驟，並找出目前走到哪一步。
     const keys = stepKeys(run.flowType, Boolean(run.saleAt));
     const current = currentStepIndex(run, keys);
-    const latestStage = latestTicketPlusEvent(run)?.stage;
+    const latestStage = latestTicketPlusStage(run);
 
     // 計算每一步的狀態。
     const steps = keys.map((key, index): RunStep => ({ label: `${index + 1}. ${stepLabels[key]}`, state: "pending" }));
@@ -102,11 +102,6 @@ function stepKeys(flowType: NonNullable<PurchaseSnapshot["flowType"]>, hasSale: 
     return flowType === "lottery"
         ? [...opening, "participants", "registration", "confirm"]
         : [...opening, "information", "payment"];
-}
-
-function latestTicketPlusEvent(run: PurchaseSnapshot): TicketPlusWorkerEvent | undefined {
-    const event = run.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
-    return event?.type === "ticketplus" ? event : undefined;
 }
 
 // 取目前走到最遠的步驟，晚到的舊階段不會讓步驟倒退。
@@ -217,22 +212,24 @@ function summary(
         if (latestStage === "waiting-for-participants") {
             return run.participantConfirmation
                 ? "請在購票瀏覽器填完所有參加者，再按「參加者已填完」；網站倒數結束前須完成。"
-                : "已收到「參加者已填完」，正在核對參加者並前往確認登記。";
+                : "等待程式核對參加者並前往確認登記；如長時間沒有進展，請檢查購票瀏覽器或按停止。";
         }
         return "請勿操作購票瀏覽器。";
     }
 
     // 已結束：先說明結果，再提醒關閉瀏覽器。
-    const ending = run.browserOpen ? "檢查完成後請關閉購票瀏覽器，才能開始下一場。" : "";
+    let ending = "";
+    if (run.browserOpen) ending = "檢查完成後請關閉購票瀏覽器，才能開始下一場。";
+    else if (run.occupied) ending = "尚未確認程序正常結束，請先檢查原瀏覽器及執行紀錄。";
     if (run.status === "payment-ready") {
         return run.browserOpen
             ? "請在購票瀏覽器核對金額並自行付款。" + ending
-            : "購票瀏覽器已關閉；程式未核對付款結果，請自行確認訂單。";
+            : "購票瀏覽器已關閉；程式未核對付款結果，請自行確認訂單。" + ending;
     }
     if (run.status === "registration-ready") {
         return run.browserOpen
             ? "請檢查登記內容，再自行按「確認登記」；程式不會送出登記。" + ending
-            : "購票瀏覽器已關閉；程式未送出登記，請自行確認登記狀態。";
+            : "購票瀏覽器已關閉；程式未送出登記，請自行確認登記狀態。" + ending;
     }
     if (run.status === "information-ready") return "請到購票瀏覽器確認目前頁面並人工接手。" + ending;
     if (run.status === "failed") {
