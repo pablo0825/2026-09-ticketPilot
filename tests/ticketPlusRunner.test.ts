@@ -1,6 +1,6 @@
 import { ticketPlusEventMessage } from "../src/app/ticketPlusPresentation.js";
 import { loggedInHome, loggedOutHome } from "./fixtures/ticketplus/loginPage.js";
-import { ticketPlusResultMessage } from "../src/app/ticketPlusPresentation.js";
+import { ticketPlusResultDiagnostic, ticketPlusResultMessage } from "../src/app/ticketPlusPresentation.js";
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -243,7 +243,8 @@ test("TicketPlus runner：目標日期不符保留具體原因且不點擊", asy
         assert.equal(result.sessionFailure?.reason, "session-date-mismatch");
         assert.equal(result.sessionFailure?.stage, "before-click");
         assert.equal(result.sessionFailure?.diagnostic?.check, "page-state");
-        assert.match(ticketPlusResultMessage(result), /"pageKind":"activity"/);
+        assert.match(ticketPlusResultDiagnostic(result) ?? "", /"pageKind":"activity"/);
+        assert.doesNotMatch(ticketPlusResultMessage(result), /"pageKind"/);
         assert.match(ticketPlusResultMessage(result), /目標場次日期與設定不符/);
         assert.match(ticketPlusResultMessage(result), /尚未嘗試點擊場次按鈕/);
         assert.deepEqual(requests, ["/", "/activity/event-fixture"]);
@@ -616,7 +617,9 @@ test("登入診斷：同狀態不洗版，欄位變化與人工停止保留最�
         assert.equal(events.filter(event => event.type === "login-stopped").length, 1);
         assert.equal(requests.length, 0);
         assert.equal(await page.evaluate(() => sessionStorage.getItem("counts")), null);
-        assert.match(ticketPlusResultMessage(result), /已依要求停止.*登入停止診斷/);
+        assert.match(ticketPlusResultMessage(result), /已依要求停止/);
+        assert.doesNotMatch(ticketPlusResultMessage(result), /登入停止診斷/);
+        assert.match(ticketPlusResultDiagnostic(result) ?? "", /登入停止診斷/);
         const logs = events.map(ticketPlusEventMessage).filter(Boolean).join("\n");
         assert.match(logs, /登入狀態觀測變化/);
         assert.match(logs, /登入等待停止/);

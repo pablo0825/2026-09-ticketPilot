@@ -89,41 +89,66 @@ const attemptResetMessages: Record<"initial" | "next-priority" | "refreshed", st
     refreshed: "更新完成，從第一順位重新檢查。",
 };
 
-export function ticketPlusSessionMessage(failure: {
-    reason: SessionEntryReason;
-    stage: SessionEntryStage;
-    diagnostic?: SessionDiagnostic;
-}): string {
+// 給使用者看的場次停止原因；診斷資料由 ticketPlusSessionDiagnostic 另外提供。
+export function ticketPlusSessionMessage(failure: { reason: SessionEntryReason; stage: SessionEntryStage }): string {
     const attempt =
         failure.stage === "before-click"
             ? "尚未嘗試點擊場次按鈕"
             : "已嘗試點擊場次按鈕，請先人工確認目前頁面，不會再次點擊";
-    const diagnostic = failure.diagnostic
-        ? ` 診斷（${failure.stage}；最後一次觀測）：${JSON.stringify(failure.diagnostic)}`
-        : "";
-    return `場次選擇停止（${failure.reason}）：${sessionReasons[failure.reason]}。${attempt}；尚未嘗試選票提交，不會自動重跑。${diagnostic}`;
+    return `場次選擇停止（${failure.reason}）：${sessionReasons[failure.reason]}。${attempt}；尚未嘗試選票提交，不會自動重跑。`;
 }
 
+export function ticketPlusSessionDiagnostic(failure: {
+    stage: SessionEntryStage;
+    diagnostic?: SessionDiagnostic;
+}): string | undefined {
+    if (!failure.diagnostic) return undefined;
+    return `場次診斷（${failure.stage}；最後一次觀測）：${JSON.stringify(failure.diagnostic)}`;
+}
+
+// 給使用者看的結果說明，不含診斷資料。
 export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
-    const base = resultMessage(result);
-    const login = result.loginDiagnostic ? ` 登入停止診斷：${JSON.stringify(result.loginDiagnostic)}` : "";
-    return `${base}${login}${postSubmitDetail(result)}`;
+    return resultMessage(result);
+}
+
+// 給開發者看的診斷資料；沒有診斷時回傳 undefined。
+export function ticketPlusResultDiagnostic(result: TicketPlusRunResult): string | undefined {
+    const parts: string[] = [];
+
+    // 登入停止時的觀測摘要。
+    if (result.loginDiagnostic) {
+        parts.push(`登入停止診斷：${JSON.stringify(result.loginDiagnostic)}`);
+    } else if ("loginFailure" in result && result.loginFailure) {
+        parts.push(`登入核對診斷：${JSON.stringify(result.loginFailure.summary)}`);
+    }
+
+    // 場次選擇停止時的最後一次觀測。
+    if ("sessionFailure" in result && result.sessionFailure) {
+        const session = ticketPlusSessionDiagnostic(result.sessionFailure);
+        if (session) parts.push(session);
+    }
+
+    // 選票提交後停止的原因與觀測。
+    const submission = postSubmitDetail(result);
+    if (submission) parts.push(submission);
+
+    return parts.length > 0 ? parts.join(" ") : undefined;
 }
 
 // 只有選票提交後停止才補充原因；資料頁與抽選結果已在主訊息說明。
-function postSubmitDetail(result: TicketPlusRunResult): string {
+function postSubmitDetail(result: TicketPlusRunResult): string | undefined {
     if (!result.progress.submitAttempted || result.outcome === "information-ready" || !("reason" in result)) {
-        return "";
+        return undefined;
     }
     if (result.reason === "information-stopped" || result.reason === "lottery-stopped") {
-        return "";
+        return undefined;
     }
 
     const diagnostic =
         "diagnostic" in result && result.diagnostic
             ? ` 診斷（最後一次觀測）：${JSON.stringify(result.diagnostic)}`
             : "";
-    return ` 提交後停止原因：${result.reason}。${diagnostic}`;
+    return `提交後停止原因：${result.reason}。${diagnostic}`;
 }
 
 function resultMessage(result: TicketPlusRunResult): string {
@@ -163,8 +188,7 @@ function resultMessage(result: TicketPlusRunResult): string {
     // 刷新與選票前各階段停止。
     if ("refresh" in result && result.refresh) return refreshMessage(result.refresh, prior);
     if ("loginFailure" in result && result.loginFailure) {
-        const summary = result.loginDiagnostic ? "" : `診斷：${JSON.stringify(result.loginFailure.summary)}`;
-        return `登入核對停止（${result.loginFailure.reason}）；尚未選票或提交。${summary}`;
+        return `登入核對停止（${result.loginFailure.reason}）；尚未選票或提交。`;
     }
     if ("sessionFailure" in result && result.sessionFailure) return ticketPlusSessionMessage(result.sessionFailure);
     if ("priorityFailure" in result && result.priorityFailure) {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ticketPlusSessionMessage } from "../src/app/ticketPlusPresentation.js";
+import { ticketPlusSessionDiagnostic, ticketPlusSessionMessage } from "../src/app/ticketPlusPresentation.js";
 
 test("場次停止訊息區分點擊前後，不誤報重試", () => {
     const message = ticketPlusSessionMessage({ reason: "arrival-timeout", stage: "after-click-attempt" });
@@ -12,17 +12,22 @@ test("場次停止訊息區分點擊前後，不誤報重試", () => {
     assert.match(ticketPlusSessionMessage({ reason: "session-missing", stage: "before-click" }), /符合設定名稱的場次/);
 });
 
-test("場次診斷會出現在使用者訊息，既有停止說明維持不變", () => {
-    const message = ticketPlusSessionMessage({
-        reason: "unexpected-page",
-        stage: "after-click-attempt",
+test("場次診斷只放在診斷資料，使用者訊息維持停止說明", () => {
+    const failure = {
+        reason: "unexpected-page" as const,
+        stage: "after-click-attempt" as const,
         diagnostic: { check: "page-state", snapshot: { pageKind: "unknown", unknownReason: "conflicting-page" } },
-    });
-    assert.match(message, /conflicting-page/);
-    assert.match(message, /最後一次觀測/);
-    assert.match(message, /after-click-attempt/);
+    };
+    const message = ticketPlusSessionMessage(failure);
+    assert.doesNotMatch(message, /conflicting-page|最後一次觀測/);
     assert.match(message, /不會再次點擊/);
     assert.match(message, /尚未嘗試選票提交/);
+
+    const diagnostic = ticketPlusSessionDiagnostic(failure as Parameters<typeof ticketPlusSessionDiagnostic>[0]);
+    assert.match(diagnostic ?? "", /conflicting-page/);
+    assert.match(diagnostic ?? "", /最後一次觀測/);
+    assert.match(diagnostic ?? "", /after-click-attempt/);
+    assert.equal(ticketPlusSessionDiagnostic({ stage: "before-click" }), undefined);
 });
 
 test("活動頁等待紀錄呈現耗時與觀測次數", async () => {

@@ -1,7 +1,7 @@
 import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
 import { presale, summary } from "./fixtures/ticketplus/pages.js";
 import { runTicketPlusSubmission, stoppedSubmissionResult } from "../src/platforms/ticketplus/submissionOutcome.js";
-import { ticketPlusResultMessage } from "../src/app/ticketPlusPresentation.js";
+import { ticketPlusResultDiagnostic, ticketPlusResultMessage } from "../src/app/ticketPlusPresentation.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
@@ -579,10 +579,11 @@ test("TicketPlus 提交診斷：保留資料頁拒絕條件並傳到結果訊息
             const result = stoppedSubmissionResult(error);
             assert.equal(result.outcome, "unknown");
             const message = ticketPlusResultMessage(result);
-            assert(message.includes(error.reason));
-            assert(message.includes(item.reason));
+            const diagnostic = ticketPlusResultDiagnostic(result) ?? "";
+            assert(diagnostic.includes(error.reason));
+            assert(diagnostic.includes(item.reason));
             assert.match(message, /不會重送/);
-            assert.doesNotMatch(message, /PRIVATE_DIALOG|event-fixture|session-B|https:/);
+            assert.doesNotMatch(message + diagnostic, /PRIVATE_DIALOG|event-fixture|session-B|https:/);
             assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
         });
     }

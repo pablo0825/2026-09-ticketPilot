@@ -194,7 +194,15 @@ test("正式 worker：錯誤確認不啟動、已售完關窗停止；queue 經�
             }
             const result = await h.wait(message => message.type === "result");
             assert.equal(result.outcome, mode === "failure" ? "failed" : "payment-ready");
-            if (mode === "failure") assert.match(result.message, /已售完.*已確認關閉/);
+            if (mode === "failure") {
+                assert.match(result.message, /已售完.*已確認關閉/);
+                // 診斷先以紀錄送出，結果訊息不含診斷。
+                assert.doesNotMatch(result.message, /提交後停止原因/);
+                const diagnosticIndex = h.messages.findIndex(
+                    message => message.type === "event" && /提交後停止原因/.test(message.event.message ?? ""),
+                );
+                assert(diagnosticIndex >= 0 && diagnosticIndex < h.messages.indexOf(result));
+            }
             assert.deepEqual(JSON.parse(await readFile(h.report + ".options", "utf8")).args, []);
             await h.stop();
             const report = JSON.parse(await readFile(h.report, "utf8"));
