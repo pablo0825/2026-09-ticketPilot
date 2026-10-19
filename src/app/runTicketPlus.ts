@@ -81,6 +81,7 @@ export type TicketPlusRunResult = (
           stopReason?: TicketPlusStopReason;
           sessionFailure?: { reason: SessionEntryReason; stage: SessionEntryStage; diagnostic?: SessionDiagnostic };
           noticeFailure?: "notice-dismiss-failed";
+          activityLoginFailure?: "unconfirmed";
       }
 ) & { loginDiagnostic?: TicketPlusLoginSummary };
 export interface TicketPlusRunOptions {
@@ -93,6 +94,13 @@ export interface TicketPlusRunOptions {
     webdriverExperiment?: boolean;
     // 抽選在輸入資料頁等待 GUI 確認參加者已填完；未提供時抽選停在資料頁（information-ready）。
     waitForParticipants?: (confirmationId: string) => Promise<void>;
+}
+
+// 開啟活動頁後的登入核對失敗；結果另外標記，讓畫面說明是登入無法確認。
+class TicketPlusActivityLoginError extends Error {
+    constructor() {
+        super("活動頁登入無法確認。");
+    }
 }
 
 function notify(options: TicketPlusRunOptions, event: TicketPlusRunEvent): void {
@@ -222,7 +230,7 @@ export async function runTicketPlus(
                 Promise.race([
                     readTicketPlusLoginState(page, { allowActivity: true }),
                     new Promise<never>((_, reject) => {
-                        loginReadTimer = setTimeout(() => reject(new Error("活動頁登入核對逾時。")), 5_000);
+                        loginReadTimer = setTimeout(() => reject(new TicketPlusActivityLoginError()), 5_000);
                     }),
                 ]),
             );
@@ -231,7 +239,7 @@ export async function runTicketPlus(
                 targetLogin.state === "logged-out" ||
                 ["unexpected-route", "read-failed", "page-closed"].includes(targetLogin.reason)
             ) {
-                throw new Error("活動頁登入無法確認。");
+                throw new TicketPlusActivityLoginError();
             }
         } finally {
             clearTimeout(loginReadTimer);
@@ -340,6 +348,7 @@ export async function runTicketPlus(
                 : {}),
             ...(error instanceof TicketPlusPriorityError ? { priorityFailure: error.reason } : {}),
             ...(error instanceof TicketPlusNoticeError ? { noticeFailure: error.reason } : {}),
+            ...(error instanceof TicketPlusActivityLoginError ? { activityLoginFailure: "unconfirmed" as const } : {}),
         };
     } finally {
         settled = true;

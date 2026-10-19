@@ -161,7 +161,7 @@ test("抽選結果訊息：停在確認登記前、等待中停止或頁面改�
     for (const [lotteryFailure, stopReason, pattern] of [
         ["participant-page-changed", undefined, /離開輸入資料頁/],
         ["user-stopped", "user-stop", /已依要求停止/],
-        ["participant-incomplete", undefined, /participant-incomplete/],
+        ["participant-incomplete", undefined, /參加者資料尚未填完/],
     ] as const) {
         const message = ticketPlusResultMessage({
             outcome: "stopped",
@@ -174,5 +174,87 @@ test("抽選結果訊息：停在確認登記前、等待中停止或頁面改�
         assert.match(message, pattern);
         assert.match(message, /未送出登記/);
         assert.doesNotMatch(message, /結果未確認|提交後停止原因/);
+    }
+});
+
+test("使用者訊息不含英文原因代碼，代碼改放在診斷資料", async () => {
+    const { ticketPlusResultDiagnostic, ticketPlusResultMessage } =
+        await import("../src/app/ticketPlusPresentation.js");
+    type Result = Parameters<typeof ticketPlusResultMessage>[0];
+    const progress = Object.freeze({ submitAttempted: false, dismissAttempted: false, sawQueue: false });
+    const cases: [Result, string, RegExp][] = [
+        [
+            {
+                outcome: "stopped",
+                reason: "login-stopped",
+                progress,
+                loginFailure: { reason: "menu-failed", summary: {} },
+            } as unknown as Result,
+            "menu-failed",
+            /無法開啟會員選單/,
+        ],
+        [
+            {
+                outcome: "stopped",
+                reason: "session-selection-stopped",
+                progress,
+                sessionFailure: { reason: "session-missing", stage: "before-click" },
+            } as unknown as Result,
+            "session-missing",
+            /找不到符合設定名稱的場次/,
+        ],
+        [
+            {
+                outcome: "stopped",
+                reason: "ticket-selection-stopped",
+                progress,
+                priorityFailure: "ticket-missing",
+            } as unknown as Result,
+            "ticket-missing",
+            /找不到設定的票種/,
+        ],
+        [
+            {
+                outcome: "stopped",
+                reason: "lottery-stopped",
+                progress,
+                lotteryFailure: "terms-unchecked",
+                submissionAttempts: 1,
+            } as unknown as Result,
+            "terms-unchecked",
+            /服務條款勾選未確認/,
+        ],
+        [
+            {
+                outcome: "stopped",
+                reason: "information-stopped",
+                progress,
+                informationFailure: "next-unavailable",
+                submissionAttempts: 1,
+            } as unknown as Result,
+            "next-unavailable",
+            /下一步按鈕無法使用/,
+        ],
+        [
+            {
+                outcome: "stopped",
+                reason: "startup-stopped",
+                progress,
+                activityLoginFailure: "unconfirmed",
+            } as unknown as Result,
+            "startup-stopped",
+            /開啟活動頁後無法確認登入狀態/,
+        ],
+        [
+            { outcome: "stopped", reason: "startup-stopped", progress } as unknown as Result,
+            "startup-stopped",
+            /流程已停止/,
+        ],
+    ];
+    for (const [result, code, pattern] of cases) {
+        const message = ticketPlusResultMessage(result);
+        assert.match(message, pattern);
+        assert.doesNotMatch(message, /[a-z]+-[a-z]+/);
+        assert.match(ticketPlusResultDiagnostic(result) ?? "", new RegExp(`停止代碼：.*${code}`));
     }
 });

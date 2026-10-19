@@ -11,13 +11,15 @@ import type { TicketRefreshResult } from "../platforms/ticketplus/ticketRefresh.
 import type { ReselectionBlockedReason } from "../platforms/ticketplus/reselectionReadiness.js";
 import type { InformationSubmissionReason } from "../platforms/ticketplus/informationSubmission.js";
 import type { LotteryFailure } from "./ticketPlusLottery.js";
+import type { TicketPlusLoginReason } from "../platforms/ticketplus/loginWait.js";
+import type { PriorityReason } from "../platforms/ticketplus/ticketPriority.js";
 
 const sessionReasons: Record<SessionEntryReason, string> = {
     "activity-ready-timeout": "等待活動頁載入逾時，尚未取得完整場次",
     "invalid-settings": "活動設定無效，請檢查活動網址、名稱及場次日期時間",
     "invalid-options": "場次操作的等待時間設定無效",
     "unexpected-page": "目前頁面不是可辨識的預期頁面，請確認登入狀態、活動頁及是否有彈窗",
-    "activity-mismatch": "頁面活動名稱或活動 ID 與設定不符，請核對 eventName 與 eventUrl",
+    "activity-mismatch": "頁面活動名稱或活動 ID 與設定不符，請核對活動名稱與活動網址",
     "session-date-mismatch": "目標場次日期與設定不符",
     "session-time-mismatch": "目標場次時間與設定不符",
     "session-time-invalid": "目標場次使用時間範圍，目前只接受單一時間",
@@ -50,6 +52,53 @@ const saleReasons: Record<TicketPlusSaleReason, string> = {
     "read-timeout": "等待活動頁資料完整逾時",
     "refresh-failed": "活動頁刷新未確認成功",
     "notice-dismiss-failed": "活動頁提醒彈窗無法確認關閉",
+};
+
+const loginReasons: Record<TicketPlusLoginReason, string> = {
+    "page-timeout": "首頁載入逾時",
+    "login-timeout": "等待登入逾時",
+    "sale-expired": "已超過開賣後的等待期限",
+    "page-closed": "購票頁已關閉",
+    "page-crashed": "購票頁異常中斷",
+    "read-timeout": "讀取登入狀態逾時",
+    "read-failed": "無法讀取登入狀態",
+    "unexpected-route": "目前頁面不是預期的 TicketPlus 頁面",
+    "menu-failed": "無法開啟會員選單確認登入",
+};
+
+const priorityReasons: Record<Exclude<PriorityReason, "all-targets-sold-out">, string> = {
+    "invalid-options": "選票的等待時間設定無效",
+    "unexpected-page": "目前頁面不是可辨識的選票頁",
+    "identity-mismatch": "選票頁的活動或場次與設定不符",
+    "ticket-missing": "找不到設定的票種",
+    "ticket-ambiguous": "設定的票種不唯一，請人工確認",
+    "extra-tickets": "頁面上已有其他票種被選取",
+    "area-expansion-failed": "票區展開後找不到唯一的票種",
+    "operation-timeout": "選票操作逾時",
+};
+
+// 使用者停止與時間上限由 stopLeads 說明，這裡只列其他原因。
+const lotteryReasons: Record<Exclude<LotteryFailure, "time-limit" | "user-stopped">, string> = {
+    "not-input-page": "目前不在輸入資料頁",
+    "dialog-open": "頁面有尚未關閉的彈窗",
+    "participant-count": "參加者人數與張數不符",
+    "participant-incomplete": "參加者資料尚未填完",
+    "terms-missing": "找不到服務條款勾選框",
+    "terms-unchecked": "服務條款勾選未確認",
+    "next-unavailable": "下一步按鈕無法使用",
+    "checkout-not-reached": "未能確認到達確認登記頁",
+    "read-failed": "無法讀取頁面",
+    "participant-page-changed": "頁面已離開輸入資料頁（可能是網站倒數結束）",
+    "confirmation-failed": "「參加者已填完」的確認未能送達",
+};
+
+const informationReasons: Record<Exclude<InformationSubmissionReason, "time-limit" | "user-stopped">, string> = {
+    "not-purchase-page": "目前不在填寫資料頁",
+    "terms-missing": "找不到服務條款勾選框",
+    "terms-unchecked": "服務條款勾選未確認",
+    "next-unavailable": "下一步按鈕無法使用",
+    "checkout-not-reached": "未能確認到達付款頁",
+    "read-failed": "無法讀取頁面",
 };
 
 const stopLeads: Record<TicketPlusStopReason, string> = {
@@ -95,7 +144,7 @@ export function ticketPlusSessionMessage(failure: { reason: SessionEntryReason; 
         failure.stage === "before-click"
             ? "尚未嘗試點擊場次按鈕"
             : "已嘗試點擊場次按鈕，請先人工確認目前頁面，不會再次點擊";
-    return `場次選擇停止（${failure.reason}）：${sessionReasons[failure.reason]}。${attempt}；尚未嘗試選票提交，不會自動重跑。`;
+    return `場次選擇停止：${sessionReasons[failure.reason]}。${attempt}；尚未嘗試選票提交，不會自動重跑。`;
 }
 
 export function ticketPlusSessionDiagnostic(failure: {
@@ -115,6 +164,10 @@ export function ticketPlusResultMessage(result: TicketPlusRunResult): string {
 export function ticketPlusResultDiagnostic(result: TicketPlusRunResult): string | undefined {
     const parts: string[] = [];
 
+    // 停止原因代碼，供開發者對照程式分支。
+    const codes = stopCodes(result);
+    if (codes) parts.push(codes);
+
     // 登入停止時的觀測摘要。
     if (result.loginDiagnostic) {
         parts.push(`登入停止診斷：${JSON.stringify(result.loginDiagnostic)}`);
@@ -133,6 +186,29 @@ export function ticketPlusResultDiagnostic(result: TicketPlusRunResult): string 
     if (submission) parts.push(submission);
 
     return parts.length > 0 ? parts.join(" ") : undefined;
+}
+
+function stopCodes(result: TicketPlusRunResult): string | undefined {
+    if (!("reason" in result)) return undefined;
+    const fields = result as unknown as Record<string, unknown>;
+    const codes: Record<string, unknown> = { reason: result.reason };
+    for (const key of [
+        "priorityFailure",
+        "saleFailure",
+        "noticeFailure",
+        "lotteryFailure",
+        "informationFailure",
+        "reselectionFailure",
+        "activityLoginFailure",
+    ]) {
+        if (typeof fields[key] === "string") codes[key] = fields[key];
+    }
+    if ("loginFailure" in result && result.loginFailure) codes.loginFailure = result.loginFailure.reason;
+    if ("sessionFailure" in result && result.sessionFailure) {
+        codes.sessionFailure = `${result.sessionFailure.reason}／${result.sessionFailure.stage}`;
+    }
+    if ("refresh" in result && result.refresh?.kind === "stopped") codes.refresh = result.refresh.reason;
+    return `停止代碼：${JSON.stringify(codes)}`;
 }
 
 // 只有選票提交後停止才補充原因；資料頁與抽選結果已在主訊息說明。
@@ -188,14 +264,14 @@ function resultMessage(result: TicketPlusRunResult): string {
     // 刷新與選票前各階段停止。
     if ("refresh" in result && result.refresh) return refreshMessage(result.refresh, prior);
     if ("loginFailure" in result && result.loginFailure) {
-        return `登入核對停止（${result.loginFailure.reason}）；尚未選票或提交。`;
+        return `登入核對停止：${loginReasons[result.loginFailure.reason]}。尚未選票或提交，不會自動重跑。`;
     }
     if ("sessionFailure" in result && result.sessionFailure) return ticketPlusSessionMessage(result.sessionFailure);
     if ("priorityFailure" in result && result.priorityFailure) {
         const detail =
             result.priorityFailure === "all-targets-sold-out"
                 ? "本次檢查的設定順位皆已售完或暫無票券"
-                : `順位核對未通過（${result.priorityFailure}），不能據此判定售完`;
+                : `順位核對未通過：${priorityReasons[result.priorityFailure]}，不能據此判定售完`;
         return `${detail}。${prior}不刷新或重跑。`;
     }
     if (result.reason === "sale-wait-stopped") {
@@ -205,8 +281,11 @@ function resultMessage(result: TicketPlusRunResult): string {
     if ("noticeFailure" in result && result.noticeFailure) {
         return "活動頁提醒彈窗無法確認關閉，尚未選場次或提交選票，請檢查購票瀏覽器；不會自動重跑。";
     }
+    if ("activityLoginFailure" in result && result.activityLoginFailure) {
+        return "開啟活動頁後無法確認登入狀態，尚未選場次或提交選票。請在購票瀏覽器確認已登入；不會自動重跑。";
+    }
 
-    return `流程已停止（${result.reason}）。${prior}請檢查購票瀏覽器；不會自動重跑。`;
+    return `流程已停止。${prior}請檢查購票瀏覽器；不會自動重跑。`;
 }
 
 function lotteryStoppedMessage(result: {
@@ -220,10 +299,10 @@ function lotteryStoppedMessage(result: {
 
     const tail = "未送出登記。請檢查購票瀏覽器；不會自動重跑。";
     if (result.stopReason) return `${stopLeads[result.stopReason]}：${tail}`;
-    if (result.lotteryFailure === "participant-page-changed") {
-        return `頁面已離開輸入資料頁（可能是網站倒數結束），停止等待：${tail}`;
+    if (result.lotteryFailure === "time-limit" || result.lotteryFailure === "user-stopped") {
+        return `登記送出前停止：${tail}`;
     }
-    return `抽選送出前停止（${result.lotteryFailure}）：${tail}`;
+    return `登記送出前停止：${lotteryReasons[result.lotteryFailure]}。${tail}`;
 }
 
 function informationStoppedMessage(result: {
@@ -237,7 +316,10 @@ function informationStoppedMessage(result: {
 
     const tail = "已保留在資料頁、未送出。請檢查購票瀏覽器；不會自動重跑。";
     if (result.stopReason) return `${stopLeads[result.stopReason]}：${tail}`;
-    return `資料頁送出前停止（${result.informationFailure}）：${tail}`;
+    if (result.informationFailure === "time-limit" || result.informationFailure === "user-stopped") {
+        return `資料頁送出前停止：${tail}`;
+    }
+    return `資料頁送出前停止：${informationReasons[result.informationFailure]}。${tail}`;
 }
 
 function priorSubmissionText(result: TicketPlusRunResult): string {
@@ -256,7 +338,7 @@ function controlStopMessage(
     const lead = stopLeads[stopReason];
     if (outcome === "unknown") return `${lead}；已嘗試提交，結果未確認。請檢查原頁面及訂單，不會重送。`;
     if (outcome === "rejected") {
-        return `${lead}；已確認購票失敗，請人工檢查彈窗與頁面，不會繼續關閉或重試。`;
+        return `${lead}；已確認購票失敗，請人工檢查彈窗與頁面。程式不會再處理彈窗或重試。`;
     }
     return `${lead}。${prior}瀏覽器保留供人工檢查，關閉後才解除購票占用。`;
 }
@@ -267,18 +349,19 @@ function rejectedMessage(result: {
 }): string {
     const reason = result.progress.failure === "sold-out" ? "已售完" : "購票失敗";
     const dismissal = dismissalLabels[result.progress.dismissal];
-    const blocked = result.reselectionFailure ? `重新選票前核對未通過（${result.reselectionFailure}）。` : "";
-    return `${reason}，${dismissal}。${blocked}流程停止，不刷新、不切換候補。`;
+    if (result.reselectionFailure) {
+        return `${reason}，${dismissal}。重新選票前的頁面核對未通過，無法安全改選下一順位，流程停止；不刷新、不重送。`;
+    }
+    return `${reason}，${dismissal}。流程停止，不刷新、不切換候補。`;
 }
 
 function refreshMessage(refresh: TicketRefreshResult, prior: string): string {
     if (refresh.kind === "completed") {
-        return `選票頁更新完成並核對通過。${prior}未設定全程執行期限，停止自動操作，不開始新一輪；瀏覽器保留供人工檢查。`;
+        return `選票頁更新完成並核對通過。${prior}未設定全程執行期限（最長執行時間），為避免無限重試而停止，不開始新一輪；瀏覽器保留供人工檢查。`;
     }
 
     const action = refresh.clickAttempted ? "已嘗試一次更新票數" : "尚未嘗試更新票數";
-    const detail =
-        refresh.reason === "completion-unverified" ? "尚無可靠訊號確認更新完成" : `更新核對停止（${refresh.reason}）`;
+    const detail = refresh.reason === "completion-unverified" ? "尚無可靠訊號確認更新完成" : "更新票數時頁面核對未通過";
     return `${action}，${detail}。${prior}不補按、不開始新一輪選票，請人工檢查。`;
 }
 

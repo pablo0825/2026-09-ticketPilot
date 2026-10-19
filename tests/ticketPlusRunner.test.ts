@@ -550,7 +550,11 @@ test("TicketPlus runner：前往活動前取消不導航，活動登入失效不
             assert.deepEqual(requests, mode === "cancel-before-navigation" ? ["/"] : ["/", "/activity/event-fixture"]);
             assert.equal(await context.pages()[0]!.evaluate(() => sessionStorage.getItem("counts")), null);
             if (mode === "cancel-before-navigation") assert.equal(result.stopReason, "user-stop");
-            else assert.equal(result.reason, "startup-stopped");
+            else {
+                assert.equal(result.reason, "startup-stopped");
+                assert.equal("activityLoginFailure" in result && result.activityLoginFailure, "unconfirmed");
+                assert.match(ticketPlusResultMessage(result), /開啟活動頁後無法確認登入狀態/);
+            }
             assert(purchaseOccupied(directory));
             await context.close();
             assert(!purchaseOccupied(directory));
