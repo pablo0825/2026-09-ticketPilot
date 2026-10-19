@@ -57,6 +57,15 @@ test(
             assert.match(await page.locator("#instruction").innerText(), /網站倒數結束前須完成/);
             const confirm = page.getByRole("button", { name: "參加者已填完", exact: true });
 
+            // 從首頁進入也顯示登記抽選步驟；按鈕只有一個，放在填寫參加者這一步，開發者紀錄預設收合。
+            const steps = page.getByRole("list", { name: "執行步驟" });
+            assert.equal(await steps.getByRole("listitem").count(), 8);
+            assert.equal(await confirm.count(), 1);
+            assert.match(await steps.getByRole("listitem").filter({ has: confirm }).innerText(), /6\. 填寫參加者/);
+            assert.equal(await page.locator("#logs").isVisible(), false);
+            await page.getByText("開發者紀錄（除錯用，平常不需要看）").click();
+            assert.equal(await page.locator("#logs").isVisible(), true);
+
             // 連點只送出一次，之後按鈕消失
             await confirm.evaluate(button => {
                 (button as HTMLButtonElement).click();

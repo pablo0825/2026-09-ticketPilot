@@ -511,6 +511,7 @@ test(
                 );
                 await h.login();
                 await eventually(async () => assert.equal((await h.counts()).counts.submit, 1));
+                page.once("dialog", dialog => void dialog.accept()); // 停止前的確認框
                 await page.getByRole("button", { name: "停止購票", exact: true }).click();
                 await page.getByRole("button", { name: "② 確認與開始", exact: true }).click();
                 assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
@@ -577,6 +578,7 @@ test("TicketPlus 開賣核心 GUI：未填提前秒數採 1 秒，可啟動且�
         await eventually(async () => assert.match(await page.locator("#status").innerText(), /等待開賣/));
         assert.deepEqual(starts(requests)[0]!.body.expectedActivity, scheduled);
         assert.equal((await h.counts()).counts.session, 0);
+        page.once("dialog", dialog => void dialog.accept()); // 停止前的確認框
         await page.getByRole("button", { name: "停止購票", exact: true }).click();
         await h.until(run => run?.status === "failed");
         await eventually(async () => assert.match(await page.locator("#status").innerText(), /購票已停止/));

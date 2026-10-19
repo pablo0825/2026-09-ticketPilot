@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
-import { chromium, type Page } from "playwright";
+import { chromium, type Dialog, type Page } from "playwright";
 import type { PurchaseSnapshot } from "../src/local/purchaseRuns.js";
 import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
 import { eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
@@ -57,10 +57,14 @@ test("TicketPlus 停止 GUI：同輪連點只送一次停止，關窗前保留�
         await start(h);
         await showRun(page, h.url);
         await unavailable(page, loginLabel);
+        // 連點兩次都會跳出確認框，兩次都按確認。
+        const acceptStop = (dialog: Dialog) => void dialog.accept();
+        page.on("dialog", acceptStop);
         await page.getByRole("button", { name: stopLabel, exact: true }).evaluate(element => {
             (element as HTMLButtonElement).click();
             (element as HTMLButtonElement).click();
         });
+        page.off("dialog", acceptStop);
         const finished = await h.until(run => run?.status === "failed");
         assert.equal(finished.occupied, true);
         assert.equal(finished.browserOpen, true);
@@ -91,6 +95,7 @@ test("TicketPlus 停止 GUI：頁面登入後仍可停止，加第一張後解�
         await showRun(page, h.url);
         await h.login();
         await eventually(async () => assert.equal((await h.counts()).counts.plus, 1));
+        page.once("dialog", dialog => void dialog.accept()); // 停止前的確認框
         await page.getByRole("button", { name: stopLabel, exact: true }).click();
         await h.until(run => run?.status === "failed");
         await writeFile(h.report + ".control", "release-plus");
@@ -118,12 +123,13 @@ test("TicketPlus 停止 GUI：排隊停止保留提交一次並回報結果不�
         const stopRequest = page.waitForRequest(
             request => new URL(request.url()).pathname === "/api/purchase/stop" && request.method() === "POST",
         );
+        page.once("dialog", dialog => void dialog.accept()); // 停止前的確認框
         await page.getByRole("button", { name: stopLabel, exact: true }).click();
         assert.deepEqual((await stopRequest).postDataJSON(), { runId: run.id });
         await h.until(run => run?.status === "unknown");
         await eventually(async () => {
             assert.equal(await page.locator("#status").innerText(), "購票已停止");
-            assert.match(await page.locator("#status").locator("..").innerText(), /提交結果尚未確認/);
+            assert.match(await page.locator("#instruction").innerText(), /結果未確認/);
         });
         assert.equal((await h.counts()).counts.submit, 1);
         assert.equal((await h.counts()).counts.information, 0);
@@ -147,6 +153,7 @@ test("TicketPlus 停止 GUI：後端接受但回應遺失，重載只恢復狀�
             await route.abort("failed");
         });
         await showRun(page, h.url);
+        page.once("dialog", dialog => void dialog.accept()); // 停止前的確認框
         await page.getByRole("button", { name: stopLabel, exact: true }).click();
         await h.until(run => run?.status === "failed");
         await showRun(page, h.url);
@@ -188,6 +195,7 @@ test("TicketPlus 停止 GUI：傳送未確認仍有舊資格時不重送或登�
         await page.route("**/api/purchase", route => route.fulfill({ json: current }));
         await page.route("**/api/purchase/stop", route => route.abort("failed"));
         await showRun(page, h.url);
+        page.once("dialog", dialog => void dialog.accept()); // 停止前的確認框
         await page.getByRole("button", { name: stopLabel, exact: true }).click();
         await eventually(async () => assert.equal(await page.locator("#status").innerText(), "停止要求尚未確認"));
         await unavailable(page, stopLabel);
@@ -216,6 +224,28 @@ test("TicketPlus 停止 GUI：傳送未確認仍有舊資格時不重送或登�
             assert(await button.isEnabled());
         });
         assert.equal(requests.length, 1);
+    });
+});
+
+test("TicketPlus 停止 GUI：確認框按取消不送出停止，流程繼續", { timeout: 30_000 }, async () => {
+    await fixture("success", async (h, page, requests) => {
+        await start(h);
+        await showRun(page, h.url);
+        const dialog = page.waitForEvent("dialog");
+        const click = page.getByRole("button", { name: stopLabel, exact: true }).click();
+        const shown = await dialog;
+        assert.match(shown.message(), /確定要停止購票嗎/);
+        await shown.dismiss();
+        await click;
+        assert.equal(requests.filter(path => path === "/api/purchase/stop").length, 0);
+        assert.equal((await h.snapshot())!.status, "running");
+        assert(await page.getByRole("button", { name: stopLabel, exact: true }).isEnabled());
+
+        // 之後仍可正常停止。
+        page.once("dialog", next => void next.accept());
+        await page.getByRole("button", { name: stopLabel, exact: true }).click();
+        await h.until(run => run?.status === "failed");
+        assert.equal(requests.filter(path => path === "/api/purchase/stop").length, 1);
     });
 });
 
@@ -259,6 +289,7 @@ test("TicketPlus 停止 GUI：停止回應仍是 running 時，晚到不能覆�
         });
         try {
             await showRun(page, h.url);
+            page.once("dialog", dialog => void dialog.accept()); // 停止前的確認框
             await page.getByRole("button", { name: stopLabel, exact: true }).click();
             await eventually(async () => {
                 await page.locator("#status").textContent();
