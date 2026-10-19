@@ -23,7 +23,7 @@ const sessionReasons: Record<SessionEntryReason, string> = {
     "session-date-mismatch": "目標場次日期與設定不符",
     "session-time-mismatch": "目標場次時間與設定不符",
     "session-time-invalid": "目標場次使用時間範圍，目前只接受單一時間",
-    "session-missing": "找不到符合設定名稱的場次，請核對活動名稱",
+    "session-missing": "活動頁場次已載入完成，但找不到符合設定名稱的場次，請核對活動名稱",
     "session-ambiguous": "目標場次名稱或欄位不唯一，請人工確認",
     "not-on-sale": "目標場次尚未開賣，尚未嘗試點擊場次按鈕",
     "session-disabled":

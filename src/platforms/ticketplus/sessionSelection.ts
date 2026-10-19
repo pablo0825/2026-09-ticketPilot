@@ -257,10 +257,10 @@ async function waitForActivitySession(
         // 先排除阻擋條件，完整頁面仍沿用活動與場次核對。
         if (observation.readiness.status === "stop") {
             const reason = observation.readiness.reason;
-            throw new TicketPlusSessionError(
-                "before-click",
-                reason === "session-ambiguous" || reason === "session-time-invalid" ? reason : "unexpected-page",
-            );
+            if (reason === "session-missing" || reason === "session-ambiguous" || reason === "session-time-invalid") {
+                throw new TicketPlusSessionError("before-click", reason);
+            }
+            throw new TicketPlusSessionError("before-click", "unexpected-page");
         }
         if (observation.readiness.status === "pending" && observation.readiness.reason === "notice-dialog") {
             await dismissNotice(page, state, control);

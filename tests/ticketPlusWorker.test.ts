@@ -268,7 +268,7 @@ test("正式 worker：父服務失聯停止且保留占用；活動名稱不符�
                 h.child.send({ type: "fixture-login" });
                 const result = await h.wait(message => message.type === "result");
                 assert.equal(result.outcome, "failed");
-                assert.match(result.message, /activity-mismatch.*eventName/);
+                assert.match(result.message, /已載入完成，但找不到符合設定名稱的場次.*尚未嘗試點擊場次按鈕/);
                 await h.stop();
             }
             const report = JSON.parse(await readFile(h.report, "utf8"));

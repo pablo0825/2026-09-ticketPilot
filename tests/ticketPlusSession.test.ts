@@ -150,7 +150,7 @@ test("TicketPlus 場次：列重排與隱藏副本仍選 B，不依舊索引", {
 test("TicketPlus 場次：日期不符、無目標、停用與重複列皆零點擊", { timeout: 15_000 }, async () => {
     const cases: { html: string; reason: SessionEntryReason }[] = [
         { html: heading + rowB.replace("2026-10-30", "2026-10-31"), reason: "session-date-mismatch" },
-        { html: heading + rowA, reason: "activity-ready-timeout" },
+        { html: heading + rowA, reason: "session-missing" },
         { html: heading + rowB.replace('type="button"', 'type="button" disabled'), reason: "session-disabled" },
         { html: activity + rowB, reason: "session-ambiguous" },
         { html: activity + rowB.replace('type="button"', 'type="button" disabled'), reason: "session-ambiguous" },

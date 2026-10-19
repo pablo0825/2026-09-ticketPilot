@@ -20,7 +20,7 @@ export interface ActivityPage {
 export type SessionButtonText = "立即購買" | "立即登記" | "尚未開賣";
 const sessionButtonTexts: readonly string[] = ["立即購買", "立即登記", "尚未開賣"];
 
-function isSessionButtonText(text: string): text is SessionButtonText {
+export function isSessionButtonText(text: string): text is SessionButtonText {
     return sessionButtonTexts.includes(text);
 }
 

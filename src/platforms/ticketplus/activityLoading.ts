@@ -1,4 +1,5 @@
 import type { TicketPlusDom } from "./domSnapshot.js";
+import { isSessionButtonText, normalizeSessionName } from "./activityPage.js";
 import { single, validDate, validTime } from "./readResult.js";
 
 export type ActivityLoading = "none" | "empty" | "loading-placeholder";
@@ -60,4 +61,35 @@ export function inspectActivityLoading(dom: TicketPlusDom, target: ActivityLoadi
     const range = single(row.timeRanges)?.split(/\s*~\s*/);
     if (!range || range.length !== 2 || !range.every(validTime) || range[0]! >= range[1]!) return "none";
     return "loading-placeholder";
+}
+
+type ActivityRow = TicketPlusDom["activity"][number];
+
+function isReadableSessionRow(row: ActivityRow): boolean {
+    // 名稱須唯一且不像 Loading... 佔位；大小寫或省略號不同也視為載入中。
+    const name = single(row.names);
+    if (name === undefined || !normalizeSessionName(name) || /^loading/i.test(normalizeSessionName(name))) {
+        return false;
+    }
+
+    // 日期為單日或遞增兩日區間；時間為單一時間或時間區間，欄位與值容器各一個。
+    const counts = [row.dateField.labels, row.dateField.values, row.timeField.labels, row.timeField.values];
+    if (counts.some(count => count !== 1)) return false;
+    const dates = row.dates.map(value => value.replace(/\([一二三四五六日]\)$/, ""));
+    if (dates.length < 1 || dates.length > 2 || !dates.every(validDate)) return false;
+    if (dates.length === 2 && dates[0]! >= dates[1]!) return false;
+    const times = [...row.times, ...row.timeRanges.flatMap(range => range.split(/\s*~\s*/))];
+    if (row.times.length + row.timeRanges.length !== 1 || !times.every(validTime)) return false;
+
+    // 佔位列同時有日期區間與時間區間；同形狀的列不論名稱都保守視為載入中。
+    if (dates.length === 2 && row.timeRanges.length === 1) return false;
+
+    // 按鈕區仍顯示 progressbar 時沒有按鈕，視為尚未載入完成。
+    const button = single(row.saleButtons);
+    return button !== undefined && isSessionButtonText(button.text);
+}
+
+// 至少一列且每列都可完整讀取時，才視為場次列表已載入；空白、佔位或缺欄位仍在載入。
+export function isActivityFullyLoaded(dom: TicketPlusDom): boolean {
+    return dom.activity.length > 0 && dom.activity.every(isReadableSessionRow);
 }

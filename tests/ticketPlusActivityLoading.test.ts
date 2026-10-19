@@ -7,7 +7,7 @@ import { readTicketPlusActivityObservation, readTicketPlusPage } from "../src/pl
 import { selectTicketPlusSession, TicketPlusSessionError } from "../src/platforms/ticketplus/sessionSelection.js";
 import { TicketPlusRunControl, TicketPlusStopError } from "../src/platforms/ticketplus/runControl.js";
 import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
-import { activity, order } from "./fixtures/ticketplus/pages.js";
+import { activity, order, session } from "./fixtures/ticketplus/pages.js";
 import { loadingSession } from "./fixtures/ticketplus/activityLoading.js";
 
 const eventName = "2026孿生姐妹之夜之鬼迷心竅";
@@ -143,7 +143,7 @@ test("活動佔位：專用觀測不依賴診斷，嚴格 reader 仍拒絕，不
         assert.deepEqual(withoutLog, {
             page: { kind: "unknown", reason: "incomplete-data" },
             loading: "loading-placeholder",
-            readiness: { status: "pending", reason: "session-missing" },
+            readiness: { status: "pending", reason: "activity-not-ready" },
         });
         assert.deepEqual(brokenLog, withoutLog);
         assert.equal((await readTicketPlusActivityObservation(page, { ...target, eventId: "wrong" })).loading, "none");
@@ -177,7 +177,6 @@ test("活動佔位：永久佔位沿用期限，保留固定原因與統計且�
 
 test("活動等待：殘缺與重複同名內容只等待到期限，始終零點擊", async () => {
     const cases = [
-        heading + loadingSession.replaceAll("Loading...", "真實場次"),
         heading + loadingSession.replace("19:00 ~ 23:59", "PRIVATE_TIME"),
         heading + loadingSession.replace("19:00 ~ 23:59", "25:00 ~ 26:00"),
         heading + loadingSession.replace("2024-12-31(二)", "2024-05-20(一)"),
@@ -203,6 +202,94 @@ test("活動等待：殘缺與重複同名內容只等待到期限，始終零�
                 },
             );
             assert.deepEqual(await clicks(page), []);
+        });
+    }
+});
+
+const otherSession = session.replace(eventName, "其他場次");
+const progressSession = otherSession.replace(
+    '<button type="button"><span>立即購買</span></button>',
+    '<div role="progressbar"><svg><circle r="1"></circle></svg></div>',
+);
+
+test("活動等待：列表已完整載入但無同名場次時立即停止，零點擊", async () => {
+    const cases = [
+        heading + otherSession,
+        heading + otherSession + otherSession.replace("其他場次", "第三場次"),
+        heading + otherSession.replace("<span>立即購買</span>", "<span>立即登記</span>"),
+        heading +
+            otherSession.replace(
+                '<button type="button"><span>立即購買</span>',
+                '<button type="button" disabled><span>尚未開賣</span>',
+            ),
+    ];
+    for (const html of cases) {
+        await withPage(html, async page => {
+            const started = performance.now();
+            await assert.rejects(selectTicketPlusSession(page, settings, options), error => {
+                assert(error instanceof TicketPlusSessionError);
+                assert.equal(error.stage, "before-click");
+                assert.equal(error.reason, "session-missing");
+                if (error.diagnostic?.check !== "page-state") assert.fail();
+                assert.deepEqual(error.diagnostic.snapshot.readiness, { status: "stop", reason: "session-missing" });
+                assert.equal(error.diagnostic.activityWait!.observations, 1);
+                return true;
+            });
+            assert(performance.now() - started < 1500);
+            assert.deepEqual(await clicks(page), []);
+        });
+    }
+});
+
+test("活動等待：列表仍在載入且無同名場次時等待到期限，零點擊", async () => {
+    const cases = [
+        heading,
+        heading + progressSession,
+        heading + otherSession + progressSession,
+        heading + otherSession + loadingSession,
+        heading + otherSession + loadingSession.replaceAll("Loading...", "Loading…"),
+        heading + loadingSession.replaceAll("Loading...", "真實場次"),
+        heading + otherSession + otherSession.replace("其他場次", ""),
+    ];
+    for (const html of cases) {
+        await withPage(html, async page => {
+            await assert.rejects(
+                selectTicketPlusSession(page, settings, { ...options, activityReadyTimeoutMs: 250 }),
+                error => {
+                    assert(error instanceof TicketPlusSessionError);
+                    assert(["activity-ready-timeout", "read-failed"].includes(error.reason));
+                    if (error.diagnostic?.check !== "page-state") assert.fail();
+                    assert.equal(error.diagnostic.snapshot.readFailure, undefined);
+                    assert.deepEqual(error.diagnostic.snapshot.readiness, {
+                        status: "pending",
+                        reason: "activity-not-ready",
+                    });
+                    assert(error.diagnostic.activityWait!.observations > 1);
+                    return true;
+                },
+            );
+            assert.deepEqual(await clicks(page), []);
+        });
+    }
+});
+
+test("活動等待：載入中稍後出現的同名場次仍可找到，只點一次", async () => {
+    for (const initial of [heading + progressSession, heading + otherSession + loadingSession]) {
+        await withPage(initial, async page => {
+            await page.evaluate(
+                html => {
+                    setTimeout(() => {
+                        document.body.innerHTML = html;
+                        document.body.dataset.phase = "complete";
+                    }, 250);
+                },
+                heading + otherSession + session,
+            );
+            const started = performance.now();
+            const result = await selectTicketPlusSession(page, settings, options);
+            assert(performance.now() - started >= 200);
+            assert.equal(result.sessionId, "session-A");
+            assert.deepEqual(await clicks(page), ["complete:立即購買"]);
         });
     }
 });
