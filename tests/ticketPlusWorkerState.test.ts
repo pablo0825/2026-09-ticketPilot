@@ -228,6 +228,8 @@ test("TicketPlus 抽選結果：主服務接受等待參加者階段與 registra
         while (runs.busy() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
         const snapshot = runs.snapshot()!;
         assert.equal(snapshot.status, "registration-ready");
+        assert.equal(snapshot.flowType, "lottery");
+        assert.equal(snapshot.stopReason, undefined);
         assert(
             snapshot.events.some(
                 item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-participants",
@@ -242,6 +244,70 @@ test("TicketPlus 抽選結果：主服務接受等待參加者階段與 registra
             if (previous[key] === undefined) delete process.env[key];
             else process.env[key] = previous[key];
         }
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus 停止原因：只記錄已知原因，購票流程記錄 purchase", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ticketplus-stop-reason-"));
+    const keys = ["FIXTURE_OUTCOME", "FIXTURE_STAGE", "FIXTURE_STOP_REASON"] as const;
+    const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+    const activity = {
+        platform: "ticketplus" as const,
+        eventUrl: "https://ticketplus.com.tw/activity/fixture",
+        eventName: "測試活動",
+        targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 }],
+        maxRunMinutes: 10,
+    };
+    const finish = async (runs: PurchaseRuns) => {
+        const deadline = Date.now() + 10_000;
+        while (runs.busy() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
+        return runs.snapshot()!;
+    };
+    try {
+        process.env.FIXTURE_OUTCOME = "failed";
+        process.env.FIXTURE_STAGE = "selecting-session";
+        process.env.FIXTURE_STOP_REASON = "user-stop";
+        const worker = new URL("./fixtures/ticketplus/resultWorker.ts", import.meta.url);
+        const runs = new PurchaseRuns(directory, worker);
+        runs.start("3b0c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e", activity, undefined);
+        const stopped = await finish(runs);
+        assert.equal(stopped.status, "failed");
+        assert.equal(stopped.flowType, "purchase");
+        assert.equal(stopped.stopReason, "user-stop");
+        runs.close();
+
+        // 重啟後仍可讀回停止原因。
+        const reread = new PurchaseRuns(directory, worker);
+        assert.equal(reread.snapshot()!.stopReason, "user-stop");
+
+        // 不認得的停止原因不寫入紀錄。
+        process.env.FIXTURE_STOP_REASON = "crash";
+        reread.start("4c1d5e6f-7a8b-4c9d-8e0f-2a3b4c5d6e7f", activity, undefined);
+        const unknownReason = await finish(reread);
+        assert.equal(unknownReason.status, "failed");
+        assert.equal(unknownReason.stopReason, undefined);
+        reread.close();
+    } finally {
+        for (const key of keys) {
+            if (previous[key] === undefined) delete process.env[key];
+            else process.env[key] = previous[key];
+        }
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test("Klook 紀錄不能帶 TicketPlus 流程類型或停止原因", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "klook-flow-type-"));
+    try {
+        await mkdir(join(directory, "runs"));
+        const file = join(directory, "runs", requestId + ".json");
+        const klook = { ...record.snapshot, platform: "klook", status: "failed", events: [] };
+        await writeFile(file, JSON.stringify({ ...record, snapshot: { ...klook, flowType: "purchase" } }));
+        assert.throws(() => new PurchaseRuns(directory), /無法讀取/);
+        await writeFile(file, JSON.stringify({ ...record, snapshot: { ...klook, stopReason: "user-stop" } }));
+        assert.throws(() => new PurchaseRuns(directory), /無法讀取/);
+    } finally {
         await rm(directory, { recursive: true, force: true });
     }
 });

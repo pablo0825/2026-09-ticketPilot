@@ -5,11 +5,13 @@ import { runTicketPlus } from "../app/runTicketPlus.js";
 import { ticketPlusEventMessage, ticketPlusResultMessage } from "../app/ticketPlusPresentation.js";
 import { emptySubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
 import { stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
+import type { TicketPlusStopReason } from "../platforms/ticketplus/runControl.js";
 import type { PurchaseEvent } from "./purchaseEvents.js";
 
 export interface TicketPlusWorkerResult {
     outcome: "information-ready" | "payment-ready" | "registration-ready" | "failed" | "unknown";
     message: string;
+    stopReason?: TicketPlusStopReason;
 }
 
 export async function runTicketPlusWorker(
@@ -71,12 +73,21 @@ export async function runTicketPlusWorker(
                           ? "unknown"
                           : "failed",
             message: ticketPlusResultMessage(result),
+            ...stopReasonOf(result),
         };
     } catch (error) {
         const result = { ...stoppedSubmissionResult(error, progress), submissionAttempts };
         return {
             outcome: result.outcome === "unknown" ? "unknown" : "failed",
             message: ticketPlusResultMessage(result),
+            ...stopReasonOf(result),
         };
     }
+}
+
+// 只帶出使用者停止或時間上限；沒有停止原因時不加欄位。
+function stopReasonOf(result: object): { stopReason?: TicketPlusStopReason } {
+    return "stopReason" in result && (result.stopReason === "user-stop" || result.stopReason === "time-limit")
+        ? { stopReason: result.stopReason }
+        : {};
 }
