@@ -63,7 +63,7 @@ test(
             assert.equal(await confirm.count(), 1);
             assert.match(await steps.getByRole("listitem").filter({ has: confirm }).innerText(), /6\. 填寫參加者/);
             assert.equal(await page.locator("#logs").isVisible(), false);
-            await page.getByText("開發者紀錄（除錯用，平常不需要看）").click();
+            await page.locator("details.dev-log > summary", { hasText: "開發者紀錄" }).click();
             assert.equal(await page.locator("#logs").isVisible(), true);
 
             // 連點只送出一次，之後按鈕消失

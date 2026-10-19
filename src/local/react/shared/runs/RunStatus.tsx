@@ -125,7 +125,7 @@ export function RunStatus({ displayed, canClose, closing, onClose, onCopy, stopC
             )}
             {stepsView ? (
                 <details className="dev-log">
-                    <summary>開發者紀錄（除錯用，平常不需要看）</summary>
+                    <summary>開發者紀錄</summary>
                     {logSection}
                 </details>
             ) : (
