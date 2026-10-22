@@ -202,6 +202,9 @@ test("TicketPlus GUI：空白新表單與原設定不誤報修改，真正修改
         await page.locator("#brandHome").click();
         assert.equal(dialogs, 1);
         assert.equal(await page.locator("#eventName").inputValue(), "未保存修改");
+        await page.locator("#homeButton").click();
+        assert.equal(dialogs, 2);
+        assert.equal(await page.locator("#eventName").inputValue(), "未保存修改");
         page.removeAllListeners("dialog");
         page.once("dialog", dialog => dialog.accept());
         await page.locator("#homeButton").click();
@@ -261,6 +264,9 @@ test("TicketPlus GUI：保存中連點不重複新增，也不能從首頁按鈕
             await started;
             assert(await h.page.locator("#brandHome").isDisabled());
             assert(await h.page.locator("#homeButton").isDisabled());
+            for (const tab of await h.page.getByRole("navigation", { name: "設定步驟" }).getByRole("button").all()) {
+                assert(await tab.isDisabled());
+            }
             assert(await h.page.locator("#eventName").isDisabled());
             release();
             await h.page.getByRole("alert").filter({ hasText: "活動已儲存" }).waitFor();

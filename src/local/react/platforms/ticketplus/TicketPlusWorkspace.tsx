@@ -315,7 +315,6 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                             <button
                                 type="button"
                                 key={item.id}
-                                className={step === item.id ? "active" : ""}
                                 aria-current={step === item.id ? "step" : undefined}
                                 disabled={locked}
                                 onClick={() => changeStep(item.id)}
@@ -376,7 +375,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                         ) : (
                             <section className="card">
                                 <h2>尚未開始</h2>
-                                <p>請在第二步確認已儲存的設定，再開始購票。</p>
+                                <p>請在「確認與開始」確認已儲存的設定，再開始購票。</p>
                             </section>
                         ))}
                 </>
