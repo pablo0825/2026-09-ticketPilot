@@ -1,6 +1,7 @@
 import { ticketPlusFlowType } from "../../../../config/ticketPlusActivity.js";
 import type { TicketPlusActivityRecord } from "./formModel.js";
 import type { ActivityExecutionStatus } from "../../../purchaseRuns.js";
+import type { TicketPlusStepsView } from "../../shared/runs/ticketPlusSteps.js";
 
 export type ActivityListEntry = TicketPlusActivityRecord & { executionStatus: ActivityExecutionStatus | "待重新載入" };
 interface Props {
@@ -10,9 +11,11 @@ interface Props {
     onNew: () => void;
     onLoad: (id: string) => void;
     onRemove: (item: ActivityListEntry) => void;
+    // 正在使用購票瀏覽器的活動；這一列顯示即時狀態與查看狀態按鈕。
+    running?: { id: string; badge: TicketPlusStepsView["badge"]; viewDisabled: boolean; onView: () => void };
 }
 
-export function ActivityList({ activities, disabled, mutationsDisabled, onNew, onLoad, onRemove }: Props) {
+export function ActivityList({ activities, disabled, mutationsDisabled, onNew, onLoad, onRemove, running }: Props) {
     return (
         <div className="card">
             <div className="section-title">
@@ -33,31 +36,50 @@ export function ActivityList({ activities, disabled, mutationsDisabled, onNew, o
                         </tr>
                     </thead>
                     <tbody id="activities">
-                        {activities.map(item => (
-                            <tr key={item.id}>
-                                <td>{item.settings.eventName}</td>
-                                <td>{ticketPlusFlowType(item.settings) === "lottery" ? "登記抽選" : "購票"}</td>
-                                <td
-                                    title={
-                                        item.executionStatus === "已執行" ? "已執行不代表購票或付款成功。" : undefined
-                                    }
-                                >
-                                    {item.executionStatus || "尚無執行紀錄"}
-                                </td>
-                                <td>
-                                    <button disabled={disabled} onClick={() => onLoad(item.id)}>
-                                        編輯活動
-                                    </button>
-                                    <button
-                                        className="secondary"
-                                        disabled={disabled || mutationsDisabled}
-                                        onClick={() => onRemove(item)}
-                                    >
-                                        刪除
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
+                        {activities.map(item => {
+                            const isRunning = item.id === running?.id;
+                            return (
+                                <tr key={item.id} className={isRunning ? "running-row" : undefined}>
+                                    <td>{item.settings.eventName}</td>
+                                    <td>{ticketPlusFlowType(item.settings) === "lottery" ? "登記抽選" : "購票"}</td>
+                                    {running && isRunning ? (
+                                        <td>
+                                            <span className={`status-badge ${running.badge.tone}`}>
+                                                {running.badge.text}
+                                            </span>
+                                        </td>
+                                    ) : (
+                                        <td
+                                            title={
+                                                item.executionStatus === "已執行"
+                                                    ? "已執行不代表購票或付款成功。"
+                                                    : undefined
+                                            }
+                                        >
+                                            {item.executionStatus || "尚無執行紀錄"}
+                                        </td>
+                                    )}
+                                    <td>
+                                        {running && isRunning ? (
+                                            <button disabled={running.viewDisabled} onClick={running.onView}>
+                                                查看狀態
+                                            </button>
+                                        ) : (
+                                            <button disabled={disabled} onClick={() => onLoad(item.id)}>
+                                                編輯活動
+                                            </button>
+                                        )}
+                                        <button
+                                            className="secondary"
+                                            disabled={disabled || mutationsDisabled}
+                                            onClick={() => onRemove(item)}
+                                        >
+                                            刪除
+                                        </button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>

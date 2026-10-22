@@ -475,6 +475,13 @@ th {
     color: #526575;
     cursor: not-allowed;
 }
+/* 活動列表中正在使用購票瀏覽器的那一列。 */
+.running-row td {
+    background: #f7fafd;
+}
+.running-row td:first-child {
+    font-weight: 600;
+}
 /* 名稱過長時只截斷名稱，鎖定標籤保持完整。 */
 .lock-chip {
     position: relative;

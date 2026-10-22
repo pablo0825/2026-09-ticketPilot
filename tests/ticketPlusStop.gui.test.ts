@@ -52,6 +52,29 @@ async function unavailable(page: Page, label: string) {
     assert((await button.count()) === 0 || (await button.isDisabled()));
 }
 
+test("TicketPlus 活動列表：執行中的活動那一列顯示即時狀態與查看狀態", { timeout: 30_000 }, async () => {
+    await fixture("success", async (h, page) => {
+        const run = await start(h);
+        assert(run?.activityId);
+        await page.goto(h.url);
+        await page.locator("#selectTicketPlus").click();
+
+        // 那一列標出來，狀態跟著執行進度顯示，按鈕換成「查看狀態」。
+        const row = page.locator("#activities tr", { hasText: apiActivity.eventName });
+        await row.locator(".status-badge", { hasText: "等待你" }).waitFor();
+        assert.equal(await row.getAttribute("class"), "running-row");
+        assert.equal(await row.getByRole("button", { name: "編輯活動" }).count(), 0);
+        assert(await row.getByRole("button", { name: "刪除", exact: true }).isDisabled());
+        assert(await page.locator("#new").isDisabled());
+
+        // 入口已在那一列，上方不再放「查看目前狀態」。
+        assert.equal(await page.getByRole("button", { name: "查看目前狀態" }).count(), 0);
+        await row.getByRole("button", { name: "查看狀態", exact: true }).click();
+        await page.locator("#status").waitFor();
+        assert.equal(await page.locator("#status").innerText(), "請手動登入");
+    });
+});
+
 test("TicketPlus 停止 GUI：同輪連點只送一次停止，關窗前保留占用", { timeout: 30_000 }, async () => {
     await fixture("success", async (h, page, requests) => {
         await start(h);

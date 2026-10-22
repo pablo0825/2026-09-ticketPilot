@@ -275,18 +275,21 @@ test("TicketPlus 停止原因：只記錄已知原因，購票流程記錄 purch
         assert.equal(stopped.status, "failed");
         assert.equal(stopped.flowType, "purchase");
         assert.equal(stopped.stopReason, "user-stop");
+        assert.equal(stopped.activityId, undefined); // 沒有對應活動的請求不帶活動 id。
         runs.close();
 
         // 重啟後仍可讀回停止原因。
         const reread = new PurchaseRuns(directory, worker);
         assert.equal(reread.snapshot()!.stopReason, "user-stop");
 
-        // 不認得的停止原因不寫入紀錄。
+        // 不認得的停止原因不寫入紀錄；有對應活動時，畫面拿得到活動 id。
         process.env.FIXTURE_STOP_REASON = "crash";
-        reread.start("4c1d5e6f-7a8b-4c9d-8e0f-2a3b4c5d6e7f", activity, undefined);
+        const activityId = "5d2e6f7a-8b9c-4d0e-9f1a-3b4c5d6e7f80";
+        reread.start("4c1d5e6f-7a8b-4c9d-8e0f-2a3b4c5d6e7f", activity, undefined, activityId);
         const unknownReason = await finish(reread);
         assert.equal(unknownReason.status, "failed");
         assert.equal(unknownReason.stopReason, undefined);
+        assert.equal(unknownReason.activityId, activityId);
         reread.close();
     } finally {
         for (const key of keys) {

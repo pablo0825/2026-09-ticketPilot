@@ -28,6 +28,7 @@ export interface PurchaseSnapshot {
     saleAt?: string;
     flowType?: TicketPlusFlowType; // 只有 TicketPlus 新紀錄才有；舊紀錄沒有時畫面退回純紀錄。
     stopReason?: TicketPlusStopReason; // TicketPlus 因使用者停止或時間上限結束時才有。
+    activityId?: string; // 從紀錄的活動資料帶出給畫面對應活動列表，不另外存檔。
     status:
         "running" | "payment-ready" | "information-ready" | "registration-ready" | "failed" | "unknown" | "interrupted";
     canCloseBrowser?: boolean;
@@ -218,6 +219,7 @@ export class PurchaseRuns {
 
         return {
             ...structuredClone(this.current.snapshot),
+            ...(this.current.activity ? { activityId: this.current.activity.id } : {}),
             occupied: purchaseOccupied(this.root) || !!this.child,
             canStop: this.stopAvailable(),
             stopRequest: this.stopRequest?.record === this.current ? { status: this.stopRequest.status } : undefined,
@@ -410,7 +412,12 @@ export class PurchaseRuns {
         const current = this.snapshot();
         return previous.snapshot.id === current?.id
             ? current
-            : { ...previous.snapshot, occupied: this.busy(), canCloseBrowser: false };
+            : {
+                  ...previous.snapshot,
+                  ...(previous.activity ? { activityId: previous.activity.id } : {}),
+                  occupied: this.busy(),
+                  canCloseBrowser: false,
+              };
     }
 
     private stopAvailable(): boolean {

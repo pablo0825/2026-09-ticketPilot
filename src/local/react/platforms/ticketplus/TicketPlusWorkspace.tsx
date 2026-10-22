@@ -7,6 +7,7 @@ import type { useRunStatus } from "../../shared/runs/useRunStatus.js";
 import { RunStatus } from "../../shared/runs/RunStatus.js";
 import { ActivityList } from "./ActivityList.js";
 import { Breadcrumb } from "./Breadcrumb.js";
+import { ticketPlusRunBadge } from "../../shared/runs/ticketPlusSteps.js";
 import type { ActivityListEntry } from "./ActivityList.js";
 import { ActivityEditor } from "./ActivityEditor.js";
 import {
@@ -121,6 +122,10 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
             startReason = (error as Error).message;
         }
     }
+    // 占用中的 TicketPlus 執行若對應到列表裡的活動，就在那一列顯示狀態，不另外放上方按鈕。
+    const runningActivityId =
+        runs.purchase?.occupied && runs.purchase.platform === "ticketplus" ? runs.purchase.activityId : undefined;
+    const runningListed = activities.some(item => item.id === runningActivityId);
     const hasRun = Boolean(
         runs.purchase?.occupied ||
         runs.purchase?.status === "unknown" ||
@@ -379,7 +384,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                         onPlatforms={() => leave("platforms")}
                         onList={() => leave("list")}
                     />
-                    {hasRun && (
+                    {hasRun && !runningListed && (
                         <div className="section-title">
                             <button className="secondary" disabled={locked} onClick={onViewRun}>
                                 查看目前狀態
@@ -401,6 +406,16 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                             })
                         }
                         onRemove={item => void action(() => remove(item))}
+                        running={
+                            runs.purchase && runningActivityId && runningListed
+                                ? {
+                                      id: runningActivityId,
+                                      badge: ticketPlusRunBadge(runs.purchase),
+                                      viewDisabled: locked,
+                                      onView: onViewRun,
+                                  }
+                                : undefined
+                        }
                     />
                 </>
             )}

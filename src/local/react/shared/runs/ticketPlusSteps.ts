@@ -176,6 +176,11 @@ function flowTitle(run: PurchaseSnapshot, title: string): string {
     return title;
 }
 
+// 活動列表與執行狀態頁共用同一組狀態標籤文字。
+export function ticketPlusRunBadge(run: PurchaseSnapshot): TicketPlusStepsView["badge"] {
+    return badge(run, latestTicketPlusStage(run));
+}
+
 function badge(
     run: PurchaseSnapshot,
     latestStage: TicketPlusWorkerEvent["stage"] | undefined,
