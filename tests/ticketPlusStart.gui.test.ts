@@ -156,7 +156,8 @@ test("TicketPlus 啟動 GUI：未保存修改與新增草稿都不能啟動", as
         await review(page);
         await confirmStart(page);
         const summary = await page.getByRole("region", { name: "活動摘要" }).innerText();
-        assert.doesNotMatch(summary, /活動與順位有.*修改/);
+        assert.match(summary, /活動與順位有.*修改/);
+        assert.doesNotMatch(summary, /另一票種/);
         assert.equal(requests.filter(request => request.method === "PUT").length, 0);
         assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
         page.once("dialog", dialog => dialog.accept());

@@ -6,6 +6,7 @@ import { api } from "../../shared/api.js";
 import { AppHeader } from "../../shared/navigation/AppHeader.js";
 import type { useRunStatus } from "../../shared/runs/useRunStatus.js";
 import { RunStatus } from "../../shared/runs/RunStatus.js";
+import { ticketPlusSummary } from "../../pages/purchaseSummary.js";
 import { ActivityListPage } from "../../pages/ActivityListPage.js";
 import { Breadcrumbs } from "../../shared/navigation/Breadcrumbs.js";
 import { StepNavigation } from "../../shared/navigation/StepNavigation.js";
@@ -379,9 +380,13 @@ export function TicketPlusWorkspace({
                     )}
                     {step === "confirm" && (
                         <PurchaseConfirmPage
-                            settings={record?.settings}
+                            summary={ticketPlusSummary(record?.settings)}
+                            confirmation={
+                                record?.settings.flowType === "lottery"
+                                    ? "我已確認活動、順位與張數，並了解程式會停在輸入資料頁等我填寫參加者，後續由我手動處理。"
+                                    : "我已確認活動、順位與張數，並了解程式會在資料頁勾選服務條款並按一次下一步，停在付款頁，付款由我手動處理。"
+                            }
                             reason={startReason}
-                            hideReason={Boolean(record) && activityDirty}
                             disabled={blocked}
                             onStart={requestStart}
                             confirmed={confirmed}

@@ -266,7 +266,7 @@ test("順位清空：保留空列、阻擋舊設定啟動，重新填寫才能�
         ]);
     }));
 
-test("摘要：欄位表格、完整連結、空白草稿及窄螢幕", async () =>
+test("摘要只顯示已儲存設定；未存草稿阻擋開始，保存後更新並支援窄螢幕", async () =>
     fixture(async page => {
         assert.deepEqual(await page.locator("#summary th").allTextContents(), [
             "順位",
@@ -276,14 +276,24 @@ test("摘要：欄位表格、完整連結、空白草稿及窄螢幕", async ()
             "張數",
             "要求連位",
         ]);
-        assert.match(await page.locator("#summary tbody").innerText(), /B區/);
-        assert.doesNotMatch(await page.locator("#summary").innerText(), /單張價格|合計|NT\$/);
+        const originalSummary = await page.locator("#summary").innerText();
         await page.getByRole("button", { name: "① 活動與順位" }).click();
         const url = settings.eventUrl + "?spm=" + "long-tracking-value".repeat(30);
         const name = '<img src=x onerror="alert(1)">長活動名稱'.repeat(5);
         await page.locator("#eventUrl").fill(url);
         await page.locator("#eventName").fill(name);
+        await page.locator("[name=quantity]").fill("3");
         await page.locator("#add").click();
+        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        assert.equal(await page.locator("#summary").innerText(), originalSummary);
+        assert(await page.getByText("請先儲存活動設定，再確認並開始購票。", { exact: true }).isVisible());
+        await page.locator("#confirm").check();
+        assert(await page.locator("#start").isDisabled());
+        // 補齊草稿並保存，摘要才改用新的名稱、網址與順位。
+        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.locator(".target-row").last().getByRole("button", { name: "移除", exact: true }).click();
+        await page.locator("#saveActivity").click();
+        await page.locator("#step2").waitFor();
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
         const link = page.locator("#summary a");
         assert.equal(await link.getAttribute("href"), url);
@@ -291,20 +301,16 @@ test("摘要：欄位表格、完整連結、空白草稿及窄螢幕", async ()
         assert.equal(await link.getAttribute("rel"), "noopener noreferrer");
         assert.equal(await page.locator("#summary img").count(), 0);
         assert((await page.locator("#summary").innerText()).includes(name));
-        assert.equal(await page.locator("#summary tbody tr").count(), 2);
-        const empty = page.locator("#summary tbody tr").last();
-        assert.match(await empty.innerText(), /未填寫/);
-        assert.equal(await empty.locator("td").nth(4).innerText(), "1");
-        assert(await page.locator("#start").isDisabled());
+        assert.equal(await page.locator("#summary tbody tr").count(), 1);
+        assert.equal(await page.locator("#summary tbody td").nth(4).innerText(), "3");
+        await page.locator("#confirm").check();
+        assert(await page.locator("#start").isEnabled());
+        assert.equal(await page.getByLabel("最長執行時間（分鐘）").count(), 0);
         await page.setViewportSize({ width: 390, height: 844 });
-        assert(
-            await link.evaluate(
-                el => el.scrollWidth > el.clientWidth && getComputedStyle(el).textOverflow === "ellipsis",
-            ),
-        );
         const summaryBox = await page.locator("#summary").boundingBox();
         assert(summaryBox && summaryBox.x + summaryBox.width <= 390);
-        const scroll = page.locator(".summary-table-scroll");
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+        const scroll = page.getByRole("region", { name: "購票順位" });
         assert(
             await scroll.evaluate(el => el.scrollWidth > el.clientWidth && getComputedStyle(el).overflowX === "auto"),
         );
@@ -314,8 +320,9 @@ test("摘要：欄位表格、完整連結、空白草稿及窄螢幕", async ()
         await page.getByRole("button", { name: "① 活動與順位" }).click();
         await page.locator("#eventUrl").fill("javascript:alert(1)");
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
-        assert.equal(await page.locator("#summary a").count(), 0);
-        assert.match(await page.locator("#summary").innerText(), /javascript:alert\(1\)/);
+        assert.equal(await link.getAttribute("href"), url);
+        assert.doesNotMatch(await page.locator("#summary").innerText(), /javascript:alert/);
+        assert(await page.locator("#start").isDisabled());
     }));
 
 for (const version of [undefined, 2, 3]) {

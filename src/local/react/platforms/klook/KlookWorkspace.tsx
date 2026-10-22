@@ -9,7 +9,8 @@ import { activityForm, activityInput, contactInput, emptyContact, needsActivityS
 import type { ActivityForm } from "./formModel.js";
 import { ActivityEditorPage } from "../../pages/ActivityEditorPage.js";
 import { ContactDetailsPage } from "./ContactDetailsPage.js";
-import { PurchaseSummary } from "./PurchaseSummary.js";
+import { PurchaseConfirmPage } from "../../pages/PurchaseConfirmPage.js";
+import { klookSummary } from "../../pages/purchaseSummary.js";
 import { RunStatus } from "../../shared/runs/RunStatus.js";
 import type { useRunStatus } from "../../shared/runs/useRunStatus.js";
 import { startPurchase } from "./startPurchase.js";
@@ -293,68 +294,29 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
                 />
             </section>
             <section id="step3" hidden={step !== 3}>
-                <div id="purchaseSummary" className="card" hidden={!editing}>
-                    <h2>本次設定摘要</h2>
-                    <div id="summary">
-                        {record ? <PurchaseSummary draft={activityInput(form, false)} /> : "請先儲存活動設定。"}
-                    </div>
-                    <h2>開始時間</h2>
-                    <label>
-                        執行方式
-                        <select
-                            id="mode"
-                            disabled={locked}
-                            value={form.mode}
-                            onChange={e => changeForm({ ...form, mode: e.target.value as ActivityForm["mode"] })}
-                        >
-                            <option value="now">立即開始</option>
-                            <option value="scheduled">指定開賣時間</option>
-                        </select>
-                    </label>
-                    <div id="schedule" className="grid" hidden={form.mode === "now"}>
-                        <label>
-                            開賣時間（台灣 UTC+8）
-                            <input
-                                id="saleAt"
-                                type="datetime-local"
-                                step="1"
-                                disabled={locked}
-                                value={form.saleAt}
-                                onChange={e => changeForm({ ...form, saleAt: e.target.value })}
-                            />
-                        </label>
-                        <label>
-                            提前刷新
-                            <select
-                                id="advance"
-                                disabled={locked}
-                                value={form.advance}
-                                onChange={e => changeForm({ ...form, advance: e.target.value })}
-                            >
-                                <option value="1">1 秒</option>
-                                <option value="2">2 秒</option>
-                            </select>
-                        </label>
-                    </div>
-                    <p>指定的是開賣時間，不是演出時間。按開始後會先確認登入、準備活動頁，再等待開賣。</p>
-                    <label className="check">
-                        <input
-                            id="confirm"
-                            type="checkbox"
-                            disabled={locked}
-                            checked={confirmed}
-                            onChange={e => setConfirmed(e.target.checked)}
-                        />
-                        我已確認活動、順位與張數，並了解程式會提交聯絡資料，停在付款前。
-                    </label>
-                    <button
-                        id="start"
-                        disabled={blocked || !editing || needsSave || legacy || !contactReady || !confirmed}
-                        onClick={() => void action(begin)}
-                    >
-                        開始購票
-                    </button>
-                </div>
+                <PurchaseConfirmPage
+                    platform="klook"
+                    attached={false}
+                    summary={klookSummary(record?.settings)}
+                    execution={{ mode: form.mode, saleAt: form.saleAt, advance: form.advance }}
+                    onExecutionChange={next => changeForm({ ...form, ...next })}
+                    disabled={locked}
+                    executionDisabled={locked}
+                    startDisabled={blocked || !editing || legacy || !contactReady}
+                    reason={
+                        needsSave
+                            ? "請先儲存活動設定，再確認並開始購票。"
+                            : legacy
+                              ? "請先處理套票設定中的舊取票方式。"
+                              : !contactReady
+                                ? "請先儲存聯絡資料。"
+                                : ""
+                    }
+                    confirmed={confirmed}
+                    onConfirm={setConfirmed}
+                    confirmation="我已確認活動、順位與張數，並了解程式會提交聯絡資料，停在付款前。"
+                    onStart={() => void action(begin)}
+                />
             </section>
             <section id="step4" hidden={step !== 4}>
                 <RunStatus
