@@ -23,8 +23,7 @@ import {
 } from "./formModel.js";
 import type { TicketPlusActivityRecord, ExecutionForm, ExecutionErrors } from "./formModel.js";
 import { ticketPlusSessionSelection } from "../../../../config/ticketPlusActivity.js";
-import { PurchaseSummary } from "./PurchaseSummary.js";
-import { ExecutionEditor } from "./ExecutionEditor.js";
+import { PurchaseConfirmPage } from "../../pages/PurchaseConfirmPage.js";
 import { findPendingStart, hasPendingStart, startPurchase } from "./startPurchase.js";
 
 interface Props {
@@ -370,7 +369,7 @@ export function TicketPlusWorkspace({
                         />
                     )}
                     {step === "confirm" && (
-                        <PurchaseSummary
+                        <PurchaseConfirmPage
                             settings={record?.settings}
                             reason={startReason}
                             hideReason={Boolean(record) && activityDirty}
@@ -378,18 +377,15 @@ export function TicketPlusWorkspace({
                             onStart={requestStart}
                             confirmed={confirmed}
                             onConfirm={setConfirmed}
-                        >
-                            <ExecutionEditor
-                                form={execution}
-                                errors={fieldErrors}
-                                disabled={blocked || pendingStart}
-                                onChange={next => {
-                                    setExecution(next);
-                                    setFieldErrors({});
-                                    setConfirmed(false);
-                                }}
-                            />
-                        </PurchaseSummary>
+                            execution={execution}
+                            executionErrors={fieldErrors}
+                            executionDisabled={blocked || pendingStart}
+                            onExecutionChange={next => {
+                                setExecution(next);
+                                setFieldErrors({});
+                                setConfirmed(false);
+                            }}
+                        />
                     )}
                     {step === "status" &&
                         (displayedRun ? (

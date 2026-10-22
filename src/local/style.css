@@ -131,16 +131,6 @@
         grid-template-columns: 1.2fr 1fr 1.2fr 0.7fr;
         gap: 10px;
     }
-    .ticketplus-sale-fields {
-        display: grid;
-        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-        column-gap: 16px;
-    }
-    .ticketplus-sale-fields input,
-    .ticketplus-sale-fields select {
-        height: 2.8rem;
-        line-height: 1.4;
-    }
     .target-row label {
         font-size: 13px;
     }
@@ -191,9 +181,6 @@
         display: none;
     }
     @media (max-width: 760px) {
-        .ticketplus-sale-fields {
-            grid-template-columns: minmax(0, 1fr);
-        }
         main {
             padding: 0 12px;
         }
@@ -328,17 +315,6 @@
         margin-bottom: 6px;
     }
     #deliveryMethod:disabled {
-        background: #eef1f4;
-        color: #526575;
-        cursor: not-allowed;
-    }
-    .step-tabs + .card {
-        margin-top: 0;
-        border-top: 0;
-        border-radius: 0 0 12px 12px;
-    }
-    /* TicketPlus 分頁卡片裡不能修改的欄位改成灰底；單選與勾選框加底色看不出差別，不套用。 */
-    .step-tabs + .card :is(input, select, textarea):disabled:not([type="radio"], [type="checkbox"]) {
         background: #eef1f4;
         color: #526575;
         cursor: not-allowed;
