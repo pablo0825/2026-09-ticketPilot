@@ -166,6 +166,32 @@ test("TicketPlus 活動列表：查看狀態載入活動失敗時改看獨立狀
     });
 });
 
+test(
+    "平台首頁：查看狀態進入 TicketPlus 活動的執行狀態分頁，沒有活動 id 時看獨立狀態頁",
+    { timeout: 30_000 },
+    async () => {
+        await fixture("success", async (h, page) => {
+            // 對應到活動的一輪：進入那個活動的編輯頁，停在執行狀態分頁。
+            await start(h);
+            await showRun(page, h.url);
+            assert.equal(await page.locator(".breadcrumb-current").innerText(), apiActivity.eventName);
+            assert.equal(
+                await page.getByRole("button", { name: "執行狀態", exact: true }).getAttribute("aria-current"),
+                "step",
+            );
+            await eventually(async () => assert.equal(await page.locator("#status").innerText(), "請手動登入"));
+
+            // 沒有活動 id 的一輪（例如舊紀錄）：維持獨立的狀態頁。
+            const legacy = waitingRun();
+            await snapshotFeed(page, "/api/purchase/events", legacy);
+            await page.route("**/api/purchase", route => route.fulfill({ json: legacy }));
+            await showRun(page, h.url);
+            assert.equal(await page.locator(".breadcrumb").count(), 0);
+            assert.equal(await page.locator("#status").innerText(), "請手動登入");
+        });
+    },
+);
+
 test("TicketPlus 停止 GUI：同輪連點只送一次停止，關窗前保留占用", { timeout: 30_000 }, async () => {
     await fixture("success", async (h, page, requests) => {
         await start(h);

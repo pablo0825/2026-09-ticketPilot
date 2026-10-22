@@ -33,6 +33,9 @@ interface Props {
     onExit: () => void;
     onViewRun: () => void;
     onPendingResolved: () => void;
+    // 從平台首頁進來時要直接開啟的執行中活動；開啟後由 App 清除。
+    openRunActivityId?: string;
+    onRunActivityOpened: () => void;
 }
 interface ActivityListData {
     activities: (ActivityRecord & { executionStatus: ActivityExecutionStatus })[];
@@ -46,7 +49,16 @@ const steps: { id: Step; label: string }[] = [
     { id: "status", label: "執行狀態" },
 ];
 
-export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewRun, onPendingResolved }: Props) {
+export function TicketPlusWorkspace({
+    message,
+    setMessage,
+    runs,
+    onExit,
+    onViewRun,
+    onPendingResolved,
+    openRunActivityId,
+    onRunActivityOpened,
+}: Props) {
     const [activities, setActivities] = useState<ActivityListEntry[]>([]);
     const [record, setRecord] = useState<TicketPlusActivityRecord | null>(null);
     const [form, setForm] = useState(activityForm);
@@ -133,6 +145,14 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
     const activityRunId = currentActivityRunId(runs.purchase, record?.id, startedRunId);
     const displayedRun =
         runs.displayed?.kind === "purchase" && runs.displayed.run.id === activityRunId ? runs.displayed : null;
+
+    // 列表載入後才開啟平台首頁指定的活動；先通知 App 清除，避免重複開啟。
+    useEffect(() => {
+        if (!initialized || !openRunActivityId) return;
+        onRunActivityOpened();
+        openRunActivity(openRunActivityId);
+        // 只在拿到新的活動 id 或列表初次載入完成時執行，不隨每次重繪觸發。
+    }, [initialized, openRunActivityId]);
 
     // 停在執行狀態分頁時，讓畫面顯示這個活動目前這一輪；之後才開始或晚到的一輪也會切過去。
     // 停止與參加者按鈕只作用在畫面顯示的那一輪，所以要同步。
