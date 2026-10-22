@@ -77,7 +77,7 @@ export function ActivityEditorPage(props: Props) {
             {props.platform === "klook" ? (
                 <>
                     <fieldset className="feature-settings min-w-0 space-y-2" disabled={disabled}>
-                        <legend className="mb-2 text-sm font-medium">功能啟用</legend>
+                        <legend className="mb-2 text-sm">功能啟用</legend>
                         <label className="check flex items-center gap-2 text-sm">
                             <input
                                 className="size-4 shrink-0 accent-blue-600"
@@ -241,7 +241,7 @@ export function ActivityEditorPage(props: Props) {
                 <details>
                     <summary className="cursor-pointer">進階設定</summary>
                     <label className={`mt-3 ${fieldLabel}`}>
-                        <span className="text-sm font-medium">排除關鍵字（以逗號分隔）</span>
+                        排除關鍵字（以逗號分隔）
                         <input
                             className={fieldInput}
                             id="exclude"
