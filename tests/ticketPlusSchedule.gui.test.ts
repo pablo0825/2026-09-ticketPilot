@@ -178,7 +178,7 @@ test("TicketPlus 執行設定：活動與執行草稿隔離，活動保存保留
             await checkbox.check();
             assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
             await page.getByRole("button", { name: "活動與順位", exact: true }).click();
-            await page.getByRole("button", { name: "儲存活動", exact: true }).click();
+            await page.getByRole("button", { name: "下一步", exact: true }).click();
             await page.getByLabel(timeLabel, { exact: true }).waitFor();
             assert.equal(await page.getByLabel(timeLabel, { exact: true }).inputValue(), "2026-12-01T12:34:56");
             assert.equal(await page.getByLabel("最長執行時間（分鐘）").inputValue(), "20");

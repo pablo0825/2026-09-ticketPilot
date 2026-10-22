@@ -108,7 +108,7 @@ test("TicketPlus GUI：真表單重排複製保存與重載，兩平台同名活
         await page.getByRole("group", { name: "順位 1", exact: true }).getByRole("button", { name: "移除" }).click();
         await page.getByRole("group", { name: "順位 1", exact: true }).getByRole("button", { name: "下移" }).click();
         assert.equal(await page.getByLabel("最長執行時間（分鐘）").count(), 0);
-        await page.getByRole("button", { name: "儲存活動" }).click();
+        await page.getByRole("button", { name: "下一步" }).click();
         await page.getByRole("alert").filter({ hasText: "活動已儲存" }).waitFor();
         const saved = (await h.store.list()).activities.find(record => record.settings.eventName === "新活動")!;
         assert.deepEqual((await disk(h, saved.id)).settings, {
@@ -176,7 +176,7 @@ test("TicketPlus GUI：活動保存保留原排程與期限，跨場次保存但
         await page.getByRole("button", { name: "複製" }).click();
         await page.getByRole("group", { name: "順位 2", exact: true }).getByLabel("演出日期").fill("2026-11-23");
         await page.getByRole("status").filter({ hasText: "此設定含不同場次" }).waitFor();
-        await page.getByRole("button", { name: "儲存活動" }).click();
+        await page.getByRole("button", { name: "下一步" }).click();
         await page.getByRole("alert").filter({ hasText: "活動已儲存" }).waitFor();
         const saved = (await disk(h, h.id)).settings;
         assert.deepEqual(saved.saleSchedule, { saleAt: "2026-11-01T12:00:00+08:00", advanceSeconds: 2 });
@@ -250,10 +250,10 @@ test("TicketPlus GUI：兩分頁真 revision 衝突不覆蓋，失敗保留草�
         await other.locator("#selectTicketPlus").click();
         await other.getByRole("button", { name: "編輯活動" }).click();
         await page.locator("#eventName").fill("A分頁已保存");
-        await page.getByRole("button", { name: "儲存活動" }).click();
+        await page.getByRole("button", { name: "下一步" }).click();
         await page.getByRole("alert").filter({ hasText: "活動已儲存" }).waitFor();
         await other.locator("#eventName").fill("B分頁草稿");
-        await other.getByRole("button", { name: "儲存活動" }).click();
+        await other.getByRole("button", { name: "下一步" }).click();
         await other.getByRole("alert").filter({ hasText: "其他分頁修改" }).waitFor();
         assert.equal(
             await other.getByRole("button", { name: "活動與順位", exact: true }).getAttribute("aria-current"),
@@ -331,7 +331,7 @@ test("TicketPlus GUI：保存成功但重載失敗仍保留 ID，再編輯以 PU
             await route.continue();
         });
         await fillNew(h.page);
-        await h.page.getByRole("button", { name: "儲存活動" }).click();
+        await h.page.getByRole("button", { name: "下一步" }).click();
         await h.page.getByRole("alert").filter({ hasText: "活動已儲存，但列表" }).waitFor();
         assert.equal(
             await h.page.getByRole("button", { name: "確認與開始", exact: true }).getAttribute("aria-current"),
@@ -340,7 +340,7 @@ test("TicketPlus GUI：保存成功但重載失敗仍保留 ID，再編輯以 PU
         assert.match(await h.page.getByRole("region", { name: "活動摘要" }).innerText(), /新活動/);
         await h.page.getByRole("button", { name: "活動與順位", exact: true }).click();
         await h.page.locator("#eventName").fill("再次編輯");
-        await h.page.getByRole("button", { name: "儲存活動" }).click();
+        await h.page.getByRole("button", { name: "下一步" }).click();
         await h.page.getByRole("alert").filter({ hasText: "活動已儲存，但列表" }).waitFor();
         assert.equal(posts, 1);
         assert.equal(puts, 1);
@@ -469,7 +469,7 @@ test("TicketPlus GUI：最後一列清空仍保留一列，不保存不完整設
         assert.equal(await h.page.getByRole("group", { name: /^順位 / }).count(), 1);
         assert.equal(await h.page.getByLabel("票種名稱").inputValue(), "");
         assert.equal(await h.page.getByLabel("張數", { exact: true }).inputValue(), "1");
-        await h.page.getByRole("button", { name: "儲存活動" }).click();
+        await h.page.getByRole("button", { name: "下一步" }).click();
         assert(!h.requests.some(request => request.method === "PUT" || request.method === "POST"));
         assert.deepEqual((await disk(h, h.id)).settings, settings);
     });
@@ -479,7 +479,7 @@ test("TicketPlus GUI：儲存成功訊息保留無法載入設定檔的警告", 
     await fixture(async h => {
         await writeFile(join(h.directory, "events", "broken.json"), "{invalid");
         await fillNew(h.page);
-        await h.page.getByRole("button", { name: "儲存活動" }).click();
+        await h.page.getByRole("button", { name: "下一步" }).click();
         await h.page.getByRole("alert").filter({ hasText: "活動已儲存" }).waitFor();
         assert.match(await h.page.getByRole("alert").innerText(), /1 個設定檔無法載入，未覆寫/);
         assert.equal(await readFile(join(h.directory, "events", "broken.json"), "utf8"), "{invalid");
@@ -509,7 +509,7 @@ test("TicketPlus GUI：活動網址下方設定購票流程，抽選才寫入設
         // 選抽選後另一個取消，存檔寫入 lottery
         await group.getByLabel("登記抽選").check();
         assert.equal(await page.locator("#flowPurchase").isChecked(), false);
-        await page.getByRole("button", { name: "儲存活動" }).click();
+        await page.getByRole("button", { name: "下一步" }).click();
         await page.getByRole("alert").filter({ hasText: "活動已儲存" }).waitFor();
         const saved = (await h.store.list()).activities.find(record => record.settings.eventName === "抽選活動")!;
         assert.equal((await disk(h, saved.id)).settings.flowType, "lottery");
@@ -531,7 +531,7 @@ test("TicketPlus GUI：活動網址下方設定購票流程，抽選才寫入設
             .click();
         assert.equal(await page.locator("#flowPurchase").isChecked(), true);
         await page.getByLabel("活動名稱", { exact: true }).fill("同名活動改名");
-        await page.getByRole("button", { name: "儲存活動" }).click();
+        await page.getByRole("button", { name: "下一步" }).click();
         await page.getByRole("alert").filter({ hasText: "活動已儲存" }).waitFor();
         const resaved = (await disk(h, h.id)).settings;
         assert.equal(resaved.eventName, "同名活動改名");

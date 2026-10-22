@@ -435,7 +435,7 @@ test("TicketPlus 步驟 GUI：保存後前進，未保存修改禁止啟動，�
         await edit(page);
         assert.equal(await page.getByRole("region", { name: "活動摘要" }).count(), 0);
         await page.getByLabel("張數", { exact: true }).fill("1");
-        await page.getByRole("button", { name: "儲存活動", exact: true }).click();
+        await page.getByRole("button", { name: "下一步", exact: true }).click();
         await page.getByRole("region", { name: "活動摘要" }).waitFor();
         assert.equal(
             await page.getByRole("button", { name: "確認與開始", exact: true }).getAttribute("aria-current"),
@@ -457,7 +457,7 @@ test("TicketPlus 步驟 GUI：保存後前進，未保存修改禁止啟動，�
         assert.equal(starts(requests).length, 0);
         await page.getByRole("button", { name: "活動與順位", exact: true }).click();
         assert.equal(await page.getByLabel("張數", { exact: true }).inputValue(), "2");
-        await page.getByRole("button", { name: "儲存活動", exact: true }).click();
+        await page.getByRole("button", { name: "下一步", exact: true }).click();
         await page.getByRole("region", { name: "活動摘要" }).waitFor();
         const saved = await (await h.request("/api/activities/" + record.id)).json();
         assert.equal(saved.settings.targets[0].quantity, 2);

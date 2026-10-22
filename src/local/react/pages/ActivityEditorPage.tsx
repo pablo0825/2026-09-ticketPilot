@@ -239,8 +239,7 @@ export function ActivityEditorPage(props: Props) {
             </div>
             {props.platform === "klook" && (
                 <details>
-                    <summary className="cursor-pointer">進階設定 · 嚴格順位</summary>
-                    <p className="my-3">STRICT：不購買清單以外的票種。</p>
+                    <summary className="cursor-pointer">進階設定</summary>
                     <label className={fieldLabel}>
                         排除關鍵字（以逗號分隔）
                         <input
@@ -261,7 +260,7 @@ export function ActivityEditorPage(props: Props) {
                     disabled={disabled}
                     onClick={isKlook ? onSave : undefined}
                 >
-                    {isKlook ? "下一步" : "儲存活動"}
+                    下一步
                 </button>
             </footer>
         </>
