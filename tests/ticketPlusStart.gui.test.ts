@@ -163,6 +163,8 @@ test("TicketPlus 啟動 GUI：未保存修改與新增草稿都不能啟動", as
         await page.locator("#homeButton").click();
         await page.getByRole("button", { name: "新增活動", exact: true }).click();
         await page.getByLabel("活動名稱", { exact: true }).fill("尚未儲存的新活動");
+        // 未儲存的新活動，麵包屑不跟著輸入的名稱變。
+        assert.equal(await page.locator(".breadcrumb-current").innerText(), "新增活動");
         await page.getByRole("button", { name: "② 確認與開始", exact: true }).click();
         assert.equal(await page.getByText("請先儲存活動設定。", { exact: true }).count(), 1);
         const start = page.getByRole("button", { name: "開始購票", exact: true });

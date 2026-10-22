@@ -34,7 +34,7 @@ export function ActivityEditor({ form, saved, disabled, onChange, onSave }: Prop
                 onSave();
             }}
         >
-            <h2>{saved ? `編輯活動：${saved.eventName}` : "新增活動"}</h2>
+            <h2>{saved ? "編輯活動" : "新增活動"}</h2>
             <label>
                 活動名稱
                 <input

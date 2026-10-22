@@ -395,6 +395,39 @@ th {
     outline: 2px solid #254d71;
     outline-offset: 5px;
 }
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    margin-bottom: 16px;
+    font-size: 14px;
+    color: #526575;
+}
+.breadcrumb-link {
+    padding: 0;
+    border: 0;
+    border-radius: 2px;
+    background: transparent;
+    color: #254d71;
+    font-weight: 600;
+    white-space: nowrap;
+}
+/* 共用的 #homeButton 下邊距只給 Klook；麵包屑裡的返回鍵不需要。 */
+.breadcrumb > #homeButton {
+    margin-bottom: 0;
+}
+.breadcrumb-link:focus-visible {
+    outline: 2px solid #254d71;
+    outline-offset: 3px;
+}
+.breadcrumb-current {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #233342;
+}
 .status-header {
     display: flex;
     align-items: flex-start;

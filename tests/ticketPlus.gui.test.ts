@@ -153,7 +153,11 @@ test("TicketPlus GUI：活動保存保留原排程與期限，跨場次保存但
     await fixture(async h => {
         const { page } = h;
         await page.getByRole("button", { name: "編輯活動" }).click();
-        await page.getByRole("heading", { name: `編輯活動：${settings.eventName}` }).waitFor();
+        await page.getByRole("heading", { name: "編輯活動", exact: true }).waitFor();
+
+        // 活動名稱移到麵包屑，返回鍵維持原本的名稱。
+        assert.equal(await page.locator(".breadcrumb-current").innerText(), settings.eventName);
+        assert.equal(await page.getByRole("button", { name: "返回活動首頁", exact: true }).count(), 1);
         assert.equal(await page.getByRole("note").count(), 0);
         assert.equal(await page.locator("#maxRunMinutes").count(), 0);
         await page.getByRole("button", { name: "複製" }).click();

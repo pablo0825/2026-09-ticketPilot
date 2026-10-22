@@ -103,6 +103,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
 
     const occupied = runs.purchase?.occupied === true || runs.simulation?.status === "running";
     const locked = busy || runs.closing;
+    const activityTitle = record?.settings.eventName ?? "新增活動";
     const blocked = locked || !initialized || !runs.ready || occupied;
     const activityDirty = editing && draftFingerprint(form) !== baseline;
     const executionDirty = editing && executionFingerprint(execution) !== executionBaseline;
@@ -293,9 +294,22 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
             )}
             {editing ? (
                 <>
-                    <button id="homeButton" className="secondary" disabled={locked} onClick={() => leave("list")}>
-                        返回活動首頁
-                    </button>
+                    <div className="breadcrumb">
+                        <button
+                            id="homeButton"
+                            className="breadcrumb-link"
+                            aria-label="返回活動首頁"
+                            disabled={locked}
+                            onClick={() => leave("list")}
+                        >
+                            <span aria-hidden="true">← </span>活動首頁
+                        </button>
+                        <span aria-hidden="true">/</span>
+                        {/* 只顯示已儲存的名稱，輸入中的名稱要按儲存後才更新。 */}
+                        <span className="breadcrumb-current" title={activityTitle}>
+                            {activityTitle}
+                        </span>
+                    </div>
                     <nav aria-label="設定步驟">
                         {steps.map(item => (
                             <button
