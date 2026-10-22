@@ -465,6 +465,12 @@ th {
     border-top: 0;
     border-radius: 0 0 12px 12px;
 }
+/* TicketPlus 分頁卡片裡不能修改的欄位改成灰底；單選與勾選框加底色看不出差別，不套用。 */
+.step-tabs + .card :is(input, select, textarea):disabled:not([type="radio"], [type="checkbox"]) {
+    background: #eef1f4;
+    color: #526575;
+    cursor: not-allowed;
+}
 /* 名稱過長時只截斷名稱，鎖定標籤保持完整。 */
 .lock-chip {
     flex: none;
