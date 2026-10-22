@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityRecord } from "../../../../config/activityStore.js";
 import type { ActivityExecutionStatus, PurchaseSnapshot } from "../../../purchaseRuns.js";
 import { api } from "../../shared/api.js";
-import { AppHeader } from "../../shared/AppHeader.js";
+import { AppHeader } from "../../shared/navigation/AppHeader.js";
 import type { useRunStatus } from "../../shared/runs/useRunStatus.js";
 import { RunStatus } from "../../shared/runs/RunStatus.js";
 import { ActivityList } from "./ActivityList.js";
-import { Breadcrumb } from "./Breadcrumb.js";
+import { Breadcrumbs } from "../../shared/navigation/Breadcrumbs.js";
+import { StepNavigation } from "../../shared/navigation/StepNavigation.js";
 import { ticketPlusRunBadge } from "../../shared/runs/ticketPlusSteps.js";
 import type { ActivityListEntry } from "./ActivityList.js";
 import { ActivityEditor } from "./ActivityEditor.js";
@@ -341,26 +342,21 @@ export function TicketPlusWorkspace({
             {editing ? (
                 <>
                     {/* 只顯示已儲存的名稱，輸入中的名稱要按儲存後才更新。 */}
-                    <Breadcrumb
-                        activityTitle={activityTitle}
+                    <Breadcrumbs
+                        items={[
+                            { label: "首頁", actionLabel: "返回平台首頁", onSelect: () => leave("platforms") },
+                            {
+                                label: "TicketPlus",
+                                id: "homeButton",
+                                actionLabel: "返回 TicketPlus 活動列表",
+                                onSelect: () => leave("list"),
+                            },
+                            { label: activityTitle },
+                        ]}
                         disabled={locked}
-                        showLockChip={occupied}
-                        onPlatforms={() => leave("platforms")}
-                        onList={() => leave("list")}
+                        lockReason={occupied ? "購票瀏覽器使用中或模擬執行中，暫時無法變更活動設定" : undefined}
                     />
-                    <nav className="step-tabs" aria-label="設定步驟">
-                        {steps.map(item => (
-                            <button
-                                type="button"
-                                key={item.id}
-                                aria-current={step === item.id ? "step" : undefined}
-                                disabled={locked}
-                                onClick={() => changeStep(item.id)}
-                            >
-                                {item.label}
-                            </button>
-                        ))}
-                    </nav>
+                    <StepNavigation steps={steps} currentStep={step} disabled={locked} onChange={changeStep} />
                     {step === "activity" && (
                         <ActivityEditor
                             form={form}
@@ -419,11 +415,13 @@ export function TicketPlusWorkspace({
                 </>
             ) : (
                 <>
-                    <Breadcrumb
+                    <Breadcrumbs
+                        items={[
+                            { label: "首頁", actionLabel: "返回平台首頁", onSelect: () => leave("platforms") },
+                            { label: "TicketPlus" },
+                        ]}
                         disabled={locked}
-                        showLockChip={occupied}
-                        onPlatforms={() => leave("platforms")}
-                        onList={() => leave("list")}
+                        lockReason={occupied ? "購票瀏覽器使用中或模擬執行中，暫時無法變更活動設定" : undefined}
                     />
                     {hasRun && initialized && !runningListed && (
                         <div className="section-title">

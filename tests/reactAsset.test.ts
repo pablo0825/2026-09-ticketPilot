@@ -24,7 +24,16 @@ test("React 正式打包由本機同源載入，保留 API 驗證與資源邊界
         await page.locator("#step1").waitFor();
         assert.match(response!.headers()["content-security-policy"]!, /frame-ancestors 'none'/);
         assert.equal(response!.headers()["cache-control"], "no-store");
-        assert.equal(await page.locator("h1").evaluate(el => getComputedStyle(el).fontSize), "32px");
+        assert.equal(
+            await page
+                .locator("h1")
+                .evaluate(
+                    el =>
+                        Number.parseFloat(getComputedStyle(el).fontSize) /
+                        Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+                ),
+            1.875, // text-3xl，確認打包後的 Tailwind utility 生效。
+        );
         // Tailwind 區塊不繼承舊 input 樣式；Klook 的表單仍保留原樣。
         await page.evaluate(() => {
             const migrated = document.createElement("div");

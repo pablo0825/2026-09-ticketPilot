@@ -1,4 +1,4 @@
-import { AppHeader } from "./shared/AppHeader.js";
+import { AppHeader } from "./shared/navigation/AppHeader.js";
 import { useState } from "react";
 import { TicketPlusWorkspace } from "./platforms/ticketplus/TicketPlusWorkspace.js";
 import { KlookWorkspace } from "./platforms/klook/KlookWorkspace.js";

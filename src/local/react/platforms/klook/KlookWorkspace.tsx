@@ -1,4 +1,4 @@
-import { AppHeader } from "../../shared/AppHeader.js";
+import { AppHeader } from "../../shared/navigation/AppHeader.js";
 import { ActivityList, type ActivityListEntry } from "./ActivityList.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityRecord, KlookActivityRecord } from "../../../../config/activityStore.js";
