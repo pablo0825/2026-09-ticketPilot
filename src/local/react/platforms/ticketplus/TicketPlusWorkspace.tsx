@@ -302,7 +302,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                             disabled={locked}
                             onClick={() => leave("list")}
                         >
-                            <span aria-hidden="true">← </span>活動首頁
+                            活動首頁
                         </button>
                         <span aria-hidden="true">/</span>
                         {/* 只顯示已儲存的名稱，輸入中的名稱要按儲存後才更新。 */}
