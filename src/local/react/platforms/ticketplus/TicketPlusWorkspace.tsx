@@ -39,9 +39,9 @@ interface ActivityListData {
 
 type Step = "activity" | "confirm" | "status";
 const steps: { id: Step; label: string }[] = [
-    { id: "activity", label: "① 活動與順位" },
-    { id: "confirm", label: "② 確認與開始" },
-    { id: "status", label: "③ 執行狀態" },
+    { id: "activity", label: "活動與順位" },
+    { id: "confirm", label: "確認與開始" },
+    { id: "status", label: "執行狀態" },
 ];
 
 export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewRun, onPendingResolved }: Props) {
@@ -310,7 +310,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                             {activityTitle}
                         </span>
                     </div>
-                    <nav aria-label="設定步驟">
+                    <nav className="step-tabs" aria-label="設定步驟">
                         {steps.map(item => (
                             <button
                                 type="button"

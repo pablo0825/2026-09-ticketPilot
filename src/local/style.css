@@ -428,6 +428,43 @@ th {
     white-space: nowrap;
     color: #233342;
 }
+/* TicketPlus 的步驟分頁：接在內容卡片上方；Klook 仍用共用的 nav 按鈕樣式。 */
+.step-tabs {
+    display: flex;
+    gap: 4px;
+    margin: 0;
+    padding: 0 12px;
+    overflow-x: auto;
+    background: white;
+    border: 1px solid #dde4eb;
+    border-radius: 12px 12px 0 0;
+}
+.step-tabs button {
+    flex: 0 0 auto;
+    padding: 14px 16px;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: #526575;
+    font-size: 15px;
+    white-space: nowrap;
+}
+.step-tabs button[aria-current="step"] {
+    background: transparent;
+    color: #254d71;
+    border-bottom-color: #254d71;
+    font-weight: 700;
+}
+.step-tabs button:focus-visible {
+    outline: 2px solid #5f9fcb;
+    outline-offset: -4px;
+}
+.step-tabs + .card {
+    margin-top: 0;
+    border-top: 0;
+    border-radius: 0 0 12px 12px;
+}
 .status-header {
     display: flex;
     align-items: flex-start;

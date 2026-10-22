@@ -123,7 +123,7 @@ test("TicketPlus GUI：真表單重排複製保存與重載，兩平台同名活
             ],
         });
         await page
-            .getByRole("button", { name: "② 確認與開始", exact: true })
+            .getByRole("button", { name: "確認與開始", exact: true })
             .getAttribute("aria-current")
             .then(value => assert.equal(value, "step"));
         assert.equal(await page.getByLabel("最長執行時間（分鐘）", { exact: true }).inputValue(), "10");
@@ -158,6 +158,15 @@ test("TicketPlus GUI：活動保存保留原排程與期限，跨場次保存但
         // 活動名稱移到麵包屑，返回鍵維持原本的名稱。
         assert.equal(await page.locator(".breadcrumb-current").innerText(), settings.eventName);
         assert.equal(await page.getByRole("button", { name: "返回活動首頁", exact: true }).count(), 1);
+
+        // 步驟分頁沒有編號，目前分頁以 aria-current 標示。
+        const tabs = page.getByRole("navigation", { name: "設定步驟" }).getByRole("button");
+        assert.deepEqual(await tabs.allInnerTexts(), ["活動與順位", "確認與開始", "執行狀態"]);
+        assert.equal(await tabs.nth(0).getAttribute("aria-current"), "step");
+        await tabs.nth(1).click();
+        assert.equal(await tabs.nth(0).getAttribute("aria-current"), null);
+        assert.equal(await tabs.nth(1).getAttribute("aria-current"), "step");
+        await tabs.nth(0).click();
         assert.equal(await page.getByRole("note").count(), 0);
         assert.equal(await page.locator("#maxRunMinutes").count(), 0);
         await page.getByRole("button", { name: "複製" }).click();
@@ -216,7 +225,7 @@ test("TicketPlus GUI：兩分頁真 revision 衝突不覆蓋，失敗保留草�
         await other.getByRole("button", { name: "儲存活動" }).click();
         await other.getByRole("alert").filter({ hasText: "其他分頁修改" }).waitFor();
         assert.equal(
-            await other.getByRole("button", { name: "① 活動與順位", exact: true }).getAttribute("aria-current"),
+            await other.getByRole("button", { name: "活動與順位", exact: true }).getAttribute("aria-current"),
             "step",
         );
         assert.equal(await other.locator("#eventName").inputValue(), "B分頁草稿");
@@ -291,11 +300,11 @@ test("TicketPlus GUI：保存成功但重載失敗仍保留 ID，再編輯以 PU
         await h.page.getByRole("button", { name: "儲存活動" }).click();
         await h.page.getByRole("alert").filter({ hasText: "活動已儲存，但列表" }).waitFor();
         assert.equal(
-            await h.page.getByRole("button", { name: "② 確認與開始", exact: true }).getAttribute("aria-current"),
+            await h.page.getByRole("button", { name: "確認與開始", exact: true }).getAttribute("aria-current"),
             "step",
         );
         assert.match(await h.page.getByRole("region", { name: "活動摘要" }).innerText(), /新活動/);
-        await h.page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+        await h.page.getByRole("button", { name: "活動與順位", exact: true }).click();
         await h.page.locator("#eventName").fill("再次編輯");
         await h.page.getByRole("button", { name: "儲存活動" }).click();
         await h.page.getByRole("alert").filter({ hasText: "活動已儲存，但列表" }).waitFor();

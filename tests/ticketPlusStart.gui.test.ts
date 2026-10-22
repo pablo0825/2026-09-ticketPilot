@@ -41,11 +41,11 @@ async function fixture(
 async function edit(page: Page) {
     await page.locator("#selectTicketPlus").click();
     await page.getByRole("button", { name: "編輯活動", exact: true }).click();
-    await page.getByRole("button", { name: "① 活動與順位", exact: true }).waitFor();
+    await page.getByRole("button", { name: "活動與順位", exact: true }).waitFor();
 }
 
 async function review(page: Page) {
-    await page.getByRole("button", { name: "② 確認與開始", exact: true }).click();
+    await page.getByRole("button", { name: "確認與開始", exact: true }).click();
     await page.getByRole("region", { name: "活動摘要" }).waitFor();
 }
 
@@ -151,7 +151,7 @@ test("TicketPlus 啟動 GUI：未保存修改與新增草稿都不能啟動", as
     await fixture(async (_h, page, _record, requests) => {
         await edit(page);
         await review(page);
-        await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+        await page.getByRole("button", { name: "活動與順位", exact: true }).click();
         await page.getByLabel("票種名稱").fill("另一票種");
         await review(page);
         await confirmStart(page);
@@ -165,7 +165,7 @@ test("TicketPlus 啟動 GUI：未保存修改與新增草稿都不能啟動", as
         await page.getByLabel("活動名稱", { exact: true }).fill("尚未儲存的新活動");
         // 未儲存的新活動，麵包屑不跟著輸入的名稱變。
         assert.equal(await page.locator(".breadcrumb-current").innerText(), "新增活動");
-        await page.getByRole("button", { name: "② 確認與開始", exact: true }).click();
+        await page.getByRole("button", { name: "確認與開始", exact: true }).click();
         assert.equal(await page.getByText("請先儲存活動設定。", { exact: true }).count(), 1);
         const start = page.getByRole("button", { name: "開始購票", exact: true });
         assert((await start.count()) === 0 || (await start.isDisabled()));
@@ -332,7 +332,7 @@ test("TicketPlus 啟動 GUI：查不到原請求仍保留 pending，不能把未
         });
         await edit(page);
         await review(page);
-        await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+        await page.getByRole("button", { name: "活動與順位", exact: true }).click();
         assert(await page.getByLabel("票種名稱").isDisabled());
         await review(page);
         await page.getByRole("button", { name: "查看待確認的啟動結果", exact: true }).click();
@@ -361,7 +361,7 @@ test(
             await eventually(async () =>
                 assert.match(await page.locator("#message").innerText(), /失敗|fetch|確認|連線/i),
             );
-            await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+            await page.getByRole("button", { name: "活動與順位", exact: true }).click();
             assert(await page.getByLabel("票種名稱").isDisabled());
             await review(page);
             await confirmStart(page);
@@ -437,10 +437,10 @@ test("TicketPlus 步驟 GUI：保存後前進，未保存修改禁止啟動，�
         await page.getByRole("button", { name: "儲存活動", exact: true }).click();
         await page.getByRole("region", { name: "活動摘要" }).waitFor();
         assert.equal(
-            await page.getByRole("button", { name: "② 確認與開始", exact: true }).getAttribute("aria-current"),
+            await page.getByRole("button", { name: "確認與開始", exact: true }).getAttribute("aria-current"),
             "step",
         );
-        await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+        await page.getByRole("button", { name: "活動與順位", exact: true }).click();
         await page.getByLabel("張數", { exact: true }).fill("2");
         await review(page);
         assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
@@ -454,7 +454,7 @@ test("TicketPlus 步驟 GUI：保存後前進，未保存修改禁止啟動，�
             ["1", "2026-10-30", "20:00", "預售票", "1"],
         );
         assert.equal(starts(requests).length, 0);
-        await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+        await page.getByRole("button", { name: "活動與順位", exact: true }).click();
         assert.equal(await page.getByLabel("張數", { exact: true }).inputValue(), "2");
         await page.getByRole("button", { name: "儲存活動", exact: true }).click();
         await page.getByRole("region", { name: "活動摘要" }).waitFor();
@@ -483,7 +483,7 @@ test(
                 await h.request("/api/activities", apiActivity);
                 await page.locator("#selectTicketPlus").click();
                 await page.getByRole("button", { name: "編輯活動", exact: true }).first().click();
-                await page.getByRole("button", { name: "③ 執行狀態", exact: true }).click();
+                await page.getByRole("button", { name: "執行狀態", exact: true }).click();
                 await page.getByText("尚未開始", { exact: true }).waitFor();
                 await review(page);
                 await confirmStart(page);
@@ -498,12 +498,12 @@ test(
                 const run = await h.snapshot();
                 assert(run);
                 assert.equal(
-                    await page.getByRole("button", { name: "③ 執行狀態", exact: true }).getAttribute("aria-current"),
+                    await page.getByRole("button", { name: "執行狀態", exact: true }).getAttribute("aria-current"),
                     "step",
                 );
-                await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+                await page.getByRole("button", { name: "活動與順位", exact: true }).click();
                 assert(await page.getByLabel("票種名稱").isDisabled());
-                await page.getByRole("button", { name: "③ 執行狀態", exact: true }).click();
+                await page.getByRole("button", { name: "執行狀態", exact: true }).click();
                 await h.until(run =>
                     Boolean(
                         run?.events.some(
@@ -515,9 +515,9 @@ test(
                 await eventually(async () => assert.equal((await h.counts()).counts.submit, 1));
                 page.once("dialog", dialog => void dialog.accept()); // 停止前的確認框
                 await page.getByRole("button", { name: "停止購票", exact: true }).click();
-                await page.getByRole("button", { name: "② 確認與開始", exact: true }).click();
+                await page.getByRole("button", { name: "確認與開始", exact: true }).click();
                 assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
-                await page.getByRole("button", { name: "③ 執行狀態", exact: true }).click();
+                await page.getByRole("button", { name: "執行狀態", exact: true }).click();
                 await eventually(async () => assert.equal(await page.locator("#status").innerText(), "購票已停止"));
                 assert.equal((await h.snapshot())!.id, run.id);
                 assert.equal(starts(requests).length, 1);
@@ -548,7 +548,7 @@ test(
                     .nth(1)
                     .click();
                 assert.notEqual((await (await loadedOther).json()).id, starts(requests)[0]!.body.activityId);
-                await page.getByRole("button", { name: "③ 執行狀態", exact: true }).click();
+                await page.getByRole("button", { name: "執行狀態", exact: true }).click();
                 await page.getByText("尚未開始", { exact: true }).waitFor();
                 assert.equal(await page.locator("#status").count(), 0);
                 assert.equal(starts(requests).length, 1);

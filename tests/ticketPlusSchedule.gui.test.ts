@@ -42,7 +42,7 @@ async function fixture(
 }
 
 async function review(page: Page) {
-    await page.getByRole("button", { name: "② 確認與開始", exact: true }).click();
+    await page.getByRole("button", { name: "確認與開始", exact: true }).click();
     await page.getByRole("region", { name: "活動摘要" }).waitFor();
 }
 
@@ -145,7 +145,7 @@ test("TicketPlus 排程 GUI：等待中停止，倒數及切步驟不重啟，�
         assert(await page.getByRole("combobox", { name: /執行方式/ }).isDisabled());
         assert(await page.getByLabel(timeLabel, { exact: true }).isDisabled());
         assert(await page.getByRole("combobox", { name: advanceLabel }).isDisabled());
-        await page.getByRole("button", { name: "③ 執行狀態", exact: true }).click();
+        await page.getByRole("button", { name: "執行狀態", exact: true }).click();
         page.once("dialog", dialog => void dialog.accept()); // 停止前的確認框
         await page.getByRole("button", { name: "停止購票", exact: true }).click();
         await h.until(run => run?.status === "failed");
@@ -171,13 +171,13 @@ test("TicketPlus 執行設定：活動與執行草稿隔離，活動保存保留
             await checkbox.check();
             await page.getByLabel("最長執行時間（分鐘）").fill("20");
             assert.equal(await checkbox.isChecked(), false);
-            await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+            await page.getByRole("button", { name: "活動與順位", exact: true }).click();
             assert.equal(await page.getByLabel("最長執行時間（分鐘）").count(), 0);
             await page.getByLabel("張數", { exact: true }).fill("1");
             await review(page);
             await checkbox.check();
             assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
-            await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+            await page.getByRole("button", { name: "活動與順位", exact: true }).click();
             await page.getByRole("button", { name: "儲存活動", exact: true }).click();
             await page.getByLabel(timeLabel, { exact: true }).waitFor();
             assert.equal(await page.getByLabel(timeLabel, { exact: true }).inputValue(), "2026-12-01T12:34:56");
@@ -475,7 +475,7 @@ test("TicketPlus 提前刷新 GUI：修改取消確認、切步驟保留草稿�
         await advance.selectOption("2");
         assert.equal(await checkbox.isChecked(), false);
         assert(await page.getByRole("button", { name: "開始購票", exact: true }).isDisabled());
-        await page.getByRole("button", { name: "① 活動與順位", exact: true }).click();
+        await page.getByRole("button", { name: "活動與順位", exact: true }).click();
         await review(page);
         assert.equal(await advance.inputValue(), "2");
         assert.equal(requests.filter(request => request.method === "PUT").length, 0);
