@@ -503,6 +503,13 @@ test(
                 );
                 await page.getByRole("button", { name: "活動與順位", exact: true }).click();
                 assert(await page.getByLabel("票種名稱").isDisabled());
+
+                // 執行中麵包屑顯示鎖定標籤，完整原因放在滑鼠提示與螢幕閱讀器文字。
+                const lock = page.locator(".breadcrumb .lock-chip");
+                assert.match(await lock.innerText(), /^🔒 設定已鎖定/);
+                assert.match((await lock.getAttribute("title")) ?? "", /暫時無法變更活動設定/);
+                assert.match((await lock.textContent()) ?? "", /設定已鎖定：購票瀏覽器使用中或模擬執行中/);
+                assert.doesNotMatch(await page.locator(".breadcrumb-current").innerText(), /設定已鎖定/);
                 await page.getByRole("button", { name: "執行狀態", exact: true }).click();
                 await h.until(run =>
                     Boolean(
@@ -537,6 +544,7 @@ test(
                 page.once("dialog", dialog => void dialog.accept());
                 await page.getByRole("button", { name: "關閉購票瀏覽器", exact: true }).click();
                 await h.until(current => !current?.occupied);
+                await eventually(async () => assert.equal(await page.locator(".lock-chip").count(), 0));
                 await page.locator("#homeButton").click();
                 // 兩筆活動同名，明確選另一筆，不能依名稱帶入上一輪狀態。
                 const loadedOther = page.waitForResponse(response =>

@@ -465,6 +465,25 @@ th {
     border-top: 0;
     border-radius: 0 0 12px 12px;
 }
+/* 名稱過長時只截斷名稱，鎖定標籤保持完整。 */
+.lock-chip {
+    flex: none;
+    padding: 1px 9px;
+    border-radius: 999px;
+    background: #eef1f4;
+    color: #526575;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
 .status-header {
     display: flex;
     align-items: flex-start;

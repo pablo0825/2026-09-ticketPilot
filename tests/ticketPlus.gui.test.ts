@@ -412,7 +412,9 @@ test("TicketPlus GUI：Klook 瀏覽器仍占用時禁止變更，保留查看狀
             await snapshotFeed(h.page, "/api/purchase/events", occupied);
             await h.page.reload();
             await h.page.locator("#selectTicketPlus").click();
-            await h.page.getByRole("status").filter({ hasText: "占用" }).waitFor();
+            await eventually(async () => assert(await h.page.locator("#new").isDisabled()));
+            // 舊的占用說明已改成編輯頁麵包屑的鎖定標籤，清單頁不再顯示。
+            assert.equal(await h.page.getByText("暫時無法變更活動設定").count(), 0);
             assert(await h.page.getByRole("button", { name: "編輯活動" }).isDisabled());
             assert(await h.page.getByRole("button", { name: "刪除", exact: true }).isDisabled());
             assert(await h.page.locator("#new").isDisabled());

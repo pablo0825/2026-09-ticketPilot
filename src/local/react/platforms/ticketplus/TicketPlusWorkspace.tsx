@@ -38,6 +38,7 @@ interface ActivityListData {
 }
 
 type Step = "activity" | "confirm" | "status";
+const settingsLockReason = "購票瀏覽器使用中或模擬執行中，暫時無法變更活動設定";
 const steps: { id: Step; label: string }[] = [
     { id: "activity", label: "活動與順位" },
     { id: "confirm", label: "確認與開始" },
@@ -283,7 +284,6 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
             <div id="message" role="alert">
                 {message}
             </div>
-            {occupied && <p role="status">目前有購票瀏覽器占用或模擬正在執行，暫時無法變更活動設定。</p>}
             {pendingStart && (
                 <div role="status">
                     <p>有待確認的 TicketPlus 啟動請求。先核對原流程，暫不變更或刪除設定；不會自動重跑。</p>
@@ -309,6 +309,13 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                         <span className="breadcrumb-current" title={activityTitle}>
                             {activityTitle}
                         </span>
+                        {/* 完整原因給滑鼠提示與螢幕閱讀器；畫面只顯示短標籤。 */}
+                        {occupied && (
+                            <span className="lock-chip" title={settingsLockReason}>
+                                <span aria-hidden="true">🔒 </span>設定已鎖定
+                                <span className="visually-hidden">：{settingsLockReason}</span>
+                            </span>
+                        )}
                     </div>
                     <nav className="step-tabs" aria-label="設定步驟">
                         {steps.map(item => (
