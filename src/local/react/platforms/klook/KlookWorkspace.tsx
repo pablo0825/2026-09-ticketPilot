@@ -8,7 +8,7 @@ import { api } from "../../shared/api.js";
 import { activityForm, activityInput, contactInput, emptyContact, needsActivitySave } from "./formModel.js";
 import type { ActivityForm } from "./formModel.js";
 import { ActivityEditorPage } from "../../pages/ActivityEditorPage.js";
-import { ContactForm } from "./ContactForm.js";
+import { ContactDetailsPage } from "./ContactDetailsPage.js";
 import { PurchaseSummary } from "./PurchaseSummary.js";
 import { RunStatus } from "../../shared/runs/RunStatus.js";
 import type { useRunStatus } from "../../shared/runs/useRunStatus.js";
@@ -281,7 +281,7 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
                 />
             </section>
             <section id="step2" hidden={step !== 2}>
-                <ContactForm
+                <ContactDetailsPage
                     contact={contact}
                     disabled={locked}
                     onChange={next => {

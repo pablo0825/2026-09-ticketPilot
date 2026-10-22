@@ -1,3 +1,4 @@
+import { primaryButton, panel, stepPanel, fieldLabel, fieldInput } from "../../shared/styles.js";
 import type { ContactDetails } from "../../../../config/contact.config.js";
 
 const regions = [
@@ -15,20 +16,22 @@ const regions = [
 interface Props {
     contact: ContactDetails;
     disabled: boolean;
+    attached?: boolean;
     onChange: (contact: ContactDetails) => void;
     onSave: () => void;
 }
 
-export function ContactForm({ contact, disabled, onChange, onSave }: Props) {
+export function ContactDetailsPage({ contact, disabled, attached = false, onChange, onSave }: Props) {
     const options = regions.includes(contact.regionLabel) ? regions : [...regions, contact.regionLabel];
     return (
-        <div className="card">
-            <h2>聯絡資料</h2>
+        <div data-tailwind className={`${attached ? stepPanel : panel} space-y-5`}>
+            <h2 className="text-xl font-semibold">聯絡資料</h2>
             <p>與其他活動共用，儲存在本機；執行紀錄不包含個人資料。</p>
-            <div className="grid">
-                <label>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className={fieldLabel}>
                     姓氏
                     <input
+                        className={fieldInput}
                         id="lastName"
                         autoComplete="family-name"
                         required
@@ -37,9 +40,10 @@ export function ContactForm({ contact, disabled, onChange, onSave }: Props) {
                         onChange={e => onChange({ ...contact, lastName: e.target.value })}
                     />
                 </label>
-                <label>
+                <label className={fieldLabel}>
                     名字
                     <input
+                        className={fieldInput}
                         id="firstName"
                         autoComplete="given-name"
                         required
@@ -48,9 +52,10 @@ export function ContactForm({ contact, disabled, onChange, onSave }: Props) {
                         onChange={e => onChange({ ...contact, firstName: e.target.value })}
                     />
                 </label>
-                <label>
+                <label className={fieldLabel}>
                     電話區碼
                     <select
+                        className={fieldInput}
                         id="regionLabel"
                         disabled={disabled}
                         value={contact.regionLabel}
@@ -60,11 +65,12 @@ export function ContactForm({ contact, disabled, onChange, onSave }: Props) {
                             <option key={region}>{region}</option>
                         ))}
                     </select>
-                    <small>網站若沒有對應選項，程式會停止。</small>
+                    <small className="text-sm text-slate-500">網站若沒有對應選項，程式會停止。</small>
                 </label>
-                <label>
+                <label className={fieldLabel}>
                     電話
                     <input
+                        className={fieldInput}
                         id="phone"
                         type="tel"
                         autoComplete="tel-national"
@@ -74,9 +80,10 @@ export function ContactForm({ contact, disabled, onChange, onSave }: Props) {
                         onChange={e => onChange({ ...contact, phone: e.target.value })}
                     />
                 </label>
-                <label>
+                <label className={fieldLabel}>
                     Email
                     <input
+                        className={fieldInput}
                         id="email"
                         type="email"
                         autoComplete="email"
@@ -87,8 +94,8 @@ export function ContactForm({ contact, disabled, onChange, onSave }: Props) {
                     />
                 </label>
             </div>
-            <footer>
-                <button id="saveContact" disabled={disabled} onClick={onSave}>
+            <footer className="flex justify-end">
+                <button type="button" className={primaryButton} id="saveContact" disabled={disabled} onClick={onSave}>
                     下一步
                 </button>
             </footer>
