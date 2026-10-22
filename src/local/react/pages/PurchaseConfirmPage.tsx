@@ -244,7 +244,6 @@ export function PurchaseConfirmPage(props: Props) {
                         )}
                     </>
                 )}
-                {isKlook && <p>指定的是開賣時間，不是演出時間。按開始後會先確認登入、準備活動頁，再等待開賣。</p>}
             </div>
             <label className="flex items-start gap-3">
                 <input
