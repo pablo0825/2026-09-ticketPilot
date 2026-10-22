@@ -40,21 +40,17 @@ test("四種流程組合：步驟數與步驟名稱依流程類型及開賣時�
     const saleAt = "2026-10-20T03:05:00Z";
 
     assert.deepEqual(labels(run({ flowType: "purchase" })), [
-        "1. 啟動購票瀏覽器",
-        "2. 確認登入",
-        "3. 開啟活動頁",
-        "4. 選擇場次",
-        "5. 選擇票種並送出",
-        "6. 送出購票資料",
-        "7. 輪到你付款",
+        "啟動購票瀏覽器",
+        "確認登入",
+        "開啟活動頁",
+        "選擇場次",
+        "選擇票種並送出",
+        "送出購票資料",
+        "輪到你付款",
     ]);
     assert.equal(labels(run({ flowType: "purchase", saleAt })).length, 8);
-    assert.equal(labels(run({ flowType: "purchase", saleAt }))[3], "4. 等待開賣");
-    assert.deepEqual(labels(run({ flowType: "lottery" })).slice(5), [
-        "6. 填寫參加者",
-        "7. 送出參加者資料",
-        "8. 輪到你確認登記",
-    ]);
+    assert.equal(labels(run({ flowType: "purchase", saleAt }))[3], "等待開賣");
+    assert.deepEqual(labels(run({ flowType: "lottery" })).slice(5), ["填寫參加者", "送出參加者資料", "輪到你確認登記"]);
     assert.equal(labels(run({ flowType: "lottery", saleAt })).length, 9);
 });
 

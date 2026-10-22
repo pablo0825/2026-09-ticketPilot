@@ -61,7 +61,10 @@ test(
             const steps = page.getByRole("list", { name: "執行步驟" });
             assert.equal(await steps.getByRole("listitem").count(), 8);
             assert.equal(await confirm.count(), 1);
-            assert.match(await steps.getByRole("listitem").filter({ has: confirm }).innerText(), /6\. 填寫參加者/);
+            assert.equal(
+                await steps.getByRole("listitem").filter({ has: confirm }).locator(".run-step-label").innerText(),
+                "填寫參加者",
+            );
             assert.equal(await page.locator("#logs").isVisible(), false);
             await page.locator("details.dev-log > summary", { hasText: "開發者紀錄" }).click();
             assert.equal(await page.locator("#logs").isVisible(), true);

@@ -82,7 +82,7 @@ export function ticketPlusStepsView(
     const latestStage = latestTicketPlusStage(run);
 
     // 計算每一步的狀態。
-    const steps = keys.map((key, index): RunStep => ({ label: `${index + 1}. ${stepLabels[key]}`, state: "pending" }));
+    const steps = keys.map((key): RunStep => ({ label: stepLabels[key], state: "pending" }));
     markSteps(run, steps, keys, current, latestStage);
 
     // 標題沿用既有狀態標題，說明改用較短的文字。

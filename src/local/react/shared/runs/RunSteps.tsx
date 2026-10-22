@@ -26,7 +26,7 @@ const stateNames: Record<RunStep["state"], string> = {
 
 export function RunSteps({ steps, participantsControl }: Props) {
     return (
-        <ol className="run-steps" aria-label="執行步驟">
+        <ol className="run-steps" role="list" aria-label="執行步驟">
             {steps.map(step => (
                 <li key={step.label} className={`run-step ${step.state}`}>
                     <span className="run-step-icon" role="img" aria-label={stateNames[step.state]}>
