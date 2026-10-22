@@ -62,7 +62,7 @@ test("GUI 每活動保存勾選、摘要顯示、重開與新增不沿用其他�
         await page.locator("#saveActivity").click();
         await page.locator("#step2").waitFor();
         assert.equal(klookSettings((await store.load(original.id)).settings).queueEnabled, true);
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         assert.match((await page.locator("#summary").textContent()) ?? "", /排隊流程.*已啟用/);
         await page.reload();
         await page.locator("#selectKlook").click();

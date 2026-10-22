@@ -1,11 +1,11 @@
-interface Props<Step extends string> {
+interface Props<Step extends string | number> {
     steps: readonly { id: Step; label: string }[];
     currentStep: Step;
     disabled: boolean;
     onChange: (step: Step) => void;
 }
 
-export function StepNavigation<Step extends string>({ steps, currentStep, disabled, onChange }: Props<Step>) {
+export function StepNavigation<Step extends string | number>({ steps, currentStep, disabled, onChange }: Props<Step>) {
     return (
         <nav
             data-tailwind

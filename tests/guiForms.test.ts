@@ -37,14 +37,14 @@ test("完整GUI：設定保存、個資未存阻擋、真實fixture與重連保�
         await page.locator("#summary").filter({ hasText: "B區" }).waitFor();
         await page.locator("#confirm").check();
         assert(await page.locator("#start").isEnabled());
-        await page.getByRole("button", { name: "② 聯絡資料" }).click();
+        await page.getByRole("button", { name: "聯絡資料" }).click();
         await page.locator("#phone").fill("0999999999");
-        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.getByRole("button", { name: "活動與順位" }).click();
         await page.getByRole("button", { name: "下一步" }).click();
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         await page.locator("#confirm").check();
         assert(await page.locator("#start").isDisabled());
-        await page.getByRole("button", { name: "② 聯絡資料" }).click();
+        await page.getByRole("button", { name: "聯絡資料" }).click();
         let releaseSave: () => void = () => {};
         const saveGate = new Promise<void>(resolve => (releaseSave = resolve));
         let receivedSave: () => void = () => {};
@@ -67,7 +67,7 @@ test("完整GUI：設定保存、個資未存阻擋、真實fixture與重連保�
         await page.locator("#activities .activity-status").filter({ hasText: "尚無執行紀錄" }).waitFor();
         await page.locator("#activities").getByText("編輯活動").click();
         await page.locator("#step1").waitFor();
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         const original = (await store.list()).activities[0]!;
         await store.save(
             {

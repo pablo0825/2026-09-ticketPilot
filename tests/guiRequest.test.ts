@@ -70,7 +70,7 @@ test("啟動已接受但回應遺失：重載再操作沿用請求，只啟動�
         await page.goto(service.url);
         await page.locator("#selectKlook").click();
         await page.getByText("編輯活動", { exact: true }).click();
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         await page.locator("#confirm").check();
         await page.locator("#start").click();
         await page.locator("#message").filter({ hasText: /.+/ }).waitFor();
@@ -83,7 +83,7 @@ test("啟動已接受但回應遺失：重載再操作沿用請求，只啟動�
         await page.reload();
         await page.locator("#selectKlook").click();
         await page.getByText("編輯活動", { exact: true }).click();
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         await page.locator("#confirm").check();
         await page.locator("#start").click();
         await page.locator("#step4").waitFor();

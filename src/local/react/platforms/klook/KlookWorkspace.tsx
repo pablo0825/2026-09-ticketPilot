@@ -1,3 +1,5 @@
+import { Breadcrumbs } from "../../shared/navigation/Breadcrumbs.js";
+import { StepNavigation } from "../../shared/navigation/StepNavigation.js";
 import { AppHeader } from "../../shared/navigation/AppHeader.js";
 import { ActivityListPage } from "../../pages/ActivityListPage.js";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -216,24 +218,38 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
     return (
         <>
             <AppHeader disabled={busy || runs.closing} onHome={leavePlatform} />
-            <button id="homeButton" className="secondary" hidden={step === 0} disabled={locked} onClick={goHome}>
-                返回活動首頁
-            </button>
-            <nav hidden={!editing} aria-label="設定步驟">
-                {["① 活動與順位", "② 聯絡資料", "③ 確認與開始", "④ 執行狀態"].map((label, index) => (
-                    <button
-                        key={label}
-                        data-step={index + 1}
-                        className={step === index + 1 ? "active" : ""}
-                        disabled={locked}
-                        onClick={() => setStep(index + 1)}
-                    >
-                        {label}
-                    </button>
-                ))}
-            </nav>
             <div id="message" role="alert">
                 {message}
+            </div>
+            <Breadcrumbs
+                disabled={locked}
+                items={[
+                    { label: "首頁", onSelect: leavePlatform },
+                    {
+                        label: "Klook",
+                        ...(step !== 0 ? { id: "homeButton", actionLabel: "返回活動首頁", onSelect: goHome } : {}),
+                    },
+                    ...(editing
+                        ? [{ label: record?.settings.eventName ?? "新增活動" }]
+                        : step === 4
+                          ? [{ label: "執行狀態" }]
+                          : []),
+                ]}
+            />
+            <div hidden={!editing}>
+                <StepNavigation
+                    steps={[
+                        { id: 1, label: "活動與順位" },
+                        { id: 2, label: "聯絡資料" },
+                        { id: 3, label: "確認與開始" },
+                        { id: 4, label: "執行狀態" },
+                    ]}
+                    currentStep={step}
+                    disabled={locked}
+                    onChange={next => {
+                        if (!busyRef.current && !runs.closing) setStep(next);
+                    }}
+                />
             </div>
             <section id="home" hidden={step !== 0}>
                 <ActivityListPage
@@ -273,7 +289,7 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
             <section id="step1" hidden={step !== 1}>
                 <ActivityEditorPage
                     platform="klook"
-                    attached={false}
+                    attached
                     form={form}
                     title={record ? `編輯活動：${record.settings.eventName}` : "新增活動"}
                     disabled={locked}
@@ -283,6 +299,7 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
             </section>
             <section id="step2" hidden={step !== 2}>
                 <ContactDetailsPage
+                    attached
                     contact={contact}
                     disabled={locked}
                     onChange={next => {
@@ -296,7 +313,7 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
             <section id="step3" hidden={step !== 3}>
                 <PurchaseConfirmPage
                     platform="klook"
-                    attached={false}
+                    attached
                     summary={klookSummary(record?.settings)}
                     execution={{ mode: form.mode, saleAt: form.saleAt, advance: form.advance }}
                     onExecutionChange={next => changeForm({ ...form, ...next })}
@@ -320,6 +337,7 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
             </section>
             <section id="step4" hidden={step !== 4}>
                 <RunStatus
+                    attached={editing}
                     displayed={runs.displayed}
                     closing={runs.closing}
                     canClose={

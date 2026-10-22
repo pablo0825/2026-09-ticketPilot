@@ -177,7 +177,7 @@ test("保存與開始請求送出期間不能離開，完成後導航不產生�
                 await page.locator("#eventName").fill("已修改");
                 await page.locator("#saveActivity").click();
             } else {
-                await page.getByRole("button", { name: "③ 確認與開始" }).click();
+                await page.getByRole("button", { name: "確認與開始" }).click();
                 await page.locator("#confirm").check();
                 await page.locator("#start").click();
             }
@@ -241,7 +241,7 @@ test("舊未知請求跨首頁導航保留，不保存、不建立新請求", as
         await openEditor(page);
         await page.locator("#brandHome").click();
         await openEditor(page);
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         await page.locator("#confirm").check();
         await page.locator("#start").click();
         await page.locator("#message").filter({ hasText: "舊版開始請求" }).waitFor();
@@ -328,7 +328,7 @@ test("點擊品牌返回前確認聯絡草稿，關閉瀏覽器期間兩種狀�
         // 聯絡資料仍走工作區的未儲存檢查
         await page.goto(url);
         await openEditor(page);
-        await page.getByRole("button", { name: "② 聯絡資料" }).click();
+        await page.getByRole("button", { name: "聯絡資料" }).click();
         const input = page.locator("#firstName");
         await input.fill("未儲存");
         page.once("dialog", dialog => dialog.dismiss());

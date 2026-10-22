@@ -51,7 +51,7 @@ async function fixture(
         await page.locator("#selectKlook").click();
         await page.locator("#activities").getByText("編輯活動").click();
         await page.locator("#step1").waitFor();
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         await action(page, store, record.id, service.url, feed);
     } finally {
         await browser.close();
@@ -126,14 +126,14 @@ test("四步：時間草稿、延遲保存鎖定、一次啟動與run隔離", as
         await page.locator("#homeButton").click();
         await page.locator("#activities").getByText("編輯活動").click();
         await page.locator("#step1").waitFor();
-        await page.getByRole("button", { name: "④ 執行狀態" }).click();
+        await page.getByRole("button", { name: "執行狀態" }).click();
         assert.equal(await page.locator("#status").innerText(), "尚未執行");
         feed.publish({ ...result("old"), status: "failed", occupied: true });
         await eventually(async () => assert.match((await page.locator("#homeRun").textContent()) ?? "", /仍占用中/));
         assert.equal(await page.locator("#status").innerText(), "尚未執行");
         feed.publish({ ...result("old"), occupied: false });
         await eventually(async () => assert.equal(await page.locator("#homeRun").textContent(), ""));
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         await page.locator("#mode").selectOption("now");
         await page.locator("#confirm").check();
         await page.locator("#start").click();
@@ -181,7 +181,7 @@ test("四步：保存拒絕留第三步；未知請求不能改時間再保存",
 test("四步：聯絡資料不依賴未完成時間，跨分頁版本不同不覆寫或啟動", async () =>
     fixture(async (page, store, id) => {
         await page.locator("#mode").selectOption("scheduled");
-        await page.getByRole("button", { name: "② 聯絡資料" }).click();
+        await page.getByRole("button", { name: "聯絡資料" }).click();
         await page.locator("#saveContact").click();
         await page.locator("#step3").waitFor();
         await page.locator("#saleAt").fill("2027-01-01T10:00");
@@ -203,7 +203,7 @@ test("順位清空：保留空列、阻擋舊設定啟動，重新填寫才能�
     fixture(async (page, store, id) => {
         await page.locator("#confirm").check();
         assert(await page.locator("#start").isEnabled());
-        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.getByRole("button", { name: "活動與順位" }).click();
         await page.locator("#add").click();
         assert.equal(await page.getByRole("button", { name: "移除", exact: true }).count(), 2);
         await page.locator(".target-row").last().getByRole("button", { name: "移除", exact: true }).click();
@@ -211,9 +211,9 @@ test("順位清空：保留空列、阻擋舊設定啟動，重新填寫才能�
         assert.equal(await page.locator(".position").innerText(), "順位 1");
         await page.locator("[name=quantity]").fill("2");
         await page.locator("[name=adjacent]").check();
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         await page.locator("#confirm").check();
-        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.getByRole("button", { name: "活動與順位" }).click();
         await page.getByRole("button", { name: "清空", exact: true }).click();
         assert.equal(await page.locator(".target-row").count(), 1);
         for (const name of ["date", "time", "area"]) {
@@ -223,10 +223,10 @@ test("順位清空：保留空列、阻擋舊設定啟動，重新填寫才能�
         assert(!(await page.locator("[name=adjacent]").isChecked()));
         assert(await page.locator("[name=adjacent]").isDisabled());
         assert(!(await page.locator("#confirm").isChecked()));
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         await page.locator("#confirm").check();
         assert(await page.locator("#start").isDisabled());
-        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.getByRole("button", { name: "活動與順位" }).click();
         await page.locator("#saveActivity").click();
         await page.locator("#message").filter({ hasText: "活動設定格式錯誤" }).waitFor();
         assert(await page.locator("#step1").isVisible());
@@ -277,24 +277,24 @@ test("摘要只顯示已儲存設定；未存草稿阻擋開始，保存後更�
             "要求連位",
         ]);
         const originalSummary = await page.locator("#summary").innerText();
-        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.getByRole("button", { name: "活動與順位" }).click();
         const url = settings.eventUrl + "?spm=" + "long-tracking-value".repeat(30);
         const name = '<img src=x onerror="alert(1)">長活動名稱'.repeat(5);
         await page.locator("#eventUrl").fill(url);
         await page.locator("#eventName").fill(name);
         await page.locator("[name=quantity]").fill("3");
         await page.locator("#add").click();
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         assert.equal(await page.locator("#summary").innerText(), originalSummary);
         assert(await page.getByText("請先儲存活動設定，再確認並開始購票。", { exact: true }).isVisible());
         await page.locator("#confirm").check();
         assert(await page.locator("#start").isDisabled());
         // 補齊草稿並保存，摘要才改用新的名稱、網址與順位。
-        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.getByRole("button", { name: "活動與順位" }).click();
         await page.locator(".target-row").last().getByRole("button", { name: "移除", exact: true }).click();
         await page.locator("#saveActivity").click();
         await page.locator("#step2").waitFor();
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         const link = page.locator("#summary a");
         assert.equal(await link.getAttribute("href"), url);
         assert.equal(await link.getAttribute("target"), "_blank");
@@ -317,9 +317,9 @@ test("摘要只顯示已儲存設定；未存草稿阻擋開始，保存後更�
         await page.screenshot({ path: "/tmp/ticket-summary-mobile.png", fullPage: true });
         await page.setViewportSize({ width: 1280, height: 1000 });
         await page.screenshot({ path: "/tmp/ticket-summary-desktop.png", fullPage: true });
-        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.getByRole("button", { name: "活動與順位" }).click();
         await page.locator("#eventUrl").fill("javascript:alert(1)");
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         assert.equal(await link.getAttribute("href"), url);
         assert.doesNotMatch(await page.locator("#summary").innerText(), /javascript:alert/);
         assert(await page.locator("#start").isDisabled());
@@ -356,7 +356,7 @@ for (const version of [undefined, 2, 3]) {
 test("順位複製：插入來源下方、保留草稿且獨立編輯，儲存後順序不變", async () =>
     fixture(async (page, store, id) => {
         // 建立尾列並修改來源，確認複製使用尚未儲存的內容
-        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.getByRole("button", { name: "活動與順位" }).click();
         await page.locator("#add").click();
         const rows = page.locator(".target-row");
         const source = rows.nth(0);
@@ -366,9 +366,9 @@ test("順位複製：插入來源下方、保留草稿且獨立編輯，儲存�
         await source.locator("[name=area]").fill("黃2C");
         await source.locator("[name=quantity]").fill("2");
         await source.locator("[name=adjacent]").check();
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         await page.locator("#confirm").check();
-        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.getByRole("button", { name: "活動與順位" }).click();
         await source.getByRole("button", { name: "複製", exact: true }).click();
 
         // 核對每個欄位與插入位置，不沿用舊確認
@@ -424,7 +424,7 @@ test("順位複製：插入來源下方、保留草稿且獨立編輯，儲存�
 test("順位複製：空白草稿保持空白，單張連位限制與副本刪除正常", async () =>
     fixture(async page => {
         // 複製唯一順位，沿用單張票的連位限制
-        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.getByRole("button", { name: "活動與順位" }).click();
         await page.getByRole("button", { name: "複製", exact: true }).click();
         const rows = page.locator(".target-row");
         assert.equal(await rows.count(), 2);
@@ -440,7 +440,7 @@ test("順位複製：空白草稿保持空白，單張連位限制與副本刪�
         }
         assert(!(await rows.nth(1).locator("[name=adjacent]").isChecked()));
         assert(await rows.nth(1).locator("[name=adjacent]").isDisabled());
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         await page.locator("#confirm").check();
         assert(await page.locator("#start").isDisabled());
     }));
@@ -448,7 +448,7 @@ test("順位複製：空白草稿保持空白，單張連位限制與副本刪�
 test("套票GUI：啟用、複製、摘要、儲存重載及關閉後移除殘值", async () =>
     fixture(async (page, store, id) => {
         // 舊活動預設關閉，啟用後要求每列填寫
-        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.getByRole("button", { name: "活動與順位" }).click();
         assert(!(await page.locator("#bundleEnabled").isChecked()));
         assert(await page.locator("#deliveryMethod").isDisabled());
         assert(!(await page.locator("[name=bundle]").isVisible()));
@@ -472,7 +472,7 @@ test("套票GUI：啟用、複製、摘要、儲存重載及關閉後移除殘�
             saved.targets.map(t => t.bundle),
             ["演唱會套票 1", "演唱會套票 2"],
         );
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         assert.match(await page.locator("#summary").innerText(), /指定地點自取/);
         assert.match(await page.locator("#summary").innerText(), /演唱會套票 2/);
         await page.locator("#confirm").check();
@@ -495,7 +495,7 @@ test("套票GUI：啟用、複製、摘要、儲存重載及關閉後移除殘�
         assert.equal(disabled.bundleEnabled, undefined);
         assert(disabled.targets.every(t => t.bundle === undefined));
         assert.equal(disabled.deliveryMethod, undefined);
-        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.getByRole("button", { name: "活動與順位" }).click();
         await page.locator("#bundleEnabled").check();
         assert.equal(await page.locator("[name=bundle]").nth(0).inputValue(), "");
     }));
@@ -523,12 +523,12 @@ test("套票設定獨立區塊：舊取票值保留且阻擋儲存與啟動，�
         await page.locator("#message").filter({ hasText: "舊取票方式" }).waitFor();
         assert(await page.locator("#deliveryMethod").isDisabled());
         assert.equal(klookSettings((await store.load(id)).settings).deliveryMethod, "指定地點自取");
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         await page.locator("#confirm").check();
         assert(await page.locator("#start").isDisabled());
 
         // 清除是明確編輯，儲存前不改原檔且取消先前確認
-        await page.getByRole("button", { name: "① 活動與順位" }).click();
+        await page.getByRole("button", { name: "活動與順位" }).click();
         await page.locator("#clearLegacyDelivery").click();
         assert(!(await page.locator("#confirm").isChecked()));
         assert(!(await page.locator("#legacyDelivery").isVisible()));
@@ -536,7 +536,7 @@ test("套票設定獨立區塊：舊取票值保留且阻擋儲存與啟動，�
         await page.locator("#saveActivity").click();
         await page.locator("#step2").waitFor();
         assert.equal(klookSettings((await store.load(id)).settings).deliveryMethod, undefined);
-        await page.getByRole("button", { name: "③ 確認與開始" }).click();
+        await page.getByRole("button", { name: "確認與開始" }).click();
         assert.doesNotMatch(await page.locator("#summary").innerText(), /指定地點自取/);
     }));
 

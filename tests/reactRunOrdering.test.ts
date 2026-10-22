@@ -73,7 +73,7 @@ test("React：新 POST 早於 SSE 時立即占用；SSE 先到時晚回應不倒
             await page.goto(service.url);
             await page.locator("#selectKlook").click();
             await page.getByText("編輯活動", { exact: true }).click();
-            await page.getByRole("button", { name: "③ 確認與開始" }).click();
+            await page.getByRole("button", { name: "確認與開始" }).click();
             await page.locator("#confirm").check();
             await page.locator("#start").click();
             await page.locator("#step4").waitFor();
