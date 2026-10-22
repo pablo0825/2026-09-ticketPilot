@@ -69,7 +69,8 @@ export function TicketPlusWorkspace({
     const [confirmed, setConfirmed] = useState(false);
     const [editing, setEditing] = useState(false);
     const [step, setStep] = useState<Step>("activity");
-    const [startedRunId, setStartedRunId] = useState<string | null>(null);
+    // 在這個畫面開始，或從「查看狀態」打開的那一輪；結束後仍顯示它的結果。
+    const [followedRunId, setFollowedRunId] = useState<string | null>(null);
     const [initialized, setInitialized] = useState(false);
     const [busy, setBusy] = useState(false);
     const busyRef = useRef(false);
@@ -142,7 +143,7 @@ export function TicketPlusWorkspace({
         (runs.purchase && purchaseNeedsAttention(runs.purchase)) || runs.simulation?.status === "running",
     );
     // 執行狀態分頁只呈現這個活動目前這一輪：剛在這裡開始的，或依活動 id 對應且仍需要注意的。
-    const activityRunId = currentActivityRunId(runs.purchase, record?.id, startedRunId);
+    const activityRunId = currentActivityRunId(runs.purchase, record?.id, followedRunId);
     const displayedRun =
         runs.displayed?.kind === "purchase" && runs.displayed.run.id === activityRunId ? runs.displayed : null;
 
@@ -202,7 +203,7 @@ export function TicketPlusWorkspace({
         setConfirmed(false);
         setEditing(true);
         setStep("activity");
-        setStartedRunId(null);
+        setFollowedRunId(null);
         setMessage("");
     }
 
@@ -222,6 +223,7 @@ export function TicketPlusWorkspace({
             if (!active.current) return;
             openRecord(next);
             setStep("status");
+            if (runs.purchase?.activityId === id) setFollowedRunId(runs.purchase.id);
         });
     }
 
@@ -309,7 +311,7 @@ export function TicketPlusWorkspace({
         const result = await startPurchase(record, candidate, acceptExecutionSaved);
         if (!active.current) return;
         runs.showAccepted(result, previousId);
-        setStartedRunId(result.id);
+        setFollowedRunId(result.id);
         setStep("status");
     }
 
@@ -466,10 +468,10 @@ export function TicketPlusWorkspace({
 function currentActivityRunId(
     purchase: PurchaseSnapshot | null,
     activityId: string | undefined,
-    startedRunId: string | null,
+    followedRunId: string | null,
 ): string | undefined {
     if (purchase?.platform !== "ticketplus") return undefined;
-    if (purchase.id === startedRunId) return purchase.id;
+    if (purchase.id === followedRunId) return purchase.id;
 
     const sameActivity = activityId !== undefined && purchase.activityId === activityId;
     return sameActivity && purchaseNeedsAttention(purchase) ? purchase.id : undefined;

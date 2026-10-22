@@ -138,6 +138,10 @@ test("TicketPlus 活動列表：執行中的活動那一列顯示即時狀態與
         page.once("dialog", dialog => void dialog.accept());
         await page.getByRole("button", { name: "關閉購票瀏覽器", exact: true }).click();
         await h.until(current => !current?.occupied);
+
+        // 從「查看狀態」打開的這一輪結束後，分頁仍顯示它的結果，不會變成「尚未開始」。
+        await eventually(async () => assert.equal(await page.locator(".lock-chip").count(), 0));
+        assert.equal(await page.locator("#status").innerText(), "購票已停止");
         await page.locator("#brandHome").click();
         await page.locator("#selectTicketPlus").click();
         await eventually(async () => assert(await row.getByRole("button", { name: "編輯活動" }).isEnabled()));

@@ -19,6 +19,7 @@ export function App() {
     function showPlatforms() {
         if (runs.closing) return;
         setMessage("");
+        setRunActivityId(undefined);
         setPage("platforms");
     }
 
@@ -43,6 +44,7 @@ export function App() {
                     }}
                     onTicketPlus={() => {
                         setMessage("");
+                        setRunActivityId(undefined);
                         setPage("ticketplus");
                     }}
                     onViewRun={() => {
