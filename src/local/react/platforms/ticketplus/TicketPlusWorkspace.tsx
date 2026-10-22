@@ -183,6 +183,26 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
         setMessage("");
     }
 
+    // 開啟執行中的活動並停在執行狀態分頁；欄位仍因占用而鎖住，只能查看。
+    function openRunActivity(id: string) {
+        void action(async () => {
+            let next: TicketPlusActivityRecord;
+            try {
+                next = ticketPlusRecord(await api<unknown>("/api/activities/" + id), id);
+            } catch (error) {
+                // 活動不存在或無法載入時改看獨立的狀態頁，不留下空白的編輯頁。
+                if (!active.current) return;
+                setMessage(`無法開啟活動（${(error as Error).message}），改為顯示目前狀態。`);
+                onViewRun();
+                return;
+            }
+            if (!active.current) return;
+            openRecord(next);
+            setStep("status");
+            runs.showResult("purchase");
+        });
+    }
+
     function changeStep(next: Step) {
         if (busyRef.current || runs.closing) return;
         setStep(next);
@@ -414,7 +434,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                                       id: runningActivityId,
                                       badge: ticketPlusRunBadge(runs.purchase),
                                       viewDisabled: locked,
-                                      onView: onViewRun,
+                                      onView: () => openRunActivity(runningActivityId),
                                   }
                                 : undefined
                         }

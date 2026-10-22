@@ -116,9 +116,17 @@ test("TicketPlus 活動列表：執行中的活動那一列顯示即時狀態與
 
         // 入口已在那一列，上方不再放「查看目前狀態」。
         assert.equal(await page.getByRole("button", { name: "查看目前狀態" }).count(), 0);
+        // 「查看狀態」打開這個活動的編輯頁，停在執行狀態分頁，有麵包屑與分頁；欄位鎖住只能看。
         await row.getByRole("button", { name: "查看狀態", exact: true }).click();
-        await page.locator("#status").waitFor();
-        assert.equal(await page.locator("#status").innerText(), "請手動登入");
+        await eventually(async () => assert.equal(await page.locator("#status").innerText(), "請手動登入"));
+        assert.equal(await page.locator(".breadcrumb-current").innerText(), apiActivity.eventName);
+        assert.equal(
+            await page.getByRole("button", { name: "執行狀態", exact: true }).getAttribute("aria-current"),
+            "step",
+        );
+        await page.getByRole("button", { name: "活動與順位", exact: true }).click();
+        assert(await page.locator("#eventName").isDisabled());
+        await page.getByRole("button", { name: "執行狀態", exact: true }).click();
 
         // 停止並關閉購票瀏覽器後，那一列回到一般狀態。
         page.once("dialog", dialog => void dialog.accept());
@@ -133,6 +141,25 @@ test("TicketPlus 活動列表：執行中的活動那一列顯示即時狀態與
         assert(!(await row.evaluate(element => element.classList.contains("running-row"))));
         assert.equal(await row.locator(".status-badge").count(), 0);
         assert.equal(await page.getByRole("button", { name: "查看目前狀態" }).count(), 0);
+    });
+});
+
+test("TicketPlus 活動列表：查看狀態載入活動失敗時改看獨立狀態頁", { timeout: 30_000 }, async () => {
+    await fixture("success", async (h, page) => {
+        await start(h);
+        await page.goto(h.url);
+        await page.locator("#selectTicketPlus").click();
+        const row = page.locator("#activities tr", { hasText: apiActivity.eventName });
+        await row.locator(".status-badge").waitFor();
+
+        // 模擬讀取活動失敗：不能停在空白的編輯頁。
+        await page.route(/\/api\/activities\/[^/]+$/, route =>
+            route.fulfill({ status: 500, json: { error: "讀取失敗" } }),
+        );
+        await row.getByRole("button", { name: "查看狀態", exact: true }).click();
+        await eventually(async () => assert.equal(await page.locator("#status").innerText(), "請手動登入"));
+        assert.equal(await page.locator(".breadcrumb").count(), 0);
+        assert.match(await page.getByRole("alert").innerText(), /無法開啟活動/);
     });
 });
 
