@@ -46,30 +46,3 @@ test("非同步狀態接收端失敗也不造成未處理拒絕", async () => {
         },
     );
 });
-
-test("關閉模擬服務會停止子程序並標記中斷，不會自動續跑", async () => {
-    const { SimulationRuns } = await import("../src/local/simulationRuns.js");
-    const { randomUUID } = await import("node:crypto");
-    const runs = new SimulationRuns();
-    const activity = {
-        platform: "klook",
-        eventUrl: "https://www.klook.com/zh-TW/event-detail/test/",
-        eventName: "中斷測試",
-        fallbackMode: "STRICT",
-        excludeKeywords: [],
-        targets: [{ date: "2026-11-02", time: "19:30", area: "B區", unitPrice: 100, quantity: 1, adjacent: false }],
-    };
-    const contact = {
-        firstName: "Demo",
-        lastName: "Test",
-        regionLabel: "台灣 (+886)",
-        phone: "0912345678",
-        email: "demo@example.com",
-    };
-    const id = randomUUID();
-    const before = runs.start(id, activity, contact);
-    await runs.close();
-    assert.equal(runs.snapshot()!.status, "interrupted");
-    assert.equal(runs.start(id, activity, contact).id, before.id);
-    assert.equal(runs.snapshot()!.status, "interrupted");
-});

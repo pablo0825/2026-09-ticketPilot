@@ -12,7 +12,7 @@ export function App() {
     const [message, setMessage] = useState("");
     const [page, setPage] = useState<"platforms" | "klook" | "ticketplus" | "run">("platforms");
     const runs = useRunStatus(setMessage);
-    const platformStatus = platformRunStatus(runs.purchase, runs.simulation);
+    const platformStatus = platformRunStatus(runs.purchase);
     // 從平台首頁查看 TicketPlus 活動的執行狀態時，交給工作區開啟的活動 id。
     const [runActivityId, setRunActivityId] = useState<string>();
 
@@ -37,7 +37,7 @@ export function App() {
                     disabled={!runs.ready || runs.closing}
                     status={runs.ready ? platformStatus.label : "載入中…"}
                     canViewRun={platformStatus.kind !== null}
-                    runPlatform={platformStatus.kind === "simulation" ? "klook" : (runs.purchase?.platform ?? null)}
+                    runPlatform={runs.purchase?.platform ?? null}
                     onKlook={() => {
                         setMessage("");
                         setPage("klook");

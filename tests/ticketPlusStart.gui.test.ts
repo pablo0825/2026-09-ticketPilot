@@ -508,7 +508,7 @@ test(
                 const lock = page.locator(".breadcrumb .lock-chip");
                 const tip = lock.locator(".lock-chip-tip");
                 assert.match(await lock.innerText(), /^🔒 設定已鎖定/);
-                assert.match((await lock.textContent()) ?? "", /設定已鎖定：購票瀏覽器使用中或模擬執行中/);
+                assert.match((await lock.textContent()) ?? "", /設定已鎖定：購票瀏覽器使用中/);
                 assert(((await tip.boundingBox())?.width ?? 0) <= 1);
                 await lock.hover();
                 assert(((await tip.boundingBox())?.width ?? 0) > 100);

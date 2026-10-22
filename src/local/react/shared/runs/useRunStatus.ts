@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PurchaseSnapshot } from "../../../purchaseRuns.js";
-import type { SimulationSnapshot } from "../../../simulationRuns.js";
 import { api, localToken } from "../api.js";
 import type { StopRequestStatus } from "./runPresentation.js";
 
-export type DisplayedRun =
-    { kind: "purchase"; run: PurchaseSnapshot } | { kind: "simulation"; run: SimulationSnapshot };
+export type DisplayedRun = { kind: "purchase"; run: PurchaseSnapshot };
 
 function isRunningTicketPlus(run: PurchaseSnapshot): boolean {
     return run.platform === "ticketplus" && run.status === "running";
@@ -18,7 +16,6 @@ function replaceIfDisplayed(previous: DisplayedRun | null, next: DisplayedRun): 
 
 export function useRunStatus(showMessage: (message: string) => void) {
     const [purchase, setPurchase] = useState<PurchaseSnapshot | null>(null);
-    const [simulation, setSimulation] = useState<SimulationSnapshot | null>(null);
     const [displayed, setDisplayed] = useState<DisplayedRun | null>(null);
     const [ready, setReady] = useState(false);
     const [closing, setClosing] = useState(false);
@@ -56,13 +53,6 @@ export function useRunStatus(showMessage: (message: string) => void) {
             receivePurchase(run);
             setReady(true);
         });
-        subscribe("/api/events", (run: SimulationSnapshot | null) => {
-            setSimulation(run);
-            if (run) {
-                setDisplayed(previous => replaceIfDisplayed(previous, { kind: "simulation", run }));
-            }
-        });
-
         // 初始讀取不能覆蓋較晚收到的 SSE 快照
         const version = purchaseVersion.current;
         void api<PurchaseSnapshot | null>("/api/purchase").then(
@@ -231,14 +221,11 @@ export function useRunStatus(showMessage: (message: string) => void) {
             : undefined;
 
     function showCurrent() {
-        if (purchase?.occupied) setDisplayed({ kind: "purchase", run: purchase });
-        else if (simulation?.status === "running") setDisplayed({ kind: "simulation", run: simulation });
-        else if (purchase) setDisplayed({ kind: "purchase", run: purchase });
+        if (purchase) setDisplayed({ kind: "purchase", run: purchase });
     }
 
-    function showResult(kind: "purchase" | "simulation") {
+    function showResult(kind: "purchase") {
         if (kind === "purchase" && purchase) setDisplayed({ kind, run: purchase });
-        if (kind === "simulation" && simulation) setDisplayed({ kind, run: simulation });
     }
 
     function showAccepted(run: PurchaseSnapshot, previousId: string | undefined) {
@@ -251,7 +238,6 @@ export function useRunStatus(showMessage: (message: string) => void) {
 
     return {
         purchase,
-        simulation,
         displayed,
         ready,
         closing,

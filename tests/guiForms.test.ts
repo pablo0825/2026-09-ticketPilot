@@ -156,29 +156,29 @@ test("首頁只顯示占用或執行中的狀態，結束紀錄仍保留", async
             await page.close();
         }
         const page = await browser.newPage();
-        const simulation = { id: "simulation", status: "running", events: [], historyTruncated: false };
-        const feed = await snapshotFeed(page, "/api/events", simulation);
-        const purchaseFeed = await snapshotFeed(page, "/api/purchase/events");
-        await page.goto(service.url);
-        await page.locator("#selectKlook").click();
-        await page.locator("#viewRun").filter({ hasText: "查看模擬狀態" }).click();
-        await page.locator("#step4").waitFor();
-        feed.publish({ ...simulation, status: "completed" });
-        await page.getByText("模擬完成（未購票）", { exact: true }).waitFor();
-        purchaseFeed.publish({
-            id: "other",
+        const previous = {
+            id: "previous",
+            platform: "klook",
             status: "running",
             occupied: true,
             browserOpen: true,
-            activityName: "另一場",
+            activityName: "原活動",
             events: [],
             historyTruncated: false,
-        });
+        };
+        const purchaseFeed = await snapshotFeed(page, "/api/purchase/events", previous);
+        await page.goto(service.url);
+        await page.locator("#selectKlook").click();
+        await page.locator("#viewRun").click();
+        await page.locator("#step4").waitFor();
+        purchaseFeed.publish({ ...previous, status: "payment-ready", occupied: false, browserOpen: false });
+        await page.getByText("已到付款頁", { exact: true }).waitFor();
+        purchaseFeed.publish({ ...previous, id: "other", activityName: "另一場" });
         await eventually(async () =>
             assert.match((await page.locator("#homeRun").textContent()) ?? "", /購票流程執行中/),
         );
-        assert.match(await page.locator("#logs").innerText(), /模擬執行紀錄/);
-        assert.equal(await page.locator("#status").innerText(), "模擬完成（未購票）");
+        assert.match(await page.locator("#logs").innerText(), /原活動/);
+        assert.equal(await page.locator("#status").innerText(), "已到付款頁");
         purchaseFeed.publish(null);
         await eventually(async () => assert.equal(await page.locator("#homeRun").textContent(), ""));
         await page.locator("#homeButton").click();

@@ -266,7 +266,6 @@ test("平台列隨流程更新，僅進行中或待人工確認可查看；導�
             message: "執行中",
         };
         const purchaseFeed = await snapshotFeed(page, "/api/purchase/events", purchase);
-        const simulationFeed = await snapshotFeed(page, "/api/events");
         let writes = 0;
         page.on("request", request => {
             if (["PUT", "POST", "DELETE"].includes(request.method())) writes++;
@@ -316,15 +315,7 @@ test("平台列隨流程更新，僅進行中或待人工確認可查看；導�
             await page.locator("#brandHome").click();
         }
 
-        // 進行中的模擬優先於歷史異常，完成後不顯示模擬結果
-        const simulation = { id: "simulation", status: "running", events: [], historyTruncated: false };
-        simulationFeed.publish(simulation);
-        await eventually(async () => assert.equal(await page.locator("#platformStatus").innerText(), "模擬執行中"));
-        await page.locator("#platformViewRun").click();
-        assert.equal(await page.locator("#status").innerText(), "模擬執行中");
-        await page.locator("#brandHome").click();
         purchaseFeed.publish({ ...purchase, status: "failed", occupied: false, browserOpen: false });
-        simulationFeed.publish({ ...simulation, status: "completed" });
         await eventually(async () => assert.equal(await page.locator("#platformStatus").innerText(), "可使用"));
         assert.equal(await page.locator("#platformViewRun").count(), 0);
         assert.equal(await page.getByRole("button", { name: /最近.*結果/ }).count(), 0);

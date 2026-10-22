@@ -7,7 +7,6 @@ import { tmpdir } from "node:os";
 import { ActivityStore } from "../src/config/activityStore.js";
 import { purchaseOccupied } from "../src/app/purchaseLock.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
-import { SimulationRuns } from "../src/local/simulationRuns.js";
 import { startLocalServer } from "../src/local/server.js";
 import { activityForm } from "../src/local/react/platforms/klook/formModel.js";
 import { parseTicketPlusActivity } from "../src/config/ticketPlusActivity.js";
@@ -80,35 +79,30 @@ test("混合平台設定可存取；無效更新與跨平台覆寫保留原檔",
     }
 });
 
-test("TicketPlus 拒絕誤傳聯絡資料，模擬仍拒絕，不建立占用或請求紀錄", async () => {
+test("TicketPlus 拒絕誤傳聯絡資料，不建立占用或請求紀錄", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticketplus-start-"));
     const purchases = new PurchaseRuns(dir, new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url));
-    const simulation = new SimulationRuns();
     try {
-        // 購票拒絕不適用的聯絡資料；模擬仍不支援 TicketPlus
+        // 購票拒絕不適用的聯絡資料
         for (const details of [contact, null, {}]) {
             const id = randomUUID();
             assert.throws(() => purchases.start(id, ticketplus, details), /不接受聯絡資料/);
-            assert.throws(() => simulation.start(id, ticketplus, details), /TicketPlus.*尚未實作/);
             assert.equal(purchases.hasRequest(id), false);
-            assert.equal(simulation.hasRequest(id), false);
         }
 
         // 拒絕不能留下執行副作用
         assert.equal(purchaseOccupied(dir), false);
         assert.equal(purchases.busy(), false);
         assert.equal(purchases.snapshot(), null);
-        assert.equal(simulation.snapshot(), null);
         assert.deepEqual(await readdir(join(dir, "runs")), []);
         await assert.rejects(readFile(join(dir, "worker-starts.txt")), { code: "ENOENT" });
     } finally {
         purchases.close();
-        simulation.close();
         await rm(dir, { recursive: true, force: true });
     }
 });
 
-test("HTTP 可儲存 TicketPlus；模擬仍拒絕，購票拒絕誤傳聯絡資料", async () => {
+test("HTTP 可儲存 TicketPlus；購票拒絕誤傳聯絡資料", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticketplus-api-"));
     const runtime = join(dir, "runtime");
     const contactPath = join(dir, "contact.json");
@@ -136,31 +130,25 @@ test("HTTP 可儲存 TicketPlus；模擬仍拒絕，購票拒絕誤傳聯絡資�
         // 聯絡資料不存在或損壞都不得掩蓋平台拒絕訊息
         for (const corrupt of [false, true]) {
             if (corrupt) await writeFile(contactPath, "{broken");
-            for (const endpoint of ["purchase", "simulation"]) {
-                const input =
-                    endpoint === "purchase"
-                        ? {
-                              requestId: randomUUID(),
-                              activityId: created.id,
-                              expectedActivity: ticketplus,
-                              expectedContact: null,
-                          }
-                        : { requestId: randomUUID(), activityId: created.id };
-                const response = await fetch(service.url + "/api/" + endpoint, {
-                    method: "POST",
-                    headers,
-                    body: JSON.stringify(input),
-                });
-                assert.equal(response.status, 400);
-                const error = await response.json();
-                assert.match(error.error, endpoint === "purchase" ? /不接受聯絡資料/ : /TicketPlus.*尚未實作/);
-                assert.equal(error.notAccepted, true);
-            }
+            const input = {
+                requestId: randomUUID(),
+                activityId: created.id,
+                expectedActivity: ticketplus,
+                expectedContact: null,
+            };
+            const response = await fetch(service.url + "/api/purchase", {
+                method: "POST",
+                headers,
+                body: JSON.stringify(input),
+            });
+            assert.equal(response.status, 400);
+            const error = await response.json();
+            assert.match(error.error, /不接受聯絡資料/);
+            assert.equal(error.notAccepted, true);
         }
 
         // API 拒絕後也不留程序或購票紀錄
         assert.equal(await (await fetch(service.url + "/api/purchase", { headers })).json(), null);
-        assert.equal(await (await fetch(service.url + "/api/run", { headers })).json(), null);
         assert.equal(purchaseOccupied(runtime), false);
         assert.deepEqual(await readdir(join(runtime, "runs")), []);
         await assert.rejects(readFile(join(runtime, "worker-starts.txt")), { code: "ENOENT" });

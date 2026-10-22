@@ -83,7 +83,7 @@ export interface ActivityRecord {
 export type KlookActivityRecord = ActivityRecord & { settings: KlookActivitySettings };
 
 export function requireKlookActivity(settings: ActivitySettings): asserts settings is KlookActivitySettings {
-    if (settings.platform !== "klook") throw new Error("TicketPlus 購票與模擬流程尚未實作。");
+    if (settings.platform !== "klook") throw new Error("此設定轉換僅支援 Klook 活動。");
 }
 
 export function parseActivity(value: unknown): ActivitySettings {

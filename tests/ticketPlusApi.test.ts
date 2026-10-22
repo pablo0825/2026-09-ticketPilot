@@ -123,7 +123,7 @@ test(
     },
 );
 
-test("TicketPlus API：設定不符、誤傳contact與Klook缺資料皆在啟動前拒絕，simulation仍拒絕", async () => {
+test("TicketPlus API：設定不符、誤傳contact與Klook缺資料皆在啟動前拒絕", async () => {
     const h = await apiHarness();
     try {
         const tp = await (await h.request("/api/activities", apiActivity)).json();
@@ -137,9 +137,6 @@ test("TicketPlus API：設定不符、誤傳contact與Klook缺資料皆在啟動
             assert.equal(response.status, 400);
             assert.equal((await response.json()).notAccepted, true);
         }
-        const simulation = await h.request("/api/simulation", { requestId: randomUUID(), activityId: tp.id });
-        assert.equal(simulation.status, 400);
-        assert.match((await simulation.json()).error, /尚未實作/);
         const klook = {
             platform: "klook",
             eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",

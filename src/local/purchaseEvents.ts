@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { RunEvent } from "../core/logger.js";
 
-// 平台專用進度留在本機執行層，不改 Klook 的狀態機或模擬事件。
+// 平台專用進度留在本機執行層，不改 Klook 的狀態機。
 export const ticketPlusEventSchema = z.discriminatedUnion("stage", [
     z
         .object({

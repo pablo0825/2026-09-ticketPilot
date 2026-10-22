@@ -117,7 +117,7 @@ export function TicketPlusWorkspace({
         };
     }, [refreshList, statusKey, setMessage]);
 
-    const occupied = runs.purchase?.occupied === true || runs.simulation?.status === "running";
+    const occupied = runs.purchase?.occupied === true;
     const locked = busy || runs.closing;
     const activityTitle = record?.settings.eventName ?? "新增活動";
     const blocked = locked || !initialized || !runs.ready || occupied;
@@ -140,9 +140,7 @@ export function TicketPlusWorkspace({
     const runningActivityId =
         runs.purchase?.occupied && runs.purchase.platform === "ticketplus" ? runs.purchase.activityId : undefined;
     const runningListed = activities.some(item => item.id === runningActivityId);
-    const hasRun = Boolean(
-        (runs.purchase && purchaseNeedsAttention(runs.purchase)) || runs.simulation?.status === "running",
-    );
+    const hasRun = Boolean(runs.purchase && purchaseNeedsAttention(runs.purchase));
     // 執行狀態分頁只呈現這個活動目前這一輪：剛在這裡開始的，或依活動 id 對應且仍需要注意的。
     const activityRunId = currentActivityRunId(runs.purchase, record?.id, followedRunId);
     const displayedRun =
@@ -363,7 +361,7 @@ export function TicketPlusWorkspace({
                             { label: activityTitle },
                         ]}
                         disabled={locked}
-                        lockReason={occupied ? "購票瀏覽器使用中或模擬執行中，暫時無法變更活動設定" : undefined}
+                        lockReason={occupied ? "購票瀏覽器使用中，暫時無法變更活動設定" : undefined}
                     />
                     <StepNavigation steps={steps} currentStep={step} disabled={locked} onChange={changeStep} />
                     {step === "activity" && (
@@ -428,7 +426,7 @@ export function TicketPlusWorkspace({
                             { label: "TicketPlus" },
                         ]}
                         disabled={locked}
-                        lockReason={occupied ? "購票瀏覽器使用中或模擬執行中，暫時無法變更活動設定" : undefined}
+                        lockReason={occupied ? "購票瀏覽器使用中，暫時無法變更活動設定" : undefined}
                     />
                     {hasRun && initialized && !runningListed && (
                         <div className="mb-4 flex items-center gap-3">

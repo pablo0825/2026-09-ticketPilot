@@ -24,7 +24,7 @@ const contact = {
     email: "private@example.com",
 };
 
-test("本機 API：驗證、保存、去重、快照及模擬結束；無實站入口", async () => {
+test("本機 API：驗證、保存與移除的模擬入口不啟動程序", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-server-"));
     const service = await startLocalServer(new ActivityStore(join(dir, "events")), {
         contactPath: join(dir, "contact.json"),
@@ -43,62 +43,17 @@ test("本機 API：驗證、保存、去重、快照及模擬結束；無實站�
         const created = await (
             await fetch(service.url + "/api/activities", { method: "POST", headers, body: JSON.stringify(activity) })
         ).json();
-        const input = { requestId: randomUUID(), activityId: created.id, contact };
-        const start = () =>
-            fetch(service.url + "/api/simulation", { method: "POST", headers, body: JSON.stringify(input) });
-        assert.equal(
-            (
-                await fetch(service.url + "/api/simulation", {
-                    method: "POST",
-                    headers,
-                    body: JSON.stringify({ ...input, contact: {} }),
-                })
-            ).status,
-            400,
-        );
-        assert.equal(await (await fetch(service.url + "/api/run", { headers })).json(), null);
-        const run = await (await start()).json();
-        assert.equal(run.status, "running");
-        assert.equal((await (await start()).json()).id, run.id);
-        assert.equal(
-            (
-                await fetch(service.url + "/api/simulation", {
-                    method: "POST",
-                    headers,
-                    body: JSON.stringify({ ...input, requestId: randomUUID() }),
-                })
-            ).status,
-            400,
-        );
-        await fetch(service.url + `/api/activities/${created.id}`, {
-            method: "PUT",
-            headers,
-            body: JSON.stringify({ ...activity, targets: [{ ...activity.targets[0], area: "C區" }] }),
-        });
-        let current = run;
-        for (let n = 0; n < 100 && current.status === "running"; n++) {
-            await new Promise(resolve => setTimeout(resolve, 50));
-            current = await (await fetch(service.url + "/api/run", { headers })).json();
+        assert(created.id);
+        for (const [method, path] of [
+            ["POST", "/api/simulation"],
+            ["GET", "/api/run"],
+            ["GET", "/api/events"],
+        ]) {
+            const response = await fetch(service.url + path, { method, headers });
+            assert.equal(response.status, 404);
         }
-        assert.equal(current.status, "completed");
-        assert.match(JSON.stringify(current), /B區/);
-        assert.doesNotMatch(JSON.stringify(current), /PrivateName|private@example.com|0912345678|C區/);
-        assert.equal((await fetch(service.url + "/api/live", { method: "POST", headers })).status, 404);
-        assert.equal(
-            (
-                await fetch(service.url + "/api/simulation", {
-                    method: "POST",
-                    headers,
-                    body: JSON.stringify({ ...input, mode: "live" }),
-                })
-            ).status,
-            400,
-        );
-        const stream = await fetch(service.url + `/api/events?token=${token}`);
-        const reader = stream.body!.getReader();
-        const first = new TextDecoder().decode((await reader.read()).value);
-        assert.match(first, new RegExp(run.id));
-        await reader.cancel();
+        assert.equal(await (await fetch(service.url + "/api/purchase", { headers })).json(), null);
+        await assert.rejects(readFile(join(dir, "runtime", "purchase.lock")), { code: "ENOENT" });
     } finally {
         await service.close();
         await rm(dir, { recursive: true, force: true });

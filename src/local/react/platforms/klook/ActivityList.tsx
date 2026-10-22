@@ -6,7 +6,6 @@ export type ActivityListEntry = KlookActivityRecord & { executionStatus: Activit
 interface Props {
     activities: ActivityListEntry[];
     homeStatus: string;
-    isSimulation: boolean;
     locked: boolean;
     blocked: boolean;
     onNew: () => void;
@@ -15,17 +14,7 @@ interface Props {
     onRemove: (activity: ActivityListEntry) => void;
 }
 
-export function ActivityList({
-    activities,
-    homeStatus,
-    isSimulation,
-    locked,
-    blocked,
-    onNew,
-    onViewRun,
-    onLoad,
-    onRemove,
-}: Props) {
+export function ActivityList({ activities, homeStatus, locked, blocked, onNew, onViewRun, onLoad, onRemove }: Props) {
     return (
         <div className="card">
             <div className="section-title">
@@ -38,7 +27,7 @@ export function ActivityList({
                 {homeStatus}
             </p>
             <button id="viewRun" className="secondary" hidden={!homeStatus} disabled={locked} onClick={onViewRun}>
-                {isSimulation ? "查看模擬狀態" : "查看目前狀態"}
+                查看目前狀態
             </button>
             <p id="emptyActivities" hidden={activities.length > 0}>
                 尚未儲存活動，請新增活動。

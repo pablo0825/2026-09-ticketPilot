@@ -34,7 +34,7 @@ test("階段分流：保留無事件回退、平台隔離與最近階段優先",
     for (const stage of ["starting", "selecting-session", "selecting-tickets"] as const) {
         const run = snapshot([{ type: "ticketplus", stage: "queue" }, { type: "ticketplus", stage }, state]);
         assert.deepEqual(purchaseStatus(run, false, now), general);
-        assert.deepEqual(platformRunStatus(run, null), { label: "購票進行中", kind: "purchase" });
+        assert.deepEqual(platformRunStatus(run), { label: "購票進行中", kind: "purchase" });
     }
 
     // 其他平台忽略 TicketPlus 事件，未知階段保留一般提示。

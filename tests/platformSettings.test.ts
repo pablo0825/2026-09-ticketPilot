@@ -7,7 +7,6 @@ import { tmpdir } from "node:os";
 import { ActivityStore, parseActivity, toPurchaseConfig } from "../src/config/activityStore.js";
 import { activityForm, activityInput, needsActivitySave } from "../src/local/react/platforms/klook/formModel.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
-import { SimulationRuns } from "../src/local/simulationRuns.js";
 
 const legacySettings = {
     eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
@@ -139,10 +138,9 @@ test("僅 v1 讀檔能補平台；其他版本、缺平台與假冒平台嚴格�
     });
 });
 
-test("錯誤平台在 worker 與占用之前拒絕，模擬亦不得啟動", async () => {
+test("錯誤平台在 worker 與占用之前拒絕", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-platform-start-"));
     const runs = new PurchaseRuns(dir, new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url));
-    const simulation = new SimulationRuns();
     try {
         for (const input of [
             legacySettings,
@@ -150,16 +148,13 @@ test("錯誤平台在 worker 與占用之前拒絕，模擬亦不得啟動", asy
             { ...current, eventUrl: "https://ticketplus.com.tw/" },
         ]) {
             assert.throws(() => runs.start(randomUUID(), input, contact));
-            assert.throws(() => simulation.start(randomUUID(), input, contact));
             assert.equal(runs.busy(), false);
             assert.equal(runs.snapshot(), null);
-            assert.equal(simulation.snapshot(), null);
         }
         assert.deepEqual(await readdir(join(dir, "runs")), []);
         await assert.rejects(readFile(join(dir, "worker-starts.txt")), { code: "ENOENT" });
     } finally {
         runs.close();
-        simulation.close();
         await rm(dir, { recursive: true, force: true });
     }
 });

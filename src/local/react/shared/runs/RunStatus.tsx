@@ -62,12 +62,6 @@ export function RunStatus({
                 : "") +
             (run.status !== "running" && run.message ? `執行結果：${run.message}\n` : "") +
             eventLogs(run.events, run.historyTruncated);
-    } else if (displayed?.kind === "simulation") {
-        const run = displayed.run;
-        title =
-            run.status === "running" ? "模擬執行中" : run.status === "completed" ? "模擬完成（未購票）" : "模擬中斷";
-        instruction = "模擬不連線網站、不建立訂單。";
-        logs = "模擬執行紀錄（不購票）\n" + eventLogs(run.events, run.historyTruncated);
     }
 
     useEffect(() => {

@@ -84,9 +84,8 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
     }, [refreshList, statusSignature, setMessage]);
 
     const occupied = runs.purchase?.occupied === true;
-    const simulationRunning = runs.simulation?.status === "running";
     const locked = busy || runs.closing || !initialized || !runs.ready;
-    const blocked = locked || occupied || simulationRunning;
+    const blocked = locked || occupied;
     const legacy = !form.bundleEnabled && Boolean(form.deliveryMethod.trim());
     const needsSave = needsActivitySave(form, record?.settings ?? null);
 
@@ -209,7 +208,7 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
                 : runs.purchase?.status === "running"
                   ? "購票流程執行中，不能開始另一輪或刪除活動。"
                   : "購票程序或瀏覽器仍占用中，請查看目前狀態並人工檢查。";
-    } else if (simulationRunning) homeStatus = "模擬執行中，不會實際購票。";
+    }
 
     return (
         <>
@@ -237,7 +236,6 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
                 <ActivityList
                     activities={activities}
                     homeStatus={homeStatus}
-                    isSimulation={!occupied && simulationRunning}
                     locked={locked}
                     blocked={blocked}
                     onNew={() => loadRecord(null)}

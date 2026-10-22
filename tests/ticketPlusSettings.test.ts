@@ -158,7 +158,7 @@ test("合法 TicketPlus 設定可解析，但不能轉成 Klook 購票設定", (
     const input = validActivity();
     assert.equal(parseTicketPlusActivity(input).platform, "ticketplus");
     assert.deepEqual(parseActivity(input), parseTicketPlusActivity(input));
-    assert.throws(() => toPurchaseConfig(parseActivity(input)), /尚未實作/);
+    assert.throws(() => toPurchaseConfig(parseActivity(input)), /此設定轉換僅支援 Klook/);
 });
 
 test("TicketPlus 流程類型：舊設定視為購票，抽選可解析，未知值拒絕", () => {

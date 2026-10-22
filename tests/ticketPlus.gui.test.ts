@@ -64,9 +64,7 @@ async function fixture(work: (h: Harness) => Promise<void>) {
             !requests.some(
                 request =>
                     request.method === "POST" &&
-                    ["/api/purchase", "/api/simulation", "/api/purchase/confirm-login", "/api/purchase/stop"].includes(
-                        request.path,
-                    ),
+                    ["/api/purchase", "/api/purchase/confirm-login", "/api/purchase/stop"].includes(request.path),
             ),
         );
     } finally {

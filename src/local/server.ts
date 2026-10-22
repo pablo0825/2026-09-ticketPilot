@@ -1,13 +1,12 @@
 import { PurchaseRuns } from "./purchaseRuns.js";
 import { loadContactDetails, saveContactDetails, validateContactDetails } from "../config/contact.config.js";
-import { requireKlookActivity, parseActivity, projectRoot } from "../config/activityStore.js";
+import { parseActivity, projectRoot } from "../config/activityStore.js";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { ActivityStore } from "../config/activityStore.js";
-import { SimulationRuns } from "./simulationRuns.js";
 
 async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
     // 讀取請求內容，限制大小
@@ -40,7 +39,6 @@ export async function startLocalServer(
     const contactPath = options.contactPath ?? join(projectRoot, "contact.local.json");
     const purchases = new PurchaseRuns(options.runDirectory, options.purchaseWorker);
     const token = randomBytes(32).toString("hex");
-    const runs = new SimulationRuns();
 
     const streams = new Set<ServerResponse>();
     let origin = "";
@@ -105,9 +103,7 @@ export async function startLocalServer(
             // EventSource 不能設定自訂 header，訂閱 token 只用於本機短期連線。
             const supplied =
                 request.headers["x-local-token"] ??
-                (["/api/events", "/api/purchase/events"].includes(url.pathname)
-                    ? url.searchParams.get("token")
-                    : undefined);
+                (url.pathname === "/api/purchase/events" ? url.searchParams.get("token") : undefined);
             if (supplied !== token) {
                 json(response, 403, { error: "本機工作階段無效。" });
                 return;
@@ -123,8 +119,7 @@ export async function startLocalServer(
             }
 
             // 以下依網址處理各個 API
-            if (request.method === "GET" && ["/api/events", "/api/purchase/events"].includes(url.pathname)) {
-                const manager = url.pathname === "/api/events" ? runs : purchases;
+            if (request.method === "GET" && url.pathname === "/api/purchase/events") {
                 response.writeHead(200, {
                     "Content-Type": "text/event-stream",
                     "Cache-Control": "no-store",
@@ -132,10 +127,10 @@ export async function startLocalServer(
                 });
 
                 streams.add(response);
-                const send = () => response.write(`data: ${JSON.stringify(manager.snapshot())}\n\n`);
+                const send = () => response.write(`data: ${JSON.stringify(purchases.snapshot())}\n\n`);
                 send();
 
-                const unsubscribe = manager.subscribe(send);
+                const unsubscribe = purchases.subscribe(send);
                 const heartbeat = setInterval(() => response.write(": keepalive\n\n"), 15_000);
                 response.on("close", () => {
                     clearInterval(heartbeat);
@@ -242,8 +237,6 @@ export async function startLocalServer(
                     throw new Error("TicketPlus 本階段不接受聯絡資料。");
                 }
 
-                // 沒有模擬在執行，才開始購票
-                if (runs.snapshot()?.status === "running") throw new Error("請先等待模擬結束。");
                 json(response, 200, purchases.start(input.requestId, activity.settings, contact, activity.id));
                 return;
             }
@@ -263,7 +256,7 @@ export async function startLocalServer(
             const match = /^\/api\/activities\/([^/]+)$/.exec(url.pathname);
 
             if (request.method === "DELETE" && match) {
-                if (purchases.busy() || runs.snapshot()?.status === "running") {
+                if (purchases.busy()) {
                     throw new Error("執行或瀏覽器占用中，不能刪除活動。");
                 }
                 await store.remove(match[1]!);
@@ -291,33 +284,9 @@ export async function startLocalServer(
                 return;
             }
 
-            if (request.method === "GET" && url.pathname === "/api/run") {
-                json(response, 200, runs.snapshot());
-                return;
-            }
-
-            if (request.method === "POST" && url.pathname === "/api/simulation") {
-                const input = await body(request);
-                if (
-                    Object.keys(input).some(key => !["requestId", "activityId", "contact"].includes(key)) ||
-                    typeof input.requestId !== "string" ||
-                    typeof input.activityId !== "string"
-                ) {
-                    throw new Error("模擬請求格式錯誤。");
-                }
-                const requestId = input.requestId;
-                notAccepted = () => !runs.hasRequest(requestId);
-
-                const activity = await store.load(input.activityId);
-                requireKlookActivity(activity.settings);
-                if (purchases.busy()) throw new Error("購票流程仍占用瀏覽器。");
-                json(response, 200, runs.start(input.requestId, activity.settings, input.contact));
-                return;
-            }
-
             json(response, 404, { error: "找不到此功能。" });
         } catch (error) {
-            // 設定/模擬只回傳固定驗證訊息；檔案系統細節不輸出。
+            // 設定與購票只回傳固定驗證訊息；檔案系統細節不輸出。
             const message = error instanceof Error && !("code" in error) ? error.message : "本機資料處理失敗。";
             if (!response.headersSent) json(response, 400, { error: message, notAccepted: notAccepted?.() });
             else response.end();
@@ -345,7 +314,6 @@ export async function startLocalServer(
         async close() {
             purchases.close();
             for (const stream of streams) stream.end();
-            await runs.close();
             await new Promise<void>((resolve, reject) => server.close(error => (error ? reject(error) : resolve())));
         },
     };
