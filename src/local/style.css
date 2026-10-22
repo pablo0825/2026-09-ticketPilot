@@ -651,6 +651,15 @@ button.danger {
         transform: rotate(360deg);
     }
 }
+/* 標籤與提示框之間的透明橋接，滑鼠移向提示框時不會中途消失。 */
+.lock-chip:hover .lock-chip-tip::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    height: 8px;
+}
 /* 窄螢幕時標籤可能在最右邊，提示框改成對齊整行麵包屑，避免超出畫面。 */
 @media (max-width: 760px) {
     .lock-chip {

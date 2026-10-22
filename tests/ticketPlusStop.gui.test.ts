@@ -62,7 +62,7 @@ test("TicketPlus 活動列表：執行中的活動那一列顯示即時狀態與
         // 那一列標出來，狀態跟著執行進度顯示，按鈕換成「查看狀態」。
         const row = page.locator("#activities tr", { hasText: apiActivity.eventName });
         await row.locator(".status-badge", { hasText: "等待你" }).waitFor();
-        assert.equal(await row.getAttribute("class"), "running-row");
+        assert(await row.evaluate(element => element.classList.contains("running-row")));
         assert.equal(await row.getByRole("button", { name: "編輯活動" }).count(), 0);
         assert(await row.getByRole("button", { name: "刪除", exact: true }).isDisabled());
         assert(await page.locator("#new").isDisabled());
@@ -72,6 +72,20 @@ test("TicketPlus 活動列表：執行中的活動那一列顯示即時狀態與
         await row.getByRole("button", { name: "查看狀態", exact: true }).click();
         await page.locator("#status").waitFor();
         assert.equal(await page.locator("#status").innerText(), "請手動登入");
+
+        // 停止並關閉購票瀏覽器後，那一列回到一般狀態。
+        page.once("dialog", dialog => void dialog.accept());
+        await page.getByRole("button", { name: stopLabel, exact: true }).click();
+        await h.until(current => current?.status === "failed");
+        page.once("dialog", dialog => void dialog.accept());
+        await page.getByRole("button", { name: "關閉購票瀏覽器", exact: true }).click();
+        await h.until(current => !current?.occupied);
+        await page.locator("#brandHome").click();
+        await page.locator("#selectTicketPlus").click();
+        await eventually(async () => assert(await row.getByRole("button", { name: "編輯活動" }).isEnabled()));
+        assert(!(await row.evaluate(element => element.classList.contains("running-row"))));
+        assert.equal(await row.locator(".status-badge").count(), 0);
+        assert.equal(await page.getByRole("button", { name: "查看目前狀態" }).count(), 0);
     });
 });
 

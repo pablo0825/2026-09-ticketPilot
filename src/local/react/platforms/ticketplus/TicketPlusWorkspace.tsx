@@ -303,7 +303,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                     <Breadcrumb
                         activityTitle={activityTitle}
                         disabled={locked}
-                        locked={occupied}
+                        showLockChip={occupied}
                         onPlatforms={() => leave("platforms")}
                         onList={() => leave("list")}
                     />
@@ -380,11 +380,11 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                 <>
                     <Breadcrumb
                         disabled={locked}
-                        locked={occupied}
+                        showLockChip={occupied}
                         onPlatforms={() => leave("platforms")}
                         onList={() => leave("list")}
                     />
-                    {hasRun && !runningListed && (
+                    {hasRun && initialized && !runningListed && (
                         <div className="section-title">
                             <button className="secondary" disabled={locked} onClick={onViewRun}>
                                 查看目前狀態

@@ -37,15 +37,15 @@ export function ActivityList({ activities, disabled, mutationsDisabled, onNew, o
                     </thead>
                     <tbody id="activities">
                         {activities.map(item => {
-                            const isRunning = item.id === running?.id;
+                            const runningItem = running?.id === item.id ? running : undefined;
                             return (
-                                <tr key={item.id} className={isRunning ? "running-row" : undefined}>
+                                <tr key={item.id} className={runningItem ? "running-row" : undefined}>
                                     <td>{item.settings.eventName}</td>
                                     <td>{ticketPlusFlowType(item.settings) === "lottery" ? "登記抽選" : "購票"}</td>
-                                    {running && isRunning ? (
+                                    {runningItem ? (
                                         <td>
-                                            <span className={`status-badge ${running.badge.tone}`}>
-                                                {running.badge.text}
+                                            <span className={`status-badge ${runningItem.badge.tone}`}>
+                                                {runningItem.badge.text}
                                             </span>
                                         </td>
                                     ) : (
@@ -60,8 +60,8 @@ export function ActivityList({ activities, disabled, mutationsDisabled, onNew, o
                                         </td>
                                     )}
                                     <td>
-                                        {running && isRunning ? (
-                                            <button disabled={running.viewDisabled} onClick={running.onView}>
+                                        {runningItem ? (
+                                            <button disabled={runningItem.viewDisabled} onClick={runningItem.onView}>
                                                 查看狀態
                                             </button>
                                         ) : (

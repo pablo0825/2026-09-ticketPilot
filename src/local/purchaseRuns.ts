@@ -66,6 +66,11 @@ function settingsHash(settings: ActivitySettings): string {
         .digest("hex");
 }
 
+// 活動 id 只存在紀錄的活動資料，交給畫面時才帶入快照。
+function withActivityId(record: Record, snapshot: PurchaseSnapshot): PurchaseSnapshot {
+    return record.activity ? { ...snapshot, activityId: record.activity.id } : snapshot;
+}
+
 export class PurchaseRuns {
     private current?: Record;
     private latestByActivity = new Map<string, Record>();
@@ -218,8 +223,7 @@ export class PurchaseRuns {
         if (!this.current) return null;
 
         return {
-            ...structuredClone(this.current.snapshot),
-            ...(this.current.activity ? { activityId: this.current.activity.id } : {}),
+            ...withActivityId(this.current, structuredClone(this.current.snapshot)),
             occupied: purchaseOccupied(this.root) || !!this.child,
             canStop: this.stopAvailable(),
             stopRequest: this.stopRequest?.record === this.current ? { status: this.stopRequest.status } : undefined,
@@ -413,8 +417,7 @@ export class PurchaseRuns {
         return previous.snapshot.id === current?.id
             ? current
             : {
-                  ...previous.snapshot,
-                  ...(previous.activity ? { activityId: previous.activity.id } : {}),
+                  ...withActivityId(previous, previous.snapshot),
                   occupied: this.busy(),
                   canCloseBrowser: false,
               };
@@ -473,7 +476,7 @@ export class PurchaseRuns {
             this.current === record
                 ? this.snapshot()!
                 : {
-                      ...structuredClone(record.snapshot),
+                      ...withActivityId(record, structuredClone(record.snapshot)),
                       occupied: this.busy(),
                       canStop: false,
                       canCloseBrowser: false,
