@@ -23,7 +23,7 @@ export function ActivityListPage({ activities, disabled, mutationsDisabled, onNe
                 <h2 className="pl-3 text-lg font-semibold text-blue-900">活動列表</h2>
                 <button
                     id="new"
-                    className={`${primaryButton} group relative text-xl leading-none`}
+                    className={`${primaryButton} group relative inline-flex size-10 shrink-0 items-center justify-center p-0! text-xl leading-none`}
                     aria-label="新增活動"
                     disabled={disabled || mutationsDisabled}
                     onClick={onNew}
