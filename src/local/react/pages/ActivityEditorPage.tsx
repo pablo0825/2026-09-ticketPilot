@@ -175,7 +175,6 @@ export function ActivityEditorPage(props: Props) {
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 className="text-xl font-semibold">購票順位</h2>
-                    {isKlook && <p>由上往下嘗試，只接受你指定的目標。</p>}
                 </div>
                 <button type="button" id="add" className={secondaryButton} disabled={disabled} onClick={addTarget}>
                     新增順位
@@ -191,6 +190,8 @@ export function ActivityEditorPage(props: Props) {
                               index={index}
                               disabled={disabled}
                               only={props.form.targets.length === 1}
+                              first={index === 0}
+                              last={index === props.form.targets.length - 1}
                               bundleEnabled={props.form.bundleEnabled}
                               onChange={patch =>
                                   props.onChange({
