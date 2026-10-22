@@ -54,7 +54,7 @@ test("GUI 每活動保存勾選、摘要顯示、重開與新增不沿用其他�
         const page = await browser.newPage();
         await page.goto(service.url);
         await page.locator("#selectKlook").click();
-        await page.locator("#activities tr").filter({ hasText: settings.eventName }).getByText("使用活動").click();
+        await page.locator("#activities tr").filter({ hasText: settings.eventName }).getByText("編輯活動").click();
         await page.locator("#step1").waitFor({ state: "visible" });
         assert.equal(await page.locator("#queueEnabled").isChecked(), false);
         await page.locator("#queueEnabled").check();
@@ -66,12 +66,12 @@ test("GUI 每活動保存勾選、摘要顯示、重開與新增不沿用其他�
         assert.match((await page.locator("#summary").textContent()) ?? "", /排隊流程.*已啟用/);
         await page.reload();
         await page.locator("#selectKlook").click();
-        await page.locator("#activities tr").filter({ hasText: settings.eventName }).getByText("使用活動").click();
+        await page.locator("#activities tr").filter({ hasText: settings.eventName }).getByText("編輯活動").click();
         await page.locator("#step1").waitFor({ state: "visible" });
         assert.equal(await page.locator("#queueEnabled").isChecked(), true);
         assert.equal(klookSettings((await store.load(original.id)).settings).queueEnabled, true);
         await page.locator("#homeButton").click();
-        await page.locator("#activities tr").filter({ hasText: "另一場活動" }).getByText("使用活動").click();
+        await page.locator("#activities tr").filter({ hasText: "另一場活動" }).getByText("編輯活動").click();
         await page.locator("#step1").waitFor({ state: "visible" });
         assert.equal(await page.locator("#queueEnabled").isChecked(), false);
         await page.locator("#homeButton").click();

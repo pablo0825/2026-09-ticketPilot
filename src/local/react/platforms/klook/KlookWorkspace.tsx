@@ -1,5 +1,5 @@
 import { AppHeader } from "../../shared/navigation/AppHeader.js";
-import { ActivityList, type ActivityListEntry } from "./ActivityList.js";
+import { ActivityListPage } from "../../pages/ActivityListPage.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityRecord, KlookActivityRecord } from "../../../../config/activityStore.js";
 import type { ContactDetails } from "../../../../config/contact.config.js";
@@ -13,6 +13,8 @@ import { PurchaseSummary } from "./PurchaseSummary.js";
 import { RunStatus } from "../../shared/runs/RunStatus.js";
 import type { useRunStatus } from "../../shared/runs/useRunStatus.js";
 import { startPurchase } from "./startPurchase.js";
+
+type ActivityListEntry = KlookActivityRecord & { executionStatus: ActivityExecutionStatus };
 
 interface ActivityListData {
     activities: (ActivityRecord & { executionStatus: ActivityExecutionStatus })[];
@@ -233,20 +235,29 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
                 {message}
             </div>
             <section id="home" hidden={step !== 0}>
-                <ActivityList
-                    activities={activities}
-                    homeStatus={homeStatus}
-                    locked={locked}
-                    blocked={blocked}
+                <ActivityListPage
+                    activities={activities.map(item => ({
+                        id: item.id,
+                        eventName: item.settings.eventName,
+                        executionStatus: item.executionStatus,
+                    }))}
+                    disabled={blocked}
+                    mutationsDisabled={false}
                     onNew={() => loadRecord(null)}
-                    onViewRun={() => {
-                        runs.showCurrent();
-                        setStep(4);
+                    currentRun={{
+                        message: homeStatus,
+                        disabled: locked,
+                        onView: () => {
+                            runs.showCurrent();
+                            setStep(4);
+                        },
                     }}
                     onLoad={id =>
                         void action(async () => loadRecord(await api<ActivityRecord>("/api/activities/" + id)))
                     }
-                    onRemove={item => {
+                    onRemove={id => {
+                        const item = activities.find(item => item.id === id);
+                        if (!item) return;
                         if (
                             window.confirm(`刪除「${item.settings.eventName}」的活動設定？聯絡資料及執行紀錄會保留。`)
                         ) {

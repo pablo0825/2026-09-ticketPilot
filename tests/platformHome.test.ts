@@ -54,7 +54,7 @@ async function fixture(
 
 async function openEditor(page: Page) {
     await page.locator("#selectKlook").click();
-    await page.locator("#activities").getByText("使用活動").click();
+    await page.locator("#activities").getByText("編輯活動").click();
     await page.locator("#step1").waitFor();
 }
 
@@ -393,13 +393,13 @@ test("Klook 清單略過 TicketPlus，載入回應若變成其他平台也不能
         });
         await page.goto(url);
         await page.locator("#selectKlook").click();
-        await page.locator("#activities").getByText("使用活動").waitFor();
+        await page.locator("#activities").getByText("編輯活動").waitFor();
         assert.equal(await page.locator("#activities tr").count(), 1);
         assert.equal(await page.locator("#activities").getByText(ticketplus.settings.eventName).count(), 0);
 
         // 清單篩選不能代替讀取單筆時的平台驗證
         await page.route("**/api/activities/" + id, route => route.fulfill({ json: ticketplus }));
-        await page.locator("#activities").getByText("使用活動").click();
+        await page.locator("#activities").getByText("編輯活動").click();
         await eventually(async () => {
             assert.match(await page.locator("#message").innerText(), /僅支援 Klook/);
         });

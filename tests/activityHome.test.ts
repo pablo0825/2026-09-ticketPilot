@@ -17,7 +17,7 @@ const settings = {
     targets: [{ date: "2026-11-02", time: "19:30", area: "B區", unitPrice: 5280, quantity: 1, adjacent: false }],
 };
 
-test("首頁場次摘要、未存離開、同名刪除及API占用與並發保護", async () => {
+test("首頁三欄列表、未存離開、同名刪除及API占用與並發保護", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-home-"));
     const store = new ActivityStore(join(dir, "events"));
     const a = await store.save({
@@ -39,9 +39,12 @@ test("首頁場次摘要、未存離開、同名刪除及API占用與並發保�
         await page.locator("#selectKlook").click();
         await page.locator("#activities tr").nth(1).waitFor();
         await page.screenshot({ path: "/tmp/activity-home.png", fullPage: true });
-        assert.equal(await page.locator("#activities tr").filter({ hasText: "2026-11-02" }).count(), 1);
-        assert.equal(await page.locator("#activities tr").filter({ hasText: "多個場次" }).count(), 1);
-        await page.locator("#activities tr").filter({ hasText: "2026-11-02" }).getByText("使用活動").click();
+        assert.deepEqual(await page.locator("#home").getByRole("columnheader").allTextContents(), [
+            "活動名稱",
+            "執行狀態",
+            "操作",
+        ]);
+        await page.locator(`[data-activity-id="${a.id}"]`).getByText("編輯活動").click();
         await page.locator("#step1").waitFor();
         assert.equal(await page.locator("[name=area]").first().inputValue(), "B區");
         await page.locator("[name=area]").first().fill("D區");
@@ -52,7 +55,7 @@ test("首頁場次摘要、未存離開、同名刪除及API占用與並發保�
         await page.locator("#homeButton").click();
         await page.locator("#home").waitFor();
         assert.equal(klookSettings((await store.load(a.id)).settings).targets[0]!.area, "B區");
-        const multi = page.locator("#activities tr").filter({ hasText: "多個場次" });
+        const multi = page.locator(`[data-activity-id="${b.id}"]`);
         page.once("dialog", dialog => dialog.dismiss());
         await multi.getByText("刪除", { exact: true }).click();
         assert.equal((await store.list()).activities.length, 2);

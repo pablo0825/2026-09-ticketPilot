@@ -10,7 +10,6 @@ import { ActivityListPage } from "../../pages/ActivityListPage.js";
 import { Breadcrumbs } from "../../shared/navigation/Breadcrumbs.js";
 import { StepNavigation } from "../../shared/navigation/StepNavigation.js";
 import { ticketPlusRunBadge } from "../../shared/runs/ticketPlusSteps.js";
-import type { ActivityListEntry } from "../../pages/ActivityListPage.js";
 import { ActivityEditorPage } from "../../pages/ActivityEditorPage.js";
 import {
     activityForm,
@@ -26,6 +25,8 @@ import type { TicketPlusActivityRecord, ExecutionForm, ExecutionErrors } from ".
 import { ticketPlusSessionSelection } from "../../../../config/ticketPlusActivity.js";
 import { PurchaseConfirmPage } from "../../pages/PurchaseConfirmPage.js";
 import { findPendingStart, hasPendingStart, startPurchase } from "./startPurchase.js";
+
+type ActivityListEntry = TicketPlusActivityRecord & { executionStatus: ActivityExecutionStatus | "待重新載入" };
 
 interface Props {
     message: string;
@@ -436,7 +437,11 @@ export function TicketPlusWorkspace({
                         </div>
                     )}
                     <ActivityListPage
-                        activities={activities}
+                        activities={activities.map(item => ({
+                            id: item.id,
+                            eventName: item.settings.eventName,
+                            executionStatus: item.executionStatus,
+                        }))}
                         disabled={blocked}
                         mutationsDisabled={pendingStart}
                         onNew={() => {
@@ -449,7 +454,10 @@ export function TicketPlusWorkspace({
                                 if (active.current) openRecord(next);
                             })
                         }
-                        onRemove={item => void action(() => remove(item))}
+                        onRemove={id => {
+                            const item = activities.find(item => item.id === id);
+                            if (item) void action(() => remove(item));
+                        }}
                         running={
                             runs.purchase && runningActivityId && runningListed
                                 ? {

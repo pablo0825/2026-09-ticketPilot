@@ -65,7 +65,7 @@ test("完整GUI：設定保存、個資未存阻擋、真實fixture與重連保�
         assert.equal(await page.getByRole("button", { name: "模擬執行（不購票）" }).count(), 0);
         await page.locator("#homeButton").click();
         await page.locator("#activities .activity-status").filter({ hasText: "尚無執行紀錄" }).waitFor();
-        await page.locator("#activities").getByText("使用活動").click();
+        await page.locator("#activities").getByText("編輯活動").click();
         await page.locator("#step1").waitFor();
         await page.getByRole("button", { name: "③ 確認與開始" }).click();
         const original = (await store.list()).activities[0]!;
@@ -333,7 +333,7 @@ test("舊價格活動可載入，無金額表單仍可保存、摘要及重載",
         page.on("pageerror", error => errors.push(error.message));
         await page.goto(service.url);
         await page.locator("#selectKlook").click();
-        await page.getByText("使用活動", { exact: true }).click();
+        await page.getByText("編輯活動", { exact: true }).click();
         await page.locator("#step1").waitFor({ state: "visible" });
         assert.equal(await page.locator("#currency, [name=unitPrice]").count(), 0);
         await page.getByRole("button", { name: "下一步" }).click();
@@ -355,7 +355,7 @@ test("舊價格活動可載入，無金額表單仍可保存、摘要及重載",
         // 重載活動無價格欄位，也沒有模組載入錯誤
         await page.reload();
         await page.locator("#selectKlook").click();
-        await page.getByText("使用活動", { exact: true }).click();
+        await page.getByText("編輯活動", { exact: true }).click();
         await page.locator("#step1").waitFor({ state: "visible" });
         assert.equal(await page.locator("#currency, [name=unitPrice]").count(), 0);
         assert.deepEqual(errors, []);

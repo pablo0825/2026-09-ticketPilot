@@ -1,21 +1,38 @@
 import { primaryButton, secondaryButton, panelHeading, badgeColors } from "../shared/styles.js";
-import type { TicketPlusActivityRecord } from "../platforms/ticketplus/formModel.js";
 import type { ActivityExecutionStatus } from "../../purchaseRuns.js";
-import type { TicketPlusStepsView } from "../shared/runs/ticketPlusSteps.js";
 
-export type ActivityListEntry = TicketPlusActivityRecord & { executionStatus: ActivityExecutionStatus | "待重新載入" };
+export interface ActivityListEntry {
+    id: string;
+    eventName: string;
+    executionStatus: ActivityExecutionStatus | "待重新載入";
+}
 interface Props {
     activities: ActivityListEntry[];
     disabled: boolean;
     mutationsDisabled: boolean;
     onNew: () => void;
     onLoad: (id: string) => void;
-    onRemove: (item: ActivityListEntry) => void;
+    onRemove: (id: string) => void;
+    currentRun?: { message: string; disabled: boolean; onView: () => void };
     // 正在使用購票瀏覽器的活動；這一列顯示即時狀態與查看狀態按鈕。
-    running?: { id: string; badge: TicketPlusStepsView["badge"]; viewDisabled: boolean; onView: () => void };
+    running?: {
+        id: string;
+        badge: { text: string; tone: keyof typeof badgeColors };
+        viewDisabled: boolean;
+        onView: () => void;
+    };
 }
 
-export function ActivityListPage({ activities, disabled, mutationsDisabled, onNew, onLoad, onRemove, running }: Props) {
+export function ActivityListPage({
+    activities,
+    disabled,
+    mutationsDisabled,
+    onNew,
+    onLoad,
+    onRemove,
+    running,
+    currentRun,
+}: Props) {
     return (
         <div data-tailwind className="rounded-xl border border-slate-200 bg-white">
             <div className={panelHeading}>
@@ -36,7 +53,26 @@ export function ActivityListPage({ activities, disabled, mutationsDisabled, onNe
                     </span>
                 </button>
             </div>
-            <div className="p-4 sm:p-6">
+            <div className="space-y-4 p-4 sm:p-6">
+                {currentRun && (
+                    <div className="space-y-3" hidden={!currentRun.message}>
+                        <p id="homeRun" hidden={!currentRun.message}>
+                            {currentRun.message}
+                        </p>
+                        <button
+                            id="viewRun"
+                            className={secondaryButton}
+                            hidden={!currentRun.message}
+                            disabled={currentRun.disabled}
+                            onClick={currentRun.onView}
+                        >
+                            查看目前狀態
+                        </button>
+                    </div>
+                )}
+                <p id="emptyActivities" hidden={activities.length > 0}>
+                    尚未儲存活動，請新增活動。
+                </p>
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-xl border-collapse text-left [&_th]:px-3 [&_th]:py-3 [&_td]:px-3 [&_td]:py-4 [&_td]:align-top">
                         <thead className="border-b border-slate-200 text-sm text-slate-500">
@@ -54,11 +90,10 @@ export function ActivityListPage({ activities, disabled, mutationsDisabled, onNe
                                 return (
                                     <tr
                                         key={item.id}
+                                        data-activity-id={item.id}
                                         className={`border-b border-slate-200 last:border-0 ${runningItem ? "bg-blue-50" : ""}`}
                                     >
-                                        <td className="min-w-40 max-w-sm break-words font-medium">
-                                            {item.settings.eventName}
-                                        </td>
+                                        <td className="min-w-40 max-w-sm break-words font-medium">{item.eventName}</td>
                                         {runningItem ? (
                                             <td>
                                                 <span
@@ -69,6 +104,7 @@ export function ActivityListPage({ activities, disabled, mutationsDisabled, onNe
                                             </td>
                                         ) : (
                                             <td
+                                                className="activity-status"
                                                 title={
                                                     item.executionStatus === "已執行"
                                                         ? "已執行不代表購票或付款成功。"
@@ -100,7 +136,7 @@ export function ActivityListPage({ activities, disabled, mutationsDisabled, onNe
                                                 <button
                                                     className={secondaryButton}
                                                     disabled={disabled || mutationsDisabled}
-                                                    onClick={() => onRemove(item)}
+                                                    onClick={() => onRemove(item.id)}
                                                 >
                                                     刪除
                                                 </button>

@@ -72,7 +72,7 @@ test("React：新 POST 早於 SSE 時立即占用；SSE 先到時晚回應不倒
             });
             await page.goto(service.url);
             await page.locator("#selectKlook").click();
-            await page.getByText("使用活動", { exact: true }).click();
+            await page.getByText("編輯活動", { exact: true }).click();
             await page.getByRole("button", { name: "③ 確認與開始" }).click();
             await page.locator("#confirm").check();
             await page.locator("#start").click();
@@ -80,7 +80,7 @@ test("React：新 POST 早於 SSE 時立即占用；SSE 先到時晚回應不倒
             assert.equal(await page.locator("#status").innerText(), streamFirst ? "已到付款頁" : "正在購票");
             await page.locator("#homeButton").click();
             assert(await page.locator("#new").isDisabled());
-            assert(await page.getByText("使用活動", { exact: true }).isDisabled());
+            assert(await page.getByText("編輯活動", { exact: true }).isDisabled());
             assert(await page.getByText("刪除", { exact: true }).isDisabled());
             assert(await page.locator("#viewRun").isVisible());
             await page.close();
