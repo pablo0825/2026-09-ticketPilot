@@ -241,7 +241,7 @@ export function ActivityEditorPage(props: Props) {
                 <details>
                     <summary className="cursor-pointer">進階設定</summary>
                     <label className={fieldLabel}>
-                        排除關鍵字（以逗號分隔）
+                        <span className="text-sm font-medium">排除關鍵字（以逗號分隔）</span>
                         <input
                             className={fieldInput}
                             id="exclude"
