@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityRecord } from "../../../../config/activityStore.js";
-import type { ActivityExecutionStatus } from "../../../purchaseRuns.js";
+import type { ActivityExecutionStatus, PurchaseSnapshot } from "../../../purchaseRuns.js";
 import { api } from "../../shared/api.js";
 import { AppHeader } from "../../shared/AppHeader.js";
 import type { useRunStatus } from "../../shared/runs/useRunStatus.js";
@@ -132,13 +132,10 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
         runs.purchase?.status === "interrupted" ||
         runs.simulation?.status === "running",
     );
-    // 只呈現這個工作區啟動的流程，不以活動名稱推論歷史紀錄的歸屬。
+    // 執行狀態分頁只呈現這個活動目前這一輪：剛在這裡開始的，或依活動 id 對應且仍需要注意的。
+    const activityRunId = currentActivityRunId(runs.purchase, record?.id, startedRunId);
     const displayedRun =
-        runs.displayed?.kind === "purchase" &&
-        runs.displayed.run.platform === "ticketplus" &&
-        runs.displayed.run.id === startedRunId
-            ? runs.displayed
-            : null;
+        runs.displayed?.kind === "purchase" && runs.displayed.run.id === activityRunId ? runs.displayed : null;
 
     async function action(work: () => Promise<unknown>) {
         // 同步鎖涵蓋保存與導覽，避免 React 尚未更新按鈕時重複送出。
@@ -189,6 +186,11 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
     function changeStep(next: Step) {
         if (busyRef.current || runs.closing) return;
         setStep(next);
+
+        // 切到執行狀態時，讓畫面顯示這個活動目前這一輪，停止與參加者按鈕才會作用在同一輪。
+        if (next === "status" && activityRunId && runs.displayed?.run.id !== activityRunId) {
+            runs.showResult("purchase");
+        }
     }
 
     async function save() {
@@ -421,4 +423,17 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
             )}
         </>
     );
+}
+
+// 依活動 id 對應時，只認尚未結束或結果未確認的一輪；已結束的舊結果可能來自修改前的設定。
+function currentActivityRunId(
+    purchase: PurchaseSnapshot | null,
+    activityId: string | undefined,
+    startedRunId: string | null,
+): string | undefined {
+    if (purchase?.platform !== "ticketplus") return undefined;
+    if (purchase.id === startedRunId) return purchase.id;
+
+    const needsAttention = purchase.occupied || ["running", "unknown", "interrupted"].includes(purchase.status);
+    return activityId !== undefined && purchase.activityId === activityId && needsAttention ? purchase.id : undefined;
 }

@@ -52,6 +52,53 @@ async function unavailable(page: Page, label: string) {
     assert((await button.count()) === 0 || (await button.isDisabled()));
 }
 
+test("TicketPlus 執行狀態分頁：依活動 id 顯示目前這一輪，同名的其他活動不顯示", { timeout: 30_000 }, async () => {
+    await fixture("success", async (h, page) => {
+        // 兩筆同名活動各開一個編輯頁，記下每頁實際載入的活動 id。
+        const target = await (await h.request("/api/activities", apiActivity)).json();
+        await h.request("/api/activities", apiActivity);
+        const pages = [page, await page.context().browser()!.newPage()];
+        const opened = new Map<string, Page>();
+        for (const [index, current] of pages.entries()) {
+            await current.goto(h.url);
+            await current.locator("#selectTicketPlus").click();
+            const loaded = current.waitForResponse(response =>
+                /\/api\/activities\/[^/]+$/.test(new URL(response.url()).pathname),
+            );
+            await current.getByRole("button", { name: "編輯活動" }).nth(index).click();
+            opened.set(new URL((await loaded).url()).pathname.split("/").at(-1)!, current);
+            await current.locator(".breadcrumb").waitFor();
+        }
+        const targetPage = opened.get(target.id)!;
+        const otherPage = pages.find(current => current !== targetPage)!;
+
+        // 從 API 啟動第一筆活動。
+        const response = await h.request("/api/purchase", {
+            requestId: randomUUID(),
+            activityId: target.id,
+            expectedActivity: apiActivity,
+        });
+        assert.equal(response.status, 200);
+        await h.until(run =>
+            Boolean(
+                run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
+            ),
+        );
+
+        // 這筆活動的執行狀態分頁顯示這一輪，停止按鈕也作用在同一輪。
+        await targetPage.locator(".lock-chip").waitFor();
+        await targetPage.getByRole("button", { name: "執行狀態", exact: true }).click();
+        await eventually(async () => assert.equal(await targetPage.locator("#status").innerText(), "請手動登入"));
+        assert.equal(await targetPage.getByRole("button", { name: stopLabel, exact: true }).count(), 1);
+
+        // 同名的另一筆活動不顯示這一輪。
+        await otherPage.getByRole("button", { name: "執行狀態", exact: true }).click();
+        assert.equal(await otherPage.getByRole("heading", { name: "尚未開始" }).count(), 1);
+        assert.equal(await otherPage.locator("#status").count(), 0);
+        await pages[1]!.close();
+    });
+});
+
 test("TicketPlus 活動列表：執行中的活動那一列顯示即時狀態與查看狀態", { timeout: 30_000 }, async () => {
     await fixture("success", async (h, page) => {
         const run = await start(h);
