@@ -21,30 +21,14 @@ Review the activity settings in the GUI before live runs.
 
 ## Development & Style
 
-- **Readability first:** Prefer simple, explicit code beginners can follow;
-  prioritize clarity over brevity.
-- **Single responsibility (SRP):** Give modules and functions one clear responsibility.
-- **Avoid overengineering (YAGNI):** Add abstractions only for confirmed needs.
-- **Context before changes:** Inspect callers, dependencies, types, tests,
-  and upstream/downstream effects before editing.
-- **Behavior-preserving refactoring:** Preserve behavior, validation checks,
-  and flow boundaries.
-- **Incremental development:** Work in verifiable steps within confirmed scope.
-- **Clarify intent:** Ask about unclear requirements or expected behavior;
-  decide routine implementation details independently.
+Before writing, modifying, refactoring, or reviewing code, read and follow
+[readable-code](.agents/skills/readable-code/SKILL.md).
+Repository-specific requirements in this file take precedence over that guide.
 
 Use four-space indentation, semicolons, existing quote style,
 camelCase for functions/files, and PascalCase for classes/types.
 Use strict TypeScript, `.js` relative imports, and `import type`.
-
-Separate logical steps with blank lines; keep a lookup and its check together.
-Within a step, start a new uncommented group when statements switch to a
-different subject (e.g. date, area, quantity); each group should be nameable in
-a few words and span 2–4 statements. Do not split a multi-line statement or
-leave a one-line group. Apply this when touching code; avoid style-only sweeps.
-Use braces when an `if` condition or body spans lines. In functions longer than
-about 15 lines or with three or more steps, start each step with a short, plain
-Chinese comment saying what it does; skip step numbers and implementation details.
+Use braces when an `if` condition or body spans lines.
 
 ## Browser Flow & Recovery
 
@@ -72,6 +56,8 @@ fills contact fields from the member profile, so TicketPlus runs neither
 require `contact.local.json` nor compare contact details.
 
 ## Verification & Review
+
+Work in verifiable steps within the confirmed scope.
 
 Use `node:test`, `node:assert/strict`, and headless Playwright with local fixtures
 or intercepted routes. Name tests `tests/<module>.test.ts`. Cover mismatches,
