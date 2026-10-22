@@ -126,6 +126,7 @@ test("Klook 四個共用分頁接合外框，切頁保留草稿與紀錄閱讀�
         await page.locator("#selectKlook").click();
         await page.getByRole("button", { name: "編輯活動", exact: true }).click();
         const nav = page.getByRole("navigation", { name: "設定步驟" });
+        await nav.waitFor();
         assert.deepEqual(await nav.getByRole("button").allTextContents(), [
             "活動與順位",
             "聯絡資料",

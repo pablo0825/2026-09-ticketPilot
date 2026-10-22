@@ -291,7 +291,7 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
                     platform="klook"
                     attached
                     form={form}
-                    title={record ? `編輯活動：${record.settings.eventName}` : "新增活動"}
+                    title={record ? "編輯活動" : "新增活動"}
                     disabled={locked}
                     onChange={changeForm}
                     onSave={() => void action(saveActivity)}
