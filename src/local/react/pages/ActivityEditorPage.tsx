@@ -240,7 +240,7 @@ export function ActivityEditorPage(props: Props) {
             {props.platform === "klook" && (
                 <details>
                     <summary className="cursor-pointer">進階設定</summary>
-                    <label className={fieldLabel}>
+                    <label className={`mt-3 ${fieldLabel}`}>
                         <span className="text-sm font-medium">排除關鍵字（以逗號分隔）</span>
                         <input
                             className={fieldInput}
