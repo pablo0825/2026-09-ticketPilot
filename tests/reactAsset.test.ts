@@ -35,7 +35,7 @@ test("React 正式打包由本機同源載入，保留 API 驗證與資源邊界
             1.875, // text-3xl，確認打包後的 Tailwind utility 生效。
         );
         assert.equal(await page.locator("html").evaluate(el => getComputedStyle(el).fontSize), "15px");
-        // Tailwind 區塊不繼承舊 input 樣式；Klook 的表單仍保留原樣。
+        // Tailwind 基礎規則與實際欄位的 utility 各自生效。
         await page.evaluate(() => {
             const migrated = document.createElement("div");
             migrated.dataset.tailwind = "";
