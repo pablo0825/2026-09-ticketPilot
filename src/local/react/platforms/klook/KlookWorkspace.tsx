@@ -10,7 +10,7 @@ import { api } from "../../shared/api.js";
 import { activityForm, activityInput, contactInput, emptyContact, needsActivitySave } from "./formModel.js";
 import type { ActivityForm } from "./formModel.js";
 import { ActivityEditorPage } from "../../pages/ActivityEditorPage.js";
-import { ContactDetailsPage } from "./ContactDetailsPage.js";
+import { ContactDetailsPage } from "../../pages/ContactDetailsPage.js";
 import { PurchaseConfirmPage } from "../../pages/PurchaseConfirmPage.js";
 import { klookSummary } from "../../pages/purchaseSummary.js";
 import { RunStatus } from "../../shared/runs/RunStatus.js";

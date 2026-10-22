@@ -1,5 +1,5 @@
-import { primaryButton, panel, stepPanel, fieldLabel, fieldInput } from "../../shared/styles.js";
-import type { ContactDetails } from "../../../../config/contact.config.js";
+import { primaryButton, panel, stepPanel, fieldLabel, fieldInput } from "../shared/styles.js";
+import type { ContactDetails } from "../../../config/contact.config.js";
 
 const regions = [
     "台灣 (+886)",
@@ -26,7 +26,6 @@ export function ContactDetailsPage({ contact, disabled, attached = false, onChan
     return (
         <div data-tailwind className={`${attached ? stepPanel : panel} space-y-5`}>
             <h2 className="text-xl font-semibold">聯絡資料</h2>
-            <p>與其他活動共用，儲存在本機；執行紀錄不包含個人資料。</p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className={fieldLabel}>
                     姓氏
@@ -65,7 +64,6 @@ export function ContactDetailsPage({ contact, disabled, attached = false, onChan
                             <option key={region}>{region}</option>
                         ))}
                     </select>
-                    <small className="text-sm text-slate-500">網站若沒有對應選項，程式會停止。</small>
                 </label>
                 <label className={fieldLabel}>
                     電話
