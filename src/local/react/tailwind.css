@@ -1,0 +1,39 @@
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* 不啟用全域 Preflight：Klook 與尚未遷移的頁面保留瀏覽器預設。 */
+@layer base {
+    [data-tailwind] {
+        font-family: var(--font-sans);
+        line-height: 1.5;
+        color: var(--color-slate-800);
+    }
+    :where([data-tailwind], [data-tailwind] *) {
+        box-sizing: border-box;
+        border: 0 solid;
+    }
+    :where(
+        [data-tailwind] h1,
+        [data-tailwind] h2,
+        [data-tailwind] h3,
+        [data-tailwind] p,
+        [data-tailwind] ul,
+        [data-tailwind] ol,
+        [data-tailwind] pre,
+        [data-tailwind] fieldset
+    ) {
+        margin: 0;
+        padding: 0;
+    }
+    :where([data-tailwind] button, [data-tailwind] input, [data-tailwind] select) {
+        font: inherit;
+        color: inherit;
+    }
+    :where([data-tailwind] button) {
+        cursor: pointer;
+    }
+    :where([data-tailwind] button:disabled) {
+        cursor: default;
+    }
+}

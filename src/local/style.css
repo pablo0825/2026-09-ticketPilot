@@ -1,794 +1,801 @@
-:root {
-    font-family:
-        system-ui,
-        -apple-system,
-        sans-serif;
-    color: #233342;
-    background: #f3f5f8;
-    font-size: 15px;
-}
-* {
-    box-sizing: border-box;
-}
-body {
-    margin: 0;
-}
-main {
-    max-width: 1100px;
-    margin: 36px auto;
-    padding: 0 24px;
-}
-header,
-.section-title,
-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-h1 {
-    font-size: 32px;
-    margin: 4px 0 24px;
-}
-h2 {
-    font-size: 21px;
-    margin: 0 0 12px;
-}
-h3 {
-    font-size: 16px;
-}
-p,
-small {
-    color: #526575;
-}
-nav {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 24px;
-}
-button {
-    font: inherit;
-    cursor: pointer;
-    border: 1px solid #254d71;
-    border-radius: 7px;
-    background: #254d71;
-    color: white;
-    padding: 10px 16px;
-}
-button.secondary,
-nav button {
-    background: white;
-    color: #254d71;
-}
-nav button.active {
-    background: #254d71;
-    color: white;
-}
-button:disabled {
-    opacity: 0.45;
-    cursor: default;
-}
-.card {
-    background: white;
-    border: 1px solid #dde4eb;
-    border-radius: 12px;
-    padding: 26px;
-    margin: 18px 0;
-}
-.grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-}
-label {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 16px;
-}
-input,
-select {
-    font: inherit;
-    border: 1px solid #b8c6d2;
-    border-radius: 6px;
-    padding: 10px;
-    min-width: 0;
-    width: 100%;
-    background: white;
-}
-input:focus,
-select:focus {
-    outline: 2px solid #5f9fcb;
-}
-.check {
-    flex-direction: row;
-    align-items: center;
-}
-.check input {
-    width: auto;
-}
-details {
-    margin: 20px 0;
-}
-summary {
-    cursor: pointer;
-}
-footer {
-    justify-content: flex-end;
-    margin-top: 22px;
-}
-.target-row {
-    background: #f7f9fb;
-    border: 1px solid #e1e7ed;
-    border-radius: 8px;
-    padding: 16px;
-    margin: 12px 0;
-}
-.target-fields {
-    display: grid;
-    grid-template-columns: 1.2fr 1fr 1.2fr 0.7fr;
-    gap: 10px;
-}
-.ticketplus-sale-fields {
-    display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    column-gap: 16px;
-}
-.ticketplus-sale-fields input,
-.ticketplus-sale-fields select {
-    height: 2.8rem;
-    line-height: 1.4;
-}
-.ticketplus-target-title {
-    margin-top: 0;
-}
-.target-row label {
-    font-size: 13px;
-}
-.target-fields input {
-    height: 2.8rem;
-    line-height: 1.4;
-}
-.target-tools {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-}
-.target-tools button {
-    padding: 6px 12px;
-}
-pre {
-    white-space: pre-wrap;
-    word-break: break-word;
-    font:
-        14px/1.7 ui-monospace,
-        monospace;
-}
-#summary {
-    background: #f5f8fa;
-    padding: 16px;
-    border-radius: 6px;
-}
-#logs {
-    background: #172c3c;
-    color: #dce9f3;
-    padding: 20px;
-    border-radius: 8px;
-    max-height: 380px;
-    min-height: 160px;
-    overflow: auto;
-}
-#message:not(:empty) {
-    background: #fff1df;
-    border: 1px solid #e6bf89;
-    padding: 14px;
-    border-radius: 7px;
-    color: #7b4719;
-}
-section[hidden],
-label[hidden],
-div[hidden] {
-    display: none;
-}
-@media (max-width: 760px) {
-    .ticketplus-sale-fields {
-        grid-template-columns: minmax(0, 1fr);
+/* 舊頁樣式不進入已遷移的 Tailwind 區塊。 */
+@scope (:root) to ([data-tailwind]) {
+    :root {
+        font-family:
+            system-ui,
+            -apple-system,
+            sans-serif;
+        color: #233342;
+        background: #f3f5f8;
+        font-size: 15px;
+    }
+    * {
+        box-sizing: border-box;
+    }
+    body {
+        margin: 0;
     }
     main {
-        padding: 0 12px;
+        max-width: 1100px;
+        margin: 36px auto;
+        padding: 0 24px;
     }
-    header {
-        align-items: flex-start;
-        flex-direction: column;
+    header,
+    .section-title,
+    footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
     }
-    .grid,
-    .target-fields {
-        grid-template-columns: 1fr 1fr;
+    h1 {
+        font-size: 32px;
+        margin: 4px 0 24px;
     }
+    h2 {
+        font-size: 21px;
+        margin: 0 0 12px;
+    }
+    h3 {
+        font-size: 16px;
+    }
+    p,
+    small {
+        color: #526575;
+    }
+    nav {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+    }
+    button {
+        font: inherit;
+        cursor: pointer;
+        border: 1px solid #254d71;
+        border-radius: 7px;
+        background: #254d71;
+        color: white;
+        padding: 10px 16px;
+    }
+    button.secondary,
     nav button {
-        flex: 1;
-        padding: 10px 4px;
-        font-size: 13px;
+        background: white;
+        color: #254d71;
+    }
+    nav button.active {
+        background: #254d71;
+        color: white;
+    }
+    button:disabled {
+        opacity: 0.45;
+        cursor: default;
     }
     .card {
-        padding: 18px;
+        background: white;
+        border: 1px solid #dde4eb;
+        border-radius: 12px;
+        padding: 26px;
+        margin: 18px 0;
     }
-    .section-title {
+    .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+    label {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 16px;
+    }
+    input,
+    select {
+        font: inherit;
+        border: 1px solid #b8c6d2;
+        border-radius: 6px;
+        padding: 10px;
+        min-width: 0;
+        width: 100%;
+        background: white;
+    }
+    input:focus,
+    select:focus {
+        outline: 2px solid #5f9fcb;
+    }
+    .check {
+        flex-direction: row;
+        align-items: center;
+    }
+    .check input {
+        width: auto;
+    }
+    details {
+        margin: 20px 0;
+    }
+    summary {
+        cursor: pointer;
+    }
+    footer {
+        justify-content: flex-end;
+        margin-top: 22px;
+    }
+    .target-row {
+        background: #f7f9fb;
+        border: 1px solid #e1e7ed;
+        border-radius: 8px;
+        padding: 16px;
+        margin: 12px 0;
+    }
+    .target-fields {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr 1.2fr 0.7fr;
+        gap: 10px;
+    }
+    .ticketplus-sale-fields {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+        column-gap: 16px;
+    }
+    .ticketplus-sale-fields input,
+    .ticketplus-sale-fields select {
+        height: 2.8rem;
+        line-height: 1.4;
+    }
+    .ticketplus-target-title {
+        margin-top: 0;
+    }
+    .target-row label {
+        font-size: 13px;
+    }
+    .target-fields input {
+        height: 2.8rem;
+        line-height: 1.4;
+    }
+    .target-tools {
+        display: flex;
         flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+    }
+    .target-tools button {
+        padding: 6px 12px;
+    }
+    pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font:
+            14px/1.7 ui-monospace,
+            monospace;
+    }
+    #summary {
+        background: #f5f8fa;
+        padding: 16px;
+        border-radius: 6px;
+    }
+    #logs {
+        background: #172c3c;
+        color: #dce9f3;
+        padding: 20px;
+        border-radius: 8px;
+        max-height: 380px;
+        min-height: 160px;
+        overflow: auto;
+    }
+    #message:not(:empty) {
+        background: #fff1df;
+        border: 1px solid #e6bf89;
+        padding: 14px;
+        border-radius: 7px;
+        color: #7b4719;
+    }
+    section[hidden],
+    label[hidden],
+    div[hidden] {
+        display: none;
+    }
+    @media (max-width: 760px) {
+        .ticketplus-sale-fields {
+            grid-template-columns: minmax(0, 1fr);
+        }
+        main {
+            padding: 0 12px;
+        }
+        header {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+        .grid,
+        .target-fields {
+            grid-template-columns: 1fr 1fr;
+        }
+        nav button {
+            flex: 1;
+            padding: 10px 4px;
+            font-size: 13px;
+        }
+        .card {
+            padding: 18px;
+        }
+        .section-title {
+            flex-wrap: wrap;
+        }
+    }
+
+    [hidden] {
+        display: none !important;
+    }
+    #homeButton {
+        margin-bottom: 16px;
+    }
+    .table-scroll {
+        overflow-x: auto;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 24px;
+    }
+    th,
+    td {
+        text-align: left;
+        padding: 16px 10px;
+        border-bottom: 1px solid #dde4eb;
+    }
+    td:first-child {
+        min-width: 220px;
+    }
+    td:last-child {
+        white-space: nowrap;
+    }
+    td button + button {
+        margin-left: 8px;
+    }
+    th {
+        color: #526575;
+        font-size: 14px;
+    }
+
+    #summary {
+        margin-bottom: 24px;
+    }
+    .summary-field {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 12px;
+    }
+    .summary-field .summary-label {
+        flex-shrink: 0;
+        color: #526575;
+    }
+    .summary-field span {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+    .summary-field a {
+        display: block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #1769aa;
+        text-decoration: underline;
+    }
+    .summary-field a:focus-visible {
+        outline: 2px solid #1769aa;
+        outline-offset: 2px;
+    }
+    .summary-table-scroll {
+        overflow-x: auto;
+        margin-bottom: 20px;
+    }
+    #summary table {
+        margin-top: 0;
+    }
+    #summary th,
+    #summary td {
+        padding: 12px 8px;
+        vertical-align: top;
+    }
+    #summary th {
+        white-space: nowrap;
+    }
+    #summary td {
+        white-space: normal;
+        min-width: 0;
+    }
+    #summary td:nth-child(4) {
+        min-width: 130px;
+        overflow-wrap: anywhere;
+    }
+    #summary td:not(:nth-child(4)) {
+        white-space: nowrap;
+    }
+    @media (max-width: 760px) {
+        .summary-field {
+            flex-direction: column;
+        }
+    }
+
+    #summary h3 {
+        font-weight: 600;
+    }
+
+    .feature-settings {
+        border: 0;
+        padding: 0;
+        margin: 0;
+        min-width: 0;
+    }
+    .feature-settings legend {
+        padding: 0;
+        margin-bottom: 6px;
+    }
+    #deliveryMethod:disabled {
+        background: #eef1f4;
+        color: #526575;
+        cursor: not-allowed;
+    }
+
+    .platform-table {
+        table-layout: fixed;
+    }
+    .platform-table th:first-child {
+        width: 25%;
+    }
+    .platform-table th:last-child {
+        width: 42%;
+    }
+    .platform-table tbody th {
+        color: #243746;
+        font-size: inherit;
+        overflow-wrap: anywhere;
+    }
+    .platform-table td:last-child {
+        white-space: normal;
+        text-align: left;
+    }
+    .platform-table thead th:last-child {
+        text-align: left;
+    }
+    .platform-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: 8px;
+    }
+    .platform-actions button + button {
+        margin-left: 0;
+    }
+    @media (max-width: 760px) {
+        .platform-table th,
+        .platform-table td {
+            padding: 12px 4px;
+        }
+        .platform-table th:first-child {
+            width: 30%;
+        }
+        .platform-table th:last-child {
+            width: 36%;
+        }
+        .platform-table tbody th {
+            font-size: 14px;
+        }
+        .platform-actions button {
+            padding: 10px 8px;
+        }
+    }
+    .brand-home {
+        padding: 0;
+        border: 0;
+        border-radius: 2px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+    }
+    .brand-home:focus-visible {
+        outline: 2px solid #254d71;
+        outline-offset: 5px;
+    }
+    .breadcrumb {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        margin-bottom: 16px;
+        font-size: 14px;
+        color: #526575;
+    }
+    /* 麵包屑是 nav，要蓋過共用 nav 按鈕的外觀與手機版的 flex、字級。 */
+    .breadcrumb-link {
+        flex: none;
+        padding: 0;
+        font-size: inherit;
+        border: 0;
+        border-radius: 2px;
+        background: transparent;
+        color: #254d71;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    /* 共用的 #homeButton 下邊距只給 Klook；麵包屑裡的返回鍵不需要。 */
+    .breadcrumb > #homeButton {
+        margin-bottom: 0;
+    }
+    .breadcrumb-link:focus-visible {
+        outline: 2px solid #254d71;
+        outline-offset: 3px;
+    }
+    .breadcrumb-current {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #233342;
+    }
+    /* TicketPlus 的步驟分頁：接在內容卡片上方；Klook 仍用共用的 nav 按鈕樣式。 */
+    .step-tabs {
+        display: flex;
+        gap: 4px;
+        margin: 0;
+        padding: 0 12px;
+        overflow-x: auto;
+        background: white;
+        border: 1px solid #dde4eb;
+        border-radius: 12px 12px 0 0;
+    }
+    .step-tabs button {
+        flex: 0 0 auto;
+        padding: 14px 16px;
+        border: 0;
+        border-bottom: 3px solid transparent;
+        border-radius: 0;
+        background: transparent;
+        color: #526575;
+        font-size: 15px;
+        white-space: nowrap;
+    }
+    .step-tabs button[aria-current="step"] {
+        background: transparent;
+        color: #254d71;
+        border-bottom-color: #254d71;
+        font-weight: 700;
+    }
+    .step-tabs button:focus-visible {
+        outline: 2px solid #5f9fcb;
+        outline-offset: -4px;
+    }
+    /* 卡片上方的標題列（TicketPlus 活動列表、平台首頁）：與分頁列同樣接在卡片上方。 */
+    .list-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 56px;
+        /* 右邊對齊下方表格邊緣（卡片內距 26px），左邊對齊表格文字（再加儲存格內距 10px）。 */
+        padding: 0 26px 0 36px;
+        background: white;
+        border: 1px solid #dde4eb;
+        border-radius: 12px 12px 0 0;
+    }
+    /* 上方有「查看目前狀態」按鈕時，和標題列之間保留間距。 */
+    .section-title + .list-bar {
+        margin-top: 18px;
+    }
+    .list-bar h2 {
+        margin: 0;
+        font-size: 16px;
+        color: #254d71;
+    }
+    .list-bar + .card {
+        margin-top: 0;
+        padding-top: 8px;
+        border-top: 0;
+        border-radius: 0 0 12px 12px;
+    }
+    /* 標題已在上方標題列，表格不需要再和標題拉開距離。 */
+    .list-bar + .card table {
+        margin-top: 0;
+    }
+    .icon-button {
+        position: relative;
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        font-size: 20px;
+        line-height: 1;
+    }
+    .icon-button:focus-visible {
+        outline: 2px solid #5f9fcb;
+        outline-offset: 2px;
+    }
+    /* 提示框平時不顯示；滑鼠移上去或鍵盤聚焦時出現在按鈕下方靠右。 */
+    .icon-button-tip {
+        display: none;
+    }
+    .icon-button:hover .icon-button-tip,
+    .icon-button:focus-visible .icon-button-tip {
+        display: block;
+        position: absolute;
+        top: calc(100% + 6px);
+        right: 0;
+        z-index: 10;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background: #233342;
+        color: white;
+        font-size: 12px;
+        font-weight: 400;
+        white-space: nowrap;
+    }
+    .step-tabs + .card {
+        margin-top: 0;
+        border-top: 0;
+        border-radius: 0 0 12px 12px;
+    }
+    /* TicketPlus 分頁卡片裡不能修改的欄位改成灰底；單選與勾選框加底色看不出差別，不套用。 */
+    .step-tabs + .card :is(input, select, textarea):disabled:not([type="radio"], [type="checkbox"]) {
+        background: #eef1f4;
+        color: #526575;
+        cursor: not-allowed;
+    }
+    /* 活動列表中正在使用購票瀏覽器的那一列。 */
+    .running-row td {
+        background: #f7fafd;
+    }
+    .running-row td:first-child {
+        font-weight: 600;
+    }
+    /* 名稱過長時只截斷名稱，鎖定標籤保持完整。 */
+    .lock-chip {
+        position: relative;
+        flex: none;
+        padding: 1px 9px;
+        border-radius: 999px;
+        background: #eef1f4;
+        color: #526575;
+        font-size: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .lock-chip:focus-visible {
+        outline: 2px solid #254d71;
+        outline-offset: 2px;
+    }
+    /* 提示框平時隱藏（螢幕閱讀器仍會讀到），滑鼠移上去或鍵盤聚焦時顯示在標籤下方。 */
+    .lock-chip-tip {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        border: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+    .lock-chip:hover .lock-chip-tip,
+    .lock-chip:focus-visible .lock-chip-tip {
+        top: calc(100% + 6px);
+        left: 0;
+        z-index: 10;
+        width: max-content;
+        max-width: 360px;
+        height: auto;
+        margin: 0;
+        padding: 6px 10px;
+        overflow: visible;
+        clip: auto;
+        clip-path: none;
+        border-radius: 6px;
+        background: #233342;
+        color: white;
+        font-weight: 400;
+        white-space: normal;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+    .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        border: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+    .status-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .status-heading {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .status-heading h2 {
+        margin: 0;
+    }
+    .status-actions {
+        display: flex;
+        gap: 8px;
+    }
+    .status-badge {
+        padding: 2px 10px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    .status-badge.info {
+        background: #e6eef7;
+        color: #254d71;
+    }
+    .status-badge.action {
+        background: #fff3e0;
+        color: #7a4a00;
+    }
+    .status-badge.neutral {
+        background: #eef1f4;
+        color: #526575;
+    }
+    .status-badge.error {
+        background: #fdecea;
+        color: #8a2318;
+    }
+    .status-badge.unknown {
+        background: #fff8d6;
+        color: #6b5400;
+    }
+    button.danger {
+        border-color: #e2a39b;
+        color: #c0392b;
+    }
+    .run-steps {
+        list-style: none;
+        margin: 16px 0;
+        padding: 6px 20px;
+        border: 1px solid #e3e7ec;
+        border-radius: 10px;
+    }
+    .run-step {
+        display: grid;
+        grid-template-columns: 22px 1fr;
+        gap: 12px;
+        padding: 9px 0;
+    }
+    .run-step + .run-step {
+        border-top: 1px solid #f0f2f5;
+    }
+    .run-step-icon {
+        width: 18px;
+        height: 18px;
+        margin-top: 2px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 11px;
+        font-weight: 700;
+        color: white;
+    }
+    .run-step.pending .run-step-icon {
+        border: 1.5px dashed #a8b1bb;
+    }
+    .run-step.skipped .run-step-icon {
+        border: 1.5px solid #d5dbe2;
+    }
+    .run-step.done .run-step-icon {
+        background: #1f8a4c;
+    }
+    .run-step.action .run-step-icon {
+        background: #b26a00;
+    }
+    .run-step.failed .run-step-icon {
+        background: #c0392b;
+    }
+    .run-step.stopped .run-step-icon {
+        background: #7b8794;
+        font-size: 8px;
+    }
+    .run-step.unknown .run-step-icon {
+        background: #d4a600;
+    }
+    .run-step.running .run-step-icon {
+        border: 2px solid #d5dbe2;
+        border-top-color: #254d71;
+        animation: run-step-spin 0.9s linear infinite;
+    }
+    @keyframes run-step-spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+    /* 標籤與提示框之間的透明橋接，滑鼠移向提示框時不會中途消失。 */
+    .lock-chip:hover .lock-chip-tip::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 100%;
+        height: 8px;
+    }
+    /* 窄螢幕時標籤可能在最右邊，提示框改成對齊整行麵包屑，避免超出畫面。 */
+    @media (max-width: 760px) {
+        /* 窄螢幕卡片內距改為 18px，標題列跟著調整才會和表格對齊。 */
+        .list-bar {
+            padding: 0 18px 0 28px;
+        }
+        /* 平台表格窄螢幕的儲存格內距只有 4px。 */
+        .platform-bar {
+            padding-left: 22px;
+        }
+        .lock-chip {
+            position: static;
+        }
+        .lock-chip:hover .lock-chip-tip,
+        .lock-chip:focus-visible .lock-chip-tip {
+            right: 0;
+            max-width: none;
+        }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .run-step.running .run-step-icon {
+            animation: none;
+        }
+    }
+    .run-step.pending .run-step-label,
+    .run-step.skipped .run-step-label {
+        color: #9aa3ad;
+    }
+    .run-step.running .run-step-label,
+    .run-step.action .run-step-label,
+    .run-step.failed .run-step-label,
+    .run-step.unknown .run-step-label {
+        font-weight: 700;
+    }
+    .run-step-note {
+        margin-top: 8px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        background: #f3f5f8;
+        color: #233342;
+    }
+    .run-step.action .run-step-note {
+        background: #fff3e0;
+        color: #7a4a00;
+    }
+    .run-step.failed .run-step-note {
+        background: #fdecea;
+        color: #8a2318;
+    }
+    .run-step.unknown .run-step-note {
+        background: #fff8d6;
+        color: #6b5400;
+    }
+    .run-step-note button {
+        margin-top: 8px;
+    }
+    .dev-log {
+        border: 1px solid #e3e7ec;
+        border-radius: 10px;
+        padding: 10px 16px;
+    }
+    .dev-log summary {
+        color: #526575;
+    }
+    /* 開發者紀錄展開後只有複製按鈕，維持靠右 */
+    .dev-log .section-title {
+        justify-content: flex-end;
     }
 }
 
 [hidden] {
     display: none !important;
-}
-#homeButton {
-    margin-bottom: 16px;
-}
-.table-scroll {
-    overflow-x: auto;
-}
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 24px;
-}
-th,
-td {
-    text-align: left;
-    padding: 16px 10px;
-    border-bottom: 1px solid #dde4eb;
-}
-td:first-child {
-    min-width: 220px;
-}
-td:last-child {
-    white-space: nowrap;
-}
-td button + button {
-    margin-left: 8px;
-}
-th {
-    color: #526575;
-    font-size: 14px;
-}
-
-#summary {
-    margin-bottom: 24px;
-}
-.summary-field {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 12px;
-}
-.summary-field .summary-label {
-    flex-shrink: 0;
-    color: #526575;
-}
-.summary-field span {
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
-.summary-field a {
-    display: block;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: #1769aa;
-    text-decoration: underline;
-}
-.summary-field a:focus-visible {
-    outline: 2px solid #1769aa;
-    outline-offset: 2px;
-}
-.summary-table-scroll {
-    overflow-x: auto;
-    margin-bottom: 20px;
-}
-#summary table {
-    margin-top: 0;
-}
-#summary th,
-#summary td {
-    padding: 12px 8px;
-    vertical-align: top;
-}
-#summary th {
-    white-space: nowrap;
-}
-#summary td {
-    white-space: normal;
-    min-width: 0;
-}
-#summary td:nth-child(4) {
-    min-width: 130px;
-    overflow-wrap: anywhere;
-}
-#summary td:not(:nth-child(4)) {
-    white-space: nowrap;
-}
-@media (max-width: 760px) {
-    .summary-field {
-        flex-direction: column;
-    }
-}
-
-#summary h3 {
-    font-weight: 600;
-}
-
-.feature-settings {
-    border: 0;
-    padding: 0;
-    margin: 0;
-    min-width: 0;
-}
-.feature-settings legend {
-    padding: 0;
-    margin-bottom: 6px;
-}
-#deliveryMethod:disabled {
-    background: #eef1f4;
-    color: #526575;
-    cursor: not-allowed;
-}
-
-.platform-table {
-    table-layout: fixed;
-}
-.platform-table th:first-child {
-    width: 25%;
-}
-.platform-table th:last-child {
-    width: 42%;
-}
-.platform-table tbody th {
-    color: #243746;
-    font-size: inherit;
-    overflow-wrap: anywhere;
-}
-.platform-table td:last-child {
-    white-space: normal;
-    text-align: left;
-}
-.platform-table thead th:last-child {
-    text-align: left;
-}
-.platform-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 8px;
-}
-.platform-actions button + button {
-    margin-left: 0;
-}
-@media (max-width: 760px) {
-    .platform-table th,
-    .platform-table td {
-        padding: 12px 4px;
-    }
-    .platform-table th:first-child {
-        width: 30%;
-    }
-    .platform-table th:last-child {
-        width: 36%;
-    }
-    .platform-table tbody th {
-        font-size: 14px;
-    }
-    .platform-actions button {
-        padding: 10px 8px;
-    }
-}
-.brand-home {
-    padding: 0;
-    border: 0;
-    border-radius: 2px;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-}
-.brand-home:focus-visible {
-    outline: 2px solid #254d71;
-    outline-offset: 5px;
-}
-.breadcrumb {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    margin-bottom: 16px;
-    font-size: 14px;
-    color: #526575;
-}
-/* 麵包屑是 nav，要蓋過共用 nav 按鈕的外觀與手機版的 flex、字級。 */
-.breadcrumb-link {
-    flex: none;
-    padding: 0;
-    font-size: inherit;
-    border: 0;
-    border-radius: 2px;
-    background: transparent;
-    color: #254d71;
-    font-weight: 600;
-    white-space: nowrap;
-}
-/* 共用的 #homeButton 下邊距只給 Klook；麵包屑裡的返回鍵不需要。 */
-.breadcrumb > #homeButton {
-    margin-bottom: 0;
-}
-.breadcrumb-link:focus-visible {
-    outline: 2px solid #254d71;
-    outline-offset: 3px;
-}
-.breadcrumb-current {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: #233342;
-}
-/* TicketPlus 的步驟分頁：接在內容卡片上方；Klook 仍用共用的 nav 按鈕樣式。 */
-.step-tabs {
-    display: flex;
-    gap: 4px;
-    margin: 0;
-    padding: 0 12px;
-    overflow-x: auto;
-    background: white;
-    border: 1px solid #dde4eb;
-    border-radius: 12px 12px 0 0;
-}
-.step-tabs button {
-    flex: 0 0 auto;
-    padding: 14px 16px;
-    border: 0;
-    border-bottom: 3px solid transparent;
-    border-radius: 0;
-    background: transparent;
-    color: #526575;
-    font-size: 15px;
-    white-space: nowrap;
-}
-.step-tabs button[aria-current="step"] {
-    background: transparent;
-    color: #254d71;
-    border-bottom-color: #254d71;
-    font-weight: 700;
-}
-.step-tabs button:focus-visible {
-    outline: 2px solid #5f9fcb;
-    outline-offset: -4px;
-}
-/* 卡片上方的標題列（TicketPlus 活動列表、平台首頁）：與分頁列同樣接在卡片上方。 */
-.list-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    min-height: 56px;
-    /* 右邊對齊下方表格邊緣（卡片內距 26px），左邊對齊表格文字（再加儲存格內距 10px）。 */
-    padding: 0 26px 0 36px;
-    background: white;
-    border: 1px solid #dde4eb;
-    border-radius: 12px 12px 0 0;
-}
-/* 上方有「查看目前狀態」按鈕時，和標題列之間保留間距。 */
-.section-title + .list-bar {
-    margin-top: 18px;
-}
-.list-bar h2 {
-    margin: 0;
-    font-size: 16px;
-    color: #254d71;
-}
-.list-bar + .card {
-    margin-top: 0;
-    padding-top: 8px;
-    border-top: 0;
-    border-radius: 0 0 12px 12px;
-}
-/* 標題已在上方標題列，表格不需要再和標題拉開距離。 */
-.list-bar + .card table {
-    margin-top: 0;
-}
-.icon-button {
-    position: relative;
-    width: 34px;
-    height: 34px;
-    padding: 0;
-    font-size: 20px;
-    line-height: 1;
-}
-.icon-button:focus-visible {
-    outline: 2px solid #5f9fcb;
-    outline-offset: 2px;
-}
-/* 提示框平時不顯示；滑鼠移上去或鍵盤聚焦時出現在按鈕下方靠右。 */
-.icon-button-tip {
-    display: none;
-}
-.icon-button:hover .icon-button-tip,
-.icon-button:focus-visible .icon-button-tip {
-    display: block;
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    z-index: 10;
-    padding: 4px 8px;
-    border-radius: 6px;
-    background: #233342;
-    color: white;
-    font-size: 12px;
-    font-weight: 400;
-    white-space: nowrap;
-}
-.step-tabs + .card {
-    margin-top: 0;
-    border-top: 0;
-    border-radius: 0 0 12px 12px;
-}
-/* TicketPlus 分頁卡片裡不能修改的欄位改成灰底；單選與勾選框加底色看不出差別，不套用。 */
-.step-tabs + .card :is(input, select, textarea):disabled:not([type="radio"], [type="checkbox"]) {
-    background: #eef1f4;
-    color: #526575;
-    cursor: not-allowed;
-}
-/* 活動列表中正在使用購票瀏覽器的那一列。 */
-.running-row td {
-    background: #f7fafd;
-}
-.running-row td:first-child {
-    font-weight: 600;
-}
-/* 名稱過長時只截斷名稱，鎖定標籤保持完整。 */
-.lock-chip {
-    position: relative;
-    flex: none;
-    padding: 1px 9px;
-    border-radius: 999px;
-    background: #eef1f4;
-    color: #526575;
-    font-size: 12px;
-    font-weight: 600;
-    white-space: nowrap;
-}
-.lock-chip:focus-visible {
-    outline: 2px solid #254d71;
-    outline-offset: 2px;
-}
-/* 提示框平時隱藏（螢幕閱讀器仍會讀到），滑鼠移上去或鍵盤聚焦時顯示在標籤下方。 */
-.lock-chip-tip {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    border: 0;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    white-space: nowrap;
-}
-.lock-chip:hover .lock-chip-tip,
-.lock-chip:focus-visible .lock-chip-tip {
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: 10;
-    width: max-content;
-    max-width: 360px;
-    height: auto;
-    margin: 0;
-    padding: 6px 10px;
-    overflow: visible;
-    clip: auto;
-    clip-path: none;
-    border-radius: 6px;
-    background: #233342;
-    color: white;
-    font-weight: 400;
-    white-space: normal;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-}
-.visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    border: 0;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    white-space: nowrap;
-}
-.status-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-.status-heading {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.status-heading h2 {
-    margin: 0;
-}
-.status-actions {
-    display: flex;
-    gap: 8px;
-}
-.status-badge {
-    padding: 2px 10px;
-    border-radius: 999px;
-    font-size: 13px;
-    font-weight: 600;
-}
-.status-badge.info {
-    background: #e6eef7;
-    color: #254d71;
-}
-.status-badge.action {
-    background: #fff3e0;
-    color: #7a4a00;
-}
-.status-badge.neutral {
-    background: #eef1f4;
-    color: #526575;
-}
-.status-badge.error {
-    background: #fdecea;
-    color: #8a2318;
-}
-.status-badge.unknown {
-    background: #fff8d6;
-    color: #6b5400;
-}
-button.danger {
-    border-color: #e2a39b;
-    color: #c0392b;
-}
-.run-steps {
-    list-style: none;
-    margin: 16px 0;
-    padding: 6px 20px;
-    border: 1px solid #e3e7ec;
-    border-radius: 10px;
-}
-.run-step {
-    display: grid;
-    grid-template-columns: 22px 1fr;
-    gap: 12px;
-    padding: 9px 0;
-}
-.run-step + .run-step {
-    border-top: 1px solid #f0f2f5;
-}
-.run-step-icon {
-    width: 18px;
-    height: 18px;
-    margin-top: 2px;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    font-size: 11px;
-    font-weight: 700;
-    color: white;
-}
-.run-step.pending .run-step-icon {
-    border: 1.5px dashed #a8b1bb;
-}
-.run-step.skipped .run-step-icon {
-    border: 1.5px solid #d5dbe2;
-}
-.run-step.done .run-step-icon {
-    background: #1f8a4c;
-}
-.run-step.action .run-step-icon {
-    background: #b26a00;
-}
-.run-step.failed .run-step-icon {
-    background: #c0392b;
-}
-.run-step.stopped .run-step-icon {
-    background: #7b8794;
-    font-size: 8px;
-}
-.run-step.unknown .run-step-icon {
-    background: #d4a600;
-}
-.run-step.running .run-step-icon {
-    border: 2px solid #d5dbe2;
-    border-top-color: #254d71;
-    animation: run-step-spin 0.9s linear infinite;
-}
-@keyframes run-step-spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-/* 標籤與提示框之間的透明橋接，滑鼠移向提示框時不會中途消失。 */
-.lock-chip:hover .lock-chip-tip::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 100%;
-    height: 8px;
-}
-/* 窄螢幕時標籤可能在最右邊，提示框改成對齊整行麵包屑，避免超出畫面。 */
-@media (max-width: 760px) {
-    /* 窄螢幕卡片內距改為 18px，標題列跟著調整才會和表格對齊。 */
-    .list-bar {
-        padding: 0 18px 0 28px;
-    }
-    /* 平台表格窄螢幕的儲存格內距只有 4px。 */
-    .platform-bar {
-        padding-left: 22px;
-    }
-    .lock-chip {
-        position: static;
-    }
-    .lock-chip:hover .lock-chip-tip,
-    .lock-chip:focus-visible .lock-chip-tip {
-        right: 0;
-        max-width: none;
-    }
-}
-@media (prefers-reduced-motion: reduce) {
-    .run-step.running .run-step-icon {
-        animation: none;
-    }
-}
-.run-step.pending .run-step-label,
-.run-step.skipped .run-step-label {
-    color: #9aa3ad;
-}
-.run-step.running .run-step-label,
-.run-step.action .run-step-label,
-.run-step.failed .run-step-label,
-.run-step.unknown .run-step-label {
-    font-weight: 700;
-}
-.run-step-note {
-    margin-top: 8px;
-    padding: 10px 12px;
-    border-radius: 8px;
-    font-size: 14px;
-    background: #f3f5f8;
-    color: #233342;
-}
-.run-step.action .run-step-note {
-    background: #fff3e0;
-    color: #7a4a00;
-}
-.run-step.failed .run-step-note {
-    background: #fdecea;
-    color: #8a2318;
-}
-.run-step.unknown .run-step-note {
-    background: #fff8d6;
-    color: #6b5400;
-}
-.run-step-note button {
-    margin-top: 8px;
-}
-.dev-log {
-    border: 1px solid #e3e7ec;
-    border-radius: 10px;
-    padding: 10px 16px;
-}
-.dev-log summary {
-    color: #526575;
-}
-/* 開發者紀錄展開後只有複製按鈕，維持靠右 */
-.dev-log .section-title {
-    justify-content: flex-end;
 }

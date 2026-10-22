@@ -25,6 +25,20 @@ test("React 正式打包由本機同源載入，保留 API 驗證與資源邊界
         assert.match(response!.headers()["content-security-policy"]!, /frame-ancestors 'none'/);
         assert.equal(response!.headers()["cache-control"], "no-store");
         assert.equal(await page.locator("h1").evaluate(el => getComputedStyle(el).fontSize), "32px");
+        // Tailwind 區塊不繼承舊 input 樣式；Klook 的表單仍保留原樣。
+        await page.evaluate(() => {
+            const migrated = document.createElement("div");
+            migrated.dataset.tailwind = "";
+            migrated.id = "styleProbe";
+            migrated.innerHTML = '<input aria-label="樣式隔離測試"><div hidden>隱藏內容</div>';
+            document.querySelector("main")!.append(migrated);
+        });
+        assert.equal(
+            await page.locator("#styleProbe input").evaluate(el => getComputedStyle(el).borderTopWidth),
+            "0px",
+        );
+        assert.equal(await page.locator("#eventName").evaluate(el => getComputedStyle(el).borderTopWidth), "1px");
+        assert.equal(await page.locator("#styleProbe [hidden]").isVisible(), false);
         assert.deepEqual(errors, []);
 
         const token = await page.locator('meta[name="local-token"]').getAttribute("content");
