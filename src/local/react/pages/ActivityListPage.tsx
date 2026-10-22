@@ -40,7 +40,7 @@ export function ActivityListPage({ activities, disabled, mutationsDisabled, onNe
             <div className="p-4 sm:p-6">
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-xl border-collapse text-left [&_th]:px-3 [&_th]:py-3 [&_td]:px-3 [&_td]:py-4 [&_td]:align-top">
-                        <thead className="border-b border-slate-200 bg-white text-base text-slate-600 [&_th]:font-bold">
+                        <thead className="border-b border-slate-200 text-sm text-slate-500">
                             <tr>
                                 {["活動名稱", "購票流程", "執行狀態", "操作"].map(label => (
                                     <th key={label} scope="col">
