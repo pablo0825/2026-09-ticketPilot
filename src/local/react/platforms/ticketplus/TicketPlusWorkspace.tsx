@@ -1,3 +1,4 @@
+import { primaryButton, secondaryButton, panel } from "../../shared/styles.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityRecord } from "../../../../config/activityStore.js";
 import type { ActivityExecutionStatus, PurchaseSnapshot } from "../../../purchaseRuns.js";
@@ -325,15 +326,24 @@ export function TicketPlusWorkspace({
     }
 
     return (
-        <>
+        <div data-tailwind>
             <AppHeader disabled={locked} onHome={() => leave("platforms")} />
-            <div id="message" role="alert">
+            <div
+                id="message"
+                role="alert"
+                className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 empty:hidden"
+            >
                 {message}
             </div>
             {pendingStart && (
-                <div role="status">
+                <div role="status" className="mb-4 space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
                     <p>有待確認的 TicketPlus 啟動請求。先核對原流程，暫不變更或刪除設定；不會自動重跑。</p>
-                    <button type="button" disabled={locked || !runs.ready} onClick={() => void action(inspectPending)}>
+                    <button
+                        className={primaryButton}
+                        type="button"
+                        disabled={locked || !runs.ready}
+                        onClick={() => void action(inspectPending)}
+                    >
                         查看待確認的啟動結果
                     </button>
                 </div>
@@ -403,8 +413,8 @@ export function TicketPlusWorkspace({
                                 }
                             />
                         ) : (
-                            <section className="card">
-                                <h2>尚未開始</h2>
+                            <section className={`${panel} space-y-3`}>
+                                <h2 className="text-xl font-semibold">尚未開始</h2>
                                 <p>請在「確認與開始」確認已儲存的設定，再開始購票。</p>
                             </section>
                         ))}
@@ -420,8 +430,8 @@ export function TicketPlusWorkspace({
                         lockReason={occupied ? "購票瀏覽器使用中或模擬執行中，暫時無法變更活動設定" : undefined}
                     />
                     {hasRun && initialized && !runningListed && (
-                        <div className="section-title">
-                            <button className="secondary" disabled={locked} onClick={onViewRun}>
+                        <div className="mb-4 flex items-center gap-3">
+                            <button className={secondaryButton} disabled={locked} onClick={onViewRun}>
                                 查看目前狀態
                             </button>
                         </div>
@@ -454,7 +464,7 @@ export function TicketPlusWorkspace({
                     />
                 </>
             )}
-        </>
+        </div>
     );
 }
 

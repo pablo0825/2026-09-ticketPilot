@@ -1,3 +1,4 @@
+import { primaryButton, secondaryButton, panel, badgeColors } from "../styles.js";
 import { useEffect, useRef, useState } from "react";
 import type { DisplayedRun } from "./useRunStatus.js";
 import { eventLogs, purchaseStatus, stopRequestPresentation } from "./runPresentation.js";
@@ -67,16 +68,17 @@ export function RunStatus({ displayed, canClose, closing, onClose, onCopy, stopC
     const participantsInSteps = Boolean(stepsView?.steps.some(step => step.participantsButton));
     const logSection = (
         <>
-            <div className="section-title">
+            <div className={`mb-3 flex flex-wrap items-center gap-3 ${stepsView ? "justify-end" : "justify-between"}`}>
                 {/* 步驟畫面已由收合標題寫明「開發者紀錄」，展開後不再重複標題 */}
-                {!stepsView && <h3>執行紀錄</h3>}
+                {!stepsView && <h3 className="text-base font-semibold">執行紀錄</h3>}
                 <div>
-                    <button id="copy" className="secondary" onClick={() => onCopy(logs)}>
+                    <button id="copy" className={secondaryButton} onClick={() => onCopy(logs)}>
                         複製紀錄
                     </button>
                 </div>
             </div>
             <pre
+                className="min-h-40 max-h-96 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-900 p-4 font-mono text-sm leading-7 text-slate-100"
                 id="logs"
                 ref={logElement}
                 tabIndex={0}
@@ -92,23 +94,33 @@ export function RunStatus({ displayed, canClose, closing, onClose, onCopy, stopC
     );
 
     return (
-        <div className="card">
-            <div className="status-header">
-                <div className="status-heading">
-                    <h2 id="status">{title}</h2>
+        <div data-tailwind className={`${panel} my-4 space-y-4`}>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
+                    <h2 className="text-xl font-semibold" id="status">
+                        {title}
+                    </h2>
                     {stepsView && (
-                        <span className={`status-badge ${stepsView.badge.tone}`}>{stepsView.badge.text}</span>
+                        <span
+                            className={`status-badge rounded-full px-3 py-1 text-sm font-semibold ${badgeColors[stepsView.badge.tone]}`}
+                        >
+                            {stepsView.badge.text}
+                        </span>
                     )}
                 </div>
-                <div className="status-actions">
+                <div className="flex flex-wrap gap-2">
                     {stopControl?.available && (
-                        <button type="button" className="secondary danger" onClick={stopControl.onStop}>
+                        <button
+                            type="button"
+                            className="rounded-lg border border-red-300 bg-white px-4 py-2 text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-red-600"
+                            onClick={stopControl.onStop}
+                        >
                             停止購票
                         </button>
                     )}
                     <button
                         id="closeBrowser"
-                        className="secondary"
+                        className={secondaryButton}
                         hidden={!canClose}
                         disabled={closing}
                         onClick={onClose}
@@ -120,13 +132,13 @@ export function RunStatus({ displayed, canClose, closing, onClose, onCopy, stopC
             <p id="instruction">{instruction}</p>
             {stepsView && <RunSteps steps={stepsView.steps} participantsControl={participantsControl} />}
             {participantsControl && !participantsInSteps && (
-                <button type="button" onClick={participantsControl.onConfirm}>
+                <button className={primaryButton} type="button" onClick={participantsControl.onConfirm}>
                     參加者已填完
                 </button>
             )}
             {stepsView ? (
-                <details className="dev-log">
-                    <summary>開發者紀錄</summary>
+                <details className="dev-log rounded-lg border border-slate-200 p-4">
+                    <summary className="mb-3 cursor-pointer text-sm text-slate-600">開發者紀錄</summary>
                     {logSection}
                 </details>
             ) : (
