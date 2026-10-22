@@ -396,6 +396,7 @@ th {
     outline-offset: 5px;
 }
 .breadcrumb {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -482,6 +483,43 @@ th {
     font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
+}
+.lock-chip:focus-visible {
+    outline: 2px solid #254d71;
+    outline-offset: 2px;
+}
+/* 提示框平時隱藏（螢幕閱讀器仍會讀到），滑鼠移上去或鍵盤聚焦時顯示在標籤下方。 */
+.lock-chip-tip {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+.lock-chip:hover .lock-chip-tip,
+.lock-chip:focus-visible .lock-chip-tip {
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 10;
+    width: max-content;
+    max-width: 360px;
+    height: auto;
+    margin: 0;
+    padding: 6px 10px;
+    overflow: visible;
+    clip: auto;
+    clip-path: none;
+    border-radius: 6px;
+    background: #233342;
+    color: white;
+    font-weight: 400;
+    white-space: normal;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 .visually-hidden {
     position: absolute;
@@ -601,6 +639,17 @@ button.danger {
 @keyframes run-step-spin {
     to {
         transform: rotate(360deg);
+    }
+}
+/* 窄螢幕時標籤可能在最右邊，提示框改成對齊整行麵包屑，避免超出畫面。 */
+@media (max-width: 760px) {
+    .lock-chip {
+        position: static;
+    }
+    .lock-chip:hover .lock-chip-tip,
+    .lock-chip:focus-visible .lock-chip-tip {
+        right: 0;
+        max-width: none;
     }
 }
 @media (prefers-reduced-motion: reduce) {

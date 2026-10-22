@@ -309,11 +309,12 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                         <span className="breadcrumb-current" title={activityTitle}>
                             {activityTitle}
                         </span>
-                        {/* 完整原因給滑鼠提示與螢幕閱讀器；畫面只顯示短標籤。 */}
+                        {/* 完整原因平時只給螢幕閱讀器；滑鼠移上去或鍵盤聚焦時顯示成提示框。 */}
                         {occupied && (
-                            <span className="lock-chip" title={settingsLockReason}>
+                            <span className="lock-chip" tabIndex={0}>
                                 <span aria-hidden="true">🔒 </span>設定已鎖定
-                                <span className="visually-hidden">：{settingsLockReason}</span>
+                                <span className="visually-hidden">：</span>
+                                <span className="lock-chip-tip">{settingsLockReason}</span>
                             </span>
                         )}
                     </div>

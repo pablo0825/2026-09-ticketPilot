@@ -504,11 +504,20 @@ test(
                 await page.getByRole("button", { name: "活動與順位", exact: true }).click();
                 assert(await page.getByLabel("票種名稱").isDisabled());
 
-                // 執行中麵包屑顯示鎖定標籤，完整原因放在滑鼠提示與螢幕閱讀器文字。
+                // 執行中麵包屑顯示鎖定標籤；完整原因平時隱藏，滑鼠移上去或鍵盤聚焦時才顯示。
                 const lock = page.locator(".breadcrumb .lock-chip");
+                const tip = lock.locator(".lock-chip-tip");
                 assert.match(await lock.innerText(), /^🔒 設定已鎖定/);
-                assert.match((await lock.getAttribute("title")) ?? "", /暫時無法變更活動設定/);
                 assert.match((await lock.textContent()) ?? "", /設定已鎖定：購票瀏覽器使用中或模擬執行中/);
+                assert(((await tip.boundingBox())?.width ?? 0) <= 1);
+                await lock.hover();
+                assert(((await tip.boundingBox())?.width ?? 0) > 100);
+                await page.mouse.move(0, 0);
+                assert(((await tip.boundingBox())?.width ?? 0) <= 1);
+                await page.locator("#homeButton").focus();
+                await page.keyboard.press("Tab");
+                assert.equal(await lock.evaluate(element => element === document.activeElement), true);
+                assert(((await tip.boundingBox())?.width ?? 0) > 100);
                 assert.doesNotMatch(await page.locator(".breadcrumb-current").innerText(), /設定已鎖定/);
                 await page.getByRole("button", { name: "執行狀態", exact: true }).click();
                 await h.until(run =>
