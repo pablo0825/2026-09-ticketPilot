@@ -7,7 +7,7 @@ import type { ActivityExecutionStatus } from "../../../purchaseRuns.js";
 import { api } from "../../shared/api.js";
 import { activityForm, activityInput, contactInput, emptyContact, needsActivitySave } from "./formModel.js";
 import type { ActivityForm } from "./formModel.js";
-import { ActivityEditor } from "./ActivityEditor.js";
+import { ActivityEditorPage } from "../../pages/ActivityEditorPage.js";
 import { ContactForm } from "./ContactForm.js";
 import { PurchaseSummary } from "./PurchaseSummary.js";
 import { RunStatus } from "../../shared/runs/RunStatus.js";
@@ -270,7 +270,9 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
                 />
             </section>
             <section id="step1" hidden={step !== 1}>
-                <ActivityEditor
+                <ActivityEditorPage
+                    platform="klook"
+                    attached={false}
                     form={form}
                     title={record ? `編輯活動：${record.settings.eventName}` : "新增活動"}
                     disabled={locked}
