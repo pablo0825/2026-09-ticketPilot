@@ -228,7 +228,8 @@ test("順位清空：保留空列、阻擋舊設定啟動，重新填寫才能�
         assert(await page.locator("#start").isDisabled());
         await page.getByRole("button", { name: "活動與順位" }).click();
         await page.locator("#saveActivity").click();
-        await page.locator("#message").filter({ hasText: "活動設定格式錯誤" }).waitFor();
+        assert(await page.locator("[name=date]").evaluate((input: HTMLInputElement) => input.validity.valueMissing));
+        assert(await page.locator("[name=date]").evaluate(input => input === document.activeElement));
         assert(await page.locator("#step1").isVisible());
         assert.deepEqual(klookSettings((await store.load(id)).settings).targets, settings.targets);
         page.once("dialog", dialog => dialog.dismiss());
@@ -454,7 +455,8 @@ test("套票GUI：啟用、複製、摘要、儲存重載及關閉後移除殘�
         assert(!(await page.locator("[name=bundle]").isVisible()));
         await page.locator("#bundleEnabled").check();
         await page.locator("#saveActivity").click();
-        await page.locator("#message").filter({ hasText: "每個順位" }).waitFor();
+        assert(await page.locator("[name=bundle]").evaluate((input: HTMLInputElement) => input.validity.valueMissing));
+        assert(await page.locator("[name=bundle]").evaluate(input => input === document.activeElement));
         assert(await page.locator("#deliveryMethod").isEnabled());
         await page.locator("[name=bundle]").fill("演唱會套票 1");
         await page.locator("#deliveryMethod").fill("指定地點自取");
@@ -592,4 +594,41 @@ test("跨活動切換重新計算取票欄位狀態，儲存失敗後仍可依�
         await page.locator("#message").filter({ hasText: "fixture 保存拒絕" }).waitFor();
         assert(await page.locator("#deliveryMethod").isEnabled());
         assert.equal(await page.locator("#deliveryMethod").inputValue(), "郵寄");
+    }));
+
+test("Klook 空白欄位使用原生提示，不送出儲存；修正後可前往下一步", async () =>
+    fixture(async page => {
+        let writes = 0;
+        page.on("request", request => {
+            if (request.method() === "PUT") writes++;
+        });
+        await page.getByRole("button", { name: "活動與順位", exact: true }).click();
+        await page.locator("#eventName").fill("");
+        await page.locator("#saveActivity").click();
+        assert(await page.locator("#eventName").evaluate((input: HTMLInputElement) => input.validity.valueMissing));
+        assert(await page.locator("#eventName").evaluate(input => input === document.activeElement));
+        assert.equal(writes, 0);
+        await page.locator("#eventName").fill(settings.eventName);
+        await page.locator("#bundleEnabled").check();
+        await page.locator("#saveActivity").click();
+        assert(await page.locator("[name=bundle]").evaluate(input => input === document.activeElement));
+        assert.equal(writes, 0);
+        await page.locator("#bundleEnabled").uncheck();
+        await page.locator("#saveActivity").click();
+        await page.locator("#step2").waitFor();
+        assert.equal(writes, 1);
+        await page.locator("#lastName").fill("");
+        await page.locator("#saveContact").click();
+        assert(await page.locator("#lastName").evaluate((input: HTMLInputElement) => input.validity.valueMissing));
+        assert(await page.locator("#lastName").evaluate(input => input === document.activeElement));
+        assert.equal(writes, 1);
+        await page.locator("#lastName").fill(contact.lastName);
+        await page.locator("#email").fill("invalid");
+        await page.locator("#saveContact").click();
+        assert(await page.locator("#email").evaluate((input: HTMLInputElement) => input.validity.typeMismatch));
+        assert.equal(writes, 1);
+        await page.locator("#email").fill(contact.email);
+        await page.locator("#email").press("Enter");
+        await page.locator("#step3").waitFor();
+        assert.equal(writes, 2);
     }));

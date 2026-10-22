@@ -24,7 +24,14 @@ interface Props {
 export function ContactDetailsPage({ contact, disabled, attached = false, onChange, onSave }: Props) {
     const options = regions.includes(contact.regionLabel) ? regions : [...regions, contact.regionLabel];
     return (
-        <div data-tailwind className={`${attached ? stepPanel : panel} space-y-5`}>
+        <form
+            data-tailwind
+            className={`${attached ? stepPanel : panel} space-y-5`}
+            onSubmit={event => {
+                event.preventDefault();
+                onSave();
+            }}
+        >
             <h2 className="text-xl font-semibold">聯絡資料</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className={fieldLabel}>
@@ -93,10 +100,10 @@ export function ContactDetailsPage({ contact, disabled, attached = false, onChan
                 </label>
             </div>
             <footer className="flex justify-end">
-                <button type="button" className={primaryButton} id="saveContact" disabled={disabled} onClick={onSave}>
+                <button type="submit" className={primaryButton} id="saveContact" disabled={disabled}>
                     下一步
                 </button>
             </footer>
-        </div>
+        </form>
     );
 }

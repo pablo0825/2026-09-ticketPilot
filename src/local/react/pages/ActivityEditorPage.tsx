@@ -253,13 +253,7 @@ export function ActivityEditorPage(props: Props) {
                 </details>
             )}
             <footer className="flex justify-end">
-                <button
-                    className={primaryButton}
-                    id="saveActivity"
-                    type={isKlook ? "button" : "submit"}
-                    disabled={disabled}
-                    onClick={isKlook ? onSave : undefined}
-                >
+                <button className={primaryButton} id="saveActivity" type="submit" disabled={disabled}>
                     下一步
                 </button>
             </footer>
@@ -267,12 +261,7 @@ export function ActivityEditorPage(props: Props) {
     );
 
     const className = `${attached ? stepPanel : panel} space-y-5`;
-    // Klook 保留按鈕保存的驗證入口，不因共用頁面新增 Enter 提交或原生表單攔截。
-    return isKlook ? (
-        <div data-tailwind className={className}>
-            {content}
-        </div>
-    ) : (
+    return (
         <form
             data-tailwind
             className={className}
