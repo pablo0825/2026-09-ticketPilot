@@ -1,7 +1,7 @@
 import type { TicketPlusActivitySettings } from "../../../config/ticketPlusActivity.js";
 import { useEffect, useRef } from "react";
 import type { ExecutionForm, ExecutionErrors } from "../platforms/ticketplus/formModel.js";
-import { primaryButton, panel, fieldLabel, fieldInput } from "../shared/styles.js";
+import { primaryButton, stepPanel, fieldLabel, fieldInput } from "../shared/styles.js";
 
 interface Props {
     settings?: TicketPlusActivitySettings;
@@ -37,7 +37,7 @@ export function PurchaseConfirmPage({
         else if (errors.maxRunMinutes) minutesInput.current?.focus();
     }, [errors]);
     return (
-        <section data-tailwind className={`${panel} space-y-6`} aria-label="活動摘要">
+        <section data-tailwind className={`${stepPanel} space-y-6`} aria-label="活動摘要">
             <h2 className="text-xl font-semibold">活動摘要</h2>
             {settings && (
                 <div id="summary" className="space-y-4 rounded-lg bg-slate-50 p-4">

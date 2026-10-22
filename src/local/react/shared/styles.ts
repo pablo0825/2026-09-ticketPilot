@@ -3,6 +3,10 @@ export const primaryButton =
     "rounded-lg border border-blue-600 bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50";
 export const secondaryButton =
     "rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50";
+// 分頁與下方內容分別持有上、下外框，接縫只保留導覽列的分隔線。
+export const stepPanel = "rounded-b-xl border border-t-0 border-slate-200 bg-white p-4 sm:p-6";
+export const panelHeading =
+    "flex min-h-14 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-6";
 export const panel = "rounded-xl border border-slate-200 bg-white p-4 sm:p-6";
 
 export const badgeColors = {

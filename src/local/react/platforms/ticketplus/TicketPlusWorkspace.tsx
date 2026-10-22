@@ -1,4 +1,4 @@
-import { primaryButton, secondaryButton, panel } from "../../shared/styles.js";
+import { primaryButton, secondaryButton, stepPanel } from "../../shared/styles.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityRecord } from "../../../../config/activityStore.js";
 import type { ActivityExecutionStatus, PurchaseSnapshot } from "../../../purchaseRuns.js";
@@ -400,6 +400,7 @@ export function TicketPlusWorkspace({
                     {step === "status" &&
                         (displayedRun ? (
                             <RunStatus
+                                attached
                                 displayed={displayedRun}
                                 stopControl={runs.stopControl}
                                 participantsControl={runs.participantsControl}
@@ -413,7 +414,7 @@ export function TicketPlusWorkspace({
                                 }
                             />
                         ) : (
-                            <section className={`${panel} space-y-3`}>
+                            <section className={`${stepPanel} space-y-3`}>
                                 <h2 className="text-xl font-semibold">尚未開始</h2>
                                 <p>請在「確認與開始」確認已儲存的設定，再開始購票。</p>
                             </section>

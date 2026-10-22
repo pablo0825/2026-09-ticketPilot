@@ -9,7 +9,7 @@ export function StepNavigation<Step extends string>({ steps, currentStep, disabl
     return (
         <nav
             data-tailwind
-            className="step-tabs mb-4 flex flex-wrap gap-2 border-b border-slate-200 pb-3"
+            className="step-tabs flex gap-1 overflow-x-auto rounded-t-xl border border-slate-200 bg-white px-3"
             aria-label="設定步驟"
         >
             {steps.map(item => (
@@ -19,7 +19,7 @@ export function StepNavigation<Step extends string>({ steps, currentStep, disabl
                     aria-current={currentStep === item.id ? "step" : undefined}
                     disabled={disabled}
                     onClick={() => onChange(item.id)}
-                    className="rounded-lg bg-transparent px-4 py-3 text-slate-600 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-blue-600 disabled:opacity-50 aria-[current=step]:bg-blue-50 aria-[current=step]:text-blue-700"
+                    className="shrink-0 whitespace-nowrap border-b-4 border-transparent bg-transparent px-4 py-4 text-slate-600 hover:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-blue-600 disabled:opacity-50 aria-[current=step]:border-blue-900 aria-[current=step]:font-bold aria-[current=step]:text-blue-900"
                 >
                     {item.label}
                 </button>

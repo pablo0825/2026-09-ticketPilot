@@ -1,4 +1,4 @@
-import { primaryButton, secondaryButton, panel, fieldLabel, fieldInput } from "../shared/styles.js";
+import { primaryButton, secondaryButton, stepPanel, fieldLabel, fieldInput } from "../shared/styles.js";
 import { emptyTarget } from "../platforms/ticketplus/formModel.js";
 import type { ActivityForm, TargetDraft } from "../platforms/ticketplus/formModel.js";
 import type { TicketPlusActivitySettings } from "../../../config/ticketPlusActivity.js";
@@ -30,7 +30,7 @@ export function ActivityEditorPage({ form, saved, disabled, onChange, onSave }: 
     return (
         <form
             data-tailwind
-            className={`${panel} space-y-5`}
+            className={`${stepPanel} space-y-5`}
             onSubmit={event => {
                 event.preventDefault();
                 onSave();

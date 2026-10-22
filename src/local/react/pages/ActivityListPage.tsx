@@ -1,4 +1,4 @@
-import { primaryButton, secondaryButton, panel, badgeColors } from "../shared/styles.js";
+import { primaryButton, secondaryButton, panelHeading, badgeColors } from "../shared/styles.js";
 import { ticketPlusFlowType } from "../../../config/ticketPlusActivity.js";
 import type { TicketPlusActivityRecord } from "../platforms/ticketplus/formModel.js";
 import type { ActivityExecutionStatus } from "../../purchaseRuns.js";
@@ -18,9 +18,9 @@ interface Props {
 
 export function ActivityListPage({ activities, disabled, mutationsDisabled, onNew, onLoad, onRemove, running }: Props) {
     return (
-        <div data-tailwind className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-                <h2 className="text-xl font-semibold">活動列表</h2>
+        <div data-tailwind className="rounded-xl border border-slate-200 bg-white">
+            <div className={panelHeading}>
+                <h2 className="pl-3 text-lg font-semibold text-blue-900">活動列表</h2>
                 <button
                     id="new"
                     className={`${primaryButton} group relative text-xl leading-none`}
@@ -37,9 +37,9 @@ export function ActivityListPage({ activities, disabled, mutationsDisabled, onNe
                     </span>
                 </button>
             </div>
-            <div className={panel}>
+            <div className="p-4 sm:p-6">
                 <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-left [&_th]:px-3 [&_th]:py-3 [&_td]:px-3 [&_td]:py-4 [&_td]:align-top">
+                    <table className="w-full min-w-xl border-collapse text-left [&_th]:px-3 [&_th]:py-3 [&_td]:px-3 [&_td]:py-4 [&_td]:align-top">
                         <thead className="bg-slate-50 text-sm text-slate-500">
                             <tr>
                                 {["活動名稱", "購票流程", "執行狀態", "操作"].map(label => (

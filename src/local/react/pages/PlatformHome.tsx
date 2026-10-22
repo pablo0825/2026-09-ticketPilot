@@ -1,4 +1,4 @@
-import { primaryButton, secondaryButton, panel } from "../shared/styles.js";
+import { primaryButton, secondaryButton, panelHeading } from "../shared/styles.js";
 import type { PurchaseSnapshot } from "../../purchaseRuns.js";
 
 interface Props {
@@ -13,11 +13,11 @@ interface Props {
 
 export function PlatformHome({ disabled, status, canViewRun, runPlatform, onKlook, onTicketPlus, onViewRun }: Props) {
     return (
-        <div data-tailwind className="space-y-4">
-            <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">購票平台</h2>
+        <div data-tailwind className="rounded-xl border border-slate-200 bg-white">
+            <div className={panelHeading}>
+                <h2 className="pl-1 text-lg font-semibold text-blue-900 sm:pl-3">購票平台</h2>
             </div>
-            <section id="platformHome" className={panel}>
+            <section id="platformHome" className="p-4 sm:p-6">
                 <table
                     className="w-full table-fixed border-collapse text-left text-sm sm:text-base [&_th]:px-1 [&_th]:py-3 [&_td]:px-1 [&_td]:py-4 sm:[&_th]:px-3 sm:[&_td]:px-3 [&_tbody_tr]:border-t [&_tbody_tr]:border-slate-200"
                     aria-label="購票平台"

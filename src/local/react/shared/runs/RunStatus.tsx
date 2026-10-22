@@ -1,4 +1,4 @@
-import { primaryButton, secondaryButton, panel, badgeColors } from "../styles.js";
+import { primaryButton, secondaryButton, panel, stepPanel, badgeColors } from "../styles.js";
 import { useEffect, useRef, useState } from "react";
 import type { DisplayedRun } from "./useRunStatus.js";
 import { eventLogs, purchaseStatus, stopRequestPresentation } from "./runPresentation.js";
@@ -9,6 +9,7 @@ import { RunSteps } from "./RunSteps.js";
 
 interface Props {
     displayed: DisplayedRun | null;
+    attached?: boolean;
     canClose: boolean;
     closing: boolean;
     onClose: () => void;
@@ -17,7 +18,16 @@ interface Props {
     participantsControl?: { onConfirm: () => void };
 }
 
-export function RunStatus({ displayed, canClose, closing, onClose, onCopy, stopControl, participantsControl }: Props) {
+export function RunStatus({
+    displayed,
+    attached = false,
+    canClose,
+    closing,
+    onClose,
+    onCopy,
+    stopControl,
+    participantsControl,
+}: Props) {
     const [now, setNow] = useState(Date.now());
     const logElement = useRef<HTMLPreElement>(null);
     const followLog = useRef(true);
@@ -94,7 +104,7 @@ export function RunStatus({ displayed, canClose, closing, onClose, onCopy, stopC
     );
 
     return (
-        <div data-tailwind className={`${panel} my-4 space-y-4`}>
+        <div data-tailwind className={`${attached ? stepPanel : `${panel} my-4`} space-y-4`}>
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="flex min-w-0 flex-wrap items-center gap-3">
                     <h2 className="text-xl font-semibold" id="status">
