@@ -10,7 +10,7 @@ import { Breadcrumbs } from "../../shared/navigation/Breadcrumbs.js";
 import { StepNavigation } from "../../shared/navigation/StepNavigation.js";
 import { ticketPlusRunBadge } from "../../shared/runs/ticketPlusSteps.js";
 import type { ActivityListEntry } from "../../pages/ActivityListPage.js";
-import { ActivityEditor } from "./ActivityEditor.js";
+import { ActivityEditorPage } from "../../pages/ActivityEditorPage.js";
 import {
     activityForm,
     activityInput,
@@ -358,7 +358,7 @@ export function TicketPlusWorkspace({
                     />
                     <StepNavigation steps={steps} currentStep={step} disabled={locked} onChange={changeStep} />
                     {step === "activity" && (
-                        <ActivityEditor
+                        <ActivityEditorPage
                             form={form}
                             saved={record?.settings}
                             disabled={blocked || pendingStart}

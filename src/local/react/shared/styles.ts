@@ -13,3 +13,7 @@ export const badgeColors = {
     error: "bg-red-50 text-red-800",
     unknown: "bg-yellow-50 text-yellow-800",
 };
+
+export const fieldLabel = "flex min-w-0 flex-col gap-2 text-sm";
+export const fieldInput =
+    "w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 focus:outline-2 focus:outline-blue-600 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
