@@ -112,7 +112,7 @@ test("TicketPlus 活動列表：執行中的活動那一列顯示即時狀態與
         // 那一列標出來，狀態跟著執行進度顯示，按鈕換成「查看狀態」。
         const row = page.locator("#activities tr", { hasText: apiActivity.eventName });
         await row.locator(".status-badge", { hasText: "等待你" }).waitFor();
-        assert(await row.evaluate(element => element.classList.contains("running-row")));
+        assert.notEqual(await row.evaluate(element => getComputedStyle(element).backgroundColor), "rgba(0, 0, 0, 0)");
         assert.equal(await row.getByRole("button", { name: "編輯活動" }).count(), 0);
         assert(await row.getByRole("button", { name: "刪除", exact: true }).isDisabled());
         assert(await page.locator("#new").isDisabled());

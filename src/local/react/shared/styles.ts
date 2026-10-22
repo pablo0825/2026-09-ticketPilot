@@ -4,3 +4,12 @@ export const primaryButton =
 export const secondaryButton =
     "rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50";
 export const panel = "rounded-xl border border-slate-200 bg-white p-4 sm:p-6";
+
+export const badgeColors = {
+    done: "bg-emerald-50 text-emerald-800",
+    info: "bg-blue-50 text-blue-800",
+    action: "bg-amber-50 text-amber-800",
+    neutral: "bg-slate-100 text-slate-600",
+    error: "bg-red-50 text-red-800",
+    unknown: "bg-yellow-50 text-yellow-800",
+};
