@@ -104,7 +104,7 @@ export function KlookTargetRow({
                     />
                 </label>
                 <fieldset className="min-w-0">
-                    <legend className="mb-2 text-sm">連位</legend>
+                    <legend className="mb-2 text-sm">要求連位</legend>
                     <label className="check flex h-[38px] items-center gap-2 text-sm">
                         <input
                             className="size-4 shrink-0 accent-blue-600"

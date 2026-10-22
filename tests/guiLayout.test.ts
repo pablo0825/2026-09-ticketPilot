@@ -143,7 +143,7 @@ test("Klook 四個共用分頁接合外框，切頁保留草稿與紀錄閱讀�
                 await page.screenshot({ path: `/tmp/klook-page-${index + 1}-${width}.png`, fullPage: true });
                 if (index === 0) {
                     const date = await page.locator('[name="date"]').boundingBox();
-                    const adjacent = page.getByRole("group", { name: "連位", exact: true });
+                    const adjacent = page.getByRole("group", { name: "要求連位", exact: true });
                     const left = await adjacent.boundingBox();
                     assert(date && left);
                     assert(Math.abs(date.x - left.x) < 2);
