@@ -19,7 +19,7 @@ export function ActivityList({ activities, disabled, mutationsDisabled, onNew, o
     return (
         <div className="card">
             <div className="section-title">
-                <h2>TicketPlus 活動列表</h2>
+                <h2>活動列表</h2>
                 <button id="new" disabled={disabled || mutationsDisabled} onClick={onNew}>
                     新增活動
                 </button>
