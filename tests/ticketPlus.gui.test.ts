@@ -488,7 +488,7 @@ test("TicketPlus GUI：儲存成功訊息保留無法載入設定檔的警告", 
     });
 });
 
-test("TicketPlus GUI：活動網址下方以單選設定購票流程，抽選才寫入設定並顯示於列表", async () => {
+test("TicketPlus GUI：活動網址下方設定購票流程，抽選才寫入設定，列表不顯示流程", async () => {
     await fixture(async h => {
         const { page } = h;
         await fillNew(page, "抽選活動");
@@ -516,21 +516,14 @@ test("TicketPlus GUI：活動網址下方以單選設定購票流程，抽選才
         const saved = (await h.store.list()).activities.find(record => record.settings.eventName === "抽選活動")!;
         assert.equal((await disk(h, saved.id)).settings.flowType, "lottery");
 
-        // 列表顯示類型；舊活動顯示購票且存檔不寫欄位
+        // 列表只呈現名稱、執行狀態與操作，流程仍保存在活動設定。
         await page.locator("#homeButton").click();
-        await page
-            .locator("#activities tr")
-            .filter({ hasText: "抽選活動" })
-            .getByText("登記抽選", { exact: true })
-            .waitFor();
-        assert.equal(
-            await page
-                .locator("#activities tr")
-                .filter({ hasText: "同名活動" })
-                .getByText("購票", { exact: true })
-                .count(),
-            1,
-        );
+        const lotteryRow = page.locator("#activities tr").filter({ hasText: "抽選活動" });
+        await lotteryRow.waitFor();
+        assert.deepEqual(await page.getByRole("columnheader").allTextContents(), ["活動名稱", "執行狀態", "操作"]);
+        assert.equal(await lotteryRow.getByRole("cell").count(), 3);
+        assert.equal(await page.locator("#activities").getByText("登記抽選", { exact: true }).count(), 0);
+        assert.equal(await page.locator("#activities").getByText("購票", { exact: true }).count(), 0);
 
         // 舊活動改名後以購票重新存檔，設定檔不寫流程類型
         await page

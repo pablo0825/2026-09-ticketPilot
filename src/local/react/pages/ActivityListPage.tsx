@@ -1,5 +1,4 @@
 import { primaryButton, secondaryButton, panelHeading, badgeColors } from "../shared/styles.js";
-import { ticketPlusFlowType } from "../../../config/ticketPlusActivity.js";
 import type { TicketPlusActivityRecord } from "../platforms/ticketplus/formModel.js";
 import type { ActivityExecutionStatus } from "../../purchaseRuns.js";
 import type { TicketPlusStepsView } from "../shared/runs/ticketPlusSteps.js";
@@ -42,7 +41,7 @@ export function ActivityListPage({ activities, disabled, mutationsDisabled, onNe
                     <table className="w-full min-w-xl border-collapse text-left [&_th]:px-3 [&_th]:py-3 [&_td]:px-3 [&_td]:py-4 [&_td]:align-top">
                         <thead className="border-b border-slate-200 text-sm text-slate-500">
                             <tr>
-                                {["活動名稱", "購票流程", "執行狀態", "操作"].map(label => (
+                                {["活動名稱", "執行狀態", "操作"].map(label => (
                                     <th key={label} scope="col">
                                         {label}
                                     </th>
@@ -60,7 +59,6 @@ export function ActivityListPage({ activities, disabled, mutationsDisabled, onNe
                                         <td className="min-w-40 max-w-sm break-words font-medium">
                                             {item.settings.eventName}
                                         </td>
-                                        <td>{ticketPlusFlowType(item.settings) === "lottery" ? "登記抽選" : "購票"}</td>
                                         {runningItem ? (
                                             <td>
                                                 <span
