@@ -405,8 +405,11 @@ th {
     font-size: 14px;
     color: #526575;
 }
+/* 麵包屑是 nav，要蓋過共用 nav 按鈕的外觀與手機版的 flex、字級。 */
 .breadcrumb-link {
+    flex: none;
     padding: 0;
+    font-size: inherit;
     border: 0;
     border-radius: 2px;
     background: transparent;

@@ -157,7 +157,13 @@ test("TicketPlus GUI：活動保存保留原排程與期限，跨場次保存但
 
         // 活動名稱移到麵包屑，返回鍵維持原本的名稱。
         assert.equal(await page.locator(".breadcrumb-current").innerText(), settings.eventName);
-        assert.equal(await page.getByRole("button", { name: "返回活動首頁", exact: true }).count(), 1);
+        const crumbs = page.getByRole("navigation", { name: "目前位置" });
+        assert.equal(await crumbs.getByRole("button", { name: "返回平台首頁", exact: true }).innerText(), "首頁");
+        assert.equal(
+            await crumbs.getByRole("button", { name: "返回 TicketPlus 活動列表", exact: true }).innerText(),
+            "TicketPlus",
+        );
+        assert.equal(await crumbs.locator('[aria-current="page"]').innerText(), settings.eventName);
 
         // 步驟分頁沒有編號，目前分頁以 aria-current 標示。
         const tabs = page.getByRole("navigation", { name: "設定步驟" }).getByRole("button");
@@ -205,11 +211,24 @@ test("TicketPlus GUI：空白新表單與原設定不誤報修改，真正修改
         await page.locator("#homeButton").click();
         assert.equal(dialogs, 2);
         assert.equal(await page.locator("#eventName").inputValue(), "未保存修改");
+        const platformCrumb = page.getByRole("button", { name: "返回平台首頁", exact: true });
+        await platformCrumb.click();
+        assert.equal(dialogs, 3);
+        assert.equal(await page.locator("#eventName").inputValue(), "未保存修改");
         page.removeAllListeners("dialog");
         page.once("dialog", dialog => dialog.accept());
         await page.locator("#homeButton").click();
         await page.getByRole("button", { name: "編輯活動" }).click();
         assert.equal(await page.locator("#eventName").inputValue(), "同名活動");
+
+        // 列表頁的麵包屑是「首頁 / TicketPlus」，按「首頁」回到選平台的頁面。
+        page.once("dialog", dialog => dialog.accept());
+        await page.locator("#homeButton").click();
+        const listCrumbs = page.getByRole("navigation", { name: "目前位置" });
+        assert.equal(await listCrumbs.locator('[aria-current="page"]').innerText(), "TicketPlus");
+        assert.equal(await page.locator("#homeButton").count(), 0);
+        await platformCrumb.click();
+        await page.locator("#selectTicketPlus").waitFor();
     });
 });
 
@@ -413,8 +432,9 @@ test("TicketPlus GUI：Klook 瀏覽器仍占用時禁止變更，保留查看狀
             await h.page.reload();
             await h.page.locator("#selectTicketPlus").click();
             await eventually(async () => assert(await h.page.locator("#new").isDisabled()));
-            // 舊的占用說明已改成編輯頁麵包屑的鎖定標籤，清單頁不再顯示。
-            assert.equal(await h.page.getByText("暫時無法變更活動設定").count(), 0);
+            // 列表頁也用麵包屑的鎖定標籤說明，不再顯示整行說明文字。
+            assert.match(await h.page.locator(".breadcrumb .lock-chip").innerText(), /^🔒 設定已鎖定/);
+            assert.equal(await h.page.locator("p", { hasText: "暫時無法變更活動設定" }).count(), 0);
             assert(await h.page.getByRole("button", { name: "編輯活動" }).isDisabled());
             assert(await h.page.getByRole("button", { name: "刪除", exact: true }).isDisabled());
             assert(await h.page.locator("#new").isDisabled());

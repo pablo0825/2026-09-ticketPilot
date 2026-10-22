@@ -6,6 +6,7 @@ import { AppHeader } from "../../shared/AppHeader.js";
 import type { useRunStatus } from "../../shared/runs/useRunStatus.js";
 import { RunStatus } from "../../shared/runs/RunStatus.js";
 import { ActivityList } from "./ActivityList.js";
+import { Breadcrumb } from "./Breadcrumb.js";
 import type { ActivityListEntry } from "./ActivityList.js";
 import { ActivityEditor } from "./ActivityEditor.js";
 import {
@@ -38,7 +39,6 @@ interface ActivityListData {
 }
 
 type Step = "activity" | "confirm" | "status";
-const settingsLockReason = "購票瀏覽器使用中或模擬執行中，暫時無法變更活動設定";
 const steps: { id: Step; label: string }[] = [
     { id: "activity", label: "活動與順位" },
     { id: "confirm", label: "確認與開始" },
@@ -294,30 +294,14 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
             )}
             {editing ? (
                 <>
-                    <div className="breadcrumb">
-                        <button
-                            id="homeButton"
-                            className="breadcrumb-link"
-                            aria-label="返回活動首頁"
-                            disabled={locked}
-                            onClick={() => leave("list")}
-                        >
-                            活動首頁
-                        </button>
-                        <span aria-hidden="true">/</span>
-                        {/* 只顯示已儲存的名稱，輸入中的名稱要按儲存後才更新。 */}
-                        <span className="breadcrumb-current" title={activityTitle}>
-                            {activityTitle}
-                        </span>
-                        {/* 完整原因平時只給螢幕閱讀器；滑鼠移上去或鍵盤聚焦時顯示成提示框。 */}
-                        {occupied && (
-                            <span className="lock-chip" tabIndex={0}>
-                                <span aria-hidden="true">🔒 </span>設定已鎖定
-                                <span className="visually-hidden">：</span>
-                                <span className="lock-chip-tip">{settingsLockReason}</span>
-                            </span>
-                        )}
-                    </div>
+                    {/* 只顯示已儲存的名稱，輸入中的名稱要按儲存後才更新。 */}
+                    <Breadcrumb
+                        activityTitle={activityTitle}
+                        disabled={locked}
+                        locked={occupied}
+                        onPlatforms={() => leave("platforms")}
+                        onList={() => leave("list")}
+                    />
                     <nav className="step-tabs" aria-label="設定步驟">
                         {steps.map(item => (
                             <button
@@ -389,6 +373,12 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
                 </>
             ) : (
                 <>
+                    <Breadcrumb
+                        disabled={locked}
+                        locked={occupied}
+                        onPlatforms={() => leave("platforms")}
+                        onList={() => leave("list")}
+                    />
                     {hasRun && (
                         <div className="section-title">
                             <button className="secondary" disabled={locked} onClick={onViewRun}>
