@@ -2,10 +2,10 @@
 
 ## Structure & Commands
 
-This TypeScript/Playwright project automates Klook ticket selection.
+This TypeScript/Playwright project automates ticket selection on Klook and TicketPlus.
 `src/local/main.ts` starts the GUI, the only entry point; `src/app/` orchestrates
 purchase runs; `src/core/` owns strategy, types, state, and recovery;
-`src/platforms/klook/` owns DOM interactions; `src/config/` owns configuration;
+`src/platforms/` owns platform-specific browser interactions; `src/config/` owns configuration;
 `tests/` contains tests; `docs/` records DOM observations.
 
 From the repository root:
@@ -21,14 +21,15 @@ Review the activity settings in the GUI before live runs.
 
 ## Development & Style
 
-Before writing, modifying, refactoring, or reviewing code, read and follow
-[readable-code](.agents/skills/readable-code/SKILL.md).
-Repository-specific requirements in this file take precedence over that guide.
+Before writing, modifying, refactoring, or reviewing code, read and follow:
 
-Use four-space indentation, semicolons, existing quote style,
-camelCase for functions/files, and PascalCase for classes/types.
-Use strict TypeScript, `.js` relative imports, and `import type`.
-Use braces when an `if` condition or body spans lines.
+- [readable-code](.agents/skills/readable-code/SKILL.md) for clear code structure and focused changes.
+- [typescript-style](.agents/skills/typescript-style/SKILL.md) for TypeScript style and practices.
+
+This repository's rules take precedence over these guides.
+
+Follow existing file naming conventions, including PascalCase for React component files.
+Use strict TypeScript and `.js` extensions for relative imports.
 
 ## Browser Flow & Recovery
 
