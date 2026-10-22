@@ -141,6 +141,26 @@ test("Klook 四個共用分頁接合外框，切頁保留草稿與紀錄閱讀�
                 await assertJoined(nav, page.locator(`#step${index + 1} > [data-tailwind]`));
                 assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
                 await page.screenshot({ path: `/tmp/klook-page-${index + 1}-${width}.png`, fullPage: true });
+                if (index === 0) {
+                    const date = await page.locator('[name="date"]').boundingBox();
+                    const adjacent = page.getByRole("group", { name: "連位", exact: true });
+                    const left = await adjacent.boundingBox();
+                    assert(date && left);
+                    assert(Math.abs(date.x - left.x) < 2);
+                    await page.locator("#bundleEnabled").check();
+                    const bundle = await page.locator('[name="bundle"]').boundingBox();
+                    const right = await adjacent.boundingBox();
+                    assert(bundle && right);
+                    if (width === 1280) {
+                        assert(bundle.width > right.width * 3);
+                        assert(right.x > bundle.x + bundle.width);
+                    } else {
+                        assert(right.y > bundle.y + bundle.height);
+                    }
+                    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+                    await page.screenshot({ path: `/tmp/klook-bundle-${width}.png`, fullPage: true });
+                    await page.locator("#bundleEnabled").uncheck();
+                }
             }
         }
         await nav.getByRole("button", { name: "活動與順位", exact: true }).click();
