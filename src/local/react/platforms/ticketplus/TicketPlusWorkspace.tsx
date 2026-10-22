@@ -127,15 +127,18 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
         runs.purchase?.occupied && runs.purchase.platform === "ticketplus" ? runs.purchase.activityId : undefined;
     const runningListed = activities.some(item => item.id === runningActivityId);
     const hasRun = Boolean(
-        runs.purchase?.occupied ||
-        runs.purchase?.status === "unknown" ||
-        runs.purchase?.status === "interrupted" ||
-        runs.simulation?.status === "running",
+        (runs.purchase && purchaseNeedsAttention(runs.purchase)) || runs.simulation?.status === "running",
     );
     // 執行狀態分頁只呈現這個活動目前這一輪：剛在這裡開始的，或依活動 id 對應且仍需要注意的。
     const activityRunId = currentActivityRunId(runs.purchase, record?.id, startedRunId);
     const displayedRun =
         runs.displayed?.kind === "purchase" && runs.displayed.run.id === activityRunId ? runs.displayed : null;
+
+    // 停在執行狀態分頁時，讓畫面顯示這個活動目前這一輪；之後才開始或晚到的一輪也會切過去。
+    // 停止與參加者按鈕只作用在畫面顯示的那一輪，所以要同步。
+    useEffect(() => {
+        if (step === "status" && activityRunId && !displayedRun) runs.showResult("purchase");
+    }, [step, activityRunId, displayedRun, runs]);
 
     async function action(work: () => Promise<unknown>) {
         // 同步鎖涵蓋保存與導覽，避免 React 尚未更新按鈕時重複送出。
@@ -199,18 +202,12 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onExit, onViewR
             if (!active.current) return;
             openRecord(next);
             setStep("status");
-            runs.showResult("purchase");
         });
     }
 
     function changeStep(next: Step) {
         if (busyRef.current || runs.closing) return;
         setStep(next);
-
-        // 切到執行狀態時，讓畫面顯示這個活動目前這一輪，停止與參加者按鈕才會作用在同一輪。
-        if (next === "status" && activityRunId && runs.displayed?.run.id !== activityRunId) {
-            runs.showResult("purchase");
-        }
     }
 
     async function save() {
@@ -454,6 +451,11 @@ function currentActivityRunId(
     if (purchase?.platform !== "ticketplus") return undefined;
     if (purchase.id === startedRunId) return purchase.id;
 
-    const needsAttention = purchase.occupied || ["running", "unknown", "interrupted"].includes(purchase.status);
-    return activityId !== undefined && purchase.activityId === activityId && needsAttention ? purchase.id : undefined;
+    const sameActivity = activityId !== undefined && purchase.activityId === activityId;
+    return sameActivity && purchaseNeedsAttention(purchase) ? purchase.id : undefined;
+}
+
+// 仍占用瀏覽器、執行中或結果未確認的一輪，需要使用者注意。
+function purchaseNeedsAttention(purchase: PurchaseSnapshot): boolean {
+    return purchase.occupied || ["running", "unknown", "interrupted"].includes(purchase.status);
 }

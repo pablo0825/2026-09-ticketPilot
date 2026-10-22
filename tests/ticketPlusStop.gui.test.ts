@@ -72,6 +72,10 @@ test("TicketPlus 執行狀態分頁：依活動 id 顯示目前這一輪，同�
         const targetPage = opened.get(target.id)!;
         const otherPage = pages.find(current => current !== targetPage)!;
 
+        // 先停在執行狀態分頁（尚未開始），之後才啟動的一輪也要自動顯示。
+        await targetPage.getByRole("button", { name: "執行狀態", exact: true }).click();
+        assert.equal(await targetPage.getByRole("heading", { name: "尚未開始" }).count(), 1);
+
         // 從 API 啟動第一筆活動。
         const response = await h.request("/api/purchase", {
             requestId: randomUUID(),
@@ -87,7 +91,6 @@ test("TicketPlus 執行狀態分頁：依活動 id 顯示目前這一輪，同�
 
         // 這筆活動的執行狀態分頁顯示這一輪，停止按鈕也作用在同一輪。
         await targetPage.locator(".lock-chip").waitFor();
-        await targetPage.getByRole("button", { name: "執行狀態", exact: true }).click();
         await eventually(async () => assert.equal(await targetPage.locator("#status").innerText(), "請手動登入"));
         assert.equal(await targetPage.getByRole("button", { name: stopLabel, exact: true }).count(), 1);
 
