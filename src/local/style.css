@@ -464,7 +464,7 @@ th {
     outline: 2px solid #5f9fcb;
     outline-offset: -4px;
 }
-/* TicketPlus 活動列表標題列：與分頁列同樣接在卡片上方。 */
+/* 卡片上方的標題列（TicketPlus 活動列表、平台首頁）：與分頁列同樣接在卡片上方。 */
 .list-bar {
     display: flex;
     align-items: center;
@@ -728,6 +728,10 @@ button.danger {
     /* 窄螢幕卡片內距改為 18px，標題列跟著調整才會和表格對齊。 */
     .list-bar {
         padding: 0 18px 0 28px;
+    }
+    /* 平台表格窄螢幕的儲存格內距只有 4px。 */
+    .platform-bar {
+        padding-left: 22px;
     }
     .lock-chip {
         position: static;
