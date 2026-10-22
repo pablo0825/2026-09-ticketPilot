@@ -464,6 +464,68 @@ th {
     outline: 2px solid #5f9fcb;
     outline-offset: -4px;
 }
+/* TicketPlus 活動列表標題列：與分頁列同樣接在卡片上方。 */
+.list-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 56px;
+    padding: 0 12px 0 28px;
+    background: white;
+    border: 1px solid #dde4eb;
+    border-radius: 12px 12px 0 0;
+}
+/* 上方有「查看目前狀態」按鈕時，和標題列之間保留間距。 */
+.section-title + .list-bar {
+    margin-top: 18px;
+}
+.list-bar h2 {
+    margin: 0;
+    font-size: 16px;
+    color: #254d71;
+}
+.list-bar + .card {
+    margin-top: 0;
+    padding-top: 8px;
+    border-top: 0;
+    border-radius: 0 0 12px 12px;
+}
+/* 標題已在上方標題列，表格不需要再和標題拉開距離。 */
+.list-bar + .card table {
+    margin-top: 0;
+}
+.icon-button {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    font-size: 20px;
+    line-height: 1;
+}
+.icon-button:focus-visible {
+    outline: 2px solid #5f9fcb;
+    outline-offset: 2px;
+}
+/* 提示框平時不顯示；滑鼠移上去或鍵盤聚焦時出現在按鈕下方靠右。 */
+.icon-button-tip {
+    display: none;
+}
+.icon-button:hover .icon-button-tip,
+.icon-button:focus-visible .icon-button-tip {
+    display: block;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 10;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: #233342;
+    color: white;
+    font-size: 12px;
+    font-weight: 400;
+    white-space: nowrap;
+}
 .step-tabs + .card {
     margin-top: 0;
     border-top: 0;

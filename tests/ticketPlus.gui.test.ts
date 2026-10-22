@@ -197,6 +197,17 @@ test("TicketPlus GUI：空白新表單與原設定不誤報修改，真正修改
             dialogs++;
             void dialog.dismiss();
         });
+
+        // 新增按鈕只顯示「＋」，名稱是「新增活動」，滑鼠移上去顯示提示框。
+        const add = page.getByRole("button", { name: "新增活動", exact: true });
+        const addTip = add.locator(".icon-button-tip");
+        assert.equal((await add.innerText()).trim(), "＋");
+        assert.equal(await addTip.isVisible(), false);
+        await add.hover();
+        assert.equal(await addTip.isVisible(), true);
+        assert.equal(await addTip.innerText(), "新增活動");
+        await page.mouse.move(0, 0);
+
         await page.locator("#new").click();
         await page.locator("#homeButton").click();
         assert.equal(dialogs, 0);
