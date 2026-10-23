@@ -93,6 +93,12 @@ export function TicketPlusWorkspace({
         setConfirmed(false);
     }
 
+    function changeExecution(next: ExecutionForm) {
+        setExecution(next);
+        setFieldErrors({});
+        setConfirmed(false);
+    }
+
     const refreshList = useCallback(async () => {
         const request = ++listRequest.current;
         const data = await api<ActivityListData>("/api/activities");
@@ -419,13 +425,33 @@ export function TicketPlusWorkspace({
                             onStart={requestStart}
                             confirmed={confirmed}
                             onConfirm={setConfirmed}
-                            execution={execution}
+                            // 預設一秒只供顯示；更新欄位時仍使用原始草稿，避免補寫未設定值。
+                            execution={{
+                                mode: execution.mode,
+                                saleAt: execution.saleAt,
+                                advanceSeconds: execution.advanceSeconds ?? 1,
+                            }}
+                            ids={{
+                                saleAtError: "ticketplus-sale-error",
+                                maxRunMinutes: "maxRunMinutes",
+                                maxRunMinutesError: "ticketplus-minutes-error",
+                            }}
                             executionErrors={fieldErrors}
                             executionDisabled={blocked || pendingStart}
-                            onExecutionChange={next => {
-                                setExecution(next);
-                                setFieldErrors({});
-                                setConfirmed(false);
+                            onModeChange={mode =>
+                                changeExecution(
+                                    mode === "now"
+                                        ? { mode, saleAt: "", maxRunMinutes: execution.maxRunMinutes }
+                                        : { ...execution, mode },
+                                )
+                            }
+                            onSaleAtChange={saleAt => changeExecution({ ...execution, saleAt })}
+                            onAdvanceChange={advanceSeconds => changeExecution({ ...execution, advanceSeconds })}
+                            maxRunMinutes={{
+                                value: execution.maxRunMinutes,
+                                min: 10,
+                                max: 1440,
+                                onChange: maxRunMinutes => changeExecution({ ...execution, maxRunMinutes }),
                             }}
                         />
                     )}

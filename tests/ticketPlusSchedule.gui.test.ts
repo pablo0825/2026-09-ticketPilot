@@ -575,3 +575,18 @@ test("TicketPlus 期限 GUI：舊 5 分鐘保留顯示但不能開始，改成 1
         { ...apiActivity, maxRunMinutes: 5 },
     );
 });
+
+test("TicketPlus 切換立即開始再返回排程時，清除時間與提前刷新草稿", async () => {
+    await fixture(async (_h, page, _record, requests) => {
+        await setTime(page, "2026-12-01T12:34:56");
+        await page.getByRole("combobox", { name: advanceLabel }).selectOption("2");
+        const confirmed = page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ });
+        await confirmed.check();
+        await page.getByRole("combobox", { name: /執行方式/ }).selectOption("now");
+        assert(!(await confirmed.isChecked()));
+        await page.getByRole("combobox", { name: /執行方式/ }).selectOption("scheduled");
+        assert.equal(await page.getByLabel(timeLabel, { exact: true }).inputValue(), "");
+        assert.equal(await page.getByRole("combobox", { name: advanceLabel }).inputValue(), "1");
+        assert.equal(requests.filter(request => request.method === "PUT").length, 0);
+    });
+});

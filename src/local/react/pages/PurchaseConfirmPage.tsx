@@ -1,11 +1,10 @@
 import { useEffect, useRef } from "react";
-import type { ExecutionForm, ExecutionErrors } from "../platforms/ticketplus/formModel.js";
-import type { ActivityForm as KlookActivityForm } from "../platforms/klook/formModel.js";
 import { primaryButton, panel, stepPanel, fieldLabel, fieldInput } from "../shared/styles.js";
 import type { PurchaseSummaryData } from "./purchaseSummary.js";
 
-interface CommonProps {
+interface Props {
     summary?: PurchaseSummaryData;
+    emptySummaryMessage?: string;
     confirmation: string;
     reason: string;
     disabled: boolean;
@@ -15,30 +14,41 @@ interface CommonProps {
     executionDisabled: boolean;
     confirmed: boolean;
     onConfirm: (confirmed: boolean) => void;
+    execution: Readonly<{
+        mode: "now" | "scheduled";
+        saleAt: string;
+        advanceSeconds: string | number;
+    }>;
+    executionErrors?: { saleAt?: string; maxRunMinutes?: string };
+    onModeChange: (mode: "now" | "scheduled") => void;
+    onSaleAtChange: (saleAt: string) => void;
+    onAdvanceChange: (seconds: 1 | 2) => void;
+    maxRunMinutes?: {
+        value: string;
+        min: number;
+        max: number;
+        onChange: (value: string) => void;
+    };
+    ids?: {
+        panel?: string;
+        mode?: string;
+        schedule?: string;
+        saleAt?: string;
+        saleAtError?: string;
+        advance?: string;
+        maxRunMinutes?: string;
+        maxRunMinutesError?: string;
+        confirm?: string;
+        start?: string;
+    };
 }
-
-interface TicketPlusProps extends CommonProps {
-    platform?: "ticketplus";
-    execution: ExecutionForm;
-    executionErrors: ExecutionErrors;
-    onExecutionChange: (form: ExecutionForm) => void;
-}
-
-export type KlookExecutionForm = Pick<KlookActivityForm, "mode" | "saleAt" | "advance">;
-interface KlookProps extends CommonProps {
-    platform: "klook";
-    execution: KlookExecutionForm;
-    onExecutionChange: (form: KlookExecutionForm) => void;
-}
-
-type Props = TicketPlusProps | KlookProps;
 
 export function PurchaseConfirmPage(props: Props) {
     const { reason, disabled, onStart, execution: form, executionDisabled, confirmed, onConfirm } = props;
-    const isKlook = props.platform === "klook";
-    const attached = props.attached ?? !isKlook;
+    const attached = props.attached ?? true;
     const summary = props.summary;
-    const errors = props.platform === "klook" ? undefined : props.executionErrors;
+    const errors = props.executionErrors;
+    const ids = props.ids;
     const saleInput = useRef<HTMLInputElement>(null);
     const minutesInput = useRef<HTMLInputElement>(null);
     useEffect(() => {
@@ -46,34 +56,10 @@ export function PurchaseConfirmPage(props: Props) {
         else if (errors?.maxRunMinutes) minutesInput.current?.focus();
     }, [errors]);
 
-    // 兩平台保留各自的時間草稿語意；Klook 切回立即開始不清除尚未儲存的時間。
-    function changeMode(mode: "now" | "scheduled") {
-        if (props.platform === "klook") {
-            props.onExecutionChange({ ...props.execution, mode });
-        } else {
-            props.onExecutionChange(
-                mode === "now"
-                    ? { mode, saleAt: "", maxRunMinutes: props.execution.maxRunMinutes }
-                    : { ...props.execution, mode },
-            );
-        }
-    }
-
-    function changeSaleAt(saleAt: string) {
-        if (props.platform === "klook") props.onExecutionChange({ ...props.execution, saleAt });
-        else props.onExecutionChange({ ...props.execution, saleAt });
-    }
-
-    function changeAdvance(seconds: string) {
-        if (seconds !== "1" && seconds !== "2") return;
-        if (props.platform === "klook") props.onExecutionChange({ ...props.execution, advance: seconds });
-        else props.onExecutionChange({ ...props.execution, advanceSeconds: seconds === "1" ? 1 : 2 });
-    }
-
     return (
         <section
             data-tailwind
-            id={isKlook ? "purchaseSummary" : undefined}
+            id={ids?.panel}
             className={`${attached ? stepPanel : panel} space-y-6`}
             aria-label="活動摘要"
         >
@@ -148,21 +134,21 @@ export function PurchaseConfirmPage(props: Props) {
                         </div>
                     ))}
                 </div>
-            ) : isKlook ? (
-                <p id="summary">請先儲存活動設定。</p>
+            ) : props.emptySummaryMessage ? (
+                <p id="summary">{props.emptySummaryMessage}</p>
             ) : null}
             <div className="space-y-4">
                 <h2 className="text-xl font-semibold">執行設定</h2>
                 <label className={fieldLabel}>
                     執行方式
                     <select
-                        id={isKlook ? "mode" : undefined}
+                        id={ids?.mode}
                         className={`${fieldInput} h-11`}
                         value={form.mode}
                         disabled={executionDisabled}
                         onChange={event => {
                             const mode = event.target.value;
-                            if (mode === "now" || mode === "scheduled") changeMode(mode);
+                            if (mode === "now" || mode === "scheduled") props.onModeChange(mode);
                         }}
                     >
                         <option value="now">立即開始</option>
@@ -170,28 +156,25 @@ export function PurchaseConfirmPage(props: Props) {
                     </select>
                 </label>
                 {form.mode === "scheduled" && (
-                    <div
-                        id={isKlook ? "schedule" : undefined}
-                        className="grid grid-cols-1 gap-4 md:grid-cols-3 [&>div]:md:col-span-2"
-                    >
+                    <div id={ids?.schedule} className="grid grid-cols-1 gap-4 md:grid-cols-3 [&>div]:md:col-span-2">
                         <div>
                             <label className={fieldLabel}>
                                 開賣時間（台灣 UTC+8）
                                 <input
-                                    id={isKlook ? "saleAt" : undefined}
+                                    id={ids?.saleAt}
                                     className={`${fieldInput} h-11`}
                                     ref={saleInput}
                                     aria-invalid={Boolean(errors?.saleAt)}
-                                    aria-describedby={errors?.saleAt ? "ticketplus-sale-error" : undefined}
+                                    aria-describedby={errors?.saleAt ? ids?.saleAtError : undefined}
                                     type="datetime-local"
                                     step="1"
                                     disabled={executionDisabled}
                                     value={form.saleAt}
-                                    onChange={event => changeSaleAt(event.target.value)}
+                                    onChange={event => props.onSaleAtChange(event.target.value)}
                                 />
                             </label>
                             {errors?.saleAt && (
-                                <p id="ticketplus-sale-error" className="mt-2 text-sm text-red-700" role="alert">
+                                <p id={ids?.saleAtError} className="mt-2 text-sm text-red-700" role="alert">
                                     {errors.saleAt}
                                 </p>
                             )}
@@ -199,15 +182,16 @@ export function PurchaseConfirmPage(props: Props) {
                         <label className={fieldLabel}>
                             提前刷新
                             <select
-                                id={isKlook ? "advance" : undefined}
+                                id={ids?.advance}
                                 className={`${fieldInput} h-11`}
-                                value={
-                                    props.platform === "klook"
-                                        ? props.execution.advance
-                                        : (props.execution.advanceSeconds ?? 1)
-                                }
+                                value={form.advanceSeconds}
                                 disabled={executionDisabled}
-                                onChange={event => changeAdvance(event.target.value)}
+                                onChange={event => {
+                                    const seconds = event.target.value;
+                                    if (seconds === "1" || seconds === "2") {
+                                        props.onAdvanceChange(seconds === "1" ? 1 : 2);
+                                    }
+                                }}
                             >
                                 <option value="1">1 秒</option>
                                 <option value="2">2 秒</option>
@@ -215,7 +199,7 @@ export function PurchaseConfirmPage(props: Props) {
                         </label>
                     </div>
                 )}
-                {props.platform !== "klook" && (
+                {props.maxRunMinutes && (
                     <>
                         <label className={fieldLabel}>
                             最長執行時間（分鐘）
@@ -223,22 +207,20 @@ export function PurchaseConfirmPage(props: Props) {
                                 className={`${fieldInput} h-11`}
                                 ref={minutesInput}
                                 aria-invalid={Boolean(errors?.maxRunMinutes)}
-                                aria-describedby={errors?.maxRunMinutes ? "ticketplus-minutes-error" : undefined}
-                                id="maxRunMinutes"
+                                aria-describedby={errors?.maxRunMinutes ? ids?.maxRunMinutesError : undefined}
+                                id={ids?.maxRunMinutes}
                                 type="number"
-                                min="10"
+                                min={props.maxRunMinutes.min}
                                 required
-                                max="1440"
+                                max={props.maxRunMinutes.max}
                                 step="1"
                                 disabled={executionDisabled}
-                                value={props.execution.maxRunMinutes}
-                                onChange={event =>
-                                    props.onExecutionChange({ ...props.execution, maxRunMinutes: event.target.value })
-                                }
+                                value={props.maxRunMinutes.value}
+                                onChange={event => props.maxRunMinutes?.onChange(event.target.value)}
                             />
                         </label>
                         {errors?.maxRunMinutes && (
-                            <p id="ticketplus-minutes-error" className="mt-2 text-sm text-red-700" role="alert">
+                            <p id={ids?.maxRunMinutesError} className="mt-2 text-sm text-red-700" role="alert">
                                 {errors.maxRunMinutes}
                             </p>
                         )}
@@ -247,7 +229,7 @@ export function PurchaseConfirmPage(props: Props) {
             </div>
             <label className="flex items-start gap-3">
                 <input
-                    id={isKlook ? "confirm" : undefined}
+                    id={ids?.confirm}
                     className="mt-1 size-4 shrink-0 accent-blue-600"
                     type="checkbox"
                     disabled={disabled}
@@ -258,7 +240,7 @@ export function PurchaseConfirmPage(props: Props) {
             </label>
             {reason && <p role="status">{reason}</p>}
             <button
-                id={isKlook ? "start" : undefined}
+                id={ids?.start}
                 className={primaryButton}
                 type="button"
                 disabled={disabled || props.startDisabled || Boolean(reason) || !confirmed}

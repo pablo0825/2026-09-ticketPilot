@@ -632,3 +632,18 @@ test("Klook 空白欄位使用原生提示，不送出儲存；修正後可前�
         await page.locator("#step3").waitFor();
         assert.equal(writes, 2);
     }));
+
+test("Klook 切換立即開始再返回排程時，保留時間草稿但取消確認", async () =>
+    fixture(async (page, store, id) => {
+        await page.locator("#mode").selectOption("scheduled");
+        await page.locator("#saleAt").fill("2027-01-01T10:00");
+        await page.locator("#advance").selectOption("2");
+        await page.locator("#confirm").check();
+        await page.locator("#mode").selectOption("now");
+        assert(!(await page.locator("#confirm").isChecked()));
+        assert.equal(await page.locator("#saleAt").count(), 0);
+        await page.locator("#mode").selectOption("scheduled");
+        assert.equal(await page.locator("#saleAt").inputValue(), "2027-01-01T10:00");
+        assert.equal(await page.locator("#advance").inputValue(), "2");
+        assert.equal(klookSettings((await store.load(id)).settings).saleSchedule, undefined);
+    }));

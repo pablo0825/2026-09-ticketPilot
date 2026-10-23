@@ -356,11 +356,22 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
             </section>
             <section id="step3" hidden={step !== 3}>
                 <PurchaseConfirmPage
-                    platform="klook"
                     attached
                     summary={klookSummary(record?.settings)}
-                    execution={{ mode: form.mode, saleAt: form.saleAt, advance: form.advance }}
-                    onExecutionChange={next => changeForm({ ...form, ...next })}
+                    emptySummaryMessage="請先儲存活動設定。"
+                    ids={{
+                        panel: "purchaseSummary",
+                        mode: "mode",
+                        schedule: "schedule",
+                        saleAt: "saleAt",
+                        advance: "advance",
+                        confirm: "confirm",
+                        start: "start",
+                    }}
+                    execution={{ mode: form.mode, saleAt: form.saleAt, advanceSeconds: form.advance }}
+                    onModeChange={mode => changeForm({ ...form, mode })}
+                    onSaleAtChange={saleAt => changeForm({ ...form, saleAt })}
+                    onAdvanceChange={seconds => changeForm({ ...form, advance: String(seconds) })}
                     disabled={locked}
                     executionDisabled={locked}
                     startDisabled={blocked || !editing || legacy || !contactReady}
