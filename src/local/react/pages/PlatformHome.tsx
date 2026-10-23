@@ -1,17 +1,24 @@
 import { primaryButton, secondaryButton, panelHeading } from "../shared/styles.js";
-import type { PurchaseSnapshot } from "../../purchaseRuns.js";
+
+export interface PlatformHomeEntry {
+    id: string;
+    name: string;
+    status: string;
+    statusId?: string;
+    announceStatus?: boolean;
+    enterButtonId?: string;
+    onEnter: () => void;
+    onViewRun?: () => void;
+    viewRunButtonId?: string;
+}
 
 interface Props {
     disabled: boolean;
-    status: string;
-    canViewRun: boolean;
-    runPlatform: PurchaseSnapshot["platform"];
-    onKlook: () => void;
-    onTicketPlus: () => void;
-    onViewRun: () => void;
+    platforms: PlatformHomeEntry[];
+    runNotice?: { message: string; onViewRun: () => void; buttonId?: string };
 }
 
-export function PlatformHome({ disabled, status, canViewRun, runPlatform, onKlook, onTicketPlus, onViewRun }: Props) {
+export function PlatformHome({ disabled, platforms, runNotice }: Props) {
     return (
         <div data-tailwind className="rounded-xl border border-slate-200 bg-white">
             <div className={panelHeading}>
@@ -34,70 +41,46 @@ export function PlatformHome({ disabled, status, canViewRun, runPlatform, onKloo
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <th scope="row">Klook</th>
-                            <td id="platformStatus" aria-live="polite">
-                                {canViewRun && runPlatform !== "klook" ? "可進入設定" : status}
-                            </td>
-                            <td>
-                                <div className="flex flex-wrap gap-2">
-                                    <button
-                                        className={primaryButton}
-                                        id="selectKlook"
-                                        disabled={disabled}
-                                        onClick={onKlook}
-                                    >
-                                        進入平台
-                                    </button>
-                                    {canViewRun && runPlatform === "klook" && (
+                        {platforms.map(platform => (
+                            <tr key={platform.id}>
+                                <th scope="row">{platform.name}</th>
+                                <td id={platform.statusId} aria-live={platform.announceStatus ? "polite" : undefined}>
+                                    {platform.status}
+                                </td>
+                                <td>
+                                    <div className="flex flex-wrap gap-2">
                                         <button
-                                            id="platformViewRun"
-                                            className={secondaryButton}
+                                            className={primaryButton}
+                                            id={platform.enterButtonId}
                                             disabled={disabled}
-                                            onClick={onViewRun}
+                                            onClick={platform.onEnter}
                                         >
-                                            查看狀態
+                                            進入平台
                                         </button>
-                                    )}
-                                </div>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row">TicketPlus</th>
-                            <td>{canViewRun && runPlatform === "ticketplus" ? status : "可進入設定"}</td>
-                            <td>
-                                <div className="flex flex-wrap gap-2">
-                                    <button
-                                        className={primaryButton}
-                                        id="selectTicketPlus"
-                                        disabled={disabled}
-                                        onClick={onTicketPlus}
-                                    >
-                                        進入平台
-                                    </button>
-                                    {canViewRun && runPlatform === "ticketplus" && (
-                                        <button
-                                            id="platformViewRun"
-                                            className={secondaryButton}
-                                            disabled={disabled}
-                                            onClick={onViewRun}
-                                        >
-                                            查看狀態
-                                        </button>
-                                    )}
-                                </div>
-                            </td>
-                        </tr>
+                                        {platform.onViewRun && (
+                                            <button
+                                                id={platform.viewRunButtonId}
+                                                className={secondaryButton}
+                                                disabled={disabled}
+                                                onClick={platform.onViewRun}
+                                            >
+                                                查看狀態
+                                            </button>
+                                        )}
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
                     </tbody>
                 </table>
-                {canViewRun && runPlatform === null && (
+                {runNotice && (
                     <div className="mt-4 space-y-3">
-                        <p>平台未知的購票程序：{status}</p>
+                        <p>{runNotice.message}</p>
                         <button
-                            id="platformViewRun"
+                            id={runNotice.buttonId}
                             className={secondaryButton}
                             disabled={disabled}
-                            onClick={onViewRun}
+                            onClick={runNotice.onViewRun}
                         >
                             查看狀態
                         </button>

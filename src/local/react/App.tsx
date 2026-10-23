@@ -2,6 +2,7 @@ import { AppHeader } from "./shared/navigation/AppHeader.js";
 import { useState } from "react";
 import { TicketPlusWorkspace } from "./platforms/ticketplus/TicketPlusWorkspace.js";
 import { KlookWorkspace } from "./platforms/klook/KlookWorkspace.js";
+import type { PlatformHomeEntry } from "./pages/PlatformHome.js";
 import { PlatformHome } from "./pages/PlatformHome.js";
 import { platformRunStatus } from "./shared/runs/runPresentation.js";
 import { RunStatus } from "./shared/runs/RunStatus.js";
@@ -23,6 +24,58 @@ export function App() {
         setPage("platforms");
     }
 
+    function viewPlatformRun() {
+        if (!platformStatus.kind) return;
+
+        // 對應到 TicketPlus 活動時，進入那個活動的執行狀態分頁；否則看獨立的狀態頁。
+        const activityId =
+            platformStatus.kind === "purchase" && runs.purchase?.platform === "ticketplus"
+                ? runs.purchase.activityId
+                : undefined;
+        if (activityId) {
+            setMessage("");
+            setRunActivityId(activityId);
+            setPage("ticketplus");
+            return;
+        }
+        runs.showResult(platformStatus.kind);
+        setPage("run");
+    }
+
+    const canViewRun = platformStatus.kind !== null;
+    const runPlatform = runs.purchase?.platform ?? null;
+    const status = runs.ready ? platformStatus.label : "載入中…";
+    // 首頁只顯示資料；平台歸屬與導覽操作由入口決定。
+    const platforms: PlatformHomeEntry[] = [
+        {
+            id: "klook",
+            name: "Klook",
+            status: canViewRun && runPlatform !== "klook" ? "可進入設定" : status,
+            statusId: "platformStatus",
+            announceStatus: true,
+            enterButtonId: "selectKlook",
+            onEnter: () => {
+                setMessage("");
+                setPage("klook");
+            },
+            viewRunButtonId: "platformViewRun",
+            onViewRun: canViewRun && runPlatform === "klook" ? viewPlatformRun : undefined,
+        },
+        {
+            id: "ticketplus",
+            name: "TicketPlus",
+            status: canViewRun && runPlatform === "ticketplus" ? status : "可進入設定",
+            enterButtonId: "selectTicketPlus",
+            onEnter: () => {
+                setMessage("");
+                setRunActivityId(undefined);
+                setPage("ticketplus");
+            },
+            viewRunButtonId: "platformViewRun",
+            onViewRun: canViewRun && runPlatform === "ticketplus" ? viewPlatformRun : undefined,
+        },
+    ];
+
     // 頁面只負責導覽，真正啟動仍經過平台與後端驗證
     return (
         <main>
@@ -35,35 +88,16 @@ export function App() {
             {page === "platforms" && (
                 <PlatformHome
                     disabled={!runs.ready || runs.closing}
-                    status={runs.ready ? platformStatus.label : "載入中…"}
-                    canViewRun={platformStatus.kind !== null}
-                    runPlatform={runs.purchase?.platform ?? null}
-                    onKlook={() => {
-                        setMessage("");
-                        setPage("klook");
-                    }}
-                    onTicketPlus={() => {
-                        setMessage("");
-                        setRunActivityId(undefined);
-                        setPage("ticketplus");
-                    }}
-                    onViewRun={() => {
-                        if (!platformStatus.kind) return;
-
-                        // 對應到 TicketPlus 活動時，進入那個活動的執行狀態分頁；否則看獨立的狀態頁。
-                        const activityId =
-                            platformStatus.kind === "purchase" && runs.purchase?.platform === "ticketplus"
-                                ? runs.purchase.activityId
-                                : undefined;
-                        if (activityId) {
-                            setMessage("");
-                            setRunActivityId(activityId);
-                            setPage("ticketplus");
-                            return;
-                        }
-                        runs.showResult(platformStatus.kind);
-                        setPage("run");
-                    }}
+                    platforms={platforms}
+                    runNotice={
+                        canViewRun && runPlatform === null
+                            ? {
+                                  message: `平台未知的購票程序：${status}`,
+                                  onViewRun: viewPlatformRun,
+                                  buttonId: "platformViewRun",
+                              }
+                            : undefined
+                    }
                 />
             )}
             {page === "klook" && (

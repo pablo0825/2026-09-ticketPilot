@@ -70,7 +70,7 @@ Klook CLI（`npm start` 與 `src/config/event.config.ts`）已於 2026-10-17 移
 
 ## React 目錄
 
-- `App.tsx`：平台導覽與全域執行狀態，`useRunStatus` 只有一份。
+- `App.tsx`：平台導覽與全域執行狀態，`useRunStatus` 只有一份。提供平台首頁的名稱、狀態與操作清單；`PlatformHome` 逐列渲染，不判斷平台名稱。平台不明的程序以獨立提示傳入。
 - `pages/`：Klook 專用的 ContactDetailsPage、共用平台首頁、活動列表、活動與順位、確認與開始頁；`purchaseSummary.ts` 定義共用摘要資料型別，`targetRowActions.ts` 協調順位清單操作。
 - `platforms/klook/`：四步 Workspace、ActivitySettings、KlookTargetRow、摘要與草稿轉換、開始請求。
 - `platforms/ticketplus/`：三步 Workspace、ActivitySettings、TicketPlusTargetRow、摘要與草稿轉換、開始請求。
