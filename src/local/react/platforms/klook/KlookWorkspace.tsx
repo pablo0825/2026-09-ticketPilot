@@ -21,7 +21,7 @@ import type { ActivityForm } from "./formModel.js";
 import { ActivityEditorPage } from "../../pages/ActivityEditorPage.js";
 import { ContactDetailsPage } from "../../pages/ContactDetailsPage.js";
 import { PurchaseConfirmPage } from "../../pages/PurchaseConfirmPage.js";
-import { klookSummary } from "../../pages/purchaseSummary.js";
+import { klookSummary } from "./purchaseSummary.js";
 import { RunStatus } from "../../shared/runs/RunStatus.js";
 import type { useRunStatus } from "../../shared/runs/useRunStatus.js";
 import { startPurchase } from "./startPurchase.js";

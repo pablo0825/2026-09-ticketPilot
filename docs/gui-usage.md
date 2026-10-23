@@ -71,12 +71,18 @@ Klook CLI（`npm start` 與 `src/config/event.config.ts`）已於 2026-10-17 移
 ## React 目錄
 
 - `App.tsx`：平台導覽與全域執行狀態，`useRunStatus` 只有一份。
-- `pages/`：Klook 專用的 ContactDetailsPage、共用平台首頁、活動列表、活動與順位、確認與開始頁；`purchaseSummary.ts` 將兩平台已儲存設定轉為摘要資料，`targetRowActions.ts` 協調順位清單操作。
-- `platforms/klook/`：四步 Workspace、KlookTargetRow、草稿轉換與開始請求。
-- `platforms/ticketplus/`：三步 Workspace、TicketPlusTargetRow、草稿轉換與開始請求。
+- `pages/`：Klook 專用的 ContactDetailsPage、共用平台首頁、活動列表、活動與順位、確認與開始頁；`purchaseSummary.ts` 定義共用摘要資料型別，`targetRowActions.ts` 協調順位清單操作。
+- `platforms/klook/`：四步 Workspace、ActivitySettings、KlookTargetRow、摘要與草稿轉換、開始請求。
+- `platforms/ticketplus/`：三步 Workspace、ActivitySettings、TicketPlusTargetRow、摘要與草稿轉換、開始請求。
 - `shared/navigation/`：AppHeader、Breadcrumbs 與 StepNavigation。
 - `shared/api.ts`：本機 API、token 與錯誤處理。
 - `shared/runs/`：狀態訂閱、日誌呈現與關閉瀏覽器控制。
+
+活動與確認共用頁不判斷平台名稱，也不匯入平台表單型別。Workspace 提供活動文案、專屬設定區塊、順位列元件及新增／複製規則；共用活動頁保留清單排列與原生表單驗證。平台設定區塊不另包 form，避免巢狀表單。
+
+確認頁只接收執行設定的顯示值，並回報單一欄位的修改。Workspace 更新原始草稿及取消確認，不能將畫面預設值整份寫回設定。Klook 切換立即開始保留時間草稿；TicketPlus 清除時間及提前刷新草稿。各平台的 `purchaseSummary.ts` 只轉換已儲存設定，摘要不作為購票請求來源。
+
+新增平台時，由該平台 Workspace 提供相同介面的資料、元件與操作；共用頁不新增平台名稱分支。若需要新的共用排版或互動，先擴充共用介面。
 
 Klook 執行狀態維持原本的文字與紀錄，不加入 TicketPlus 步驟清單；切頁保留掛載與紀錄閱讀狀態。最長執行時間目前僅 TicketPlus 使用，Klook 不顯示也不寫入設定。
 

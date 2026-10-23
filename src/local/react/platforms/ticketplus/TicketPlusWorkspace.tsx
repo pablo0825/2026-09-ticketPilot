@@ -8,7 +8,7 @@ import { api } from "../../shared/api.js";
 import { AppHeader } from "../../shared/navigation/AppHeader.js";
 import type { useRunStatus } from "../../shared/runs/useRunStatus.js";
 import { RunStatus } from "../../shared/runs/RunStatus.js";
-import { ticketPlusSummary } from "../../pages/purchaseSummary.js";
+import { ticketPlusSummary } from "./purchaseSummary.js";
 import { ActivityListPage } from "../../pages/ActivityListPage.js";
 import { Breadcrumbs } from "../../shared/navigation/Breadcrumbs.js";
 import { StepNavigation } from "../../shared/navigation/StepNavigation.js";
