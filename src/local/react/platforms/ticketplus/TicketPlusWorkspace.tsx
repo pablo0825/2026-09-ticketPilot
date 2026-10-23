@@ -1,3 +1,4 @@
+import { TicketPlusActivitySettings } from "./ActivitySettings.js";
 import { primaryButton, secondaryButton, stepPanel } from "../../shared/styles.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityRecord } from "../../../../config/activityStore.js";
@@ -22,7 +23,7 @@ import {
     executionInput,
     executionErrors,
 } from "./formModel.js";
-import type { TicketPlusActivityRecord, ExecutionForm, ExecutionErrors } from "./formModel.js";
+import type { ActivityForm, TicketPlusActivityRecord, ExecutionForm, ExecutionErrors } from "./formModel.js";
 import { ticketPlusSessionSelection } from "../../../../config/ticketPlusActivity.js";
 import { PurchaseConfirmPage } from "../../pages/PurchaseConfirmPage.js";
 import { findPendingStart, hasPendingStart, startPurchase } from "./startPurchase.js";
@@ -80,6 +81,15 @@ export function TicketPlusWorkspace({
     const active = useRef(true);
     const listRequest = useRef(0);
     const [pendingStart, setPendingStart] = useState(hasPendingStart);
+
+    const sessions = new Set(
+        form.targets.filter(target => target.date && target.time).map(target => `${target.date} ${target.time}`),
+    );
+
+    function changeForm(next: ActivityForm) {
+        setForm(next);
+        setConfirmed(false);
+    }
 
     const refreshList = useCallback(async () => {
         const request = ++listRequest.current;
@@ -369,12 +379,25 @@ export function TicketPlusWorkspace({
                     {step === "activity" && (
                         <ActivityEditorPage
                             form={form}
-                            saved={record?.settings}
+                            title={record ? "編輯活動" : "新增活動"}
+                            eventName={form.eventName}
+                            eventUrl={form.eventUrl}
+                            eventUrlPlaceholder="https://ticketplus.com.tw/activity/…"
+                            onCommonChange={patch => changeForm({ ...form, ...patch })}
+                            platformSettings={
+                                <TicketPlusActivitySettings
+                                    flowType={form.flowType}
+                                    disabled={blocked || pendingStart}
+                                    onChange={flowType => changeForm({ ...form, flowType })}
+                                />
+                            }
+                            targetNotice={
+                                sessions.size > 1 && (
+                                    <p role="status">此設定含不同場次，可以儲存，但目前無法啟動購票。</p>
+                                )
+                            }
                             disabled={blocked || pendingStart}
-                            onChange={next => {
-                                setForm(next);
-                                setConfirmed(false);
-                            }}
+                            onChange={changeForm}
                             onSave={() => void action(save)}
                         />
                     )}

@@ -1,39 +1,38 @@
+import type { ReactNode } from "react";
 import { primaryButton, secondaryButton, panel, stepPanel, fieldLabel, fieldInput } from "../shared/styles.js";
 import { emptyTarget as emptyTicketPlusTarget } from "../platforms/ticketplus/formModel.js";
 import type { ActivityForm as TicketPlusForm } from "../platforms/ticketplus/formModel.js";
 import { emptyTarget as emptyKlookTarget } from "../platforms/klook/formModel.js";
 import type { ActivityForm as KlookForm } from "../platforms/klook/formModel.js";
-import type { TicketPlusActivitySettings } from "../../../config/ticketPlusActivity.js";
 import { TicketPlusTargetRow } from "../platforms/ticketplus/TicketPlusTargetRow.js";
 import { KlookTargetRow } from "../platforms/klook/KlookTargetRow.js";
 import { targetRowActions } from "./targetRowActions.js";
 
 interface CommonProps {
+    title: string;
+    eventName: string;
+    eventUrl: string;
+    eventUrlPlaceholder: string;
+    onCommonChange: (patch: Partial<{ eventName: string; eventUrl: string }>) => void;
+    platformSettings: ReactNode;
+    advancedSettings?: ReactNode;
+    targetNotice?: ReactNode;
     disabled: boolean;
     attached?: boolean;
     onSave: () => void;
 }
 type Props = CommonProps &
     (
-        | { platform: "klook"; form: KlookForm; title: string; onChange: (form: KlookForm) => void }
+        | { platform: "klook"; form: KlookForm; onChange: (form: KlookForm) => void }
         | {
               platform?: "ticketplus";
               form: TicketPlusForm;
-              saved?: TicketPlusActivitySettings;
               onChange: (form: TicketPlusForm) => void;
           }
     );
 
 export function ActivityEditorPage(props: Props) {
-    const { form, disabled, attached = true, onSave } = props;
-    const isKlook = props.platform === "klook";
-    const sessions = new Set(
-        form.targets.filter(target => target.date && target.time).map(target => `${target.date} ${target.time}`),
-    );
-    function changeCommon(patch: Partial<Pick<TicketPlusForm, "eventName" | "eventUrl">>) {
-        if (props.platform === "klook") props.onChange({ ...props.form, ...patch });
-        else props.onChange({ ...props.form, ...patch });
-    }
+    const { disabled, attached = true, onSave } = props;
     function addTarget() {
         if (props.platform === "klook") {
             props.onChange({ ...props.form, targets: [...props.form.targets, emptyKlookTarget()] });
@@ -45,7 +44,7 @@ export function ActivityEditorPage(props: Props) {
     const content = (
         <>
             <h2 id="editorTitle" className="text-xl font-semibold">
-                {props.platform === "klook" ? props.title : props.saved ? "編輯活動" : "新增活動"}
+                {props.title}
             </h2>
             <label className={fieldLabel}>
                 活動名稱
@@ -54,8 +53,8 @@ export function ActivityEditorPage(props: Props) {
                     id="eventName"
                     required
                     disabled={disabled}
-                    value={form.eventName}
-                    onChange={e => changeCommon({ eventName: e.target.value })}
+                    value={props.eventName}
+                    onChange={e => props.onCommonChange({ eventName: e.target.value })}
                     placeholder="輸入官網活動完整名稱"
                 />
             </label>
@@ -67,111 +66,12 @@ export function ActivityEditorPage(props: Props) {
                     type="url"
                     required
                     disabled={disabled}
-                    value={form.eventUrl}
-                    onChange={e => changeCommon({ eventUrl: e.target.value })}
-                    placeholder={
-                        isKlook ? "https://www.klook.com/zh-TW/event-detail/…/" : "https://ticketplus.com.tw/activity/…"
-                    }
+                    value={props.eventUrl}
+                    onChange={e => props.onCommonChange({ eventUrl: e.target.value })}
+                    placeholder={props.eventUrlPlaceholder}
                 />
             </label>
-            {props.platform === "klook" ? (
-                <>
-                    <fieldset className="feature-settings min-w-0 space-y-2" disabled={disabled}>
-                        <legend className="mb-2 text-sm">功能啟用</legend>
-                        <label className="check flex items-center gap-2 text-sm">
-                            <input
-                                className="size-4 shrink-0 accent-blue-600"
-                                id="queueEnabled"
-                                type="checkbox"
-                                checked={props.form.queueEnabled}
-                                onChange={e => props.onChange({ ...props.form, queueEnabled: e.target.checked })}
-                            />
-                            排隊流程
-                        </label>
-                        <label className="check flex items-center gap-2 text-sm">
-                            <input
-                                className="size-4 shrink-0 accent-blue-600"
-                                id="bundleEnabled"
-                                type="checkbox"
-                                checked={props.form.bundleEnabled}
-                                onChange={e =>
-                                    props.onChange(
-                                        e.target.checked
-                                            ? { ...props.form, bundleEnabled: true }
-                                            : {
-                                                  ...props.form,
-                                                  bundleEnabled: false,
-                                                  deliveryMethod: "",
-                                                  targets: props.form.targets.map(target => ({
-                                                      ...target,
-                                                      bundle: "",
-                                                  })),
-                                              },
-                                    )
-                                }
-                            />
-                            組合套票
-                        </label>
-                    </fieldset>
-                    <div id="bundleSettings" className="space-y-3">
-                        <label className={fieldLabel}>
-                            取票方式（選填）
-                            <input
-                                className={fieldInput}
-                                id="deliveryMethod"
-                                disabled={disabled || !props.form.bundleEnabled}
-                                value={props.form.deliveryMethod}
-                                onChange={e => props.onChange({ ...props.form, deliveryMethod: e.target.value })}
-                                placeholder="例如：指定地點自取"
-                            />
-                        </label>
-                        <div
-                            id="legacyDelivery"
-                            className="space-y-2"
-                            hidden={props.form.bundleEnabled || !props.form.deliveryMethod.trim()}
-                        >
-                            <p>
-                                此活動有未啟用套票的舊取票設定。請啟用套票並補齊各順位，或清除舊取票設定後再儲存及開始。
-                            </p>
-                            <button
-                                type="button"
-                                id="clearLegacyDelivery"
-                                className={secondaryButton}
-                                disabled={disabled}
-                                onClick={() => props.onChange({ ...props.form, deliveryMethod: "" })}
-                            >
-                                清除舊取票設定
-                            </button>
-                        </div>
-                    </div>
-                </>
-            ) : (
-                <fieldset className="feature-settings min-w-0 space-y-2" disabled={disabled}>
-                    <legend className="mb-2 text-sm font-medium">購票流程</legend>
-                    <label className="check flex items-center gap-2 text-sm">
-                        <input
-                            className="size-4 shrink-0 accent-blue-600"
-                            id="flowPurchase"
-                            type="radio"
-                            name="flowType"
-                            checked={props.form.flowType === "purchase"}
-                            onChange={() => props.onChange({ ...props.form, flowType: "purchase" })}
-                        />
-                        購票
-                    </label>
-                    <label className="check flex items-center gap-2 text-sm">
-                        <input
-                            className="size-4 shrink-0 accent-blue-600"
-                            id="flowLottery"
-                            type="radio"
-                            name="flowType"
-                            checked={props.form.flowType === "lottery"}
-                            onChange={() => props.onChange({ ...props.form, flowType: "lottery" })}
-                        />
-                        登記抽選
-                    </label>
-                </fieldset>
-            )}
+            {props.platformSettings}
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 className="text-xl font-semibold">購票順位</h2>
@@ -180,7 +80,7 @@ export function ActivityEditorPage(props: Props) {
                     新增順位
                 </button>
             </div>
-            {!isKlook && sessions.size > 1 && <p role="status">此設定含不同場次，可以儲存，但目前無法啟動購票。</p>}
+            {props.targetNotice}
             <div id="targets">
                 {props.platform === "klook"
                     ? props.form.targets.map((target, index) => (
@@ -237,21 +137,7 @@ export function ActivityEditorPage(props: Props) {
                           />
                       ))}
             </div>
-            {props.platform === "klook" && (
-                <details>
-                    <summary className="cursor-pointer">進階設定</summary>
-                    <label className={`mt-3 ${fieldLabel}`}>
-                        排除關鍵字（以逗號分隔）
-                        <input
-                            className={fieldInput}
-                            id="exclude"
-                            disabled={disabled}
-                            value={props.form.exclude}
-                            onChange={e => props.onChange({ ...props.form, exclude: e.target.value })}
-                        />
-                    </label>
-                </details>
-            )}
+            {props.advancedSettings}
             <footer className="flex justify-end">
                 <button className={primaryButton} id="saveActivity" type="submit" disabled={disabled}>
                     下一步

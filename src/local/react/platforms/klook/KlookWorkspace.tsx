@@ -1,3 +1,4 @@
+import { KlookActivitySettings, KlookAdvancedSettings } from "./ActivitySettings.js";
 import { Breadcrumbs } from "../../shared/navigation/Breadcrumbs.js";
 import { StepNavigation } from "../../shared/navigation/StepNavigation.js";
 import { AppHeader } from "../../shared/navigation/AppHeader.js";
@@ -113,6 +114,19 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
     function changeForm(next: ActivityForm) {
         setForm(next);
         setConfirmed(false);
+    }
+
+    function changeBundleEnabled(enabled: boolean) {
+        changeForm(
+            enabled
+                ? { ...form, bundleEnabled: true }
+                : {
+                      ...form,
+                      bundleEnabled: false,
+                      deliveryMethod: "",
+                      targets: form.targets.map(target => ({ ...target, bundle: "" })),
+                  },
+        );
     }
 
     function loadRecord(next: ActivityRecord | null) {
@@ -292,6 +306,26 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
                     attached
                     form={form}
                     title={record ? "編輯活動" : "新增活動"}
+                    eventName={form.eventName}
+                    eventUrl={form.eventUrl}
+                    eventUrlPlaceholder="https://www.klook.com/zh-TW/event-detail/…/"
+                    onCommonChange={patch => changeForm({ ...form, ...patch })}
+                    platformSettings={
+                        <KlookActivitySettings
+                            form={form}
+                            disabled={locked}
+                            onQueueChange={queueEnabled => changeForm({ ...form, queueEnabled })}
+                            onBundleChange={changeBundleEnabled}
+                            onDeliveryChange={deliveryMethod => changeForm({ ...form, deliveryMethod })}
+                        />
+                    }
+                    advancedSettings={
+                        <KlookAdvancedSettings
+                            exclude={form.exclude}
+                            disabled={locked}
+                            onChange={exclude => changeForm({ ...form, exclude })}
+                        />
+                    }
                     disabled={locked}
                     onChange={changeForm}
                     onSave={() => void action(saveActivity)}
