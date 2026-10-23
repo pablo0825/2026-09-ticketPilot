@@ -1,3 +1,4 @@
+import { TicketPlusTargetRow } from "./TicketPlusTargetRow.js";
 import { TicketPlusActivitySettings } from "./ActivitySettings.js";
 import { primaryButton, secondaryButton, stepPanel } from "../../shared/styles.js";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -14,6 +15,7 @@ import { StepNavigation } from "../../shared/navigation/StepNavigation.js";
 import { ticketPlusRunBadge } from "../../shared/runs/ticketPlusSteps.js";
 import { ActivityEditorPage } from "../../pages/ActivityEditorPage.js";
 import {
+    emptyTarget,
     activityForm,
     activityInput,
     draftFingerprint,
@@ -378,7 +380,6 @@ export function TicketPlusWorkspace({
                     <StepNavigation steps={steps} currentStep={step} disabled={locked} onChange={changeStep} />
                     {step === "activity" && (
                         <ActivityEditorPage
-                            form={form}
                             title={record ? "編輯活動" : "新增活動"}
                             eventName={form.eventName}
                             eventUrl={form.eventUrl}
@@ -397,7 +398,11 @@ export function TicketPlusWorkspace({
                                 )
                             }
                             disabled={blocked || pendingStart}
-                            onChange={changeForm}
+                            targets={form.targets}
+                            onTargetsChange={targets => changeForm({ ...form, targets })}
+                            createTarget={emptyTarget}
+                            duplicateTarget={row => ({ ...row, key: crypto.randomUUID() })}
+                            renderTargetRow={row => <TicketPlusTargetRow {...row} />}
                             onSave={() => void action(save)}
                         />
                     )}

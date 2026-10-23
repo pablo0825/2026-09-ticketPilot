@@ -1,14 +1,20 @@
+import { Fragment } from "react";
 import type { ReactNode } from "react";
 import { primaryButton, secondaryButton, panel, stepPanel, fieldLabel, fieldInput } from "../shared/styles.js";
-import { emptyTarget as emptyTicketPlusTarget } from "../platforms/ticketplus/formModel.js";
-import type { ActivityForm as TicketPlusForm } from "../platforms/ticketplus/formModel.js";
-import { emptyTarget as emptyKlookTarget } from "../platforms/klook/formModel.js";
-import type { ActivityForm as KlookForm } from "../platforms/klook/formModel.js";
-import { TicketPlusTargetRow } from "../platforms/ticketplus/TicketPlusTargetRow.js";
-import { KlookTargetRow } from "../platforms/klook/KlookTargetRow.js";
 import { targetRowActions } from "./targetRowActions.js";
+import type { TargetRowActions } from "./targetRowActions.js";
 
-interface CommonProps {
+interface TargetRowProps<T> extends TargetRowActions {
+    target: T;
+    index: number;
+    disabled: boolean;
+    first: boolean;
+    last: boolean;
+    only: boolean;
+    onChange: (patch: Partial<T>) => void;
+}
+
+interface Props<T> {
     title: string;
     eventName: string;
     eventUrl: string;
@@ -20,25 +26,16 @@ interface CommonProps {
     disabled: boolean;
     attached?: boolean;
     onSave: () => void;
+    targets: T[];
+    onTargetsChange: (targets: T[]) => void;
+    createTarget: () => T;
+    duplicateTarget: (target: T) => T;
+    renderTargetRow: (props: TargetRowProps<T>) => ReactNode;
 }
-type Props = CommonProps &
-    (
-        | { platform: "klook"; form: KlookForm; onChange: (form: KlookForm) => void }
-        | {
-              platform?: "ticketplus";
-              form: TicketPlusForm;
-              onChange: (form: TicketPlusForm) => void;
-          }
-    );
-
-export function ActivityEditorPage(props: Props) {
-    const { disabled, attached = true, onSave } = props;
+export function ActivityEditorPage<T extends { key: string }>(props: Props<T>) {
+    const { disabled, attached = true, onSave, targets, onTargetsChange, createTarget, duplicateTarget } = props;
     function addTarget() {
-        if (props.platform === "klook") {
-            props.onChange({ ...props.form, targets: [...props.form.targets, emptyKlookTarget()] });
-        } else {
-            props.onChange({ ...props.form, targets: [...props.form.targets, emptyTicketPlusTarget()] });
-        }
+        onTargetsChange([...targets, createTarget()]);
     }
 
     const content = (
@@ -82,60 +79,21 @@ export function ActivityEditorPage(props: Props) {
             </div>
             {props.targetNotice}
             <div id="targets">
-                {props.platform === "klook"
-                    ? props.form.targets.map((target, index) => (
-                          <KlookTargetRow
-                              key={target.key}
-                              target={target}
-                              index={index}
-                              disabled={disabled}
-                              only={props.form.targets.length === 1}
-                              first={index === 0}
-                              last={index === props.form.targets.length - 1}
-                              bundleEnabled={props.form.bundleEnabled}
-                              onChange={patch =>
-                                  props.onChange({
-                                      ...props.form,
-                                      targets: props.form.targets.map((row, i) =>
-                                          i === index ? { ...row, ...patch } : row,
-                                      ),
-                                  })
-                              }
-                              {...targetRowActions(
-                                  props.form.targets,
-                                  index,
-                                  targets => props.onChange({ ...props.form, targets }),
-                                  emptyKlookTarget,
-                                  row => ({ ...row, key: crypto.randomUUID(), bundle: row.bundle.trim() }),
-                              )}
-                          />
-                      ))
-                    : props.form.targets.map((target, index) => (
-                          <TicketPlusTargetRow
-                              key={target.key}
-                              target={target}
-                              index={index}
-                              disabled={disabled}
-                              only={props.form.targets.length === 1}
-                              first={index === 0}
-                              last={index === props.form.targets.length - 1}
-                              onChange={patch =>
-                                  props.onChange({
-                                      ...props.form,
-                                      targets: props.form.targets.map((row, i) =>
-                                          i === index ? { ...row, ...patch } : row,
-                                      ),
-                                  })
-                              }
-                              {...targetRowActions(
-                                  props.form.targets,
-                                  index,
-                                  targets => props.onChange({ ...props.form, targets }),
-                                  emptyTicketPlusTarget,
-                                  row => ({ ...row, key: crypto.randomUUID() }),
-                              )}
-                          />
-                      ))}
+                {targets.map((target, index) => (
+                    <Fragment key={target.key}>
+                        {props.renderTargetRow({
+                            target,
+                            index,
+                            disabled,
+                            only: targets.length === 1,
+                            first: index === 0,
+                            last: index === targets.length - 1,
+                            onChange: patch =>
+                                onTargetsChange(targets.map((row, i) => (i === index ? { ...row, ...patch } : row))),
+                            ...targetRowActions(targets, index, onTargetsChange, createTarget, duplicateTarget),
+                        })}
+                    </Fragment>
+                ))}
             </div>
             {props.advancedSettings}
             <footer className="flex justify-end">

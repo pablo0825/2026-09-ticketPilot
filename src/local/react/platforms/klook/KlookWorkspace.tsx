@@ -1,3 +1,4 @@
+import { KlookTargetRow } from "./KlookTargetRow.js";
 import { KlookActivitySettings, KlookAdvancedSettings } from "./ActivitySettings.js";
 import { Breadcrumbs } from "../../shared/navigation/Breadcrumbs.js";
 import { StepNavigation } from "../../shared/navigation/StepNavigation.js";
@@ -8,7 +9,14 @@ import type { ActivityRecord, KlookActivityRecord } from "../../../../config/act
 import type { ContactDetails } from "../../../../config/contact.config.js";
 import type { ActivityExecutionStatus } from "../../../purchaseRuns.js";
 import { api } from "../../shared/api.js";
-import { activityForm, activityInput, contactInput, emptyContact, needsActivitySave } from "./formModel.js";
+import {
+    activityForm,
+    activityInput,
+    contactInput,
+    emptyContact,
+    emptyTarget,
+    needsActivitySave,
+} from "./formModel.js";
 import type { ActivityForm } from "./formModel.js";
 import { ActivityEditorPage } from "../../pages/ActivityEditorPage.js";
 import { ContactDetailsPage } from "../../pages/ContactDetailsPage.js";
@@ -302,9 +310,7 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
             </section>
             <section id="step1" hidden={step !== 1}>
                 <ActivityEditorPage
-                    platform="klook"
                     attached
-                    form={form}
                     title={record ? "編輯活動" : "新增活動"}
                     eventName={form.eventName}
                     eventUrl={form.eventUrl}
@@ -327,7 +333,11 @@ export function KlookWorkspace({ message, setMessage, runs, onExit }: Props) {
                         />
                     }
                     disabled={locked}
-                    onChange={changeForm}
+                    targets={form.targets}
+                    onTargetsChange={targets => changeForm({ ...form, targets })}
+                    createTarget={emptyTarget}
+                    duplicateTarget={row => ({ ...row, key: crypto.randomUUID(), bundle: row.bundle.trim() })}
+                    renderTargetRow={row => <KlookTargetRow {...row} bundleEnabled={form.bundleEnabled} />}
                     onSave={() => void action(saveActivity)}
                 />
             </section>
