@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import type { DisplayedRun } from "./useRunStatus.js";
 import { eventLogs, purchaseStatus, stopRequestPresentation } from "./runPresentation.js";
 import type { StopRequestStatus } from "./runPresentation.js";
-import { ticketPlusStepsView } from "./ticketPlusSteps.js";
-import type { TicketPlusStepsView } from "./ticketPlusSteps.js";
+import { ticketPlusStepsView } from "../../platforms/ticketplus/ticketPlusSteps.js";
+import type { TicketPlusStepsView } from "../../platforms/ticketplus/ticketPlusSteps.js";
 import { RunSteps } from "./RunSteps.js";
 
 interface Props {

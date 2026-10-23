@@ -12,7 +12,7 @@ import { ticketPlusSummary } from "./purchaseSummary.js";
 import { ActivityListPage } from "../../pages/ActivityListPage.js";
 import { Breadcrumbs } from "../../shared/navigation/Breadcrumbs.js";
 import { StepNavigation } from "../../shared/navigation/StepNavigation.js";
-import { ticketPlusRunBadge } from "../../shared/runs/ticketPlusSteps.js";
+import { ticketPlusRunBadge } from "./ticketPlusSteps.js";
 import { ActivityEditorPage } from "../../pages/ActivityEditorPage.js";
 import {
     emptyTarget,

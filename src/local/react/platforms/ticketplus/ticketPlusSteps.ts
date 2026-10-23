@@ -1,15 +1,8 @@
 import type { TicketPlusWorkerEvent } from "../../../purchaseEvents.js";
 import type { PurchaseSnapshot } from "../../../purchaseRuns.js";
-import { latestTicketPlusStage, purchaseStatus } from "./runPresentation.js";
+import { latestTicketPlusStage, purchaseStatus } from "../../shared/runs/runPresentation.js";
 
-export type StepState = "done" | "running" | "pending" | "action" | "failed" | "stopped" | "unknown" | "skipped";
-
-export interface RunStep {
-    label: string;
-    state: StepState;
-    note?: string;
-    participantsButton?: boolean;
-}
+import type { RunStep } from "../../shared/runs/runStep.js";
 
 export type BadgeTone = "info" | "action" | "done" | "neutral" | "error" | "unknown";
 

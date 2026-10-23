@@ -1,5 +1,5 @@
 import { primaryButton } from "../styles.js";
-import type { RunStep } from "./ticketPlusSteps.js";
+import type { RunStep } from "./runStep.js";
 
 interface Props {
     steps: RunStep[];
