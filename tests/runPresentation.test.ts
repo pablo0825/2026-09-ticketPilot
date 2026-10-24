@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PurchaseSnapshot } from "../src/server/runs/purchaseRuns.js";
 import type { PurchaseEvent } from "../src/shared/runEvents.js";
-import { purchaseStatus } from "../src/local/react/shared/runs/runPresentation.js";
+import { purchaseStatus } from "../src/gui/shared/runs/runPresentation.js";
 
 const now = Date.parse("2026-10-19T07:00:00Z");
 const general = { title: "正在購票", instruction: "程式正在依照設定執行，請稍候。" };

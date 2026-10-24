@@ -6,7 +6,7 @@ import { createServer } from "vite";
 import { chromium, type Page } from "playwright";
 import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
 import { eventually } from "./fixtures/guiTestHelpers.js";
-import { pendingStartKey } from "../src/local/react/shared/runs/pendingStart.js";
+import { pendingStartKey } from "../src/gui/shared/runs/pendingStart.js";
 
 const activity = { schemaVersion: 3, id: "fixture-activity", updatedAt: "2026-10-20T00:00:00Z", settings: apiActivity };
 const run = {

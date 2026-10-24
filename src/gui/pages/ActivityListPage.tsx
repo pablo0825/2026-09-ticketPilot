@@ -1,4 +1,4 @@
-import type { ActivityExecutionStatus } from "../../../shared/activityExecutionStatus.js";
+import type { ActivityExecutionStatus } from "../../shared/activityExecutionStatus.js";
 import { primaryButton, secondaryButton, panelHeading, badgeColors } from "../shared/styles.js";
 
 export interface ActivityListEntry {

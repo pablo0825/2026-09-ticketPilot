@@ -22,8 +22,8 @@ purchase runs; `src/core/` owns shared sale-schedule validation;
 Platform settings register in `src/config/settingsRegistry.ts`, execution rules in
 `src/app/platforms/executionRegistry.ts`, and child workers in `src/workers/workerRegistry.ts`.
 GUI workspaces and run presenters register separately in
-`src/local/react/platforms/workspaceRegistry.ts` and
-`src/local/react/platforms/runPresenterRegistry.ts` to avoid circular imports.
+`src/gui/platforms/workspaceRegistry.ts` and
+`src/gui/platforms/runPresenterRegistry.ts` to avoid circular imports.
 See [adding a platform](docs/adding-platform.md) for contracts, compatibility,
 lease responsibilities, and verification requirements.
 

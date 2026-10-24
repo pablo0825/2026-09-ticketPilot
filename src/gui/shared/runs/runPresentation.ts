@@ -1,4 +1,4 @@
-import type { PurchaseSnapshot } from "../../../../shared/runSnapshot.js";
+import type { PurchaseSnapshot } from "../../../shared/runSnapshot.js";
 import { presenterFor, platformEventMessage } from "../../platforms/runPresenterRegistry.js";
 import { finishedStatus, stateRunningStatus } from "./commonPresentation.js";
 export { stopRequestPresentation } from "./commonPresentation.js";

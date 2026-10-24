@@ -1,10 +1,10 @@
-import type { PurchaseSnapshot } from "../../../../shared/runSnapshot.js";
+import type { PurchaseSnapshot } from "../../../shared/runSnapshot.js";
 import {
     parseTicketPlusActivity,
     ticketPlusSessionSelection,
     validateTicketPlusRunSettings,
-} from "../../../../config/platforms/ticketplus/activitySettings.js";
-import type { TicketPlusActivitySettings } from "../../../../config/platforms/ticketplus/activitySettings.js";
+} from "../../../config/platforms/ticketplus/activitySettings.js";
+import type { TicketPlusActivitySettings } from "../../../config/platforms/ticketplus/activitySettings.js";
 import { api } from "../../shared/api.js";
 import type { ApiError } from "../../shared/api.js";
 import type { TicketPlusActivityRecord } from "./formModel.js";

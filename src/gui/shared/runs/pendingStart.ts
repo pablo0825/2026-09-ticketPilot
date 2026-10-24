@@ -1,4 +1,4 @@
-import type { PurchaseSnapshot } from "../../../../shared/runSnapshot.js";
+import type { PurchaseSnapshot } from "../../../shared/runSnapshot.js";
 import { api } from "../api.js";
 
 // 舊 Klook 的 ticketpilot-purchase-request 不屬於可執行平台，不讀取或覆寫。

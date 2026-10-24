@@ -1,4 +1,4 @@
-import type { PurchaseEvent } from "../../../shared/runEvents.js";
+import type { PurchaseEvent } from "../../shared/runEvents.js";
 import { createPresenterRegistry } from "./runPresenterDefinition.js";
 import { ticketPlusPresenter } from "./ticketplus/runPresentation.js";
 

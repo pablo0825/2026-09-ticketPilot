@@ -8,7 +8,7 @@ import {
     createPendingStart,
     clearPendingStart,
     matchesPendingRun,
-} from "../src/local/react/shared/runs/pendingStart.js";
+} from "../src/gui/shared/runs/pendingStart.js";
 import type { PurchaseSnapshot } from "../src/shared/runSnapshot.js";
 
 function storage() {

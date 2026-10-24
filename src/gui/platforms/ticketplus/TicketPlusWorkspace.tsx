@@ -1,11 +1,11 @@
-import type { ActivityExecutionStatus } from "../../../../shared/activityExecutionStatus.js";
-import type { ActivityRecord } from "../../../../shared/activityRecord.js";
+import type { ActivityExecutionStatus } from "../../../shared/activityExecutionStatus.js";
+import type { ActivityRecord } from "../../../shared/activityRecord.js";
 import { TicketPlusTargetRow } from "./TicketPlusTargetRow.js";
 import { TicketPlusActivitySettings } from "./ActivitySettings.js";
 import { primaryButton, secondaryButton, stepPanel } from "../../shared/styles.js";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { PurchaseSnapshot } from "../../../../shared/runSnapshot.js";
+import type { PurchaseSnapshot } from "../../../shared/runSnapshot.js";
 import { api } from "../../shared/api.js";
 import { AppHeader } from "../../shared/navigation/AppHeader.js";
 import type { WorkspaceProps } from "../platformDefinition.js";
@@ -28,7 +28,7 @@ import {
     executionErrors,
 } from "./formModel.js";
 import type { ActivityForm, TicketPlusActivityRecord, ExecutionForm, ExecutionErrors } from "./formModel.js";
-import { ticketPlusSessionSelection } from "../../../../config/platforms/ticketplus/activitySettings.js";
+import { ticketPlusSessionSelection } from "../../../config/platforms/ticketplus/activitySettings.js";
 import { PurchaseConfirmPage } from "../../pages/PurchaseConfirmPage.js";
 import { findPendingStart, hasPendingStart, startPurchase } from "./startPurchase.js";
 

@@ -1,5 +1,5 @@
-import type { PurchaseSnapshot } from "../../../../shared/runSnapshot.js";
-import type { RunCapabilities } from "../../../../shared/runControls.js";
+import type { PurchaseSnapshot } from "../../../shared/runSnapshot.js";
+import type { RunCapabilities } from "../../../shared/runControls.js";
 
 export function sameRun(a: PurchaseSnapshot | null | undefined, b: PurchaseSnapshot): boolean {
     return a?.id === b.id && a.platform === b.platform;

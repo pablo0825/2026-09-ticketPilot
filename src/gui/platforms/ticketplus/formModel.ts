@@ -1,15 +1,15 @@
-import type { ActivityRecord } from "../../../../shared/activityRecord.js";
-import { validateSaleSchedule } from "../../../../core/saleSchedule.js";
+import type { ActivityRecord } from "../../../shared/activityRecord.js";
+import { validateSaleSchedule } from "../../../core/saleSchedule.js";
 import {
     parseTicketPlusActivity,
     ticketPlusDefaultRunMinutes,
     ticketPlusFlowType,
     validateTicketPlusRunSettings,
-} from "../../../../config/platforms/ticketplus/activitySettings.js";
+} from "../../../config/platforms/ticketplus/activitySettings.js";
 import type {
     TicketPlusActivitySettings,
     TicketPlusFlowType,
-} from "../../../../config/platforms/ticketplus/activitySettings.js";
+} from "../../../config/platforms/ticketplus/activitySettings.js";
 
 export type TicketPlusActivityRecord = ActivityRecord & { settings: TicketPlusActivitySettings };
 export interface TargetDraft {

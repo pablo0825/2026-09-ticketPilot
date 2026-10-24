@@ -1,4 +1,4 @@
-import type { PurchaseSnapshot } from "../../../../shared/runSnapshot.js";
+import type { PurchaseSnapshot } from "../../../shared/runSnapshot.js";
 
 export type StopRequestStatus = NonNullable<PurchaseSnapshot["stopRequest"]>["status"];
 

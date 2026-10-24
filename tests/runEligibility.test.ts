@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { sameRun, runningWithCapability } from "../src/local/react/shared/runs/runEligibility.js";
+import { sameRun, runningWithCapability } from "../src/gui/shared/runs/runEligibility.js";
 import type { PurchaseSnapshot } from "../src/shared/runSnapshot.js";
 const run: PurchaseSnapshot = {
     platform: "ticketplus",

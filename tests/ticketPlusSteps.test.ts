@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PurchaseSnapshot } from "../src/server/runs/purchaseRuns.js";
 import type { TicketPlusWorkerEvent } from "../src/shared/platforms/ticketplus/events.js";
-import { ticketPlusStepsView } from "../src/local/react/platforms/ticketplus/ticketPlusSteps.js";
+import { ticketPlusStepsView } from "../src/gui/platforms/ticketplus/ticketPlusSteps.js";
 
 const now = Date.parse("2026-10-20T03:00:00Z");
 

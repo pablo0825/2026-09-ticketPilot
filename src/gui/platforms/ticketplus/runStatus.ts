@@ -1,5 +1,5 @@
-import type { TicketPlusWorkerEvent } from "../../../../shared/platforms/ticketplus/events.js";
-import type { PurchaseSnapshot } from "../../../../shared/runSnapshot.js";
+import type { TicketPlusWorkerEvent } from "../../../shared/platforms/ticketplus/events.js";
+import type { PurchaseSnapshot } from "../../../shared/runSnapshot.js";
 
 import {
     stopRequestPresentation,

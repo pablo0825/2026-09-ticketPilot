@@ -73,7 +73,7 @@
 
 ## 開發與驗證
 
-GUI 來源位於 `src/local/react/`，由 Vite 打包至已忽略的 `dist/react/`，由本機 Node 服務提供。`npm run gui` 和 `npm test` 會先建置；`npm run typecheck` 檢查 Node 與 React，`npm run test:gui` 執行 GUI 回歸測試。直接執行個別 GUI 測試前，先執行 `npm run build:gui`。
+GUI 來源位於 `src/gui/`，由 Vite 打包至已忽略的 `dist/react/`，由本機 Node 服務提供。`npm run gui` 和 `npm test` 會先建置；`npm run typecheck` 檢查 Node 與 React，`npm run test:gui` 執行 GUI 回歸測試。直接執行個別 GUI 測試前，先執行 `npm run build:gui`。
 
 `App.tsx` 管理唯一的全域狀態訂閱、TicketPlus 工作區與獨立結果頁；`platforms/ticketplus/` 管理活動草稿、三步驟流程與啟動請求；`pages/` 提供列表、活動編輯與確認頁；`shared/runs/` 管理狀態訂閱、日誌與關閉控制。摘要只轉換已儲存設定，不作為購票請求來源。
 

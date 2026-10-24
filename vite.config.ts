@@ -3,10 +3,10 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
     plugins: [tailwindcss()],
-    root: "src/local/react",
+    root: "src/gui",
     base: "/",
     build: {
-        outDir: "../../../dist/react",
+        outDir: "../../dist/react",
         emptyOutDir: true,
     },
     esbuild: { jsx: "automatic" },

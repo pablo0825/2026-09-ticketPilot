@@ -1,5 +1,5 @@
-import type { PurchaseSnapshot } from "../../../shared/runSnapshot.js";
-import type { PurchaseEvent } from "../../../shared/runEvents.js";
+import type { PurchaseSnapshot } from "../../shared/runSnapshot.js";
+import type { PurchaseEvent } from "../../shared/runEvents.js";
 import type { RunStatusText } from "../shared/runs/commonPresentation.js";
 import type { RunStepsView } from "../shared/runs/runView.js";
 

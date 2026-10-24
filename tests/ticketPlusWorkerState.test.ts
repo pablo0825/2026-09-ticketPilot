@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
 import { ticketPlusEventSchema } from "../src/shared/platforms/ticketplus/events.js";
-import { purchaseStatus } from "../src/local/react/shared/runs/runPresentation.js";
+import { purchaseStatus } from "../src/gui/shared/runs/runPresentation.js";
 
 // 獨立固定磁碟資料，不用待測事件產生器或 fingerprint 函式製造預期答案。
 const requestId = "8f064504-7c33-43b3-b5f2-2d89e4df15d3";

@@ -13,7 +13,7 @@
 - `src/workers/`：接收子程序控制訊息；平台 worker 將詳細結果轉成可保存的摘要。
 - `src/storage/`：讀寫活動設定，管理資料路徑與持續占用鎖。
 - `src/shared/`：前後端可共同引用的資料型別，不含 Node 或瀏覽器啟動的 runtime 依賴。
-- `src/local/react/platforms/<platform>/`：平台表單、工作區、流程文字和步驟呈現。
+- `src/gui/platforms/<platform>/`：平台表單、工作區、流程文字和步驟呈現。
 
 後端依賴方向為 `server／workers → app → config`。前端可以引用安全的設定解析與 shared 型別；不要讓前端載入檔案系統、子程序或 Playwright。
 

@@ -1,8 +1,8 @@
 import { useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "../../src/local/react/App.js";
-import type { WorkspaceProps } from "../../src/local/react/platforms/platformDefinition.js";
-import { registeredWorkspaces } from "../../src/local/react/platforms/workspaceRegistry.js";
+import { App } from "../../src/gui/App.js";
+import type { WorkspaceProps } from "../../src/gui/platforms/platformDefinition.js";
+import { registeredWorkspaces } from "../../src/gui/platforms/workspaceRegistry.js";
 
 function FixtureWorkspace({ runs, message, onViewRun, registerLeaveGuard }: WorkspaceProps) {
     useLayoutEffect(() => registerLeaveGuard(() => true), [registerLeaveGuard]);
