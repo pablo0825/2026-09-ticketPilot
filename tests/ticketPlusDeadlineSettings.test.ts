@@ -15,7 +15,7 @@ import { ActivityStore } from "../src/storage/activityStore.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 import { startLocalServer } from "../src/local/server.js";
 import { runTicketPlus } from "../src/app/runTicketPlus.js";
-import { purchaseOccupied } from "../src/app/purchaseLock.js";
+import { purchaseOccupied } from "../src/storage/purchaseLock.js";
 
 const activity = {
     platform: "ticketplus" as const,

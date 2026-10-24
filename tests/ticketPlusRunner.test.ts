@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
 import { runTicketPlus } from "../src/app/runTicketPlus.js";
-import { acquirePurchaseLease, purchaseOccupied } from "../src/app/purchaseLock.js";
+import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
 import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
 import { activity, checkout } from "./fixtures/ticketplus/pages.js";
 import { readyInformation, readyOrder, failureDialog } from "./fixtures/ticketplus/submissionPage.js";

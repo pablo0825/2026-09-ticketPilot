@@ -2,7 +2,7 @@ import { workerFor } from "./workerEntries.js";
 import { executionPlatform } from "../app/platforms/index.js";
 import { isStopMessage } from "./workerProtocol.js";
 import { parseActivity } from "../config/activitySettings.js";
-import type { PurchaseLease } from "../app/purchaseLock.js";
+import type { PurchaseLease } from "../storage/purchaseLock.js";
 import type { BrowserContext } from "playwright";
 import { createParticipantGate } from "./participantConfirmation.js";
 

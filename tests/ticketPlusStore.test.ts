@@ -5,7 +5,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ActivityStore } from "../src/storage/activityStore.js";
-import { purchaseOccupied } from "../src/app/purchaseLock.js";
+import { purchaseOccupied } from "../src/storage/purchaseLock.js";
 import { startLocalServer } from "../src/local/server.js";
 
 const ticketplus = {

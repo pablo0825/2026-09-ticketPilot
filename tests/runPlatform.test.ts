@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
-import { acquirePurchaseLease, purchaseOccupied, releasePurchaseLease } from "../src/app/purchaseLock.js";
+import { acquirePurchaseLease, purchaseOccupied, releasePurchaseLease } from "../src/storage/purchaseLock.js";
 import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
 
 const worker = new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url);

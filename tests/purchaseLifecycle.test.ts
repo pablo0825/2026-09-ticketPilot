@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { chromium } from "playwright";
-import { acquirePurchaseLease, purchaseOccupied } from "../src/app/purchaseLock.js";
+import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 import { ActivityStore } from "../src/storage/activityStore.js";
 import { runTicketPlus } from "../src/app/runTicketPlus.js";

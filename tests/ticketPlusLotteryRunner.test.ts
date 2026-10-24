@@ -7,7 +7,7 @@ import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
 import { runTicketPlus } from "../src/app/runTicketPlus.js";
 import type { TicketPlusRunEvent } from "../src/app/runTicketPlus.js";
-import { acquirePurchaseLease } from "../src/app/purchaseLock.js";
+import { acquirePurchaseLease } from "../src/storage/purchaseLock.js";
 import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
 import { loggedInHome } from "./fixtures/ticketplus/loginPage.js";
 import { activity } from "./fixtures/ticketplus/pages.js";

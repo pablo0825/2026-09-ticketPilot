@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runTicketPlus } from "../src/app/runTicketPlus.js";
-import { acquirePurchaseLease, purchaseOccupied } from "../src/app/purchaseLock.js";
+import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
 import { loggedInHome } from "./fixtures/ticketplus/loginPage.js";
 import { chromium } from "playwright";
 import type { Page } from "playwright";

@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync, readFileSync, unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { projectRoot } from "../storage/dataPaths.js";
+import { projectRoot } from "./dataPaths.js";
 
 export interface PurchaseLease {
     path: string;

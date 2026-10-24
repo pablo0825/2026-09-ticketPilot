@@ -1,4 +1,4 @@
-import { releasePurchaseLease } from "../../src/app/purchaseLock.js";
+import { releasePurchaseLease } from "../../src/storage/purchaseLock.js";
 // 僅由測試建構子注入；HTTP 無法選擇 worker，不開浏览器或連網。
 process.once("message", (input: any) => {
     if (input.activity.eventName === "CRASH") process.exit(1);

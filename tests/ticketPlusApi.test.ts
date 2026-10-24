@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { readFile, writeFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { apiHarness, apiActivity } from "./fixtures/ticketplus/apiHarness.js";
-import { purchaseOccupied } from "../src/app/purchaseLock.js";
+import { purchaseOccupied } from "../src/storage/purchaseLock.js";
 
 // 不確認登入的啟動案例，必須停住等待人工交接。
 test(

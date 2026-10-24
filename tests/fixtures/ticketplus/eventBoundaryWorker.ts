@@ -1,4 +1,4 @@
-import { releasePurchaseLease, type PurchaseLease } from "../../../src/app/purchaseLock.js";
+import { releasePurchaseLease, type PurchaseLease } from "../../../src/storage/purchaseLock.js";
 
 // 透過真正的 IPC 傳入新舊事件，驗證即時 worker 與歷史讀檔使用不同的接受範圍。
 process.once("message", (input: { lease: PurchaseLease }) => {

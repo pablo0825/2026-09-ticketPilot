@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { acquirePurchaseLease, purchaseOccupied } from "../src/app/purchaseLock.js";
+import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
 
 const settings = {
     platform: "ticketplus",

@@ -1,5 +1,5 @@
 import type { BrowserContext } from "playwright";
-import type { PurchaseLease } from "../app/purchaseLock.js";
+import type { PurchaseLease } from "../storage/purchaseLock.js";
 import type { WorkerPurchaseEvent } from "../shared/runEvents.js";
 
 export interface WorkerInput<S> {

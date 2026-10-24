@@ -12,7 +12,7 @@ import type { TicketPlusCycleEvent } from "../src/platforms/ticketplus/purchaseC
 import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
 import { runTicketPlus } from "../src/app/runTicketPlus.js";
 import { ticketPlusResultMessage } from "../src/app/ticketPlusPresentation.js";
-import { acquirePurchaseLease, purchaseOccupied } from "../src/app/purchaseLock.js";
+import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
 import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
 import { installCyclePage, cycleState } from "./fixtures/ticketplus/cyclePage.js";
 import type { CycleMode } from "./fixtures/ticketplus/cyclePage.js";

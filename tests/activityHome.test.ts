@@ -1,5 +1,5 @@
 import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
-import { acquirePurchaseLease, releasePurchaseLease } from "../src/app/purchaseLock.js";
+import { acquirePurchaseLease, releasePurchaseLease } from "../src/storage/purchaseLock.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";

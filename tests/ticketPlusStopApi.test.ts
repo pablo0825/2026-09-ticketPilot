@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { ChildProcess } from "node:child_process";
 import { apiHarness, apiActivity } from "./fixtures/ticketplus/apiHarness.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
-import { purchaseOccupied } from "../src/app/purchaseLock.js";
+import { purchaseOccupied } from "../src/storage/purchaseLock.js";
 
 type Harness = Awaited<ReturnType<typeof apiHarness>>;
 async function launch(h: Harness) {

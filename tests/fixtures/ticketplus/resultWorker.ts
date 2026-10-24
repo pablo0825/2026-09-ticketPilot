@@ -1,4 +1,4 @@
-import { releasePurchaseLease, type PurchaseLease } from "../../../src/app/purchaseLock.js";
+import { releasePurchaseLease, type PurchaseLease } from "../../../src/storage/purchaseLock.js";
 
 // 不開瀏覽器：送出指定階段事件與結果，用來測試主服務如何接收 TicketPlus 新結果。
 process.once("message", (input: { lease: PurchaseLease }) => {

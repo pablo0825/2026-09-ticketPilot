@@ -14,8 +14,8 @@ import {
     ticketPlusFlowType,
 } from "../config/ticketPlusActivity.js";
 import type { TicketPlusActivitySettings } from "../config/ticketPlusActivity.js";
-import { acquirePurchaseLease, releasePurchaseLease, verifyPurchaseLease } from "./purchaseLock.js";
-import type { PurchaseLease } from "./purchaseLock.js";
+import { acquirePurchaseLease, releasePurchaseLease, verifyPurchaseLease } from "../storage/purchaseLock.js";
+import type { PurchaseLease } from "../storage/purchaseLock.js";
 import type {
     SessionDiagnostic,
     SessionEntryReason,
