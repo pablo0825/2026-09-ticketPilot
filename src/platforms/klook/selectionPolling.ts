@@ -3,6 +3,8 @@ import { PurchaseStop } from "../../core/purchaseStop.js";
 import { readSelectionDom } from "./selectionDom.js";
 import type { SelectionGroup, SelectionSnapshot } from "./selectionDom.js";
 
+export class SelectionWaitTimeout extends PurchaseStop {}
+
 export const selectionPollInterval = 200;
 export const selectionWaitTimeout = 30_000;
 
@@ -35,7 +37,7 @@ export async function pollSelection(
         if (snapshot.rootCount === 1 && !snapshot.loading && check(snapshot)) return snapshot;
         await page.waitForTimeout(Math.max(0, Math.min(selectionPollInterval, deadline - performance.now())));
     }
-    throw new PurchaseStop(`${message}；等待逾時，狀態未知，未判定售罄。`);
+    throw new SelectionWaitTimeout(`${message}；等待逾時，狀態未知，未判定售罄。`);
 }
 
 export function waitForTicketOptions(

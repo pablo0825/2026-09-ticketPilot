@@ -1,3 +1,4 @@
+import { KlookSelectionControls } from "../src/platforms/klook/selectionControls.js";
 import { KlookTargetAttempt } from "../src/platforms/klook/targetAttempt.js";
 import { PurchaseStop } from "../src/core/purchaseStop.js";
 import { PriorityStrategy } from "../src/core/priorityStrategy.js";
@@ -398,22 +399,23 @@ test("連位元件缺少、重複、類型錯誤或狀態矛盾時，不操作�
     }
 });
 
-test("連位在最後驗證時被重設，必須停止", async () => {
+test("連位在最後驗證時被重設，必須停止", async t => {
     const page = await browser.newPage();
     try {
         await page.setContent(fixture());
-        await page.locator("[role=checkbox]").evaluate(element => {
-            const original = element.getAttribute.bind(element);
-            let reads = 0;
-            // 精確在第三次讀取（操作前、操作後、最終驗證）重設，避免 timer 競速。
-            element.getAttribute = name => {
-                if (name === "aria-checked" && ++reads === 3) {
+        const select = KlookSelectionControls.prototype.select;
+        t.mock.method(
+            KlookSelectionControls.prototype,
+            "select",
+            async function (this: KlookSelectionControls, value: Parameters<KlookSelectionControls["select"]>[0]) {
+                await select.call(this, value);
+                // 操作已完成後頁面重設，不依賴內部讀取次數。
+                await page.locator("[role=checkbox]").evaluate(element => {
                     element.querySelector("input")!.checked = false;
                     element.removeAttribute("aria-checked");
-                }
-                return original(name);
-            };
-        });
+                });
+            },
+        );
         await assert.rejects(
             new KlookTicketSelector(page, 800).selectAndVerify({ ...target, quantity: 2, adjacent: true }),
             /最終相連座位設定不一致/,
@@ -859,6 +861,63 @@ test("時間目標延遲加入時等待；日期時間定位錯誤仍停止且�
         });
         await assert.rejects(new KlookTicketSelector(page, 800).selectAndVerify(target), PurchaseStop);
         assert.equal(await page.locator("body").getAttribute("data-next"), null);
+    } finally {
+        await page.close();
+    }
+});
+
+test("張數從限購文字找計數器，忽略旁邊數字並等待延遲數值", async () => {
+    const page = await browser.newPage();
+    try {
+        await page.setContent(fixture());
+        await page.evaluate(() => {
+            const row = document.querySelector(".eventUnit-kxDycC")!;
+            row.lastElementChild!.innerHTML = "<span>2</span><span>最多4張</span>";
+            const value = document.querySelector(".value-xWKzpL")!;
+            const next = value.nextSibling;
+            const parent = value.parentElement!;
+            value.remove();
+            setTimeout(() => parent.insertBefore(value, next), 300);
+            document
+                .querySelectorAll(".eventUnit-kxDycC, .counter-vVrWZ9, .value-xWKzpL, .btn-vDH5IS, .consecutive")
+                .forEach(el => el.removeAttribute("class"));
+        });
+        await new KlookTicketSelector(page, 1500).selectAndVerify({ ...target, quantity: 2 });
+        const counter = page.locator(".klk-icon-icon_other_plus_xs").locator("..").locator("..");
+        assert.match(await counter.innerText(), /2/);
+        assert.equal(await page.locator("[role=checkbox] input").isChecked(), false);
+        assert.equal(await page.locator("body").getAttribute("data-next"), null);
+    } finally {
+        await page.close();
+    }
+});
+
+test("張數更新延遲只點一次；停用仍保留一般錯誤分類", async () => {
+    const page = await browser.newPage();
+    try {
+        await page.setContent(fixture());
+        await page.locator(".klk-icon-icon_other_plus_xs").evaluate(icon => {
+            icon.parentElement!.onclick = () => {
+                document.body.dataset.plusClicks = String(Number(document.body.dataset.plusClicks ?? 0) + 1);
+                setTimeout(() => {
+                    document.querySelector(".value-xWKzpL")!.textContent = "1";
+                }, 300);
+            };
+        });
+        await new KlookTicketSelector(page, 1500).selectAndVerify(target);
+        assert.equal(await page.locator("body").getAttribute("data-plus-clicks"), "1");
+        await page.setContent(fixture());
+        await page.locator(".klk-icon-icon_other_plus_xs").evaluate(icon => {
+            icon.parentElement!.classList.add("btnDisabled-O7fKf4");
+            document.body.insertAdjacentHTML(
+                "beforeend",
+                '<div class="klk-modal-alert">抱歉，時間到了！ 請返回並重新排隊<button>OK</button></div>',
+            );
+        });
+        await assert.rejects(
+            new KlookTicketSelector(page, 800).selectAndVerify(target),
+            error => error instanceof Error && !(error instanceof PurchaseStop),
+        );
     } finally {
         await page.close();
     }
