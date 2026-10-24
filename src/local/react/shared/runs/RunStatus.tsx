@@ -44,12 +44,12 @@ export function RunStatus({
         const run = displayed.run;
         ({ title, instruction } = purchaseStatus(run, closing, now));
 
-        // 有流程類型的 TicketPlus 執行改用步驟清單與較短的說明。
+        // 平台提供步驟時，使用步驟清單與較短的說明。
         stepsView = presenterFor(run.platform)?.steps?.(run, closing, now);
         if (stepsView) ({ title, summary: instruction } = stepsView);
 
         // 畫面送出的停止要求優先於階段提示。
-        if (run.platform === "ticketplus" && run.status === "running" && stopControl?.progress) {
+        if (run.status === "running" && stopControl?.progress) {
             ({ title, instruction } = stopRequestPresentation(stopControl.progress));
             if (stepsView) stepsView = { ...stepsView, badge: { text: "停止中", tone: "info" } };
         }

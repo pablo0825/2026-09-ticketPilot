@@ -26,6 +26,7 @@ for (const newerSnapshot of [false, true]) {
                 requestId: "request-fixture",
                 activityName: "抽選測試",
                 platform: "ticketplus",
+                capabilities: { stop: true, participants: true },
                 status: "running",
                 browserOpen: true,
                 occupied: true,

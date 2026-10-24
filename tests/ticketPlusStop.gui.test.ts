@@ -323,6 +323,7 @@ function waitingRun(): PurchaseSnapshot {
         id: "fixture-stop",
         requestId: "fixture-stop",
         platform: "ticketplus",
+        capabilities: { stop: true, participants: true },
         activityName: "停止測試",
         status: "running",
         browserOpen: true,

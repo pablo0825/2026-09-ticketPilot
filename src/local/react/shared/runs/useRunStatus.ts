@@ -5,13 +5,11 @@ import type { StopRequestStatus } from "./runPresentation.js";
 
 export type DisplayedRun = { kind: "purchase"; run: PurchaseSnapshot };
 
-function isRunningTicketPlus(run: PurchaseSnapshot): boolean {
-    return run.platform === "ticketplus" && run.status === "running";
-}
+import { sameRun, runningWithCapability } from "./runEligibility.js";
 
 // 只更新正在顯示的同一輪，不切換到其他流程。
 function replaceIfDisplayed(previous: DisplayedRun | null, next: DisplayedRun): DisplayedRun | null {
-    return previous?.kind === next.kind && previous.run.id === next.run.id ? next : previous;
+    return previous?.kind === next.kind && sameRun(previous.run, next.run) ? next : previous;
 }
 
 export function useRunStatus(showMessage: (message: string) => void) {
@@ -72,7 +70,7 @@ export function useRunStatus(showMessage: (message: string) => void) {
     }, [showMessage, receivePurchase]);
 
     function isDisplayedPurchase(run: PurchaseSnapshot): boolean {
-        return displayed?.kind === "purchase" && displayed.run.id === run.id;
+        return displayed?.kind === "purchase" && sameRun(displayed.run, run);
     }
 
     async function closeBrowser() {
@@ -96,9 +94,11 @@ export function useRunStatus(showMessage: (message: string) => void) {
         closingRef.current = true;
         setClosing(true);
         showMessage("");
+        const version = purchaseVersion.current;
         try {
             const result = await api<PurchaseSnapshot>("/api/purchase/close-browser", "POST", { runId: run.id });
-            if (latestPurchase.current?.id === run.id) receivePurchase(result);
+            if (!sameRun(result, run)) throw new Error("無法核對關閉瀏覽器回應。");
+            if (sameRun(latestPurchase.current, run) && purchaseVersion.current === version) receivePurchase(result);
         } catch (error) {
             showMessage((error as Error).message);
         } finally {
@@ -107,10 +107,10 @@ export function useRunStatus(showMessage: (message: string) => void) {
         }
     }
 
-    // 只有畫面上正在執行、後端允許且尚未要求停止的 TicketPlus 這一輪可以停止。
+    // 只有畫面上正在執行、後端允許且尚未要求停止的這一輪可以停止。
     function stoppableRun(): PurchaseSnapshot | undefined {
         const run = latestPurchase.current;
-        if (!run || !isRunningTicketPlus(run) || !isDisplayedPurchase(run)) return undefined;
+        if (!run || !runningWithCapability(run, "stop") || !isDisplayedPurchase(run)) return undefined;
         if (!run.canStop || run.stopRequest || attemptedStops.current.has(run.id) || closingRef.current) {
             return undefined;
         }
@@ -143,33 +143,39 @@ export function useRunStatus(showMessage: (message: string) => void) {
                 !result ||
                 !["sending", "sent", "unconfirmed"].includes(result.status) ||
                 result.run?.id !== run.id ||
-                result.run.platform !== "ticketplus"
+                result.run.platform !== run.platform
             ) {
                 throw new Error("無法核對停止回應。");
             }
-            if (latestPurchase.current?.id !== run.id) return;
+            if (!sameRun(latestPurchase.current, run)) return;
             if (purchaseVersion.current === version) receivePurchase(result.run);
             if (latestPurchase.current?.status === "running") {
                 setStopAttempt({ runId: run.id, status: result.status });
             }
         } catch {
             // 結果不明仍保留本頁停止鎖；終局與後端即時要求始終優先。
-            if (latestPurchase.current?.id === run.id && latestPurchase.current.status === "running") {
+            if (sameRun(latestPurchase.current, run) && latestPurchase.current?.status === "running") {
                 setStopAttempt({ runId: run.id, status: "unconfirmed" });
             }
         }
     }
 
     async function confirmParticipants() {
-        // 只操作畫面上正在執行的 TicketPlus 這一輪。
+        // 只操作畫面上正在執行的這一輪。
         const run = latestPurchase.current;
-        if (!run || !isRunningTicketPlus(run) || !isDisplayedPurchase(run)) {
+        if (!run || !runningWithCapability(run, "participants") || !isDisplayedPurchase(run)) {
             return;
         }
 
         // 後端未提供確認 ID 或已送出時，不再確認。
         const confirmationId = run.participantConfirmation?.confirmationId;
-        if (!confirmationId || attemptedParticipants.current.has(confirmationId)) {
+        if (
+            !confirmationId ||
+            attemptedParticipants.current.has(confirmationId) ||
+            closingRef.current ||
+            run.stopRequest ||
+            attemptedStops.current.has(run.id)
+        ) {
             return;
         }
 
@@ -184,8 +190,8 @@ export function useRunStatus(showMessage: (message: string) => void) {
             });
             // 確認回應晚於即時快照時，保留已收到的新狀態。
             if (
-                result?.run?.id === run.id &&
-                latestPurchase.current?.id === run.id &&
+                sameRun(result?.run, run) &&
+                sameRun(latestPurchase.current, run) &&
                 purchaseVersion.current === version
             ) {
                 receivePurchase(result.run);
@@ -202,7 +208,10 @@ export function useRunStatus(showMessage: (message: string) => void) {
     const participantsControl =
         currentDisplayed &&
         purchase &&
-        isRunningTicketPlus(purchase) &&
+        runningWithCapability(purchase, "participants") &&
+        !closing &&
+        !purchase.stopRequest &&
+        !attemptedStops.current.has(purchase.id) &&
         pendingParticipants &&
         !attemptedParticipants.current.has(pendingParticipants) &&
         !participantsSending
@@ -210,7 +219,7 @@ export function useRunStatus(showMessage: (message: string) => void) {
             : undefined;
     const stopRequested = Boolean(purchase && (purchase.stopRequest || attemptedStops.current.has(purchase.id)));
     const stopControl =
-        currentDisplayed && purchase && isRunningTicketPlus(purchase)
+        currentDisplayed && purchase && runningWithCapability(purchase, "stop")
             ? {
                   available: !closing && purchase.canStop === true && !stopRequested,
                   progress:
@@ -231,8 +240,8 @@ export function useRunStatus(showMessage: (message: string) => void) {
     function showAccepted(run: PurchaseSnapshot, previousId: string | undefined) {
         // POST 可能比同一輪的 SSE 晚到，保留已收到的最新狀態
         const latest = latestPurchase.current;
-        const snapshot = latest?.id === run.id ? latest : run;
-        if (!latest || latest.id === run.id || latest.id === previousId) receivePurchase(snapshot);
+        const snapshot = latest && sameRun(latest, run) ? latest : run;
+        if (!latest || sameRun(latest, run) || latest.id === previousId) receivePurchase(snapshot);
         setDisplayed({ kind: "purchase", run: snapshot });
     }
 

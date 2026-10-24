@@ -296,6 +296,7 @@ test("TicketPlus 排程 GUI：倒數跨過零只更新文字，不自行啟動�
             id: "schedule-countdown",
             requestId: "schedule-countdown",
             platform: "ticketplus",
+            capabilities: { stop: true, participants: true },
             activityName: "倒數測試",
             status: "running",
             browserOpen: true,
