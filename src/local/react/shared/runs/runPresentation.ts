@@ -253,25 +253,3 @@ export function eventLogs(events: PurchaseSnapshot["events"], truncated: boolean
     });
     return (truncated ? "較早紀錄已省略。\n" : "") + lines.join("\n");
 }
-
-// 首頁只呈現進行中或待處理的流程，不展示歷史結果。
-export function platformRunStatus(purchase: PurchaseSnapshot | null) {
-    // 正在使用瀏覽器的流程優先於過去的異常紀錄
-    if (purchase && (purchase.occupied || purchase.browserOpen || purchase.status === "running")) {
-        return { label: platformPurchaseLabel(purchase), kind: "purchase" as const };
-    }
-    // 提交不明或異常中斷不能只因解除占用就當成正常結束
-    if (purchase && ["unknown", "interrupted"].includes(purchase.status)) {
-        return { label: "需要人工確認", kind: "purchase" as const };
-    }
-    return { label: "可使用", kind: null };
-}
-
-function platformPurchaseLabel(run: PurchaseSnapshot): string {
-    if (run.status === "unknown" || run.status === "interrupted") return "需要人工確認";
-    if (run.status === "running") {
-        const { title } = purchaseStatus(run, false, Date.now());
-        return title === defaultRunningStatus.title ? "購票進行中" : title;
-    }
-    return run.browserOpen ? "瀏覽器仍開啟" : "等待程序結束";
-}

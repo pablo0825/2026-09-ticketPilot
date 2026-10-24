@@ -10,7 +10,7 @@ import {
 import { emptySubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
 import { stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
 import type { TicketPlusStopReason } from "../platforms/ticketplus/runControl.js";
-import type { PurchaseEvent } from "./purchaseEvents.js";
+import type { WorkerPurchaseEvent } from "./purchaseEvents.js";
 
 export interface TicketPlusWorkerResult {
     outcome: "information-ready" | "payment-ready" | "registration-ready" | "failed" | "unknown";
@@ -22,7 +22,7 @@ export async function runTicketPlusWorker(
     activity: TicketPlusActivitySettings,
     lease: PurchaseLease,
     onBrowser: (context: BrowserContext) => void,
-    sendEvent: (event: PurchaseEvent) => void,
+    sendEvent: (event: WorkerPurchaseEvent) => void,
     onSubmitAttempt: () => void,
     signal?: AbortSignal,
     waitForParticipants?: (confirmationId: string) => Promise<void>,
@@ -95,7 +95,7 @@ export async function runTicketPlusWorker(
 
 function sendDiagnostic(
     result: Parameters<typeof ticketPlusResultDiagnostic>[0],
-    sendEvent: (event: PurchaseEvent) => void,
+    sendEvent: (event: WorkerPurchaseEvent) => void,
 ): void {
     const diagnostic = ticketPlusResultDiagnostic(result);
     if (diagnostic) sendEvent({ type: "log", message: diagnostic });

@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { RunEvent } from "../core/logger.js";
 
-// 平台專用進度留在本機執行層，不改 Klook 的狀態機。
+// 目前 worker 只回報 TicketPlus 階段與文字紀錄。
 export const ticketPlusEventSchema = z.discriminatedUnion("stage", [
     z
         .object({
@@ -42,4 +41,11 @@ export const ticketPlusEventSchema = z.discriminatedUnion("stage", [
         .strict(),
 ]);
 export type TicketPlusWorkerEvent = z.infer<typeof ticketPlusEventSchema>;
-export type PurchaseEvent = RunEvent | TicketPlusWorkerEvent;
+export type WorkerPurchaseEvent = { type: "log"; message: string } | TicketPlusWorkerEvent;
+
+// 只供既有執行紀錄讀取與顯示；新 worker 不再產生舊狀態、順位或恢復事件。
+type HistoricalRunEvent =
+    | { type: "state"; state: string }
+    | { type: "target"; index: number; total: number; area: string; quantity: number; date: string; time: string }
+    | { type: "recovery"; queue: number; reservation: number };
+export type PurchaseEvent = WorkerPurchaseEvent | HistoricalRunEvent;

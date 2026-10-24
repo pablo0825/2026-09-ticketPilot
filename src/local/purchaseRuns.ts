@@ -536,8 +536,8 @@ export class PurchaseRuns {
                 const ticketPlusEvent = ticketPlusEventSchema.safeParse(value?.event);
                 if (
                     value?.type === "event" &&
-                    (["state", "log", "target", "recovery"].includes(value.event?.type) ||
-                        (record.snapshot.platform === "ticketplus" && ticketPlusEvent.success))
+                    ((value.event?.type === "log" && typeof value.event.message === "string") ||
+                        ticketPlusEvent.success)
                 ) {
                     record.snapshot.events.push({
                         sequence: (record.snapshot.events.at(-1)?.sequence ?? 0) + 1,

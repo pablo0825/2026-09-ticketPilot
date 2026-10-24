@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PurchaseSnapshot } from "../src/local/purchaseRuns.js";
 import type { PurchaseEvent } from "../src/local/purchaseEvents.js";
-import { purchaseStatus, platformRunStatus } from "../src/local/react/shared/runs/runPresentation.js";
+import { purchaseStatus } from "../src/local/react/shared/runs/runPresentation.js";
 
 const now = Date.parse("2026-10-19T07:00:00Z");
 const general = { title: "正在購票", instruction: "程式正在依照設定執行，請稍候。" };
@@ -34,7 +34,6 @@ test("階段分流：保留無事件回退、平台隔離與最近階段優先",
     for (const stage of ["starting", "selecting-session", "selecting-tickets"] as const) {
         const run = snapshot([{ type: "ticketplus", stage: "queue" }, { type: "ticketplus", stage }, state]);
         assert.deepEqual(purchaseStatus(run, false, now), general);
-        assert.deepEqual(platformRunStatus(run), { label: "購票進行中", kind: "purchase" });
     }
 
     // 未知平台忽略 TicketPlus 事件，未知階段保留一般提示。
