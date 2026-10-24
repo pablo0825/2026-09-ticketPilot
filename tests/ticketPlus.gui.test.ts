@@ -690,3 +690,26 @@ for (const oldOutcome of ["success", "failure"] as const) {
         });
     });
 }
+
+test("TicketPlus 列表：刪除成功但列表重新載入失敗，移除該列並提示重試，不重送刪除", async () => {
+    await fixture(async h => {
+        let deleted = false;
+        await h.page.route("**/api/activities", route => {
+            if (route.request().method() === "GET" && deleted) {
+                return route.fulfill({ status: 500, json: { error: "RELOAD_AFTER_DELETE_FAILURE" } });
+            }
+            return route.continue();
+        });
+        h.page.on("request", request => {
+            if (request.method() === "DELETE") deleted = true;
+        });
+        h.page.once("dialog", dialog => dialog.accept());
+        await h.page.getByRole("button", { name: "刪除", exact: true }).click();
+
+        await h.page.locator("#message").filter({ hasText: "活動已刪除，但列表重新載入失敗" }).waitFor();
+        await h.page.locator("#activityListError").filter({ hasText: "RELOAD_AFTER_DELETE_FAILURE" }).waitFor();
+        assert.equal(await h.page.locator("#activities tr").count(), 0);
+        assert.equal((await h.store.list()).activities.length, 0);
+        assert.equal(h.requests.filter(request => request.method === "DELETE").length, 1);
+    });
+});

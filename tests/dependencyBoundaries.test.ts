@@ -16,6 +16,13 @@ test("frontend, contracts and execution rules keep their dependency boundaries",
         const name = relative(fileURLToPath(root), absolute).replaceAll("\\", "/");
         files[name] = await readFile(absolute, "utf8");
     }
+    // 規則只檢查實際讀到的檔案；資料夾改名或搬走時要明確失敗，不能在空清單上通過。
+    for (const layer of ["src/gui/", "src/shared/", "src/server/"]) {
+        assert(
+            Object.keys(files).some(name => name.startsWith(layer)),
+            `沒有讀到 ${layer} 的檔案`,
+        );
+    }
     assert.deepEqual(dependencyViolations(files), []);
 });
 
