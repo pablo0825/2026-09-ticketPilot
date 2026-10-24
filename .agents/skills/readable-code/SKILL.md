@@ -35,16 +35,21 @@ When several approaches work, choose the one that is easiest to understand.
 
    Reading the main flow should show how the report is created; inspect individual functions when you need the details.
 
-3. **Make responsibilities clear**: Give each function one job that can be clearly described.
+3. **Leave a blank line between different steps**: Keep code that does the same thing together,
+   and leave a blank line when moving to the next step. For example, checking whether an action can proceed,
+   validating data, sending a request, and updating the UI should be separated by blank lines.
+   This applies even to short functions, but you do not need a blank line between every line of code.
+
+4. **Make responsibilities clear**: Give each function one job that can be clearly described.
    If it mixes work serving different purposes, extract that work when doing so makes the code easier to understand or modify.
 
-4. **Split code where it helps**: Split code to make it easier to understand, modify, or reuse, not merely because it has many lines.
+5. **Split code where it helps**: Split code to make it easier to understand, modify, or reuse, not merely because it has many lines.
    Related small functions can stay in the same file to avoid constant navigation while reading.
 
-5. **Use clear names**: Function names should describe what they do; variable names should describe what they hold.
+6. **Use clear names**: Function names should describe what they do; variable names should describe what they hold.
    Avoid obscure abbreviations and names that hide their purpose.
 
-6. **Use comments to aid understanding**: For longer flows or flows with multiple steps, use short Chinese comments to explain each section's purpose.
+7. **Use comments to aid understanding**: For longer flows or flows with multiple steps, use short Chinese comments to explain each section's purpose.
    Explain the reasons behind non-obvious code; do not restate the code line by line.
 
 ## Change Principles
