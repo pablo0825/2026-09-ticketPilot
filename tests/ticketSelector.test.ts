@@ -795,3 +795,71 @@ test("新套票停用不切下一順位，取票方式設定傳到實際 adapter
         await page.close();
     }
 });
+
+test("香港套餐類型不依賴外觀 class；載入時舊選項不得視為完成", async () => {
+    const page = await browser.newPage();
+    try {
+        await page.setContent(fixture());
+        await page.evaluate(() => {
+            document.querySelectorAll(".skuGroup-hk2pfU, .name-Cu4gxk, .spec-LwNjSh").forEach(el => {
+                el.classList.remove("skuGroup-hk2pfU", "name-Cu4gxk", "spec-LwNjSh");
+            });
+            const heading = [...document.querySelectorAll("div")].find(el => el.textContent === "票種")!;
+            heading.textContent = "套餐類型";
+            const option = heading.nextElementSibling!.firstElementChild as HTMLElement;
+            option.onclick = () => {
+                document.body.dataset.areaClicks = String(Number(document.body.dataset.areaClicks ?? 0) + 1);
+                const loading = document.createElement("div");
+                loading.className = "klk-loading";
+                loading.textContent = "載入中";
+                document.querySelector("#ticket-options")!.append(loading);
+                setTimeout(() => {
+                    [...option.parentElement!.children].forEach(el => el.classList.remove("active-vB3nra"));
+                    option.classList.add("active-vB3nra");
+                    loading.remove();
+                }, 300);
+            };
+            document.querySelector(".klk-icon-icon_other_plus_xs")!.parentElement!.addEventListener("click", () => {
+                if (document.querySelector(".klk-loading")) document.body.dataset.clickedWhileLoading = "true";
+            });
+        });
+        await new KlookTicketSelector(page, 1500).selectAndVerify(target);
+        assert.equal(await page.locator("body").getAttribute("data-area-clicks"), "1");
+        assert.equal(await page.locator("body").getAttribute("data-clicked-while-loading"), null);
+        assert.equal(await page.locator("body").getAttribute("data-next"), null);
+    } finally {
+        await page.close();
+    }
+});
+
+test("時間目標延遲加入時等待；日期時間定位錯誤仍停止且不恢復", async t => {
+    const page = await browser.newPage();
+    try {
+        await page.setContent(fixture());
+        await page.getByText("12:00", { exact: true }).evaluate(el => {
+            el.remove();
+            setTimeout(() => {
+                const group = [...document.querySelectorAll("div")].find(
+                    el => el.textContent === "時間",
+                )!.nextElementSibling!;
+                group.querySelectorAll(".active-vB3nra").forEach(el => el.classList.remove("active-vB3nra"));
+                group.insertAdjacentHTML("beforeend", '<div class="spec-LwNjSh active-vB3nra">12:00</div>');
+            }, 300);
+        });
+        await new KlookTicketSelector(page, 1500).selectAndVerify(target);
+        await page.setContent(fixture());
+        t.mock.method(page, "evaluateHandle", async () => {
+            await page.evaluate(() =>
+                document.body.insertAdjacentHTML(
+                    "beforeend",
+                    '<div class="klk-modal-alert">抱歉，時間到了！ 請返回並重新排隊<button>OK</button></div>',
+                ),
+            );
+            throw new Error("模擬點擊前 DOM 脫離");
+        });
+        await assert.rejects(new KlookTicketSelector(page, 800).selectAndVerify(target), PurchaseStop);
+        assert.equal(await page.locator("body").getAttribute("data-next"), null);
+    } finally {
+        await page.close();
+    }
+});
