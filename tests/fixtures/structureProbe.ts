@@ -22,7 +22,7 @@ if (mode === "server-import") {
     await import(serverUrl.href);
     assert.ok(resolutions > 0, "解析 hook 必須實際執行");
 } else if (mode === "paths") {
-    const { projectRoot } = await import("../../src/config/activityStore.js");
+    const { projectRoot } = await import("../../src/storage/dataPaths.js");
     const { purchaseLockPath } = await import("../../src/app/purchaseLock.js");
     assert.equal(resolve(projectRoot), resolve(root));
     assert.equal(purchaseLockPath(), join(root, "local-data", "purchase.lock"));

@@ -6,7 +6,7 @@ import { TicketPlusRunControl, TicketPlusStopError } from "../platforms/ticketpl
 import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
 import { join } from "node:path";
-import { projectRoot } from "../config/activityStore.js";
+import { projectRoot } from "../storage/dataPaths.js";
 import {
     parseTicketPlusActivity,
     ticketPlusSessionSelection,

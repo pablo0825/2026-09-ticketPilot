@@ -1,3 +1,4 @@
+import { projectRoot } from "../storage/dataPaths.js";
 import type { ActivityExecutionStatus } from "../shared/activityExecutionStatus.js";
 import type { ActivityRecord } from "../shared/activityRecord.js";
 import { fork, type ChildProcess } from "node:child_process";
@@ -6,7 +7,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { parseActivity, projectRoot, type ActivitySettings } from "../config/activityStore.js";
+import { parseActivity, type ActivitySettings } from "../config/activityStore.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
 import { runCapabilities } from "../app/platforms/runCapabilities.js";
 import { executionPlatform, platformFor } from "../app/platforms/index.js";

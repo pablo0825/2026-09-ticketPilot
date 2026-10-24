@@ -7,11 +7,10 @@ export { parseActivity } from "./activitySettings.js";
 export type { ActivitySettings } from "./activitySettings.js";
 import { mkdir, readFile, readdir, rename, writeFile, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { ArchivedKlookActivityError, isArchivedKlookActivity } from "./archivedKlookActivity.js";
 
-export const projectRoot = fileURLToPath(new URL("../../", import.meta.url));
+import { projectRoot } from "../storage/dataPaths.js";
 
 export async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
     const temporary = `${path}.${randomUUID()}.tmp`;
