@@ -1,6 +1,4 @@
-import type { BrowserContext } from "playwright";
 import type { TicketPlusActivitySettings } from "../config/ticketPlusActivity.js";
-import type { PurchaseLease } from "../app/purchaseLock.js";
 import { runTicketPlus } from "../app/runTicketPlus.js";
 import {
     ticketPlusEventMessage,
@@ -12,21 +10,13 @@ import { stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutco
 import type { TicketPlusStopReason } from "../platforms/ticketplus/runControl.js";
 import type { WorkerPurchaseEvent } from "../shared/runEvents.js";
 
-export interface TicketPlusWorkerResult {
-    outcome: "information-ready" | "payment-ready" | "registration-ready" | "failed" | "unknown";
-    message: string;
-    stopReason?: TicketPlusStopReason;
-}
+export type { WorkerResult as TicketPlusWorkerResult } from "./workerProtocol.js";
+import type { WorkerInput, WorkerEnvironment, WorkerResult } from "./workerProtocol.js";
 
 export async function runTicketPlusWorker(
-    activity: TicketPlusActivitySettings,
-    lease: PurchaseLease,
-    onBrowser: (context: BrowserContext) => void,
-    sendEvent: (event: WorkerPurchaseEvent) => void,
-    onSubmitAttempt: () => void,
-    signal?: AbortSignal,
-    waitForParticipants?: (confirmationId: string) => Promise<void>,
-): Promise<TicketPlusWorkerResult> {
+    { activity, lease }: WorkerInput<TicketPlusActivitySettings>,
+    { onBrowser, sendEvent, onSubmitAttempt, signal, waitForParticipants }: WorkerEnvironment,
+): Promise<WorkerResult> {
     // 提交標記先於通知保存；外圍錯誤不能把已嘗試提交改成未提交。
     let progress = emptySubmissionProgress();
     let submissionAttempts = 0;

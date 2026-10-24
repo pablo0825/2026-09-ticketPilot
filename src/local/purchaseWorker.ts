@@ -1,4 +1,6 @@
-import { runTicketPlusWorker } from "./ticketPlusWorker.js";
+import { workerFor } from "./workerEntries.js";
+import { executionPlatform } from "../app/platforms/index.js";
+import { isStopMessage } from "./workerProtocol.js";
 import { parseActivity } from "../config/activityStore.js";
 import type { PurchaseLease } from "../app/purchaseLock.js";
 import type { BrowserContext } from "playwright";
@@ -30,26 +32,20 @@ async function startWorker(input: { activity: unknown; lease: PurchaseLease }): 
     let settled = false;
     let closing = false;
     const controller = new AbortController();
+    let stopType: string | undefined;
 
     // 同步準備停止接收器，啟動瀏覽器期間也能記住停止要求。
     const receiveStop = (message: unknown) => {
-        if (
-            !settled &&
-            message &&
-            typeof message === "object" &&
-            "type" in message &&
-            message.type === "stop-ticketplus" &&
-            Object.keys(message).length === 1
-        ) {
+        if (!settled && isStopMessage(message, stopType)) {
             controller.abort();
         }
     };
     process.on("message", receiveStop);
 
     // 抽選等待參加者時，只接受本輪等待中的確認 ID 一次。
-    const participants = createParticipantGate();
+    let participants: ReturnType<typeof createParticipantGate> | undefined;
     const receiveParticipants = (message: unknown) => {
-        if (!settled) participants.receive(message);
+        if (!settled) participants?.receive(message);
     };
     process.on("message", receiveParticipants);
 
@@ -75,18 +71,23 @@ async function startWorker(input: { activity: unknown; lease: PurchaseLease }): 
     };
     try {
         const activity = parseActivity(input.activity);
-        const result = await runTicketPlusWorker(
-            activity,
-            input.lease,
-            onBrowser,
-            event => {
-                process.send?.({ type: "event", event });
+        const definition = executionPlatform(activity.platform);
+        stopType = definition.stop?.message.type;
+        if (definition.participants) participants = createParticipantGate(definition.participants.messageType);
+        const gate = participants;
+        const result = await workerFor(activity.platform).run(
+            { activity, lease: input.lease },
+            {
+                onBrowser,
+                sendEvent: event => {
+                    process.send?.({ type: "event", event });
+                },
+                onSubmitAttempt: () => {
+                    submitted = true;
+                },
+                signal: controller.signal,
+                waitForParticipants: gate ? confirmationId => gate.wait(confirmationId) : undefined,
             },
-            () => {
-                submitted = true;
-            },
-            controller.signal,
-            confirmationId => participants.wait(confirmationId),
         );
         settled = true;
         process.send?.({ type: "result", ...result });
