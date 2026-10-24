@@ -1,6 +1,6 @@
 import type { ActivitySettings } from "../../config/activitySettings.js";
 import { createExecutionRegistry } from "./platformDefinition.js";
-import { ticketPlusDefinition } from "./ticketPlus.js";
+import { ticketPlusDefinition } from "./ticketplus/definition.js";
 
 export const executionPlatform = createExecutionRegistry([ticketPlusDefinition]);
 export function platformFor(settings: ActivitySettings) {

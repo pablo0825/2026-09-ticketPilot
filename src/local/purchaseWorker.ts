@@ -1,5 +1,5 @@
 import { workerFor } from "./workerEntries.js";
-import { executionPlatform } from "../app/platforms/index.js";
+import { executionPlatform } from "../app/platforms/executionRegistry.js";
 import { isStopMessage } from "./workerProtocol.js";
 import { parseActivity } from "../config/activitySettings.js";
 import type { PurchaseLease } from "../storage/purchaseLock.js";

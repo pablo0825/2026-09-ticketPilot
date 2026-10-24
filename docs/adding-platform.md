@@ -20,7 +20,7 @@
 | 範圍 | 登記位置 | 平台提供的內容 |
 | --- | --- | --- |
 | 設定 | `src/config/settingsRegistry.ts` | 平台 ID 與設定解析器 |
-| 執行規則 | `src/app/platforms/index.ts` | `PlatformDefinition` |
+| 執行規則 | `src/app/platforms/executionRegistry.ts` | `PlatformDefinition` |
 | worker | `src/local/workerEntries.ts` | 設定解析器與 worker 執行函式 |
 | 前端 | `workspaceRegistry.ts` 與 `runPresenterRegistry.ts` | 工作區元件及純狀態呈現函式 |
 
@@ -49,7 +49,7 @@
 
 ## 2. 平台執行規則
 
-在 `src/app/platforms/` 建立平台定義，參考 `ticketPlus.ts`，並登記到 `executionPlatform`。
+在 `src/app/platforms/` 建立平台定義，參考 `ticketplus/definition.ts`，並登記到 `executionPlatform`。
 
 `PlatformDefinition` 提供：
 

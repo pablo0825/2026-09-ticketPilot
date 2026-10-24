@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { EventEmitter } from "node:events";
 import type { ChildProcess } from "node:child_process";
 import { sendWorkerStop } from "../src/local/sendWorkerStop.js";
-import { ticketPlusDefinition } from "../src/app/platforms/ticketPlus.js";
+import { ticketPlusDefinition } from "../src/app/platforms/ticketplus/definition.js";
 
 // 僅替代 IPC 邊界，實際停止購票另由 API 與正式 worker 的整合測試驗證。
 function childFixture(mode: "accepted" | "backpressure" | "throw" | "callback-error" = "accepted") {

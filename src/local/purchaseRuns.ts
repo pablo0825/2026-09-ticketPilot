@@ -10,7 +10,7 @@ import { z } from "zod";
 import { parseActivity, type ActivitySettings } from "../config/activitySettings.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../storage/purchaseLock.js";
 import { runCapabilities } from "../app/platforms/runCapabilities.js";
-import { executionPlatform, platformFor } from "../app/platforms/index.js";
+import { executionPlatform, platformFor } from "../app/platforms/executionRegistry.js";
 import { runSnapshotFields, type BoundRunRules } from "../app/platforms/platformDefinition.js";
 import { sendWorkerStop } from "./sendWorkerStop.js";
 import type { PurchaseEvent } from "../shared/runEvents.js";
