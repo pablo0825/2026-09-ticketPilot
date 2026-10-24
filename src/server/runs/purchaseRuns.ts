@@ -2,9 +2,7 @@ import { localDataDirectory, projectRoot } from "../../storage/dataPaths.js";
 import type { ActivityExecutionStatus } from "../../shared/activityExecutionStatus.js";
 import type { ActivityRecord } from "../../shared/activityRecord.js";
 import { fork, type ChildProcess } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { parseActivity, type ActivitySettings } from "../../config/activitySettings.js";
@@ -17,7 +15,8 @@ import type { PurchaseEvent } from "../../shared/runEvents.js";
 
 import type { PurchaseSnapshot } from "../../shared/runSnapshot.js";
 
-import { parseRunRecord, type RunRecord as Record } from "./runRecord.js";
+import type { RunRecord as Record } from "./runRecord.js";
+import { RunRecordStore } from "./runRecordStore.js";
 
 function hashContent(value: unknown): string {
     return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -35,21 +34,16 @@ export class PurchaseRuns {
     private stopRequest?: { child: ChildProcess; record: Record; status: "sending" | "sent" | "unconfirmed" };
     private participantsSent?: { record: Record; confirmationId: string };
     private listeners = new Set<() => void>();
-    private directory: string;
+    private readonly recordStore: RunRecordStore;
 
     constructor(
         private readonly root = localDataDirectory,
         private readonly worker = new URL("../../workers/purchaseWorker.ts", import.meta.url),
     ) {
-        // 讀取過去的執行紀錄，最新的當作目前紀錄
-        this.directory = join(root, "runs");
-        mkdirSync(this.directory, { recursive: true, mode: 0o700 });
+        this.recordStore = new RunRecordStore(root);
 
-        const files = readdirSync(this.directory).filter(name => /^[0-9a-f-]{36}\.json$/.test(name));
-        // 先排除封存平台，才選目前紀錄及寫回中斷狀態；舊檔保持原樣。
-        const records = files
-            .map(name => this.read(name.slice(0, -5)))
-            .filter((record): record is Record => record !== undefined && record !== "archived-klook");
+        // 讀取過去的執行紀錄（已排除封存平台），最新的當作目前紀錄
+        const records = this.recordStore.loadAll();
         records.sort((a, b) => b.snapshot.id.localeCompare(a.snapshot.id));
         this.current = records[0];
 
@@ -64,33 +58,7 @@ export class PurchaseRuns {
         if (this.current && ["running"].includes(this.current.snapshot.status)) {
             this.current.snapshot.status = "interrupted";
             this.current.snapshot.message = "上次服務中斷，請檢查瀏覽器與訂單；不會自動續跑。";
-            this.save(this.current);
-        }
-    }
-
-    private file(id: string): string {
-        if (!z.string().uuid().safeParse(id).success) throw new Error("開始請求識別碼無效。");
-        return join(this.directory, `${id}.json`);
-    }
-
-    private read(id: string): Record | "archived-klook" | undefined {
-        try {
-            return parseRunRecord(JSON.parse(readFileSync(this.file(id), "utf8")), id);
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-            throw new Error("執行紀錄無法讀取，請先人工檢查。");
-        }
-    }
-
-    private save(record: Record, fresh = false): void {
-        const path = this.file(record.snapshot.requestId);
-        const data = JSON.stringify(record);
-
-        if (fresh) writeFileSync(path, data, { flag: "wx", mode: 0o600 });
-        else {
-            const temporary = `${path}.${randomUUID()}.tmp`;
-            writeFileSync(temporary, data, { mode: 0o600 });
-            renameSync(temporary, path);
+            this.recordStore.replace(this.current);
         }
     }
 
@@ -133,7 +101,7 @@ export class PurchaseRuns {
     hasRequest(id: string): boolean {
         // 無法確認紀錄時保守視為已接受，不能授權 UI 換 ID 重送。
         try {
-            return existsSync(this.file(id));
+            return this.recordStore.exists(id);
         } catch {
             return true;
         }
@@ -217,7 +185,7 @@ export class PurchaseRuns {
         };
 
         // 必須先留下去重紀錄才啟動；寫入或啟動異常保留占用，不猜測可重跑。
-        this.save(record, true);
+        this.recordStore.create(record);
         this.current = record;
         if (record.activity) this.latestByActivity.set(record.activity.id, record);
 
@@ -248,7 +216,7 @@ export class PurchaseRuns {
         platform: string,
         rules: BoundRunRules,
     ): PurchaseSnapshot | undefined {
-        const previous = this.read(requestId);
+        const previous = this.recordStore.read(requestId);
         if (previous === "archived-klook") throw new Error("此開始請求屬於已停用的 Klook 流程，不會重新啟動。");
         if (!previous) return undefined;
 
@@ -438,7 +406,7 @@ export class PurchaseRuns {
                     return;
                 }
 
-                this.save(record);
+                this.recordStore.replace(record);
                 this.notify();
             } catch {
                 child.kill();
@@ -455,7 +423,7 @@ export class PurchaseRuns {
 
             record.snapshot.occupied = purchaseOccupied(this.root);
             try {
-                this.save(record);
+                this.recordStore.replace(record);
             } catch {
                 record.snapshot.status = "interrupted";
                 record.snapshot.message = "執行紀錄寫入失敗，請檢查瀏覽器與訂單；不會自動重跑。";
