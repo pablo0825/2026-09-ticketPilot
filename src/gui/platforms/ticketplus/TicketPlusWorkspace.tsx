@@ -1,9 +1,7 @@
-import type { ActivityExecutionStatus } from "../../../shared/activityExecutionStatus.js";
-import type { ActivityRecord } from "../../../shared/activityRecord.js";
 import { TicketPlusTargetRow } from "./TicketPlusTargetRow.js";
 import { TicketPlusActivitySettings } from "./ActivitySettings.js";
 import { primaryButton, secondaryButton, stepPanel } from "../../shared/styles.js";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { PurchaseSnapshot } from "../../../shared/runSnapshot.js";
 import { api } from "../../shared/api.js";
@@ -31,13 +29,7 @@ import type { ActivityForm, TicketPlusActivityRecord, ExecutionForm, ExecutionEr
 import { ticketPlusSessionSelection } from "../../../config/platforms/ticketplus/activitySettings.js";
 import { PurchaseConfirmPage } from "../../pages/PurchaseConfirmPage.js";
 import { findPendingStart, hasPendingStart, startPurchase } from "./startPurchase.js";
-
-type ActivityListEntry = TicketPlusActivityRecord & { executionStatus: ActivityExecutionStatus | "待重新載入" };
-
-interface ActivityListData {
-    activities: (ActivityRecord & { executionStatus: ActivityExecutionStatus })[];
-    invalidFiles: number;
-}
+import { useActivityList, type ActivityListEntry } from "./useActivityList.js";
 
 type Step = "activity" | "confirm" | "status";
 const steps: { id: Step; label: string }[] = [
@@ -58,7 +50,6 @@ export function TicketPlusWorkspace({
     managesPendingStart,
     onPendingChange,
 }: WorkspaceProps) {
-    const [activities, setActivities] = useState<ActivityListEntry[]>([]);
     const [record, setRecord] = useState<TicketPlusActivityRecord | null>(null);
     const [form, setForm] = useState(activityForm);
     const [baseline, setBaseline] = useState(() => draftFingerprint(form));
@@ -70,14 +61,9 @@ export function TicketPlusWorkspace({
     const [step, setStep] = useState<Step>("activity");
     // 在這個畫面開始，或從「查看狀態」打開的那一輪；結束後仍顯示它的結果。
     const [followedRunId, setFollowedRunId] = useState<string | null>(null);
-    const [initialized, setInitialized] = useState(false);
-    const [listLoading, setListLoading] = useState(true);
-    const [listError, setListError] = useState("");
-    const listLoadingRef = useRef(false);
     const [busy, setBusy] = useState(false);
     const busyRef = useRef(false);
     const active = useRef(true);
-    const listRequest = useRef(0);
     const [pendingStart, setPendingStart] = useState(hasPendingStart);
 
     const sessions = new Set(
@@ -95,60 +81,24 @@ export function TicketPlusWorkspace({
         setConfirmed(false);
     }
 
-    const refreshList = useCallback(async () => {
-        const request = ++listRequest.current;
-        listLoadingRef.current = true;
-        setListLoading(true);
-        try {
-            const data = await api<ActivityListData>("/api/activities");
-            if (!active.current || request !== listRequest.current) return;
-            const items = data.activities
-                .filter(item => item.settings.platform === "ticketplus")
-                .map(item => ({
-                    ...ticketPlusRecord(item),
-                    executionStatus: item.executionStatus,
-                }));
-            setActivities(items);
-            setInitialized(true);
-            setListError("");
-            if (data.invalidFiles) setMessage(`${data.invalidFiles} 個設定檔無法載入，未覆寫。`);
-            return data.invalidFiles;
-        } catch (error) {
-            if (!active.current || request !== listRequest.current) return;
-            // 保留上次讀到的列表，錯誤不與購票狀態訊息共用。
-            setListError(error instanceof Error ? error.message : String(error));
-            throw error;
-        } finally {
-            if (active.current && request === listRequest.current) {
-                listLoadingRef.current = false;
-                setListLoading(false);
-            }
-        }
-    }, [setMessage]);
-
-    const loadListForDisplay = useCallback(async () => {
-        try {
-            await refreshList();
-        } catch {
-            // refreshList 已在列表顯示錯誤；不要覆蓋全域執行訊息。
-        }
-    }, [refreshList]);
-
     // 活動設定不依賴聯絡資料；全域狀態訂閱仍由 App 唯一持有。
     const statusKey = JSON.stringify([runs.purchase?.id, runs.purchase?.status, runs.purchase?.occupied]);
     useEffect(() => {
         active.current = true;
         return () => {
             active.current = false;
-            listRequest.current++;
         };
     }, []);
-    useEffect(() => {
-        void loadListForDisplay();
-        return () => {
-            listRequest.current++;
-        };
-    }, [loadListForDisplay, statusKey]);
+    const {
+        activities,
+        updateActivities,
+        initialized,
+        listLoading,
+        listError,
+        isListLoading,
+        refreshList,
+        loadListForDisplay,
+    } = useActivityList(statusKey, setMessage);
 
     const occupied = runs.purchase?.occupied === true;
     const locked = busy || runs.closing || navigationBusy;
@@ -290,14 +240,14 @@ export function TicketPlusWorkspace({
         const nextExecution = executionForm(next.settings);
         setExecution(nextExecution);
         setExecutionBaseline(executionFingerprint(nextExecution));
-        setActivities(previous => previous.map(item => (item.id === next.id ? { ...item, ...next } : item)));
+        updateActivities(previous => previous.map(item => (item.id === next.id ? { ...item, ...next } : item)));
     }
 
     async function acceptSaved(next: TicketPlusActivityRecord, retainedExecution?: ExecutionForm) {
         // 保存成功先接受 ID 與新版本；後續列表失敗不能造成第二次新增。
         openRecord(next);
         if (retainedExecution) setExecution(retainedExecution);
-        setActivities(previous => [
+        updateActivities(previous => [
             { ...next, executionStatus: "待重新載入" },
             ...previous.filter(item => item.id !== next.id),
         ]);
@@ -324,7 +274,7 @@ export function TicketPlusWorkspace({
         }
         await api("/api/activities/" + item.id, "DELETE");
         if (!active.current) return;
-        setActivities(previous => previous.filter(value => value.id !== item.id));
+        updateActivities(previous => previous.filter(value => value.id !== item.id));
         try {
             await refreshList();
         } catch {
@@ -530,7 +480,7 @@ export function TicketPlusWorkspace({
                                 type="button"
                                 disabled={locked || listLoading}
                                 onClick={() => {
-                                    if (!locked && !listLoadingRef.current) void loadListForDisplay();
+                                    if (!locked && !isListLoading()) void loadListForDisplay();
                                 }}
                             >
                                 重新載入活動列表
