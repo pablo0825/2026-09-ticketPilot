@@ -5,12 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import { ActivityStore } from "../src/config/activityStore.js";
-import { saveContactDetails } from "../src/config/contact.config.js";
+import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
 import { startLocalServer } from "../src/local/server.js";
 import { snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
 
 const oldRun = {
     id: "old",
+    platform: "ticketplus",
     requestId: "old",
     activityName: "舊輪次",
     status: "failed",
@@ -24,24 +25,7 @@ const oldRun = {
 test("React：新 POST 早於 SSE 時立即占用；SSE 先到時晚回應不倒退終態", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ticket-react-order-"));
     const store = new ActivityStore(join(directory, "events"));
-    await store.save({
-        eventName: "新活動",
-        platform: "klook",
-        eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
-        fallbackMode: "STRICT",
-        excludeKeywords: [],
-        targets: [{ date: "2026-11-02", time: "19:30", area: "A區", quantity: 1, adjacent: false }],
-    });
-    await saveContactDetails(
-        {
-            firstName: "Demo",
-            lastName: "Test",
-            regionLabel: "台灣 (+886)",
-            phone: "0912345678",
-            email: "fixture@example.com",
-        },
-        join(directory, "contact.json"),
-    );
+    const record = await store.save({ ...apiActivity, eventName: "新活動" });
     const service = await startLocalServer(store, {
         contactPath: join(directory, "contact.json"),
         runDirectory: join(directory, "runtime"),
@@ -55,6 +39,7 @@ test("React：新 POST 早於 SSE 時立即占用；SSE 先到時晚回應不倒
             const next = {
                 ...oldRun,
                 id: "new",
+                activityId: record.id,
                 activityName: "新活動",
                 status: "running",
                 occupied: true,
@@ -64,25 +49,22 @@ test("React：新 POST 早於 SSE 時立即占用；SSE 先到時晚回應不倒
                 if (route.request().method() === "GET") return route.fulfill({ json: oldRun });
                 if (streamFirst) {
                     feed.publish({ ...next, status: "payment-ready", canCloseBrowser: true });
-                    await eventually(async () =>
-                        assert.match((await page.locator("#homeRun").textContent()) ?? "", /自動流程已完成/),
-                    );
+                    await eventually(async () => assert.equal(await page.locator(".breadcrumb .lock-chip").count(), 1));
                 }
-                await route.fulfill({ json: next });
+                await route.fulfill({ json: { ...next, requestId: route.request().postDataJSON().requestId } });
             });
             await page.goto(service.url);
-            await page.locator("#selectKlook").click();
             await page.getByText("編輯活動", { exact: true }).click();
             await page.getByRole("button", { name: "確認與開始" }).click();
-            await page.locator("#confirm").check();
-            await page.locator("#start").click();
-            await page.locator("#step4").waitFor();
+            await page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ }).check();
+            await page.getByRole("button", { name: "開始購票", exact: true }).click();
+            await page.locator("#status").waitFor();
             assert.equal(await page.locator("#status").innerText(), streamFirst ? "已到付款頁" : "正在購票");
             await page.locator("#homeButton").click();
             assert(await page.locator("#new").isDisabled());
-            assert(await page.getByText("編輯活動", { exact: true }).isDisabled());
+            assert.equal(await page.getByText("編輯活動", { exact: true }).count(), 0);
             assert(await page.getByText("刪除", { exact: true }).isDisabled());
-            assert(await page.locator("#viewRun").isVisible());
+            assert(await page.getByRole("button", { name: "查看狀態", exact: true }).isVisible());
             await page.close();
         }
     } finally {

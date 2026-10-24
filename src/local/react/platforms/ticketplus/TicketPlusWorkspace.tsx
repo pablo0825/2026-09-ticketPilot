@@ -36,12 +36,8 @@ interface Props {
     message: string;
     setMessage: (message: string) => void;
     runs: ReturnType<typeof useRunStatus>;
-    onExit: () => void;
     onViewRun: () => void;
     onPendingResolved: () => void;
-    // 從平台首頁進來時要直接開啟的執行中活動；開啟後由 App 清除。
-    openRunActivityId?: string;
-    onRunActivityOpened: () => void;
 }
 interface ActivityListData {
     activities: (ActivityRecord & { executionStatus: ActivityExecutionStatus })[];
@@ -55,16 +51,7 @@ const steps: { id: Step; label: string }[] = [
     { id: "status", label: "執行狀態" },
 ];
 
-export function TicketPlusWorkspace({
-    message,
-    setMessage,
-    runs,
-    onExit,
-    onViewRun,
-    onPendingResolved,
-    openRunActivityId,
-    onRunActivityOpened,
-}: Props) {
+export function TicketPlusWorkspace({ message, setMessage, runs, onViewRun, onPendingResolved }: Props) {
     const [activities, setActivities] = useState<ActivityListEntry[]>([]);
     const [record, setRecord] = useState<TicketPlusActivityRecord | null>(null);
     const [form, setForm] = useState(activityForm);
@@ -128,7 +115,7 @@ export function TicketPlusWorkspace({
         let current = true;
         void refreshList().catch(error => {
             if (active.current && current) {
-                setMessage(`${(error as Error).message} 請返回平台首頁後重新進入。`);
+                setMessage(`${(error as Error).message} 請按「重新載入活動列表」重試。`);
             }
         });
         return () => {
@@ -166,14 +153,6 @@ export function TicketPlusWorkspace({
     const displayedRun =
         runs.displayed?.kind === "purchase" && runs.displayed.run.id === activityRunId ? runs.displayed : null;
 
-    // 列表載入後才開啟平台首頁指定的活動；先通知 App 清除，避免重複開啟。
-    useEffect(() => {
-        if (!initialized || !openRunActivityId) return;
-        onRunActivityOpened();
-        openRunActivity(openRunActivityId);
-        // 只在拿到新的活動 id 或列表初次載入完成時執行，不隨每次重繪觸發。
-    }, [initialized, openRunActivityId]);
-
     // 停在執行狀態分頁時，讓畫面顯示這個活動目前這一輪；之後才開始或晚到的一輪也會切過去。
     // 停止與參加者按鈕只作用在畫面顯示的那一輪，所以要同步。
     useEffect(() => {
@@ -199,15 +178,12 @@ export function TicketPlusWorkspace({
         }
     }
 
-    function leave(destination: "list" | "platforms") {
+    function leave() {
         if (busyRef.current || runs.closing) return;
         if (dirty && !window.confirm("有尚未儲存的修改，要放棄並離開嗎？")) return;
         setMessage("");
-        if (destination === "platforms") onExit();
-        else {
-            setEditing(false);
-            void action(refreshList);
-        }
+        setEditing(false);
+        void action(refreshList);
     }
 
     function openRecord(next: TicketPlusActivityRecord | null) {
@@ -293,7 +269,8 @@ export function TicketPlusWorkspace({
                 setMessage("活動已儲存，尚未啟動購票。" + warning);
             }
         } catch {
-            if (active.current) setMessage("活動已儲存，但列表重新載入失敗；請返回平台首頁後重新進入。");
+            if (active.current)
+                setMessage("活動已儲存，但列表重新載入失敗；請返回活動列表後按「重新載入活動列表」重試。");
         }
     }
 
@@ -311,7 +288,7 @@ export function TicketPlusWorkspace({
         try {
             await refreshList();
         } catch {
-            if (active.current) setMessage("活動已刪除，但列表重新載入失敗；請返回平台首頁後重新進入。");
+            if (active.current) setMessage("活動已刪除，但列表重新載入失敗；請按「重新載入活動列表」重試。");
         }
     }
 
@@ -345,7 +322,7 @@ export function TicketPlusWorkspace({
 
     return (
         <div data-tailwind>
-            <AppHeader disabled={locked} onHome={() => leave("platforms")} />
+            <AppHeader disabled={locked} onHome={() => leave()} />
             <div
                 id="message"
                 role="alert"
@@ -371,12 +348,11 @@ export function TicketPlusWorkspace({
                     {/* 只顯示已儲存的名稱，輸入中的名稱要按儲存後才更新。 */}
                     <Breadcrumbs
                         items={[
-                            { label: "首頁", actionLabel: "返回平台首頁", onSelect: () => leave("platforms") },
                             {
-                                label: "TicketPlus",
+                                label: "活動列表",
                                 id: "homeButton",
                                 actionLabel: "返回 TicketPlus 活動列表",
-                                onSelect: () => leave("list"),
+                                onSelect: () => leave(),
                             },
                             { label: activityTitle },
                         ]}
@@ -481,20 +457,25 @@ export function TicketPlusWorkspace({
             ) : (
                 <>
                     <Breadcrumbs
-                        items={[
-                            { label: "首頁", actionLabel: "返回平台首頁", onSelect: () => leave("platforms") },
-                            { label: "TicketPlus" },
-                        ]}
+                        items={[{ label: "TicketPlus" }]}
                         disabled={locked}
                         lockReason={occupied ? "購票瀏覽器使用中，暫時無法變更活動設定" : undefined}
                     />
-                    {hasRun && initialized && !runningListed && (
+                    {hasRun && (!initialized || !runningListed) && (
                         <div className="mb-4 flex items-center gap-3">
-                            <button className={secondaryButton} disabled={locked} onClick={onViewRun}>
+                            <button id="viewRun" className={secondaryButton} disabled={locked} onClick={onViewRun}>
                                 查看目前狀態
                             </button>
                         </div>
                     )}
+                    <button
+                        className={secondaryButton}
+                        type="button"
+                        disabled={locked}
+                        onClick={() => void action(refreshList)}
+                    >
+                        重新載入活動列表
+                    </button>
                     <ActivityListPage
                         activities={activities.map(item => ({
                             id: item.id,
@@ -549,5 +530,5 @@ function currentActivityRunId(
 
 // 仍占用瀏覽器、執行中或結果未確認的一輪，需要使用者注意。
 function purchaseNeedsAttention(purchase: PurchaseSnapshot): boolean {
-    return purchase.occupied || ["running", "unknown", "interrupted"].includes(purchase.status);
+    return purchase.occupied || purchase.browserOpen || ["running", "unknown", "interrupted"].includes(purchase.status);
 }

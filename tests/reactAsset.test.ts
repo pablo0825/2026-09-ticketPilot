@@ -19,9 +19,8 @@ test("React 正式打包由本機同源載入，保留 API 驗證與資源邊界
         const errors: string[] = [];
         page.on("pageerror", error => errors.push(error.message));
         const response = await page.goto(service.url);
-        await page.locator("#selectKlook").click();
         await page.locator("#new").click();
-        await page.locator("#step1").waitFor();
+        await page.getByLabel("活動名稱", { exact: true }).waitFor();
         assert.match(response!.headers()["content-security-policy"]!, /frame-ancestors 'none'/);
         assert.equal(response!.headers()["cache-control"], "no-store");
         assert.equal(

@@ -67,7 +67,7 @@ for (const newerSnapshot of [false, true]) {
 
             // 先顯示等待狀態，再暫停快照與確認回應。
             await page.goto(service.url);
-            await page.getByRole("button", { name: "查看狀態", exact: true }).click();
+            await page.getByRole("button", { name: "查看目前狀態", exact: true }).click();
             await eventually(async () => assert.equal(await page.locator("#status").innerText(), "請填寫參加者"));
             feed.publish(undefined);
             const response = page.waitForResponse("**/api/purchase/confirm-participants");

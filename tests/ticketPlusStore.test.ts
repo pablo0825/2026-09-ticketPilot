@@ -8,7 +8,6 @@ import { ActivityStore } from "../src/config/activityStore.js";
 import { purchaseOccupied } from "../src/app/purchaseLock.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 import { startLocalServer } from "../src/local/server.js";
-import { activityForm } from "../src/local/react/platforms/klook/formModel.js";
 import { parseTicketPlusActivity } from "../src/config/ticketPlusActivity.js";
 
 const ticketplus = {
@@ -57,7 +56,6 @@ test("混合平台設定可存取；無效更新與跨平台覆寫保留原檔",
         const list = await store.list();
         assert.deepEqual(list.activities.map(a => a.settings.platform).sort(), ["klook", "ticketplus"]);
         assert.equal(list.invalidFiles, 0);
-        assert.throws(() => activityForm(parseTicketPlusActivity(ticketplus)), /僅支援 Klook/);
 
         // 失敗更新不得修改檔案，合法更新保留活動識別碼
         await assert.rejects(

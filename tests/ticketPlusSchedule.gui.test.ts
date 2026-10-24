@@ -31,7 +31,7 @@ async function fixture(
             }),
         );
         await page.goto(h.url);
-        await page.locator("#selectTicketPlus").click();
+
         await page.getByRole("button", { name: "編輯活動", exact: true }).click();
         await review(page);
         await work(h, page, record, requests);
@@ -111,7 +111,8 @@ test(
             await eventually(async () => assert.match(await page.locator("#status").innerText(), /等待開賣/));
             assert.equal((await h.counts()).counts.session, 0);
             assert.deepEqual(starts(requests)[0]!.body.expectedActivity, saved.settings);
-            await h.until(run => run?.status === "payment-ready");
+            // 已刻意等待約 12 秒開賣，另留時間完成選票與資料提交。
+            await h.until(run => run?.status === "payment-ready", 20_000);
             await eventually(async () => assert.equal(await page.locator("#status").innerText(), "已到付款頁"));
             assert.equal((await h.counts()).counts.session, 1);
             assert.equal((await h.counts()).counts.submit, 1);
@@ -310,7 +311,7 @@ test("TicketPlus 排程 GUI：倒數跨過零只更新文字，不自行啟動�
         const feed = await snapshotFeed(page, "/api/purchase/events", run);
         await page.route("**/api/purchase", route => route.fulfill({ json: run }));
         await page.goto(h.url);
-        await page.getByRole("button", { name: "查看狀態", exact: true }).click();
+        await page.getByRole("button", { name: /^查看(?:目前)?狀態$/ }).click();
         await eventually(async () => assert.match(await page.locator("body").innerText(), /距開賣 \d+ 秒/));
         await eventually(async () => assert.match(await page.locator("body").innerText(), /已到設定時間/));
         assert.equal(await page.locator("#status").innerText(), "等待開賣");

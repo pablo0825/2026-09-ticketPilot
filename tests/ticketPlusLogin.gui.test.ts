@@ -41,7 +41,7 @@ async function start(h: Harness) {
 
 async function showRun(page: Page, url: string) {
     await page.goto(url);
-    await page.getByRole("button", { name: "查看狀態", exact: true }).click();
+    await page.getByRole("button", { name: /^查看(?:目前)?狀態$/ }).click();
     await page.locator("#status").waitFor();
 }
 

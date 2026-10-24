@@ -55,7 +55,7 @@ async function fixture(work: (h: Harness) => Promise<void>) {
             requests.push({ method: request.method(), path: new URL(request.url()).pathname }),
         );
         await page.goto(service.url);
-        await page.locator("#selectTicketPlus").click();
+
         await page.getByRole("button", { name: "編輯活動" }).waitFor();
         await work({ page, browser, url: service.url, store, id: original.id, directory, requests });
         assert.equal(await readFile(klookPath, "utf8"), before);
@@ -156,10 +156,9 @@ test("TicketPlus GUI：活動保存保留原排程與期限，跨場次保存但
         // 活動名稱移到麵包屑，返回鍵維持原本的名稱。
         assert.equal(await page.locator(".breadcrumb-current").innerText(), settings.eventName);
         const crumbs = page.getByRole("navigation", { name: "目前位置" });
-        assert.equal(await crumbs.getByRole("button", { name: "返回平台首頁", exact: true }).innerText(), "首頁");
         assert.equal(
             await crumbs.getByRole("button", { name: "返回 TicketPlus 活動列表", exact: true }).innerText(),
-            "TicketPlus",
+            "活動列表",
         );
         assert.equal(await crumbs.locator('[aria-current="page"]').innerText(), settings.eventName);
 
@@ -220,24 +219,15 @@ test("TicketPlus GUI：空白新表單與原設定不誤報修改，真正修改
         await page.locator("#homeButton").click();
         assert.equal(dialogs, 2);
         assert.equal(await page.locator("#eventName").inputValue(), "未保存修改");
-        const platformCrumb = page.getByRole("button", { name: "返回平台首頁", exact: true });
-        await platformCrumb.click();
-        assert.equal(dialogs, 3);
-        assert.equal(await page.locator("#eventName").inputValue(), "未保存修改");
         page.removeAllListeners("dialog");
         page.once("dialog", dialog => dialog.accept());
         await page.locator("#homeButton").click();
         await page.getByRole("button", { name: "編輯活動" }).click();
         assert.equal(await page.locator("#eventName").inputValue(), "同名活動");
 
-        // 列表頁的麵包屑是「首頁 / TicketPlus」，按「首頁」回到選平台的頁面。
-        page.once("dialog", dialog => dialog.accept());
         await page.locator("#homeButton").click();
-        const listCrumbs = page.getByRole("navigation", { name: "目前位置" });
-        assert.equal(await listCrumbs.locator('[aria-current="page"]').innerText(), "TicketPlus");
+        assert.equal(await page.getByRole("heading", { name: "活動列表", exact: true }).count(), 1);
         assert.equal(await page.locator("#homeButton").count(), 0);
-        await platformCrumb.click();
-        await page.locator("#selectTicketPlus").waitFor();
     });
 });
 
@@ -247,7 +237,7 @@ test("TicketPlus GUI：兩分頁真 revision 衝突不覆蓋，失敗保留草�
         await page.getByRole("button", { name: "編輯活動" }).click();
         const other = await page.context().newPage();
         await other.goto(h.url);
-        await other.locator("#selectTicketPlus").click();
+
         await other.getByRole("button", { name: "編輯活動" }).click();
         await page.locator("#eventName").fill("A分頁已保存");
         await page.getByRole("button", { name: "下一步" }).click();
@@ -368,43 +358,22 @@ test("TicketPlus GUI：刪除只刪指定平台活動，取消不送請求", asy
     });
 });
 
-test("TicketPlus GUI：背景列表晚到失敗不能污染離開後的畫面", async () => {
+test("TicketPlus GUI：列表載入失敗可重新載入，不需切換平台", async () => {
     await fixture(async h => {
-        await h.page.locator("#brandHome").click();
-        let release!: () => void;
-        let entered!: () => void;
-        const gate = new Promise<void>(resolve => {
-            release = resolve;
-        });
-        const started = new Promise<void>(resolve => {
-            entered = resolve;
-        });
-        await h.page.route("**/api/activities", async route => {
-            entered();
-            await gate;
-            await route.fulfill({
+        await h.page.route("**/api/activities", route =>
+            route.fulfill({
                 status: 500,
-                contentType: "application/json",
-                body: JSON.stringify({ error: "OLD_WORKSPACE_ERROR" }),
-            });
-        });
-        try {
-            await h.page.locator("#selectTicketPlus").click();
-            await started;
-            assert(await h.page.locator("#new").isDisabled());
-            await h.page.locator("#brandHome").click();
-            await h.page.locator("#platformHome").waitFor();
-            const received = h.page.waitForResponse(response => new URL(response.url()).pathname === "/api/activities");
-            release();
-            await received;
-            await h.page.evaluate(
-                () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-            );
-            assert.equal(await h.page.locator("#message").innerText(), "");
-            assert.equal(await h.page.locator("#brandHome").count(), 1);
-        } finally {
-            release();
-        }
+                json: { error: "LIST_LOAD_ERROR" },
+            }),
+        );
+        await h.page.reload();
+        await h.page.getByRole("alert").filter({ hasText: "LIST_LOAD_ERROR" }).waitFor();
+        assert(await h.page.locator("#new").isDisabled());
+        await h.page.unroute("**/api/activities");
+        await h.page.getByRole("button", { name: "重新載入活動列表" }).click();
+        await h.page.getByRole("button", { name: "編輯活動", exact: true }).waitFor();
+        assert(await h.page.locator("#new").isEnabled());
+        assert.equal(await h.page.locator("#message").innerText(), "");
     });
 });
 
@@ -439,7 +408,7 @@ test("TicketPlus GUI：Klook 瀏覽器仍占用時禁止變更，保留查看狀
             };
             await snapshotFeed(h.page, "/api/purchase/events", occupied);
             await h.page.reload();
-            await h.page.locator("#selectTicketPlus").click();
+
             await eventually(async () => assert(await h.page.locator("#new").isDisabled()));
             // 列表頁也用麵包屑的鎖定標籤說明，不再顯示整行說明文字。
             assert.match(await h.page.locator(".breadcrumb .lock-chip").innerText(), /^🔒 設定已鎖定/);

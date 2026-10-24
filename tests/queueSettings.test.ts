@@ -4,10 +4,8 @@ import { test } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chromium } from "playwright";
 import { ActivityStore, parseActivity, toPurchaseConfig } from "../src/config/activityStore.js";
 import { normalizePurchaseConfig } from "../src/core/purchaseValidation.js";
-import { startLocalServer } from "../src/local/server.js";
 
 const settings = {
     platform: "klook",
@@ -36,50 +34,6 @@ test("舊設定與 false 正規化相同；true 通過儲存、購票轉換、�
         await store.save({ ...settings, queueEnabled: false }, record.id);
         assert.deepEqual(klookSettings((await store.load(record.id)).settings), original);
     } finally {
-        await rm(dir, { recursive: true, force: true });
-    }
-});
-
-test("GUI 每活動保存勾選、摘要顯示、重開與新增不沿用其他活動", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "ticket-queue-gui-"));
-    const store = new ActivityStore(join(dir, "events"));
-    const original = await store.save(settings);
-    await store.save({ ...settings, eventName: "另一場活動" });
-    const service = await startLocalServer(store, {
-        contactPath: join(dir, "contact.json"),
-        runDirectory: join(dir, "runtime"),
-    });
-    const browser = await chromium.launch();
-    try {
-        const page = await browser.newPage();
-        await page.goto(service.url);
-        await page.locator("#selectKlook").click();
-        await page.locator("#activities tr").filter({ hasText: settings.eventName }).getByText("編輯活動").click();
-        await page.locator("#step1").waitFor({ state: "visible" });
-        assert.equal(await page.locator("#queueEnabled").isChecked(), false);
-        await page.locator("#queueEnabled").check();
-        assert.equal(klookSettings((await store.load(original.id)).settings).queueEnabled, undefined);
-        await page.locator("#saveActivity").click();
-        await page.locator("#step2").waitFor();
-        assert.equal(klookSettings((await store.load(original.id)).settings).queueEnabled, true);
-        await page.getByRole("button", { name: "確認與開始" }).click();
-        assert.match((await page.locator("#summary").textContent()) ?? "", /排隊流程.*已啟用/);
-        await page.reload();
-        await page.locator("#selectKlook").click();
-        await page.locator("#activities tr").filter({ hasText: settings.eventName }).getByText("編輯活動").click();
-        await page.locator("#step1").waitFor({ state: "visible" });
-        assert.equal(await page.locator("#queueEnabled").isChecked(), true);
-        assert.equal(klookSettings((await store.load(original.id)).settings).queueEnabled, true);
-        await page.locator("#homeButton").click();
-        await page.locator("#activities tr").filter({ hasText: "另一場活動" }).getByText("編輯活動").click();
-        await page.locator("#step1").waitFor({ state: "visible" });
-        assert.equal(await page.locator("#queueEnabled").isChecked(), false);
-        await page.locator("#homeButton").click();
-        await page.locator("#new").click();
-        assert.equal(await page.locator("#queueEnabled").isChecked(), false);
-    } finally {
-        await browser.close();
-        await service.close();
         await rm(dir, { recursive: true, force: true });
     }
 });

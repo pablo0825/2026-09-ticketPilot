@@ -43,7 +43,7 @@ async function start(h: Harness) {
 
 async function showRun(page: Page, url: string) {
     await page.goto(url);
-    await page.getByRole("button", { name: "查看狀態", exact: true }).click();
+    await page.getByRole("button", { name: /^查看(?:目前)?狀態$/ }).click();
     await page.locator("#status").waitFor();
 }
 
@@ -61,7 +61,7 @@ test("TicketPlus 執行狀態分頁：依活動 id 顯示目前這一輪，同�
         const opened = new Map<string, Page>();
         for (const [index, current] of pages.entries()) {
             await current.goto(h.url);
-            await current.locator("#selectTicketPlus").click();
+
             const loaded = current.waitForResponse(response =>
                 /\/api\/activities\/[^/]+$/.test(new URL(response.url()).pathname),
             );
@@ -107,7 +107,6 @@ test("TicketPlus 活動列表：執行中的活動那一列顯示即時狀態與
         const run = await start(h);
         assert(run?.activityId);
         await page.goto(h.url);
-        await page.locator("#selectTicketPlus").click();
 
         // 那一列標出來，狀態跟著執行進度顯示，按鈕換成「查看狀態」。
         const row = page.locator("#activities tr", { hasText: apiActivity.eventName });
@@ -120,7 +119,7 @@ test("TicketPlus 活動列表：執行中的活動那一列顯示即時狀態與
         // 入口已在那一列，上方不再放「查看目前狀態」。
         assert.equal(await page.getByRole("button", { name: "查看目前狀態" }).count(), 0);
         // 「查看狀態」打開這個活動的編輯頁，停在執行狀態分頁，有麵包屑與分頁；欄位鎖住只能看。
-        await row.getByRole("button", { name: "查看狀態", exact: true }).click();
+        await row.getByRole("button", { name: /^查看(?:目前)?狀態$/ }).click();
         await eventually(async () => assert.equal(await page.locator("#status").innerText(), "請手動登入"));
         assert.equal(await page.locator(".breadcrumb-current").innerText(), apiActivity.eventName);
         assert.equal(
@@ -143,7 +142,7 @@ test("TicketPlus 活動列表：執行中的活動那一列顯示即時狀態與
         await eventually(async () => assert.equal(await page.locator(".lock-chip").count(), 0));
         assert.equal(await page.locator("#status").innerText(), "購票已停止");
         await page.locator("#brandHome").click();
-        await page.locator("#selectTicketPlus").click();
+
         await eventually(async () => assert(await row.getByRole("button", { name: "編輯活動" }).isEnabled()));
         assert(!(await row.evaluate(element => element.classList.contains("running-row"))));
         assert.equal(await row.locator(".status-badge").count(), 0);
@@ -155,7 +154,7 @@ test("TicketPlus 活動列表：查看狀態載入活動失敗時改看獨立狀
     await fixture("success", async (h, page) => {
         await start(h);
         await page.goto(h.url);
-        await page.locator("#selectTicketPlus").click();
+
         const row = page.locator("#activities tr", { hasText: apiActivity.eventName });
         await row.locator(".status-badge").waitFor();
 
@@ -163,7 +162,7 @@ test("TicketPlus 活動列表：查看狀態載入活動失敗時改看獨立狀
         await page.route(/\/api\/activities\/[^/]+$/, route =>
             route.fulfill({ status: 500, json: { error: "讀取失敗" } }),
         );
-        await row.getByRole("button", { name: "查看狀態", exact: true }).click();
+        await row.getByRole("button", { name: /^查看(?:目前)?狀態$/ }).click();
         await eventually(async () => assert.equal(await page.locator("#status").innerText(), "請手動登入"));
         assert.equal(await page.locator(".breadcrumb").count(), 0);
         assert.match(await page.getByRole("alert").innerText(), /無法開啟活動/);
@@ -171,7 +170,7 @@ test("TicketPlus 活動列表：查看狀態載入活動失敗時改看獨立狀
 });
 
 test(
-    "平台首頁：查看狀態進入 TicketPlus 活動的執行狀態分頁，沒有活動 id 時看獨立狀態頁",
+    "活動列表：查看狀態進入 TicketPlus 活動的執行狀態分頁，沒有活動 id 時看獨立狀態頁",
     { timeout: 30_000 },
     async () => {
         await fixture("success", async (h, page) => {
@@ -355,7 +354,7 @@ test("TicketPlus 停止 GUI：傳送未確認仍有舊資格時不重送或登�
         await unavailable(page, stopLabel);
         await unavailable(page, loginLabel);
         await page.locator("#brandHome").click();
-        await page.getByRole("button", { name: "查看狀態", exact: true }).click();
+        await page.getByRole("button", { name: /^查看(?:目前)?狀態$/ }).click();
         await unavailable(page, stopLabel);
         await unavailable(page, loginLabel);
         assert.equal(requests.filter(path => path === "/api/purchase/stop").length, 1);
@@ -369,9 +368,9 @@ test("TicketPlus 停止 GUI：傳送未確認仍有舊資格時不重送或登�
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         await page.locator("#brandHome").click();
         await eventually(async () =>
-            assert.equal(await page.getByRole("button", { name: "查看狀態", exact: true }).count(), 1),
+            assert.equal(await page.getByRole("button", { name: /^查看(?:目前)?狀態$/ }).count(), 1),
         );
-        await page.getByRole("button", { name: "查看狀態", exact: true }).click();
+        await page.getByRole("button", { name: /^查看(?:目前)?狀態$/ }).click();
         await eventually(async () => {
             const button = page.getByRole("button", { name: stopLabel, exact: true });
             assert.equal(await button.count(), 1);

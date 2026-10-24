@@ -70,8 +70,11 @@ export async function apiHarness(mode = "success") {
         async function snapshot(): Promise<PurchaseSnapshot | null> {
             return (await request("/api/purchase")).json();
         }
-        async function until(check: (run: PurchaseSnapshot | null) => boolean): Promise<PurchaseSnapshot> {
-            const deadline = Date.now() + 12_000;
+        async function until(
+            check: (run: PurchaseSnapshot | null) => boolean,
+            timeoutMs = 12_000,
+        ): Promise<PurchaseSnapshot> {
+            const deadline = Date.now() + timeoutMs;
             while (Date.now() < deadline) {
                 const run = await snapshot();
                 if (check(run)) return run!;

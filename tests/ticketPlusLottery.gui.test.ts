@@ -41,18 +41,14 @@ test(
             await h.login();
             await h.until(run => Boolean(run?.participantConfirmation));
 
-            // 從平台首頁查看目前狀態
+            // 從活動列表查看目前狀態
             const page = await browser.newPage();
             const posts: string[] = [];
             page.on("request", request => {
                 if (request.method() === "POST") posts.push(new URL(request.url()).pathname);
             });
             await page.goto(h.url);
-            await page
-                .getByRole("row")
-                .filter({ hasText: "TicketPlus" })
-                .getByRole("button", { name: "查看狀態" })
-                .click();
+            await page.getByRole("button", { name: "查看狀態", exact: true }).click();
             await eventually(async () => assert.equal(await page.locator("#status").innerText(), "請填寫參加者"));
             assert.match(await page.locator("#instruction").innerText(), /網站倒數結束前須完成/);
             const confirm = page.getByRole("button", { name: "參加者已填完", exact: true });

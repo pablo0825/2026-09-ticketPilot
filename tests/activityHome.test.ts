@@ -1,13 +1,12 @@
-import { klookSettings } from "./fixtures/klookSettings.js";
+import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
+import { acquirePurchaseLease, releasePurchaseLease } from "../src/app/purchaseLock.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { chromium } from "playwright";
 import { ActivityStore } from "../src/config/activityStore.js";
 import { startLocalServer } from "../src/local/server.js";
-import { acquirePurchaseLease, releasePurchaseLease } from "../src/app/purchaseLock.js";
 const settings = {
     eventName: "同名活動",
     platform: "klook",
@@ -16,87 +15,6 @@ const settings = {
     excludeKeywords: [],
     targets: [{ date: "2026-11-02", time: "19:30", area: "B區", unitPrice: 5280, quantity: 1, adjacent: false }],
 };
-
-test("首頁三欄列表、未存離開、同名刪除及API占用與並發保護", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "ticket-home-"));
-    const store = new ActivityStore(join(dir, "events"));
-    const a = await store.save({
-        ...settings,
-        targets: [...settings.targets, { ...settings.targets[0], area: "C區" }],
-    });
-    const b = await store.save({
-        ...settings,
-        targets: [...settings.targets, { ...settings.targets[0], date: "2026-11-03" }],
-    });
-    const service = await startLocalServer(store, {
-        contactPath: join(dir, "contact.json"),
-        runDirectory: join(dir, "runtime"),
-    });
-    const browser = await chromium.launch();
-    try {
-        const page = await browser.newPage();
-        await page.goto(service.url);
-        await page.locator("#selectKlook").click();
-        await page.locator("#activities tr").nth(1).waitFor();
-        await page.screenshot({ path: "/tmp/activity-home.png", fullPage: true });
-        assert.deepEqual(await page.locator("#home").getByRole("columnheader").allTextContents(), [
-            "活動名稱",
-            "執行狀態",
-            "操作",
-        ]);
-        await page.locator(`[data-activity-id="${a.id}"]`).getByText("編輯活動").click();
-        await page.locator("#step1").waitFor();
-        assert.equal(await page.locator("[name=area]").first().inputValue(), "B區");
-        await page.locator("[name=area]").first().fill("D區");
-        page.once("dialog", dialog => dialog.dismiss());
-        await page.locator("#homeButton").click();
-        assert.equal(await page.locator("[name=area]").first().inputValue(), "D區");
-        page.once("dialog", dialog => dialog.accept());
-        await page.locator("#homeButton").click();
-        await page.locator("#home").waitFor();
-        assert.equal(klookSettings((await store.load(a.id)).settings).targets[0]!.area, "B區");
-        const multi = page.locator(`[data-activity-id="${b.id}"]`);
-        page.once("dialog", dialog => dialog.dismiss());
-        await multi.getByText("刪除", { exact: true }).click();
-        assert.equal((await store.list()).activities.length, 2);
-        page.once("dialog", dialog => dialog.accept());
-        await multi.getByText("刪除", { exact: true }).click();
-        await multi.waitFor({ state: "detached" });
-        await assert.rejects(store.load(b.id));
-        assert.equal((await store.list()).activities.length, 1);
-        const html = await (await fetch(service.url)).text();
-        const token = html.match(/<meta name="local-token" content="([^"]+)"/)![1]!;
-        const headers = { "X-Local-Token": token, "Content-Type": "application/json" };
-        const lease = acquirePurchaseLease(join(dir, "runtime"));
-        try {
-            assert.equal(
-                (await fetch(`${service.url}/api/activities/${a.id}`, { method: "DELETE", headers })).status,
-                400,
-            );
-            assert.equal((await store.load(a.id)).id, a.id);
-        } finally {
-            releasePurchaseLease(lease);
-        }
-        // 無論哪個請求先取得序列，刪除成功後不能由舊 PUT 復活。
-        const results = await Promise.all([
-            fetch(`${service.url}/api/activities/${a.id}`, { method: "DELETE", headers }),
-            fetch(`${service.url}/api/activities/${a.id}`, { method: "PUT", headers, body: JSON.stringify(settings) }),
-        ]);
-        assert.equal(results[0]!.status, 200);
-        await assert.rejects(store.load(a.id));
-        assert.equal((await fetch(`${service.url}/api/activities/${a.id}`, { method: "DELETE" })).status, 403);
-        await page.reload();
-        await page.locator("#selectKlook").click();
-        await page.locator("#emptyActivities").waitFor();
-        await page.locator("#new").click();
-        assert.equal(await page.locator("#eventName").inputValue(), "");
-        await page.screenshot({ path: "/tmp/activity-home-editor.png", fullPage: true });
-    } finally {
-        await browser.close();
-        await service.close();
-        await rm(dir, { recursive: true, force: true });
-    }
-});
 
 test("啟動與刪除並發只有一方成功，不刪個資或執行紀錄", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-home-start-"));
@@ -149,6 +67,38 @@ test("啟動與刪除並發只有一方成功，不刪個資或執行紀錄", as
             );
             assert.equal((await (await fetch(service.url + "/api/purchase", { headers })).json()).id, previous.id);
         }
+    } finally {
+        await service.close();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test("TicketPlus 活動刪除受占用與權限保護，並發 PUT 不復活已刪資料", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ticketplus-delete-"));
+    const store = new ActivityStore(join(dir, "events"));
+    const record = await store.save(apiActivity);
+    const service = await startLocalServer(store, { runDirectory: join(dir, "runtime") });
+    try {
+        const html = await (await fetch(service.url)).text();
+        const match = html.match(/<meta name="local-token" content="([^"]+)"/);
+        assert(match?.[1]);
+        const headers = { "X-Local-Token": match[1], "Content-Type": "application/json" };
+        const url = `${service.url}/api/activities/${record.id}`;
+        assert.equal((await fetch(url, { method: "DELETE" })).status, 403);
+        assert.equal((await store.load(record.id)).id, record.id);
+        const lease = acquirePurchaseLease(join(dir, "runtime"));
+        try {
+            assert.equal((await fetch(url, { method: "DELETE", headers })).status, 400);
+            assert.equal((await store.load(record.id)).id, record.id);
+        } finally {
+            releasePurchaseLease(lease);
+        }
+        const [deleted] = await Promise.all([
+            fetch(url, { method: "DELETE", headers }),
+            fetch(url, { method: "PUT", headers, body: JSON.stringify(apiActivity) }),
+        ]);
+        assert.equal(deleted.status, 200);
+        await assert.rejects(store.load(record.id));
     } finally {
         await service.close();
         await rm(dir, { recursive: true, force: true });

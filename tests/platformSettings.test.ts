@@ -5,7 +5,6 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ActivityStore, parseActivity, toPurchaseConfig } from "../src/config/activityStore.js";
-import { activityForm, activityInput, needsActivitySave } from "../src/local/react/platforms/klook/formModel.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 
 const legacySettings = {
@@ -74,8 +73,6 @@ test("舊活動僅讀取補平台；首次儲存備份原檔且保留 ID、順�
         assert.equal(loaded.settings.platform, "klook");
         assert.equal(await readFile(path, "utf8"), raw);
         await assert.rejects(readFile(path + ".v1.bak"), { code: "ENOENT" });
-        assert.equal(needsActivitySave(activityForm(loaded.settings), loaded.settings), false);
-        assert.deepEqual(parseActivity(activityInput(activityForm(loaded.settings))), loaded.settings);
 
         const saved = await store.save(loaded.settings, id);
         assert.equal(saved.schemaVersion, 3);

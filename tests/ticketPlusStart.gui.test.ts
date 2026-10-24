@@ -39,7 +39,6 @@ async function fixture(
 }
 
 async function edit(page: Page) {
-    await page.locator("#selectTicketPlus").click();
     await page.getByRole("button", { name: "編輯活動", exact: true }).click();
     await page.getByRole("button", { name: "活動與順位", exact: true }).waitFor();
 }
@@ -231,7 +230,7 @@ test("TicketPlus 啟動 GUI：真接受後回應遺失，重載查詢原請求�
         );
         await eventually(async () => assert(await page.evaluate(key => sessionStorage.getItem(key), pendingKey)));
         await page.reload();
-        await page.locator("#selectTicketPlus").click();
+
         await page.getByRole("button", { name: "查看待確認的啟動結果", exact: true }).click();
         await h.until(run =>
             Boolean(
@@ -482,7 +481,7 @@ test(
         await fixture(
             async (h, page, record, requests) => {
                 await h.request("/api/activities", apiActivity);
-                await page.locator("#selectTicketPlus").click();
+
                 await page.getByRole("button", { name: "編輯活動", exact: true }).first().click();
                 await page.getByRole("button", { name: "執行狀態", exact: true }).click();
                 await page.getByText("尚未開始", { exact: true }).waitFor();
