@@ -10,7 +10,7 @@ import {
 } from "../src/config/platforms/ticketplus/activitySettings.js";
 import { ActivityStore } from "../src/storage/activityStore.js";
 import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
-import { startLocalServer } from "../src/local/server.js";
+import { startLocalServer } from "../src/server/server.js";
 import { purchaseOccupied } from "../src/storage/purchaseLock.js";
 
 const activity = {

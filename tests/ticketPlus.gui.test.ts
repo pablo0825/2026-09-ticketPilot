@@ -8,7 +8,7 @@ import { chromium } from "playwright";
 import type { Page, Browser } from "playwright";
 import { acquirePurchaseLease, releasePurchaseLease } from "../src/storage/purchaseLock.js";
 import { ActivityStore } from "../src/storage/activityStore.js";
-import { startLocalServer } from "../src/local/server.js";
+import { startLocalServer } from "../src/server/server.js";
 import { eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
 
 const settings = {

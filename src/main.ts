@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { startLocalServer } from "./server.js";
+import { startLocalServer } from "./server/server.js";
 
 const service = await startLocalServer();
 console.log(`TicketPilot 本機介面：${service.url}`);

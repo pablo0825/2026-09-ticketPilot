@@ -6,7 +6,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ActivityStore } from "../src/storage/activityStore.js";
-import { startLocalServer } from "../src/local/server.js";
+import { startLocalServer } from "../src/server/server.js";
 const settings = apiActivity;
 
 test("啟動與刪除並發只有一方成功，不刪執行紀錄", async () => {

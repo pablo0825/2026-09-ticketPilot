@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const [mode, directory] = process.argv.slice(2);
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const serverUrl = new URL("../../src/local/server.ts", import.meta.url);
+const serverUrl = new URL("../../src/server/server.ts", import.meta.url);
 
 if (mode === "server-import") {
     let resolutions = 0;
@@ -87,7 +87,7 @@ if (mode === "server-import") {
     };
     syncBuiltinESMExports();
     process.argv.push("--no-open");
-    await import("../../src/local/main.js");
+    await import("../../src/main.js");
     process.emit("SIGTERM");
 } else {
     throw new Error(`未知測試模式：${mode}`);

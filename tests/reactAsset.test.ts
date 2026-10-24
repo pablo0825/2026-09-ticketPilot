@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import { ActivityStore } from "../src/storage/activityStore.js";
-import { startLocalServer } from "../src/local/server.js";
+import { startLocalServer } from "../src/server/server.js";
 
 test("React 正式打包由本機同源載入，保留 API 驗證與資源邊界", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ticket-react-asset-"));
@@ -60,7 +60,12 @@ test("React 正式打包由本機同源載入，保留 API 驗證與資源邊界
             ).status,
             403,
         );
-        for (const path of ["/assets/%2e%2e%2fpackage.json", "/assets/package.json", "/src/local/server.ts"]) {
+        for (const path of [
+            "/assets/%2e%2e%2fpackage.json",
+            "/assets/package.json",
+            "/src/local/server.ts",
+            "/src/server/server.ts",
+        ]) {
             assert.equal((await fetch(service.url + path, { headers: { "X-Local-Token": token! } })).status, 404);
         }
     } finally {

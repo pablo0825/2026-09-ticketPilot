@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
 import { ActivityStore } from "../src/storage/activityStore.js";
-import { startLocalServer } from "../src/local/server.js";
+import { startLocalServer } from "../src/server/server.js";
 
 const activity = {
     platform: "klook",

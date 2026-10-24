@@ -2,7 +2,7 @@ import { chromium } from "playwright";
 import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { startLocalServer } from "../../../src/local/server.js";
+import { startLocalServer } from "../../../src/server/server.js";
 import { ActivityStore } from "../../../src/storage/activityStore.js";
 import type { PurchaseSnapshot } from "../../../src/server/runs/purchaseRuns.js";
 

@@ -1,4 +1,4 @@
-import { PurchaseRuns } from "../server/runs/purchaseRuns.js";
+import { PurchaseRuns } from "./runs/purchaseRuns.js";
 import { parseActivity } from "../config/activitySettings.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomBytes } from "node:crypto";

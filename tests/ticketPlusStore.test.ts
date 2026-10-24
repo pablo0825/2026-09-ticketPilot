@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ActivityStore } from "../src/storage/activityStore.js";
 import { purchaseOccupied } from "../src/storage/purchaseLock.js";
-import { startLocalServer } from "../src/local/server.js";
+import { startLocalServer } from "../src/server/server.js";
 
 const ticketplus = {
     platform: "ticketplus",

@@ -13,7 +13,7 @@ Read the skill once per conversation and apply it throughout.
 ## Structure & Commands
 
 This TypeScript/Playwright project automates TicketPlus ticket purchases and lottery registration.
-`src/local/main.ts` starts the GUI, the only entry point; `src/app/` orchestrates
+`src/main.ts` starts the GUI, the only entry point; `src/app/` orchestrates
 purchase runs; `src/core/` owns shared sale-schedule validation;
 `src/platforms/` owns platform-specific browser interactions; `src/config/` owns configuration;
 `src/shared/` owns frontend-safe run contracts;
