@@ -1,8 +1,9 @@
 import type { Locator, Page } from "playwright";
 import type { TicketOptions, TicketTarget } from "../../core/types.js";
 import { SelectionExpiryNotice } from "./notices.js";
-import type { SelectionSnapshot } from "./selectionDom.js";
-import { selectionGroup } from "./selectionPolling.js";
+import type { SelectionOption, SelectionSnapshot } from "./selectionDom.js";
+import { clickTargetOption } from "./selectionOptions.js";
+import { pollSelection, selectionGroup } from "./selectionPolling.js";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 
 function escapeRegex(text: string): string {
@@ -55,6 +56,10 @@ export class KlookTicketExtras {
     async select(): Promise<void> {
         try {
             for (const choice of this.choices) {
+                if (choice.heading === "組合套票") {
+                    await this.selectBundle(choice);
+                    continue;
+                }
                 // 找到唯一候選，停用時停止而不切換順位
                 const option = await this.findOption(choice);
                 if (!option) continue;
@@ -75,6 +80,10 @@ export class KlookTicketExtras {
     async verify(): Promise<void> {
         try {
             for (const choice of this.choices) {
+                if (choice.heading === "組合套票") {
+                    await this.waitForBundleResult(choice, false);
+                    continue;
+                }
                 const option = await this.findOption(choice);
                 if (!option) continue;
                 await this.verifyChoice(choice, option);
@@ -99,7 +108,7 @@ export class KlookTicketExtras {
             const option = matches[0];
             if (matches.length !== 1 || !option)
                 throw new PurchaseStop(`${choice.heading}找不到唯一匹配選項，已停止。`);
-            if (option.disabled || option.soldOut)
+            if (option.disabled || option.soldOut || (choice.heading === "組合套票" && !option.enabled))
                 throw new PurchaseStop(`${choice.heading}目前無法選取，已停止；不換順位。`);
             if (normalizeName(option.text) !== choice.selectedText)
                 throw new PurchaseStop(`${choice.heading}選項內容已改變，已停止。`);
@@ -107,6 +116,71 @@ export class KlookTicketExtras {
                 throw new PurchaseStop(`${choice.heading}選取結果不一致，已停止。`);
             }
         }
+    }
+
+    // undefined 表示資料尚未完整；null 表示沒有設定且頁面也沒有套票。
+    private bundleOption(snapshot: SelectionSnapshot, choice: ExtraChoice): SelectionOption | null | undefined {
+        const group = selectionGroup(snapshot, "組合套票");
+        if (!choice.wanted) {
+            if (group) throw new PurchaseStop("頁面出現組合套票，請先完成設定。");
+            return null;
+        }
+        if (!group || !group.options.length || group.options.some(option => !option.text)) return undefined;
+        const matches = group.options.filter(option => matchesExtraName(option.text, choice.wanted!));
+        if (matches.length > 1) throw new PurchaseStop("組合套票有多個匹配選項，請填寫更完整的名稱。");
+        const option = matches[0];
+        if (option && (option.disabled || option.soldOut || !option.enabled)) {
+            throw new PurchaseStop("組合套票目前無法選取，已停止；不換順位。");
+        }
+        return option;
+    }
+
+    private async selectBundle(choice: ExtraChoice): Promise<void> {
+        const snapshot = await pollSelection(
+            this.page,
+            data => this.bundleOption(data, choice) !== undefined,
+            "找不到唯一符合的組合套票",
+            this.observeNotice,
+            this.timeout,
+        );
+        const option = this.bundleOption(snapshot, choice);
+        if (!option) return;
+        choice.selectedText = normalizeName(option.text);
+        if (!option.selected) {
+            await this.observeNotice();
+            await clickTargetOption(
+                this.page,
+                "組合套票",
+                option,
+                this.timeout,
+                selectionGroup(snapshot, "組合套票")!.options.map(item => item.text),
+            );
+        }
+        await this.waitForBundleResult(choice, true);
+    }
+
+    private async waitForBundleResult(choice: ExtraChoice, waitForSelected: boolean): Promise<void> {
+        await pollSelection(
+            this.page,
+            snapshot => {
+                const option = this.bundleOption(snapshot, choice);
+                if (option === undefined) return false;
+                if (option === null) return true;
+                if (normalizeName(option.text) !== choice.selectedText)
+                    throw new PurchaseStop("組合套票選項內容已改變，已停止。");
+                if (!option.selected && waitForSelected) return false;
+                if (
+                    !option.selected ||
+                    selectionGroup(snapshot, "組合套票")!.options.filter(item => item.selected).length !== 1
+                ) {
+                    throw new PurchaseStop("組合套票選取結果不一致，已停止。");
+                }
+                return true;
+            },
+            "組合套票點選後沒有確認選中",
+            this.observeNotice,
+            this.timeout,
+        );
     }
 
     private group(heading: string): Locator {

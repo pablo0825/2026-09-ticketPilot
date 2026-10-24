@@ -42,7 +42,8 @@ export function verifySelectedTarget(snapshot: SelectionSnapshot, name: TargetGr
 }
 
 interface OptionQuery {
-    name: TargetGroup;
+    name: TargetGroup | "組合套票";
+    expectedTexts?: string[];
     option: SelectionOption;
 }
 
@@ -52,6 +53,12 @@ const locateOption = withSelectionLayout((findLayout, query: OptionQuery) => {
     if (layout.roots.length !== 1 || layout.loading) return null;
     const groups = layout.groups.filter(group => group.name === query.name);
     if (groups.length !== 1) return null;
+    if (query.expectedTexts) {
+        const texts = groups[0]!.options.map(element =>
+            element instanceof HTMLElement ? element.innerText.trim() : (element.textContent ?? "").trim(),
+        );
+        if (JSON.stringify(texts) !== JSON.stringify(query.expectedTexts)) return null;
+    }
     const matches = groups[0]!.options.filter(element => {
         const text = element instanceof HTMLElement ? element.innerText.trim() : (element.textContent ?? "").trim();
         return text === query.option.text;
@@ -70,12 +77,13 @@ const locateOption = withSelectionLayout((findLayout, query: OptionQuery) => {
 
 export async function clickTargetOption(
     page: Page,
-    name: TargetGroup,
+    name: TargetGroup | "組合套票",
     option: SelectionOption,
     timeout: number,
+    expectedTexts?: string[],
 ): Promise<void> {
     try {
-        const handle = await page.evaluateHandle(locateOption, { name, option });
+        const handle = await page.evaluateHandle(locateOption, { name, option, expectedTexts });
         try {
             const element = handle.asElement();
             if (!element) throw new PurchaseStop(`${name}選項已變動或不唯一，已停止。`);

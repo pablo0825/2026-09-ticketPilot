@@ -4,6 +4,7 @@ import { chromium, type Browser } from "playwright";
 import { KlookTicketExtras, matchesExtraName } from "../src/platforms/klook/ticketExtras.js";
 import { runWithRecovery } from "../src/core/recovery.js";
 import { PurchaseStop } from "../src/core/purchaseStop.js";
+import { readSelectionDom } from "../src/platforms/klook/selectionDom.js";
 import { SelectionExpiryNotice } from "../src/platforms/klook/notices.js";
 
 let browser: Browser;
@@ -253,6 +254,86 @@ test("取票方式選取後消失不可略過，略過後才出現也不默認�
             .evaluate((el, html) => (el.innerHTML = html), group("取票方式", ["指定地點自取"]));
         await assert.rejects(skipped.verify(), /內容已改變/);
         assert.equal(await page.locator(".active-vB3nra").count(), 0);
+    } finally {
+        await page.close();
+    }
+});
+
+test("套票用內容群組定位，等待載入與選中更新，重跑不重複點擊", async () => {
+    const page = await browser.newPage();
+    try {
+        await page.setContent(
+            `<section><h2>票券選擇</h2><div class="klk-loading">載入中</div></section><button onclick="document.body.dataset.next='1'">下一步</button>`,
+        );
+        await page.evaluate(() => {
+            setTimeout(() => {
+                const root = document.querySelector("section")!;
+                root.innerHTML =
+                    '<h2>票券選擇</h2><div><div>組合套票</div><div><div id="bundle">演唱會套票1：門票＋eSIM</div><div>演唱會套票10：門票</div></div></div>';
+                document.querySelector<HTMLElement>("#bundle")!.onclick = () => {
+                    document.body.dataset.clicks = String(Number(document.body.dataset.clicks ?? 0) + 1);
+                    root.insertAdjacentHTML("beforeend", '<div class="klk-loading">載入中</div>');
+                    setTimeout(() => {
+                        document.querySelector("#bundle")!.classList.add("active-vB3nra");
+                        document.querySelector(".klk-loading")!.remove();
+                    }, 250);
+                };
+            }, 250);
+        });
+        const extras = new KlookTicketExtras(page, target, { bundleEnabled: true }, 1500, async () => {});
+        await extras.select();
+        await extras.verify();
+        await extras.select();
+        assert.equal(await page.locator("body").getAttribute("data-clicks"), "1");
+        assert.equal(await page.locator(".klk-loading").count(), 0);
+        assert.equal(await page.locator("body").getAttribute("data-next"), null);
+    } finally {
+        await page.close();
+    }
+});
+
+test("套票點擊前群組變動即停止，點擊無效時不補點", async () => {
+    const page = await browser.newPage();
+    try {
+        for (const mode of ["changed", "no-update"]) {
+            await page.setContent(fixture());
+            if (mode === "no-update")
+                await page.getByText("演唱會套票1：門票＋eSIM", { exact: true }).evaluate(el => {
+                    (el as HTMLElement).onclick = () => {
+                        document.body.dataset.clicks = String(Number(document.body.dataset.clicks ?? 0) + 1);
+                    };
+                });
+            let reads = 0;
+            const extras = new KlookTicketExtras(page, target, options, 500, async () => {
+                // 初次 DOM 前、後，再到操作前的 observer；在動作邊界注入重複候選。
+                if (mode === "changed" && ++reads === 3)
+                    await page.getByText("演唱會套票1：門票＋eSIM", { exact: true }).evaluate(el => {
+                        const copy = el.cloneNode(true);
+                        copy.textContent = "演唱會套票1：另一方案";
+                        el.after(copy);
+                    });
+            });
+            await assert.rejects(extras.select(), PurchaseStop);
+            assert.equal(await page.locator("body").getAttribute("data-clicks"), mode === "changed" ? null : "1");
+            assert.equal(await page.locator("body").getAttribute("data-next"), null);
+        }
+    } finally {
+        await page.close();
+    }
+});
+
+test("套票操作後才停用，完整 DOM 最終核對仍停止", async () => {
+    const page = await browser.newPage();
+    try {
+        await page.setContent(fixture());
+        const extras = new KlookTicketExtras(page, target, options, 500, async () => {});
+        await extras.select();
+        await page
+            .getByText("演唱會套票1：門票＋eSIM", { exact: true })
+            .evaluate(el => el.setAttribute("aria-disabled", "true"));
+        const snapshot = await readSelectionDom(page);
+        assert.throws(() => extras.verifySnapshot(snapshot), /組合套票目前無法選取/);
+        assert.equal(await page.locator("body").getAttribute("data-next"), null);
     } finally {
         await page.close();
     }
