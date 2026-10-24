@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { ArchivedKlookActivityError, isArchivedKlookActivity } from "../config/archivedKlookActivity.js";
 
-import { projectRoot } from "./dataPaths.js";
+import { activityDirectory } from "./dataPaths.js";
 
 export async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
     const temporary = `${path}.${randomUUID()}.tmp`;
@@ -22,7 +22,7 @@ export async function writeJsonAtomic(path: string, value: unknown): Promise<voi
 }
 
 export class ActivityStore {
-    constructor(private readonly directory = join(projectRoot, "local-data", "events")) {}
+    constructor(private readonly directory = activityDirectory) {}
 
     private path(id: string): string {
         if (!z.string().uuid().safeParse(id).success) throw new Error("活動識別碼無效。");

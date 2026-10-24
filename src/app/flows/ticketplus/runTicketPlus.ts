@@ -5,8 +5,7 @@ import type { TicketPlusStopReason } from "../../../platforms/ticketplus/runCont
 import { TicketPlusRunControl, TicketPlusStopError } from "../../../platforms/ticketplus/runControl.js";
 import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
-import { join } from "node:path";
-import { projectRoot } from "../../../storage/dataPaths.js";
+import { ticketPlusProfileDirectory } from "../../../storage/dataPaths.js";
 import {
     parseTicketPlusActivity,
     ticketPlusSessionSelection,
@@ -158,7 +157,7 @@ export async function runTicketPlus(
     try {
         report("starting");
         control.check();
-        const context = await chromium.launchPersistentContext(join(projectRoot, "browser-profile-ticketplus"), {
+        const context = await chromium.launchPersistentContext(ticketPlusProfileDirectory, {
             channel: "chrome",
             timeout: 30_000,
             headless: false,

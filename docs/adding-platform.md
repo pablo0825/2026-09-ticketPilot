@@ -149,7 +149,9 @@ GUI 操作控制約定：`capabilities` 表示平台能力；`canStop`、確認 
 
 ## 路徑與命名
 
-`src/storage/dataPaths.ts` 透過 `import.meta.url` 定位專案根目錄，不能改成依啟動工作目錄決定資料位置。`local-data`、購票鎖、瀏覽器 profile、API 路徑和瀏覽器儲存 key 不因來源目錄重整而改變。GUI 原始碼在 `src/gui/`，正式產物仍是 `dist/react`。
+`src/storage/dataPaths.ts` 透過 `import.meta.url` 定位專案根目錄，並集中定義 `localDataDirectory`、`activityDirectory` 與 `ticketPlusProfileDirectory`。不能改成依啟動工作目錄決定資料位置。活動預設放在 `local-data/events`；執行管理以傳入或預設的資料根目錄建立 `runs` 子目錄，購票鎖也沿用傳入或預設根目錄；TicketPlus profile 仍在專案根目錄下的 `browser-profile-ticketplus`。自訂目錄仍可用於隔離測試，不應改成固定使用正式資料。
+
+購票鎖、瀏覽器 profile、API 路徑和瀏覽器儲存 key 不因來源目錄重整而改變。GUI 原始碼在 `src/gui/`，正式產物仍是 `dist/react`。
 
 平台資料夾使用小寫名稱，例如 `ticketplus`；一般 TypeScript 檔案用 camelCase，React 元件用 PascalCase。登記處依責任命名，避免只叫 `index.ts`。搬檔案時同步更新一般 import、動態 import、worker URL、測試 fixture 和建置設定。使用 `git mv` 並控制同次內容修改，方便追蹤更名歷史。現行指南使用新路徑；歷史計畫、設計及 DOM 觀察記錄保留當時內容。
 

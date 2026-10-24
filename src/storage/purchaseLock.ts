@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync, readFileSync, unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { projectRoot } from "./dataPaths.js";
+import { localDataDirectory } from "./dataPaths.js";
 
 export interface PurchaseLease {
     path: string;
@@ -21,7 +21,7 @@ export class PurchaseLockError extends Error {
     }
 }
 
-export function purchaseLockPath(directory = join(projectRoot, "local-data")): string {
+export function purchaseLockPath(directory = localDataDirectory): string {
     return join(directory, "purchase.lock");
 }
 
@@ -30,7 +30,7 @@ export function purchaseOccupied(directory?: string): boolean {
 }
 
 // 購票程序共用持久占用；異常退出保留檔案，不猜測訂單或自動解鎖。
-export function acquirePurchaseLease(directory = join(projectRoot, "local-data")): PurchaseLease {
+export function acquirePurchaseLease(directory = localDataDirectory): PurchaseLease {
     const lease = { path: purchaseLockPath(directory), token: randomUUID() };
     try {
         mkdirSync(directory, { recursive: true, mode: 0o700 });

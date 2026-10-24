@@ -1,4 +1,4 @@
-import { projectRoot } from "../../storage/dataPaths.js";
+import { localDataDirectory, projectRoot } from "../../storage/dataPaths.js";
 import type { ActivityExecutionStatus } from "../../shared/activityExecutionStatus.js";
 import type { ActivityRecord } from "../../shared/activityRecord.js";
 import { fork, type ChildProcess } from "node:child_process";
@@ -39,7 +39,7 @@ export class PurchaseRuns {
     private directory: string;
 
     constructor(
-        private readonly root = join(projectRoot, "local-data"),
+        private readonly root = localDataDirectory,
         private readonly worker = new URL("../../workers/purchaseWorker.ts", import.meta.url),
     ) {
         // 讀取過去的執行紀錄，最新的當作目前紀錄
