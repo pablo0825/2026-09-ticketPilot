@@ -75,6 +75,7 @@ export function parseRunRecord(value: unknown, id: string): RunRecord | "archive
         throw new Error("Invalid platform result");
     if (platform === "klook") return "archived-klook";
     const snapshot = { ...record.snapshot, platform };
+    delete snapshot.capabilities;
     delete snapshot.canStop;
     delete snapshot.stopRequest;
     delete snapshot.loginConfirmation;

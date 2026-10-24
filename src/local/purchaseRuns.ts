@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { parseActivity, projectRoot, type ActivityRecord, type ActivitySettings } from "../config/activityStore.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
+import { runCapabilities } from "../app/platforms/runCapabilities.js";
 import { executionPlatform, platformFor } from "../app/platforms/index.js";
 import { runSnapshotFields, type BoundRunRules } from "../app/platforms/platformDefinition.js";
 import { sendWorkerStop } from "./sendWorkerStop.js";
@@ -98,6 +99,7 @@ export class PurchaseRuns {
         if (!this.current && purchaseOccupied(this.root)) {
             return {
                 platform: null,
+                capabilities: runCapabilities(null),
                 id: "",
                 requestId: "",
                 activityName: "其他購票程序",
@@ -113,6 +115,7 @@ export class PurchaseRuns {
 
         return {
             ...withActivityId(this.current, structuredClone(this.current.snapshot)),
+            capabilities: runCapabilities(this.current.snapshot.platform),
             occupied: purchaseOccupied(this.root) || !!this.child,
             canStop: this.stopAvailable(),
             stopRequest: this.stopRequest?.record === this.current ? { status: this.stopRequest.status } : undefined,
@@ -263,6 +266,7 @@ export class PurchaseRuns {
             ? current
             : {
                   ...withActivityId(previous, previous.snapshot),
+                  capabilities: runCapabilities(previous.snapshot.platform),
                   occupied: this.busy(),
                   canCloseBrowser: false,
               };
@@ -324,6 +328,7 @@ export class PurchaseRuns {
                 ? this.snapshot()!
                 : {
                       ...withActivityId(record, structuredClone(record.snapshot)),
+                      capabilities: runCapabilities(record.snapshot.platform),
                       occupied: this.busy(),
                       canStop: false,
                       canCloseBrowser: false,

@@ -1,4 +1,5 @@
-export type TicketPlusStopReason = "user-stop" | "time-limit";
+import type { RunStopReason } from "../../shared/runControls.js";
+export type TicketPlusStopReason = RunStopReason;
 
 // 停止原因不帶入外部 signal.reason，避免把任意資料寫入結果或日誌。
 export class TicketPlusStopError extends Error {
