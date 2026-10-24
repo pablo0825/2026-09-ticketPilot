@@ -1,17 +1,17 @@
-import type { TicketPlusActivitySettings } from "../config/platforms/ticketplus/activitySettings.js";
-import { runTicketPlus } from "../app/flows/ticketplus/runTicketPlus.js";
+import type { TicketPlusActivitySettings } from "../../config/platforms/ticketplus/activitySettings.js";
+import { runTicketPlus } from "../../app/flows/ticketplus/runTicketPlus.js";
 import {
     ticketPlusEventMessage,
     ticketPlusResultDiagnostic,
     ticketPlusResultMessage,
-} from "../app/flows/ticketplus/runMessages.js";
-import { emptySubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
-import { stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
-import type { TicketPlusStopReason } from "../platforms/ticketplus/runControl.js";
-import type { WorkerPurchaseEvent } from "../shared/runEvents.js";
+} from "../../app/flows/ticketplus/runMessages.js";
+import { emptySubmissionProgress } from "../../platforms/ticketplus/ticketSubmission.js";
+import { stoppedSubmissionResult } from "../../platforms/ticketplus/submissionOutcome.js";
+import type { TicketPlusStopReason } from "../../platforms/ticketplus/runControl.js";
+import type { WorkerPurchaseEvent } from "../../shared/runEvents.js";
 
-export type { WorkerResult as TicketPlusWorkerResult } from "./workerProtocol.js";
-import type { WorkerInput, WorkerEnvironment, WorkerResult } from "./workerProtocol.js";
+export type { WorkerResult as TicketPlusWorkerResult } from "../workerProtocol.js";
+import type { WorkerInput, WorkerEnvironment, WorkerResult } from "../workerProtocol.js";
 
 export async function runTicketPlusWorker(
     { activity, lease }: WorkerInput<TicketPlusActivitySettings>,

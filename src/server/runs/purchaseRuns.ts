@@ -40,7 +40,7 @@ export class PurchaseRuns {
 
     constructor(
         private readonly root = join(projectRoot, "local-data"),
-        private readonly worker = new URL("../../local/purchaseWorker.ts", import.meta.url),
+        private readonly worker = new URL("../../workers/purchaseWorker.ts", import.meta.url),
     ) {
         // 讀取過去的執行紀錄，最新的當作目前紀錄
         this.directory = join(root, "runs");

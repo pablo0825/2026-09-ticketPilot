@@ -1,4 +1,4 @@
-import { workerFor } from "./workerEntries.js";
+import { workerFor } from "./workerRegistry.js";
 import { executionPlatform } from "../app/platforms/executionRegistry.js";
 import { isStopMessage } from "./workerProtocol.js";
 import { parseActivity } from "../config/activitySettings.js";

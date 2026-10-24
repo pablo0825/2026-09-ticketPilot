@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
-import { createParticipantGate } from "../src/local/participantConfirmation.js";
+import { createParticipantGate } from "../src/workers/participantConfirmation.js";
 import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
 
 test("參加者確認閘門：只接受等待中的同一 ID 一次，提早、錯 ID、重複與多餘欄位都忽略", async () => {

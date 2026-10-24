@@ -213,7 +213,7 @@ watchFile(control, { interval: 20, persistent: false }, async () => {
             .catch(() => {});
 });
 process.once("exit", () => unwatchFile(control));
-await import("../../../src/local/purchaseWorker.js");
+await import("../../../src/workers/purchaseWorker.js");
 process.removeListener("message", bufferStart);
 for (const start of starts) process.emit("message", start as never);
 process.send?.({ type: "fixture-ready" });

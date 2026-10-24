@@ -6,14 +6,16 @@
 ## 模組責任與依賴
 
 - `src/config/`：解析活動設定。不要引用執行管理、worker 或瀏覽器。
-- `src/app/platforms/`：提供啟動驗證、指紋內容、事件與結果規則。不要載入 Playwright 或引用 `src/local/` 的實作。
+- `src/app/platforms/`：提供啟動驗證、指紋內容、事件與結果規則。不要載入 Playwright 或引用 `src/server/`、`src/workers/` 的實作。
 - `src/app/flows/<platform>/`：協調平台流程與瀏覽器、驗證 lease 並管理釋放時機。
 - `src/platforms/<platform>/`：依觀察到的 DOM 實作網站操作、選票與平台恢復流程。
-- `src/local/`：管理請求去重、子程序、執行紀錄及控制訊息；平台 worker 將詳細結果轉成可保存的摘要。
+- `src/server/runs/`：管理請求去重、子程序、執行紀錄及控制訊息。
+- `src/workers/`：接收子程序控制訊息；平台 worker 將詳細結果轉成可保存的摘要。
+- `src/storage/`：讀寫活動設定，管理資料路徑與持續占用鎖。
 - `src/shared/`：前後端可共同引用的資料型別，不含 Node 或瀏覽器啟動的 runtime 依賴。
 - `src/local/react/platforms/<platform>/`：平台表單、工作區、流程文字和步驟呈現。
 
-後端依賴方向為 `local → app → config`。前端可以引用安全的設定解析與 shared 型別；不要讓前端載入檔案系統、子程序或 Playwright。
+後端依賴方向為 `server／workers → app → config`。前端可以引用安全的設定解析與 shared 型別；不要讓前端載入檔案系統、子程序或 Playwright。
 
 ## 四個接入範圍
 
@@ -21,7 +23,7 @@
 | --- | --- | --- |
 | 設定 | `src/config/settingsRegistry.ts` | 平台 ID 與設定解析器 |
 | 執行規則 | `src/app/platforms/executionRegistry.ts` | `PlatformDefinition` |
-| worker | `src/local/workerEntries.ts` | 設定解析器與 worker 執行函式 |
+| worker | `src/workers/workerRegistry.ts` | 設定解析器與 worker 執行函式 |
 | 前端 | `workspaceRegistry.ts` 與 `runPresenterRegistry.ts` | 工作區元件及純狀態呈現函式 |
 
 前端刻意分成兩份 runtime 清單。工作區會使用 `RunStatus`，而 `RunStatus` 會查找 presenter；如果 presenter 清單又載入工作區，就會形成循環。不要把兩份清單合成會互相載入的模組。
@@ -65,7 +67,7 @@
 
 ## 3. 購票流程與 worker
 
-新增平台網站操作、app runner 與 local worker，再透過 `createWorkerEntry(id, parse, run)` 登記到 `workerEntries.ts`。
+新增平台網站操作、app runner 與 worker，再透過 `createWorkerEntry(id, parse, run)` 登記到 `workerRegistry.ts`。
 
 worker 接收：
 

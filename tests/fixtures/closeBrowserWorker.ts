@@ -14,4 +14,4 @@ chromium.launchPersistentContext = async () => {
     });
     return context;
 };
-await import("../../src/local/purchaseWorker.js");
+await import("../../src/workers/purchaseWorker.js");
