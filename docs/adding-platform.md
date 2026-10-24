@@ -7,7 +7,7 @@
 
 - `src/config/`：解析活動設定。不要引用執行管理、worker 或瀏覽器。
 - `src/app/platforms/`：提供啟動驗證、指紋內容、事件與結果規則。不要載入 Playwright 或引用 `src/local/` 的實作。
-- `src/app/run<Platform>.ts`：協調平台流程與瀏覽器、驗證 lease 並管理釋放時機。
+- `src/app/flows/<platform>/`：協調平台流程與瀏覽器、驗證 lease 並管理釋放時機。
 - `src/platforms/<platform>/`：依觀察到的 DOM 實作網站操作、選票與平台恢復流程。
 - `src/local/`：管理請求去重、子程序、執行紀錄及控制訊息；平台 worker 將詳細結果轉成可保存的摘要。
 - `src/shared/`：前後端可共同引用的資料型別，不含 Node 或瀏覽器啟動的 runtime 依賴。

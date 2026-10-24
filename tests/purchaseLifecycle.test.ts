@@ -11,7 +11,7 @@ import { chromium } from "playwright";
 import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 import { ActivityStore } from "../src/storage/activityStore.js";
-import { runTicketPlus } from "../src/app/runTicketPlus.js";
+import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
 const worker = new URL("./fixtures/guiPurchaseWorker.ts", import.meta.url);
 const activity = { ...apiActivity, eventName: "Fixture" };
 async function until(check: () => boolean) {

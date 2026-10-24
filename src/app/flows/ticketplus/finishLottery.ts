@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "playwright";
-import { completeTicketPlusLottery } from "../platforms/ticketplus/lotteryCompletion.js";
-import type { LotteryStopReason } from "../platforms/ticketplus/lotteryCompletion.js";
-import { readTicketPlusLotteryInput } from "../platforms/ticketplus/lotteryInput.js";
-import { readTicketPlusPageWithMarkers } from "../platforms/ticketplus/pageState.js";
-import { TicketPlusStopError } from "../platforms/ticketplus/runControl.js";
-import type { TicketPlusRunControl, TicketPlusStopReason } from "../platforms/ticketplus/runControl.js";
-import type { VerifiedTicketPlusSession } from "../platforms/ticketplus/ticketQuantity.js";
-import type { SubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
+import { completeTicketPlusLottery } from "../../../platforms/ticketplus/lotteryCompletion.js";
+import type { LotteryStopReason } from "../../../platforms/ticketplus/lotteryCompletion.js";
+import { readTicketPlusLotteryInput } from "../../../platforms/ticketplus/lotteryInput.js";
+import { readTicketPlusPageWithMarkers } from "../../../platforms/ticketplus/pageState.js";
+import { TicketPlusStopError } from "../../../platforms/ticketplus/runControl.js";
+import type { TicketPlusRunControl, TicketPlusStopReason } from "../../../platforms/ticketplus/runControl.js";
+import type { VerifiedTicketPlusSession } from "../../../platforms/ticketplus/ticketQuantity.js";
+import type { SubmissionProgress } from "../../../platforms/ticketplus/ticketSubmission.js";
 
 export type LotteryFailure = LotteryStopReason | "participant-page-changed" | "confirmation-failed";
 export type TicketPlusLotteryResult = { submissionAttempts: number; progress: Readonly<SubmissionProgress> } & (

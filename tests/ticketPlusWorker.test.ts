@@ -146,7 +146,7 @@ test("正式 TicketPlus worker：頁面登入後提交一次、資料頁停止�
         const options = JSON.parse(await readFile(h.report + ".options", "utf8"));
         assert.deepEqual(options.args, ["--disable-blink-features=AutomationControlled"]);
         assert.equal(options.channel, "chrome");
-        assert(options.profile.endsWith("browser-profile-ticketplus"));
+        assert.equal(options.profile, fileURLToPath(new URL("../browser-profile-ticketplus", import.meta.url)));
         await h.stop();
         assert.equal(await h.closed, 0);
         assert(!purchaseOccupied(h.directory));

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
-import { runTicketPlus } from "../src/app/runTicketPlus.js";
+import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
 import type { TicketPlusActivitySettings } from "../src/config/platforms/ticketplus/activitySettings.js";
 import { readyInformation, readyOrder, failureDialog, queueDialog } from "./fixtures/ticketplus/submissionPage.js";

@@ -12,7 +12,7 @@ import {
 import { ActivityStore } from "../src/storage/activityStore.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 import { startLocalServer } from "../src/local/server.js";
-import { runTicketPlus } from "../src/app/runTicketPlus.js";
+import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
 import { purchaseOccupied } from "../src/storage/purchaseLock.js";
 
 const legacy = {

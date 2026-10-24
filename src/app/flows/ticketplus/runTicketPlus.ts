@@ -1,45 +1,48 @@
-import type { TicketPlusLoginReason, TicketPlusLoginSummary } from "../platforms/ticketplus/loginWait.js";
-import { waitForTicketPlusLogin, TicketPlusLoginError } from "../platforms/ticketplus/loginWait.js";
-import { readTicketPlusLoginState } from "../platforms/ticketplus/loginState.js";
-import type { TicketPlusStopReason } from "../platforms/ticketplus/runControl.js";
-import { TicketPlusRunControl, TicketPlusStopError } from "../platforms/ticketplus/runControl.js";
+import type { TicketPlusLoginReason, TicketPlusLoginSummary } from "../../../platforms/ticketplus/loginWait.js";
+import { waitForTicketPlusLogin, TicketPlusLoginError } from "../../../platforms/ticketplus/loginWait.js";
+import { readTicketPlusLoginState } from "../../../platforms/ticketplus/loginState.js";
+import type { TicketPlusStopReason } from "../../../platforms/ticketplus/runControl.js";
+import { TicketPlusRunControl, TicketPlusStopError } from "../../../platforms/ticketplus/runControl.js";
 import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
 import { join } from "node:path";
-import { projectRoot } from "../storage/dataPaths.js";
+import { projectRoot } from "../../../storage/dataPaths.js";
 import {
     parseTicketPlusActivity,
     ticketPlusSessionSelection,
     validateTicketPlusRunSettings,
     ticketPlusFlowType,
-} from "../config/platforms/ticketplus/activitySettings.js";
-import type { TicketPlusActivitySettings } from "../config/platforms/ticketplus/activitySettings.js";
-import { acquirePurchaseLease, releasePurchaseLease, verifyPurchaseLease } from "../storage/purchaseLock.js";
-import type { PurchaseLease } from "../storage/purchaseLock.js";
+} from "../../../config/platforms/ticketplus/activitySettings.js";
+import type { TicketPlusActivitySettings } from "../../../config/platforms/ticketplus/activitySettings.js";
+import { acquirePurchaseLease, releasePurchaseLease, verifyPurchaseLease } from "../../../storage/purchaseLock.js";
+import type { PurchaseLease } from "../../../storage/purchaseLock.js";
 import type {
     SessionDiagnostic,
     SessionEntryReason,
     SessionEntryStage,
-} from "../platforms/ticketplus/sessionSelection.js";
-import { TicketPlusSessionError, selectTicketPlusSession } from "../platforms/ticketplus/sessionSelection.js";
-import { dismissTicketPlusActivityNotice, TicketPlusNoticeError } from "../platforms/ticketplus/activityNotice.js";
-import { readTicketPlusPage } from "../platforms/ticketplus/pageState.js";
-import { TicketPlusPriorityError } from "../platforms/ticketplus/ticketPriority.js";
-import { runTicketPlusCycle } from "../platforms/ticketplus/purchaseCycle.js";
-import { finishTicketPlusLottery } from "./ticketPlusLottery.js";
-import type { TicketPlusLotteryResult } from "./ticketPlusLottery.js";
+} from "../../../platforms/ticketplus/sessionSelection.js";
+import { TicketPlusSessionError, selectTicketPlusSession } from "../../../platforms/ticketplus/sessionSelection.js";
+import {
+    dismissTicketPlusActivityNotice,
+    TicketPlusNoticeError,
+} from "../../../platforms/ticketplus/activityNotice.js";
+import { readTicketPlusPage } from "../../../platforms/ticketplus/pageState.js";
+import { TicketPlusPriorityError } from "../../../platforms/ticketplus/ticketPriority.js";
+import { runTicketPlusCycle } from "../../../platforms/ticketplus/purchaseCycle.js";
+import { finishTicketPlusLottery } from "./finishLottery.js";
+import type { TicketPlusLotteryResult } from "./finishLottery.js";
 import type {
     TicketPlusCycleEvent,
     TicketPlusCycleResult,
     TicketPlusCycleStage,
-} from "../platforms/ticketplus/purchaseCycle.js";
-import type { PriorityReason } from "../platforms/ticketplus/ticketPriority.js";
-import { stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
-import type { TicketPlusSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
-import { emptySubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
-import { prepareTicketPlusSale, TicketPlusSaleError } from "../platforms/ticketplus/salePreparation.js";
-import type { TicketPlusSaleReason } from "../platforms/ticketplus/salePreparation.js";
-import type { SubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
+} from "../../../platforms/ticketplus/purchaseCycle.js";
+import type { PriorityReason } from "../../../platforms/ticketplus/ticketPriority.js";
+import { stoppedSubmissionResult } from "../../../platforms/ticketplus/submissionOutcome.js";
+import type { TicketPlusSubmissionResult } from "../../../platforms/ticketplus/submissionOutcome.js";
+import { emptySubmissionProgress } from "../../../platforms/ticketplus/ticketSubmission.js";
+import { prepareTicketPlusSale, TicketPlusSaleError } from "../../../platforms/ticketplus/salePreparation.js";
+import type { TicketPlusSaleReason } from "../../../platforms/ticketplus/salePreparation.js";
+import type { SubmissionProgress } from "../../../platforms/ticketplus/ticketSubmission.js";
 
 export type TicketPlusStage =
     | "starting"
