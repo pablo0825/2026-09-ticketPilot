@@ -16,7 +16,16 @@ This TypeScript/Playwright project automates TicketPlus ticket purchases and lot
 `src/local/main.ts` starts the GUI, the only entry point; `src/app/` orchestrates
 purchase runs; `src/core/` owns shared sale-schedule validation;
 `src/platforms/` owns platform-specific browser interactions; `src/config/` owns configuration;
-`tests/` contains tests; `docs/` records DOM observations.
+`src/shared/` owns frontend-safe run contracts;
+`tests/` contains tests; `docs/` records DOM observations and integration guides.
+
+Platform settings register in `src/config/platforms.ts`, execution rules in
+`src/app/platforms/index.ts`, and child workers in `src/local/workerEntries.ts`.
+GUI workspaces and run presenters register separately in
+`src/local/react/platforms/workspaceRegistry.ts` and
+`src/local/react/platforms/runPresenterRegistry.ts` to avoid circular imports.
+See [adding a platform](docs/adding-platform.md) for contracts, compatibility,
+lease responsibilities, and verification requirements.
 
 From the repository root:
 
