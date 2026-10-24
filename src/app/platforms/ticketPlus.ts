@@ -51,7 +51,7 @@ export function ticketPlusStopReason(value: unknown): value is "user-stop" | "ti
 
 import { ticketPlusFlowType } from "../../config/ticketPlusActivity.js";
 import { validateSaleSchedule } from "../../core/saleSchedule.js";
-import { ticketPlusEventSchema } from "./ticketPlusEvents.js";
+import { ticketPlusEventSchema } from "../../shared/platforms/ticketplus/events.js";
 import type { PlatformDefinition } from "./platformDefinition.js";
 
 export const ticketPlusDefinition: PlatformDefinition = {

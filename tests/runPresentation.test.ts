@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PurchaseSnapshot } from "../src/local/purchaseRuns.js";
-import type { PurchaseEvent } from "../src/local/purchaseEvents.js";
+import type { PurchaseEvent } from "../src/shared/runEvents.js";
 import { purchaseStatus } from "../src/local/react/shared/runs/runPresentation.js";
 
 const now = Date.parse("2026-10-19T07:00:00Z");

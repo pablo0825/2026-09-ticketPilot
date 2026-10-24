@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
-import { ticketPlusEventSchema } from "../src/local/purchaseEvents.js";
+import { ticketPlusEventSchema } from "../src/shared/platforms/ticketplus/events.js";
 import { purchaseStatus } from "../src/local/react/shared/runs/runPresentation.js";
 
 // 獨立固定磁碟資料，不用待測事件產生器或 fingerprint 函式製造預期答案。

@@ -1,4 +1,4 @@
-import type { TicketPlusWorkerEvent } from "../../../purchaseEvents.js";
+import type { TicketPlusWorkerEvent } from "../../../../shared/platforms/ticketplus/events.js";
 import type { PurchaseSnapshot } from "../../../../shared/runSnapshot.js";
 import { latestTicketPlusStage, purchaseStatus } from "./runStatus.js";
 

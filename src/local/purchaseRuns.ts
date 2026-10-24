@@ -12,7 +12,7 @@ import { runCapabilities } from "../app/platforms/runCapabilities.js";
 import { executionPlatform, platformFor } from "../app/platforms/index.js";
 import { runSnapshotFields, type BoundRunRules } from "../app/platforms/platformDefinition.js";
 import { sendWorkerStop } from "./sendWorkerStop.js";
-import type { PurchaseEvent } from "./purchaseEvents.js";
+import type { PurchaseEvent } from "../shared/runEvents.js";
 
 export type { PurchaseSnapshot } from "../shared/runSnapshot.js";
 import type { PurchaseSnapshot } from "../shared/runSnapshot.js";
