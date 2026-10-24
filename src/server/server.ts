@@ -2,8 +2,9 @@ import { PurchaseRuns } from "./runs/purchaseRuns.js";
 import { parseActivity } from "../config/activitySettings.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomBytes } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { ActivityStore } from "../storage/activityStore.js";
+import { json } from "./http.js";
+import { serveStatic } from "./staticAssets.js";
 
 async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
     // 讀取請求內容，限制大小
@@ -39,11 +40,6 @@ export async function startLocalServer(
     let origin = "";
     let mutationTail = Promise.resolve();
 
-    function json(response: ServerResponse, status: number, value: unknown) {
-        response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
-        response.end(JSON.stringify(value));
-    }
-
     const server = createServer(async (request, response) => {
         let releaseMutation: (() => void) | undefined;
         let notAccepted: (() => boolean) | undefined;
@@ -60,39 +56,7 @@ export async function startLocalServer(
 
             // 提供網頁與靜態檔案
             const url = new URL(request.url ?? "/", origin);
-            if (request.method === "GET" && url.pathname === "/") {
-                if (request.headers["sec-fetch-site"] === "cross-site") {
-                    json(response, 403, {});
-                    return;
-                }
-
-                const index = new URL("../../dist/react/index.html", import.meta.url);
-                const html = (await readFile(index, "utf8")).replace("__TOKEN__", token);
-
-                response.writeHead(200, {
-                    "Content-Type": "text/html; charset=utf-8",
-                    "Cache-Control": "no-store",
-                    "Content-Security-Policy":
-                        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'",
-                    "Referrer-Policy": "no-referrer",
-                });
-                response.end(html);
-                return;
-            }
-
-            // 只提供打包的腳本與樣式，不把檔案系統路徑交給請求決定
-            if (request.method === "GET" && /^\/assets\/[a-zA-Z0-9_-]+\.(js|css)$/.test(url.pathname)) {
-                const asset = new URL(`../../dist/react${url.pathname}`, import.meta.url);
-                const content = await readFile(asset);
-                response.writeHead(200, {
-                    "Content-Type": url.pathname.endsWith(".js")
-                        ? "text/javascript; charset=utf-8"
-                        : "text/css; charset=utf-8",
-                    "Cache-Control": "no-store",
-                });
-                response.end(content);
-                return;
-            }
+            if (await serveStatic(request, response, url, token)) return;
 
             // 以下的 API 都要先確認本機 token
             // EventSource 不能設定自訂 header，訂閱 token 只用於本機短期連線。
