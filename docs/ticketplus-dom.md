@@ -1,5 +1,7 @@
 # TicketPlus 頁面資料、場次與張數選擇
 
+> 本文件保留分階段觀察或設計歷史。現行操作請以 [README](../README.md) 為準；Klook 程式已保存在 `archive/klook` 分支。
+
 唯讀入口是 `src/platforms/ticketplus/pageState.ts` 的 `readTicketPlusPage(page)`。
 它回傳活動、選票、排隊、資料或付款頁的資料快照，或帶固定原因的 `unknown`。
 不點擊、不輸入、不導航、不等待或重試，不比對購票設定，也不判定購票成功。

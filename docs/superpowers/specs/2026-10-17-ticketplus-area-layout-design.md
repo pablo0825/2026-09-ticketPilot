@@ -1,5 +1,7 @@
 # TicketPlus 票區面板版型支援與更新票數空窗修正 設計
 
+> 本文件保留分階段觀察或設計歷史。現行操作請以 [README](../../../README.md) 為準；Klook 程式已保存在 `archive/klook` 分支。
+
 日期：2026-10-17（Asia/Taipei）
 
 ## 目的與原因

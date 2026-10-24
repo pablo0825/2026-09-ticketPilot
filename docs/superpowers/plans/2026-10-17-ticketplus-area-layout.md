@@ -1,5 +1,7 @@
 # TicketPlus 票區面板版型支援 Implementation Plan
 
+> 本文件保留分階段觀察或設計歷史。現行操作請以 [README](../../../README.md) 為準；Klook 程式已保存在 `archive/klook` 分支。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 讓 TicketPlus 選票流程同時支援票種列與票區面板兩種版型，並修正更新票數空窗判斷。

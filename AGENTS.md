@@ -12,9 +12,9 @@ Read the skill once per conversation and apply it throughout.
 
 ## Structure & Commands
 
-This TypeScript/Playwright project automates ticket selection on Klook and TicketPlus.
+This TypeScript/Playwright project automates TicketPlus ticket purchases and lottery registration.
 `src/local/main.ts` starts the GUI, the only entry point; `src/app/` orchestrates
-purchase runs; `src/core/` owns strategy, types, state, and recovery;
+purchase runs; `src/core/` owns shared sale-schedule validation;
 `src/platforms/` owns platform-specific browser interactions; `src/config/` owns configuration;
 `tests/` contains tests; `docs/` records DOM observations.
 
@@ -48,23 +48,30 @@ availability alone. Stop with reasons for incomplete data, unknown states, or
 failed validation; do not label these sold out.
 
 Keep recovery separate from selection/form logic. Handle only recognized
-exceptions with explicit triggers and completion conditions. Per run, allow one
-independent queue recovery and one reservation recovery shared by seat and contact
-expiry, regardless of order. During reservation recovery, allow one additional
-queue-expiry handling step on the return to the event page. This allows at most
-two top-level recoveries and three recovery-dialog click attempts. Consume each
-budget before acting; never reset budgets on a rerun. A failed recovery stops
-rather than falling back to another budget. Revalidate afterward and reject
-expired seat/order data.
+exceptions with explicit triggers and completion conditions. Revalidate afterward
+and reject expired seat/order data.
+
 Preserve strict ticket matching. Never automatically retry seat confirmation.
-After verifying the booking summary and configured contact details, submit once
-and verify arrival at checkout. Currency and prices are checked manually by the user. Stop before confirming
-payment. Never retry contact submission or restart purchasing after an uncertain
-submission result. For Klook, require valid contact configuration before opening the browser; missing
-or invalid contact data stops startup before ticket selection.
-Contact configuration and contact-detail checks apply only to Klook. TicketPlus
-fills contact fields from the member profile, so TicketPlus runs neither
-require `contact.local.json` nor compare contact details.
+Only skip explicitly sold-out ticket types. After a recognized sold-out response,
+verify that the dialog is closed and the selection page is valid before trying
+another configured priority. Refresh ticket quantities only after all priorities
+are exhausted, and verify refresh completion before starting a new cycle.
+Unknown responses, mismatches, and uncertain submission results stop the run;
+never automatically resend or restart purchasing after an uncertain result.
+
+For purchases, validate the information page, accept the terms, submit its next
+step once, and verify arrival at checkout. Stop before confirming payment.
+Currency and prices are checked manually by the user.
+For lottery registration, wait for the user to fill participant details and
+confirm in the GUI. Verify participant count and completion, submit the next
+step once, then stop before final registration confirmation. Do not read, save,
+or automatically fill participants' identity details.
+TicketPlus uses the member profile for contact fields; runs require no contact
+configuration and do not compare contact details.
+
+Preserve existing request deduplication and persistent purchase locks. Archived
+Klook data must remain unchanged and cannot be used to start new runs. Hiding
+archived records must not release a lock or allow reuse of an existing request ID.
 
 ## Verification & Review
 
@@ -72,7 +79,7 @@ Work in verifiable steps within the confirmed scope.
 
 Use `node:test`, `node:assert/strict`, and headless Playwright with local fixtures
 or intercepted routes. Name tests `tests/<module>.test.ts`. Cover mismatches,
-ambiguous selectors, timeouts, recovery limits, and unintended clicks; close browsers.
+ambiguous selectors, timeouts, retry boundaries, and unintended clicks; close browsers.
 
 After code changes, run typechecking and relevant tests, then obtain one independent
 subagent review of readability, single responsibility, compatibility, and regressions.
@@ -91,5 +98,5 @@ After implementation or edits, automatically commit task-related changes once
 required verification and review pass. Stage only changes made for the current task;
 leave unrelated changes uncommitted. Report the commit hash when finished.
 
-Base the Klook `contact.local.json` on `contact.example.json`.
-Never commit personal data, secrets, or `browser-profile/`.
+Never commit personal data, secrets, `browser-profile/`, or `browser-profile-ticketplus/`.
+Keep ignore rules for archived private contact and browser data.

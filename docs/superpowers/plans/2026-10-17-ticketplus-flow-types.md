@@ -1,5 +1,7 @@
 # TicketPlus 購票／抽選流程類型 Implementation Plan
 
+> 本文件保留分階段觀察或設計歷史。現行操作請以 [README](../../../README.md) 為準；Klook 程式已保存在 `archive/klook` 分支。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 依使用者選擇的流程類型（購票／抽選）執行 TicketPlus：自動關閉已知活動提醒彈窗、在活動頁以場次按鈕文字確認流程類型；購票在資料頁勾條款、按一次下一步，停在付款頁「前往付款」之前；抽選在使用者人工填完參加者並於 GUI 確認後，勾條款、按一次下一步，停在「確認登記」之前。
