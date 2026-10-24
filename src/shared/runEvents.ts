@@ -1,4 +1,4 @@
-import type { TicketPlusWorkerEvent } from "../local/purchaseEvents.js";
+import type { TicketPlusWorkerEvent } from "../app/platforms/ticketPlusEvents.js";
 
 export type WorkerPurchaseEvent = { type: "log"; message: string } | TicketPlusWorkerEvent;
 
