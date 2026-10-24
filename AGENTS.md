@@ -1,5 +1,15 @@
 # Repository Guidelines
 
+## Communication
+
+Before responding to the user, read and follow
+[plain-chinese](.agents/skills/plain-chinese/SKILL.md).
+Apply it to all user-facing responses, including progress updates,
+clarifying questions, explanations, and final answers.
+
+Use Traditional Chinese unless the user requests another language.
+Read the skill once per conversation and apply it throughout.
+
 ## Structure & Commands
 
 This TypeScript/Playwright project automates ticket selection on Klook and TicketPlus.
