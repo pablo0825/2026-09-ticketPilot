@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { EventEmitter } from "node:events";
 import type { ChildProcess } from "node:child_process";
-import { sendTicketPlusStop } from "../src/local/sendTicketPlusStop.js";
+import { sendWorkerStop } from "../src/local/sendWorkerStop.js";
+import { ticketPlusDefinition } from "../src/app/platforms/ticketPlus.js";
 
 // 僅替代 IPC 邊界，實際停止購票另由 API 與正式 worker 的整合測試驗證。
 function childFixture(mode: "accepted" | "backpressure" | "throw" | "callback-error" = "accepted") {
@@ -33,12 +34,12 @@ test("停止 IPC：send 的布林回傳不代表送達，必須等待回呼且�
         // 先確認傳送仍在等待，而非只驗證最終成功。
         const fixture = childFixture(mode);
         let settled = false;
-        const pending = sendTicketPlusStop(fixture.child as unknown as ChildProcess).then(() => {
+        const pending = sendWorkerStop(fixture.child as unknown as ChildProcess, { type: "stop-fixture" }).then(() => {
             settled = true;
         });
         await Promise.resolve();
         assert.equal(settled, false);
-        assert.deepEqual(fixture.messages, [{ type: "stop-ticketplus" }]);
+        assert.deepEqual(fixture.messages, [{ type: "stop-fixture" }]);
 
         // 成功後清理監聽，稍後到期或重複回呼不會改變結果。
         fixture.complete(null);
@@ -56,12 +57,15 @@ test("停止 IPC：傳送故障、失聯與期限都只回報未確認，不重�
     for (const fault of ["throw", "callback-error", "disconnect", "exit", "error", "timeout"] as const) {
         // 掛上拒絕檢查後才觸發故障，避免未處理的 Promise 拒絕。
         const fixture = childFixture(fault === "throw" || fault === "callback-error" ? fault : "accepted");
-        const checked = assert.rejects(sendTicketPlusStop(fixture.child as unknown as ChildProcess), error => {
-            assert(error instanceof Error);
-            assert.match(error.message, /未確認/);
-            assert.doesNotMatch(error.message, /PRIVATE_IPC_ERROR/);
-            return true;
-        });
+        const checked = assert.rejects(
+            sendWorkerStop(fixture.child as unknown as ChildProcess, { type: "stop-fixture" }),
+            error => {
+                assert(error instanceof Error);
+                assert.match(error.message, /未確認/);
+                assert.doesNotMatch(error.message, /PRIVATE_IPC_ERROR/);
+                return true;
+            },
+        );
 
         // 覆蓋真正的通道事件與沒有回呼的期限，而非直接假造拒絕結果。
         if (fault === "disconnect" || fault === "exit" || fault === "error") {
@@ -82,7 +86,11 @@ test("停止 IPC：傳送故障、失聯與期限都只回報未確認，不重�
 test("停止 IPC：已斷線時不呼叫 send，也不留下監聽", async () => {
     const fixture = childFixture();
     fixture.child.connected = false;
-    await assert.rejects(sendTicketPlusStop(fixture.child as unknown as ChildProcess));
+    await assert.rejects(sendWorkerStop(fixture.child as unknown as ChildProcess, { type: "stop-fixture" }));
     assert.equal(fixture.messages.length, 0);
     assertListenersRemoved(fixture.child);
+});
+
+test("TicketPlus 定義提供既有停止訊息", () => {
+    assert.deepEqual(ticketPlusDefinition.stop?.message, { type: "stop-ticketplus" });
 });
