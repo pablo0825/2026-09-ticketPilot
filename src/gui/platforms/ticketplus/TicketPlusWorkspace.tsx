@@ -8,13 +8,13 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { PurchaseSnapshot } from "../../../shared/runSnapshot.js";
 import { api } from "../../shared/api.js";
 import { AppHeader } from "../../shared/navigation/AppHeader.js";
-import type { WorkspaceProps } from "../platformDefinition.js";
+import type { WorkspaceProps } from "../workspaceDefinition.js";
 import { RunStatus } from "../../shared/runs/RunStatus.js";
 import { ticketPlusSummary } from "./purchaseSummary.js";
 import { ActivityListPage } from "../../pages/ActivityListPage.js";
 import { Breadcrumbs } from "../../shared/navigation/Breadcrumbs.js";
 import { StepNavigation } from "../../shared/navigation/StepNavigation.js";
-import { ticketPlusRunBadge } from "./ticketPlusSteps.js";
+import { ticketPlusRunBadge } from "./runSteps.js";
 import { ActivityEditorPage } from "../../pages/ActivityEditorPage.js";
 import {
     emptyTarget,

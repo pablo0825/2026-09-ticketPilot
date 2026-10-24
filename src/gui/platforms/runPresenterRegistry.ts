@@ -1,6 +1,6 @@
 import type { PurchaseEvent } from "../../shared/runEvents.js";
 import { createPresenterRegistry } from "./runPresenterDefinition.js";
-import { ticketPlusPresenter } from "./ticketplus/runPresentation.js";
+import { ticketPlusPresenter } from "./ticketplus/runPresenter.js";
 
 // 純呈現函式不載入工作區元件，避免 Workspace → RunStatus → Workspace。
 const presenters = [ticketPlusPresenter];

@@ -1,7 +1,7 @@
 import { AppHeader } from "./shared/navigation/AppHeader.js";
 import { useCallback, useRef, useState } from "react";
 import { registeredWorkspaces } from "./platforms/workspaceRegistry.js";
-import type { WorkspaceDefinition } from "./platforms/platformDefinition.js";
+import type { WorkspaceDefinition } from "./platforms/workspaceDefinition.js";
 import { findPendingStart, hasPendingStart } from "./shared/runs/pendingStart.js";
 import { RunStatus } from "./shared/runs/RunStatus.js";
 import { useRunStatus } from "./shared/runs/useRunStatus.js";

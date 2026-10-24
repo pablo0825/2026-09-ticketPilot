@@ -1,5 +1,5 @@
 import { purchaseStatus } from "./runStatus.js";
-import { ticketPlusStepsView } from "./ticketPlusSteps.js";
+import { ticketPlusStepsView } from "./runSteps.js";
 import type { RunPresenter } from "../runPresenterDefinition.js";
 
 export const ticketPlusPresenter: RunPresenter = {
