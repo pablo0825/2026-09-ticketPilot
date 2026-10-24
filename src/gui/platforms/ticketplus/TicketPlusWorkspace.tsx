@@ -71,6 +71,9 @@ export function TicketPlusWorkspace({
     // 在這個畫面開始，或從「查看狀態」打開的那一輪；結束後仍顯示它的結果。
     const [followedRunId, setFollowedRunId] = useState<string | null>(null);
     const [initialized, setInitialized] = useState(false);
+    const [listLoading, setListLoading] = useState(true);
+    const [listError, setListError] = useState("");
+    const listLoadingRef = useRef(false);
     const [busy, setBusy] = useState(false);
     const busyRef = useRef(false);
     const active = useRef(true);
@@ -94,19 +97,42 @@ export function TicketPlusWorkspace({
 
     const refreshList = useCallback(async () => {
         const request = ++listRequest.current;
-        const data = await api<ActivityListData>("/api/activities");
-        if (!active.current || request !== listRequest.current) return;
-        const items = data.activities
-            .filter(item => item.settings.platform === "ticketplus")
-            .map(item => ({
-                ...ticketPlusRecord(item),
-                executionStatus: item.executionStatus,
-            }));
-        setActivities(items);
-        setInitialized(true);
-        if (data.invalidFiles) setMessage(`${data.invalidFiles} 個設定檔無法載入，未覆寫。`);
-        return data.invalidFiles;
+        listLoadingRef.current = true;
+        setListLoading(true);
+        try {
+            const data = await api<ActivityListData>("/api/activities");
+            if (!active.current || request !== listRequest.current) return;
+            const items = data.activities
+                .filter(item => item.settings.platform === "ticketplus")
+                .map(item => ({
+                    ...ticketPlusRecord(item),
+                    executionStatus: item.executionStatus,
+                }));
+            setActivities(items);
+            setInitialized(true);
+            setListError("");
+            if (data.invalidFiles) setMessage(`${data.invalidFiles} 個設定檔無法載入，未覆寫。`);
+            return data.invalidFiles;
+        } catch (error) {
+            if (!active.current || request !== listRequest.current) return;
+            // 保留上次讀到的列表，錯誤不與購票狀態訊息共用。
+            setListError(error instanceof Error ? error.message : String(error));
+            throw error;
+        } finally {
+            if (active.current && request === listRequest.current) {
+                listLoadingRef.current = false;
+                setListLoading(false);
+            }
+        }
     }, [setMessage]);
+
+    const loadListForDisplay = useCallback(async () => {
+        try {
+            await refreshList();
+        } catch {
+            // refreshList 已在列表顯示錯誤；不要覆蓋全域執行訊息。
+        }
+    }, [refreshList]);
 
     // 活動設定不依賴聯絡資料；全域狀態訂閱仍由 App 唯一持有。
     const statusKey = JSON.stringify([runs.purchase?.id, runs.purchase?.status, runs.purchase?.occupied]);
@@ -118,17 +144,11 @@ export function TicketPlusWorkspace({
         };
     }, []);
     useEffect(() => {
-        let current = true;
-        void refreshList().catch(error => {
-            if (active.current && current) {
-                setMessage(`${(error as Error).message} 請按「重新載入活動列表」重試。`);
-            }
-        });
+        void loadListForDisplay();
         return () => {
-            current = false;
             listRequest.current++;
         };
-    }, [refreshList, statusKey, setMessage]);
+    }, [loadListForDisplay, statusKey]);
 
     const occupied = runs.purchase?.occupied === true;
     const locked = busy || runs.closing || navigationBusy;
@@ -200,7 +220,7 @@ export function TicketPlusWorkspace({
         if (dirty && !window.confirm("有尚未儲存的修改，要放棄並離開嗎？")) return;
         setMessage("");
         setEditing(false);
-        void action(refreshList);
+        void action(loadListForDisplay);
     }
 
     function openRecord(next: TicketPlusActivityRecord | null) {
@@ -492,15 +512,33 @@ export function TicketPlusWorkspace({
                             </button>
                         </div>
                     )}
-                    <button
-                        className={secondaryButton}
-                        type="button"
-                        disabled={locked}
-                        onClick={() => void action(refreshList)}
-                    >
-                        重新載入活動列表
-                    </button>
+                    {listLoading && (
+                        <p id="activityListLoading" role="status" className="mb-4">
+                            正在載入活動列表…
+                        </p>
+                    )}
+                    {listError && (
+                        <div
+                            id="activityListError"
+                            role="alert"
+                            className="mb-4 space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4"
+                        >
+                            <p>活動列表載入失敗：{listError}</p>
+                            {initialized && <p>目前保留上次載入的活動資料，狀態可能尚未更新。</p>}
+                            <button
+                                className={secondaryButton}
+                                type="button"
+                                disabled={locked || listLoading}
+                                onClick={() => {
+                                    if (!locked && !listLoadingRef.current) void loadListForDisplay();
+                                }}
+                            >
+                                重新載入活動列表
+                            </button>
+                        </div>
+                    )}
                     <ActivityListPage
+                        showEmpty={initialized && !listLoading && !listError}
                         activities={activities.map(item => ({
                             id: item.id,
                             eventName: item.settings.eventName,

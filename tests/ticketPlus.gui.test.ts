@@ -517,3 +517,176 @@ test("TicketPlus GUI：活動網址下方設定購票流程，抽選才寫入設
         assert.equal("flowType" in resaved, false);
     });
 });
+
+test("TicketPlus 列表：初次載入期間不誤報空資料，成功空回應才顯示尚未儲存", async () => {
+    await fixture(async h => {
+        let release = () => {};
+        const gate = new Promise<void>(resolve => {
+            release = resolve;
+        });
+        let reads = 0;
+        await h.page.route("**/api/activities", async route => {
+            reads++;
+            await gate;
+            await route.fulfill({ json: { activities: [], invalidFiles: 0 } });
+        });
+        try {
+            await h.page.reload();
+            await enterTicketPlus(h.page);
+            await eventually(async () => assert(reads > 0));
+            assert(await h.page.locator("#activityListLoading").isVisible());
+            assert(!(await h.page.locator("#emptyActivities").isVisible()));
+            assert(await h.page.locator("#new").isDisabled());
+            assert.equal(await h.page.getByRole("button", { name: "重新載入活動列表" }).count(), 0);
+        } finally {
+            release();
+        }
+        await h.page.locator("#emptyActivities").waitFor();
+        assert(!(await h.page.locator("#activityListLoading").isVisible()));
+        assert(await h.page.locator("#new").isEnabled());
+    });
+});
+
+test("TicketPlus 列表：失敗才提供重試，等待回應時連點不重送，成功後移除按鈕", async () => {
+    await fixture(async h => {
+        await h.page.route("**/api/activities", route =>
+            route.fulfill({ status: 500, json: { error: "INITIAL_LIST_FAILURE" } }),
+        );
+        await h.page.reload();
+        await enterTicketPlus(h.page);
+        await h.page.locator("#activityListError").filter({ hasText: "INITIAL_LIST_FAILURE" }).waitFor();
+        assert(!(await h.page.locator("#emptyActivities").isVisible()));
+        let reads = 0;
+        let release = () => {};
+        const gate = new Promise<void>(resolve => {
+            release = resolve;
+        });
+        await h.page.unroute("**/api/activities");
+        await h.page.route("**/api/activities", async route => {
+            reads++;
+            await gate;
+            await route.continue();
+        });
+        const retry = h.page.getByRole("button", { name: "重新載入活動列表", exact: true });
+        try {
+            // 同一個瀏覽器工作內連點，驗證事件處理器的防重送，不依賴 React 已重繪。
+            await retry.evaluate(element => {
+                if (!(element instanceof HTMLButtonElement)) throw new Error("重試入口不是按鈕");
+                element.click();
+                element.click();
+            });
+            await eventually(async () => assert.equal(reads, 1));
+            assert(await retry.isDisabled());
+            assert(await h.page.locator("#activityListLoading").isVisible());
+        } finally {
+            release();
+        }
+        await h.page.getByRole("button", { name: "編輯活動", exact: true }).waitFor();
+        assert.equal(reads, 1);
+        assert.equal(await retry.count(), 0);
+        assert(!(await h.page.locator("#activityListError").isVisible()));
+    });
+});
+
+const listRefreshRun = {
+    id: "list-refresh-run",
+    requestId: "list-refresh-request",
+    platform: "ticketplus",
+    activityName: "列表刷新測試",
+    status: "failed",
+    occupied: false,
+    browserOpen: false,
+    canCloseBrowser: false,
+    events: [],
+    historyTruncated: false,
+};
+
+test("TicketPlus 列表：背景刷新失敗保留活動，狀態連線提示不覆蓋列表錯誤", async () => {
+    await fixture(async h => {
+        const feed = await snapshotFeed(h.page, "/api/purchase/events", null);
+        await h.page.reload();
+        await enterTicketPlus(h.page);
+        await h.page.getByRole("button", { name: "編輯活動", exact: true }).waitFor();
+        await h.page.screenshot({ path: "/tmp/ticket-activity-list-normal.png", fullPage: true });
+        await h.page.route("**/api/activities", route =>
+            route.fulfill({ status: 500, json: { error: "BACKGROUND_LIST_FAILURE" } }),
+        );
+        feed.publish(listRefreshRun);
+        await h.page.locator("#activityListError").filter({ hasText: "BACKGROUND_LIST_FAILURE" }).waitFor();
+        assert.equal(await h.page.locator("#activities tr").count(), 1);
+        assert((await h.page.locator("#activities").innerText()).includes(settings.eventName));
+        assert(!(await h.page.locator("#emptyActivities").isVisible()));
+        // 短 SSE 結束會顯示重連訊息；這個全域訊息不能清除列表自己的錯誤。
+        await h.page.locator("#message").filter({ hasText: "狀態連線中斷" }).waitFor();
+        assert.match(await h.page.locator("#activityListError").innerText(), /BACKGROUND_LIST_FAILURE/);
+        assert(await h.page.getByRole("button", { name: "重新載入活動列表" }).isVisible());
+        assert.match(await h.page.locator("#activityListError").innerText(), /保留上次載入/);
+        await h.page.screenshot({ path: "/tmp/ticket-activity-list-error.png", fullPage: true });
+    });
+});
+
+for (const oldOutcome of ["success", "failure"] as const) {
+    test(`TicketPlus 列表：過期 ${oldOutcome} 回應不覆蓋最新列表或載入狀態`, async () => {
+        await fixture(async h => {
+            const feed = await snapshotFeed(h.page, "/api/purchase/events", null);
+            await h.page.reload();
+            await enterTicketPlus(h.page);
+            await h.page.getByRole("button", { name: "編輯活動", exact: true }).waitFor();
+            const saved = await h.store.load(h.id);
+            let release = () => {};
+            const gate = new Promise<void>(resolve => {
+                release = resolve;
+            });
+            let reads = 0;
+            await h.page.route("**/api/activities", async route => {
+                reads++;
+                if (reads === 1) {
+                    await gate;
+                    if (oldOutcome === "failure") {
+                        await route.fulfill({ status: 500, json: { error: "STALE_LIST_FAILURE" } });
+                    } else {
+                        await route.fulfill({ json: { activities: [], invalidFiles: 0 } });
+                    }
+                    return;
+                }
+                await route.fulfill({
+                    json: {
+                        activities: [
+                            {
+                                ...saved,
+                                settings: { ...saved.settings, eventName: "最新活動" },
+                                executionStatus: "已執行",
+                            },
+                        ],
+                        invalidFiles: 0,
+                    },
+                });
+            });
+            try {
+                feed.publish(listRefreshRun);
+                await eventually(async () => assert.equal(reads, 1));
+                assert(await h.page.locator("#activityListLoading").isVisible());
+                feed.publish({ ...listRefreshRun, status: "unknown" });
+                await h.page.locator("#activities").filter({ hasText: "最新活動" }).waitFor();
+                assert(!(await h.page.locator("#activityListLoading").isVisible()));
+                const oldResponse = h.page.waitForResponse(
+                    response =>
+                        new URL(response.url()).pathname === "/api/activities" &&
+                        (oldOutcome === "failure" ? response.status() === 500 : response.status() === 200),
+                );
+                release();
+                await oldResponse;
+                await h.page.evaluate(
+                    () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+                );
+                assert.match(await h.page.locator("#activities").innerText(), /最新活動/);
+                assert(!(await h.page.locator("#activityListError").isVisible()));
+                assert(!(await h.page.locator("#activityListLoading").isVisible()));
+                assert(!(await h.page.locator("#emptyActivities").isVisible()));
+                assert.equal(await h.page.getByRole("button", { name: "重新載入活動列表" }).count(), 0);
+            } finally {
+                release();
+            }
+        });
+    });
+}

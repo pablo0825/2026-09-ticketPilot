@@ -8,6 +8,7 @@ export interface ActivityListEntry {
 }
 interface Props {
     activities: ActivityListEntry[];
+    showEmpty: boolean;
     disabled: boolean;
     mutationsDisabled: boolean;
     onNew: () => void;
@@ -25,6 +26,7 @@ interface Props {
 
 export function ActivityListPage({
     activities,
+    showEmpty,
     disabled,
     mutationsDisabled,
     onNew,
@@ -70,7 +72,7 @@ export function ActivityListPage({
                         </button>
                     </div>
                 )}
-                <p id="emptyActivities" hidden={activities.length > 0}>
+                <p id="emptyActivities" hidden={!showEmpty || activities.length > 0}>
                     尚未儲存活動，請新增活動。
                 </p>
                 <div className="overflow-x-auto">
