@@ -6,9 +6,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ActivityStore } from "../src/config/activityStore.js";
 import { purchaseOccupied } from "../src/app/purchaseLock.js";
-import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 import { startLocalServer } from "../src/local/server.js";
-import { parseTicketPlusActivity } from "../src/config/ticketPlusActivity.js";
 
 const ticketplus = {
     platform: "ticketplus",
@@ -30,15 +28,8 @@ const klook = {
     excludeKeywords: [],
     targets: [{ date: "2026-10-30", time: "20:00", area: "A區", quantity: 1, adjacent: false }],
 };
-const contact = {
-    firstName: "Demo",
-    lastName: "Test",
-    regionLabel: "台灣 (+886)",
-    phone: "0912345678",
-    email: "fixture@example.com",
-};
 
-test("混合平台設定可存取；無效更新與跨平台覆寫保留原檔", async () => {
+test("舊 Klook 與 TicketPlus 混存僅載入 TicketPlus；無效更新與跨平台覆寫保留原檔", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticketplus-store-"));
     const store = new ActivityStore(dir);
     try {
@@ -52,16 +43,20 @@ test("混合平台設定可存取；無效更新與跨平台覆寫保留原檔",
         assert.equal(await readFile(path, "utf8"), raw);
 
         // 混合列表不漏資料，Klook 表單不能讀取 TicketPlus
-        await store.save(klook);
+        const oldId = randomUUID();
+        await writeFile(
+            join(dir, oldId + ".json"),
+            JSON.stringify({ schemaVersion: 3, id: oldId, updatedAt: "2026-10-01T00:00:00.000Z", settings: klook }),
+        );
         const list = await store.list();
-        assert.deepEqual(list.activities.map(a => a.settings.platform).sort(), ["klook", "ticketplus"]);
+        assert.deepEqual(list.activities.map(a => a.settings.platform).sort(), ["ticketplus"]);
         assert.equal(list.invalidFiles, 0);
 
         // 失敗更新不得修改檔案，合法更新保留活動識別碼
         await assert.rejects(
             store.save({ ...ticketplus, targets: [{ ...ticketplus.targets[0]!, quantity: 0 }] }, saved.id),
         );
-        await assert.rejects(store.save(klook, saved.id), /不能變更/);
+        await assert.rejects(store.save(klook, saved.id), /Klook|TicketPlus/);
         assert.equal(await readFile(path, "utf8"), raw);
         const updated = await store.save(
             { ...ticketplus, targets: [{ ...ticketplus.targets[0]!, quantity: 2 }] },
@@ -77,35 +72,11 @@ test("混合平台設定可存取；無效更新與跨平台覆寫保留原檔",
     }
 });
 
-test("TicketPlus 拒絕誤傳聯絡資料，不建立占用或請求紀錄", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "ticketplus-start-"));
-    const purchases = new PurchaseRuns(dir, new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url));
-    try {
-        // 購票拒絕不適用的聯絡資料
-        for (const details of [contact, null, {}]) {
-            const id = randomUUID();
-            assert.throws(() => purchases.start(id, ticketplus, details), /不接受聯絡資料/);
-            assert.equal(purchases.hasRequest(id), false);
-        }
-
-        // 拒絕不能留下執行副作用
-        assert.equal(purchaseOccupied(dir), false);
-        assert.equal(purchases.busy(), false);
-        assert.equal(purchases.snapshot(), null);
-        assert.deepEqual(await readdir(join(dir, "runs")), []);
-        await assert.rejects(readFile(join(dir, "worker-starts.txt")), { code: "ENOENT" });
-    } finally {
-        purchases.close();
-        await rm(dir, { recursive: true, force: true });
-    }
-});
-
 test("HTTP 可儲存 TicketPlus；購票拒絕誤傳聯絡資料", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticketplus-api-"));
     const runtime = join(dir, "runtime");
     const contactPath = join(dir, "contact.json");
     const service = await startLocalServer(new ActivityStore(join(dir, "events")), {
-        contactPath,
         runDirectory: runtime,
         purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
     });

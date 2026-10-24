@@ -121,10 +121,10 @@ test("固定 v4／v5 歷史：未填期限保持相容，新增、變更、移�
                 updatedAt: "2026-10-14T00:00:00.000Z",
                 settings,
             };
-            assert.equal(runs.start(requestId, settings, undefined, activityId).id, "123-history");
+            assert.equal(runs.start(requestId, settings, activityId).id, "123-history");
             assert.equal(runs.activityStatus(saved), "已執行");
             if (history.minutes === undefined || history.minutes < 10) {
-                assert.throws(() => runs.start(randomUUID(), settings, undefined, activityId), /10～1440/);
+                assert.throws(() => runs.start(randomUUID(), settings, activityId), /10～1440/);
             }
 
             // 期限差異不允許重播同一請求，更不能重新啟動 worker。
@@ -133,7 +133,7 @@ test("固定 v4／v5 歷史：未填期限保持相容，新增、變更、移�
                     ? [{ ...activity, maxRunMinutes: 10 }]
                     : [activity, { ...activity, maxRunMinutes: 11 }];
             for (const changed of changes) {
-                assert.throws(() => runs.start(requestId, changed, undefined, activityId), /更換設定/);
+                assert.throws(() => runs.start(requestId, changed, activityId), /更換設定/);
                 assert.equal(runs.activityStatus({ ...saved, settings: changed }), "設定已更新");
             }
             assert.equal(await readFile(file, "utf8"), original);
@@ -155,7 +155,7 @@ test("API 期限保存重讀與移除；無效更新不改檔，啟動前比對�
     const store = new ActivityStore(join(dir, "events"));
     const service = await startLocalServer(store, {
         runDirectory: runtime,
-        contactPath: join(dir, "missing-contact"),
+
         purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
     });
     try {
@@ -232,7 +232,7 @@ test("舊活動缺值及 1／9 分鐘可重讀但新 API 啟動拒絕，不改�
     const store = new ActivityStore(join(dir, "events"));
     const service = await startLocalServer(store, {
         runDirectory: runtime,
-        contactPath: join(dir, "missing-contact"),
+
         purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
     });
     try {

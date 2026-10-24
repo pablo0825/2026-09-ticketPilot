@@ -103,7 +103,7 @@ test("舊 TP v4 請求與活動狀態：等價單順位重播原結果，改設�
         await mkdir(join(dir, "events"));
         await writeFile(join(dir, "events", activityId + ".json"), JSON.stringify(activityRecord));
         const runs = new PurchaseRuns(dir, new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url));
-        const result = runs.start(requestId, canonical, undefined, activityId);
+        const result = runs.start(requestId, canonical, activityId);
         assert.equal(result.id, "123-old-run");
         assert.equal(result.status, "unknown");
         assert.equal(runs.activityStatus(await store.load(activityId)), "已執行");
@@ -122,10 +122,10 @@ test("舊 TP v4 請求與活動狀態：等價單順位重播原結果，改設�
             { ...canonical, targets: [{ ...legacy.target, quantity: 3 }] },
             { ...canonical, flowType: "lottery" as const },
         ]) {
-            assert.throws(() => runs.start(requestId, input, undefined, activityId), /更換設定/);
+            assert.throws(() => runs.start(requestId, input, activityId), /更換設定/);
             assert.equal(runs.activityStatus(await store.save(input, activityId)), "設定已更新");
         }
-        assert.throws(() => runs.start(requestId, legacy, undefined, activityId), /格式錯誤/);
+        assert.throws(() => runs.start(requestId, legacy, activityId), /格式錯誤/);
         assert(!runs.busy());
         assert(!purchaseOccupied(dir));
         assert.equal(await readFile(file, "utf8"), original);
@@ -167,7 +167,7 @@ test("API 可保存跨場次順位但啟動零副作用；新單順位可重播�
     await writeFile(join(runtime, "runs", requestId + ".json"), JSON.stringify(oldRun));
     const service = await startLocalServer(store, {
         runDirectory: runtime,
-        contactPath: join(dir, "missing-contact"),
+
         purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
     });
     try {

@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { chromium } from "playwright";
+import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
 import { ActivityStore } from "../src/config/activityStore.js";
 import { startLocalServer } from "../src/local/server.js";
 
@@ -27,7 +27,6 @@ const contact = {
 test("本機 API：驗證、保存與移除的模擬入口不啟動程序", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-server-"));
     const service = await startLocalServer(new ActivityStore(join(dir, "events")), {
-        contactPath: join(dir, "contact.json"),
         runDirectory: join(dir, "runtime"),
     });
     try {
@@ -41,7 +40,7 @@ test("本機 API：驗證、保存與移除的模擬入口不啟動程序", asyn
             403,
         );
         const created = await (
-            await fetch(service.url + "/api/activities", { method: "POST", headers, body: JSON.stringify(activity) })
+            await fetch(service.url + "/api/activities", { method: "POST", headers, body: JSON.stringify(apiActivity) })
         ).json();
         assert(created.id);
         for (const [method, path] of [
@@ -60,72 +59,121 @@ test("本機 API：驗證、保存與移除的模擬入口不啟動程序", asyn
     }
 });
 
-test("Klook 開始購票：缺少或無效聯絡資料時拒絕，不啟動子程序也不留下占用", async () => {
-    // 真實服務與獨立資料夾；子程序只記錄啟動次數，不讀取專案的 local-data。
-    const dir = await mkdtemp(join(tmpdir(), "ticket-contact-"));
-    const contactPath = join(dir, "contact.json");
-    const runDirectory = join(dir, "runtime");
+test("已移除的 Klook 與聯絡 API 拒絕請求，不建立 worker、紀錄或占用", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ticket-retired-api-"));
     const store = new ActivityStore(join(dir, "events"));
-    const created = await store.save(activity);
+    const created = await store.save(apiActivity);
+    const oldId = randomUUID();
+    const oldPath = join(dir, "events", oldId + ".json");
+    const oldRaw = JSON.stringify({
+        schemaVersion: 3,
+        id: oldId,
+        updatedAt: "2026-10-01T00:00:00.000Z",
+        settings: activity,
+    });
+    await writeFile(oldPath, oldRaw);
+    const runDirectory = join(dir, "runtime");
     const service = await startLocalServer(store, {
-        contactPath,
         runDirectory,
         purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
     });
     try {
         const html = await (await fetch(service.url)).text();
-        const token = /<meta name="local-token" content="([a-f0-9]+)"/.exec(html)![1]!;
+        const token = /<meta name="local-token" content="([a-f0-9]+)"/.exec(html)?.[1];
+        assert(token);
         const headers = { "X-Local-Token": token, "Content-Type": "application/json" };
-
-        // 請求本身合法，錯誤只能來自讀取聯絡資料檔。
-        const start = () =>
-            fetch(service.url + "/api/purchase", {
+        for (const method of ["GET", "PUT"]) {
+            const response = await fetch(service.url + "/api/contact", {
+                method,
+                headers,
+                ...(method === "PUT" ? { body: JSON.stringify(contact) } : {}),
+            });
+            assert.equal(response.status, 404);
+        }
+        for (const [method, path] of [
+            ["POST", "/api/activities"],
+            ["PUT", "/api/activities/" + created.id],
+            ["PUT", "/api/activities/" + oldId],
+            ["GET", "/api/activities/" + oldId],
+            ["DELETE", "/api/activities/" + oldId],
+        ]) {
+            const response = await fetch(service.url + path, {
+                method,
+                headers,
+                ...(["POST", "PUT"].includes(method!) ? { body: JSON.stringify(activity) } : {}),
+            });
+            assert.equal(response.status, 400);
+        }
+        for (const body of [
+            { activityId: oldId, expectedActivity: activity },
+            { activityId: created.id, expectedActivity: apiActivity, expectedContact: contact },
+        ]) {
+            const response = await fetch(service.url + "/api/purchase", {
                 method: "POST",
                 headers,
-                body: JSON.stringify({
-                    requestId: randomUUID(),
-                    activityId: created.id,
-                    expectedActivity: created.settings,
-                    expectedContact: contact,
-                }),
+                body: JSON.stringify({ requestId: randomUUID(), ...body }),
             });
-
-        // 缺檔、JSON 無效、缺欄位、格式錯誤與讀取失敗都必須拒絕
-        const cases: [string | null, RegExp][] = [
-            [null, /缺少 contact.local.json.*contact.example.json/],
-            ["{bad", /不是有效的 JSON/],
-            [JSON.stringify({ ...contact, firstName: undefined }), /請填寫名字/],
-            [JSON.stringify({ ...contact, email: "invalid" }), /電子信箱格式不完整/],
-        ];
-        if (process.getuid?.() !== 0) cases.push([JSON.stringify(contact), /無法讀取 contact.local.json/]);
-        for (const [index, [source, message]] of cases.entries()) {
-            await rm(contactPath, { force: true });
-            if (source !== null) await writeFile(contactPath, source);
-            if (message.source.includes("無法讀取")) await chmod(contactPath, 0o000);
-
-            const response = await start();
-            const text = await response.text();
-            assert.equal(response.status, 400, `情境 ${index}`);
-            assert.match(JSON.parse(text).error, message);
-            assert.doesNotMatch(text, /PrivateName|private@example\.com|0912345678/);
-            assert.ok(!text.includes(contactPath));
-            await chmod(contactPath, 0o600).catch(() => {});
+            assert.equal(response.status, 400);
+            assert.equal((await response.json()).notAccepted, true);
         }
-
-        // 被拒絕的請求不能啟動子程序或留下占用
+        assert.equal(await readFile(oldPath, "utf8"), oldRaw);
+        assert.deepEqual((await store.load(created.id)).settings, apiActivity);
+        assert.deepEqual(await readdir(join(runDirectory, "runs")), []);
         await assert.rejects(readFile(join(runDirectory, "worker-starts.txt")), { code: "ENOENT" });
         await assert.rejects(readFile(join(runDirectory, "purchase.lock")), { code: "ENOENT" });
+    } finally {
+        await service.close();
+        await rm(dir, { recursive: true, force: true });
+    }
+});
 
-        // 補齊聯絡資料後才會啟動，且只啟動一次
-        await writeFile(contactPath, JSON.stringify(contact));
-        assert.equal((await start()).status, 200);
-        const deadline = Date.now() + 10_000;
-        while (Date.now() < deadline) {
-            const run = await (await fetch(service.url + "/api/purchase", { headers })).json();
-            if (!run.occupied && run.status !== "running") break;
-            await new Promise(resolve => setTimeout(resolve, 25));
-        }
-        assert.equal(await readFile(join(runDirectory, "worker-starts.txt"), "utf8"), "started\n");
+test("重用 Klook 歷史請求 ID 回覆結果仍待確認，不清除 pending 或建立占用", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ticket-archived-request-"));
+    const store = new ActivityStore(join(dir, "events"));
+    const created = await store.save(apiActivity);
+    const runtime = join(dir, "runtime");
+    const requestId = randomUUID();
+    const runsDirectory = join(runtime, "runs");
+    await mkdir(runsDirectory, { recursive: true });
+    const historyPath = join(runsDirectory, requestId + ".json");
+    const raw = JSON.stringify({
+        fingerprintVersion: 4,
+        fingerprint: "a".repeat(64),
+        snapshot: {
+            platform: "klook",
+            id: "123-archived",
+            requestId,
+            activityName: "封存活動",
+            status: "unknown",
+            browserOpen: false,
+            occupied: false,
+            message: "提交結果不明",
+            events: [],
+            historyTruncated: false,
+        },
+    });
+    await writeFile(historyPath, raw);
+    const service = await startLocalServer(store, {
+        runDirectory: runtime,
+        purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
+    });
+    try {
+        const html = await (await fetch(service.url)).text();
+        const token = /<meta name="local-token" content="([a-f0-9]+)"/.exec(html)?.[1];
+        assert(token);
+        const response = await fetch(service.url + "/api/purchase", {
+            method: "POST",
+            headers: { "X-Local-Token": token, "Content-Type": "application/json" },
+            body: JSON.stringify({ requestId, activityId: created.id, expectedActivity: apiActivity }),
+        });
+        assert.equal(response.status, 400);
+        const result = await response.json();
+        assert.equal(result.notAccepted, false);
+        assert.match(result.error, /Klook/);
+        assert.equal(await readFile(historyPath, "utf8"), raw);
+        assert.deepEqual(await readdir(runsDirectory), [requestId + ".json"]);
+        await assert.rejects(readFile(join(runtime, "purchase.lock")), { code: "ENOENT" });
+        await assert.rejects(readFile(join(runtime, "worker-starts.txt")), { code: "ENOENT" });
     } finally {
         await service.close();
         await rm(dir, { recursive: true, force: true });

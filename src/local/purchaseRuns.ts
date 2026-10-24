@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { parseActivity, projectRoot, type ActivityRecord, type ActivitySettings } from "../config/activityStore.js";
-import { validateContactDetails } from "../config/contact.config.js";
 import { validateSaleSchedule } from "../core/saleSchedule.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
 import {
@@ -55,7 +54,7 @@ export type ActivityExecutionStatus = "尚無執行紀錄" | "等待開賣" | "�
 // 以正規化後的購票條件識別新版請求；TicketPlus 明寫購票等同未寫流程類型。
 function fingerprintSettings(settings: ActivitySettings) {
     const parsed = parseActivity(settings);
-    if (parsed.platform !== "ticketplus" || parsed.flowType !== "purchase") return parsed;
+    if (parsed.flowType !== "purchase") return parsed;
     const { flowType: _purchase, ...withoutDefault } = parsed;
     return withoutDefault;
 }
@@ -89,7 +88,10 @@ export class PurchaseRuns {
         mkdirSync(this.directory, { recursive: true, mode: 0o700 });
 
         const files = readdirSync(this.directory).filter(name => /^[0-9a-f-]{36}\.json$/.test(name));
-        const records = files.map(name => this.read(name.slice(0, -5))).filter(record => record !== undefined);
+        // 先排除封存平台，才選目前紀錄及寫回中斷狀態；舊檔保持原樣。
+        const records = files
+            .map(name => this.read(name.slice(0, -5)))
+            .filter((record): record is Record => record !== undefined && record !== "archived-klook");
         records.sort((a, b) => b.snapshot.id.localeCompare(a.snapshot.id));
         this.current = records[0];
 
@@ -113,7 +115,7 @@ export class PurchaseRuns {
         return join(this.directory, `${id}.json`);
     }
 
-    private read(id: string): Record | undefined {
+    private read(id: string): Record | "archived-klook" | undefined {
         try {
             const record = JSON.parse(readFileSync(this.file(id), "utf8")) as Record;
             const valid = z
@@ -178,8 +180,9 @@ export class PurchaseRuns {
                 throw new Error("Invalid platform event or result");
             }
 
-            // 已知舊格式沒有平台，當時只有 Klook；保留原事件與指紋內容。
-            const snapshot = { ...record.snapshot, platform: valid.data.snapshot.platform ?? "klook" };
+            // 有效舊紀錄只回報封存標記。查詢請求 ID 時仍須拒絕重用，不能當成不存在。
+            if (platform === "klook") return "archived-klook";
+            const snapshot = { ...record.snapshot, platform: "ticketplus" as const };
             delete snapshot.canStop;
             delete snapshot.stopRequest;
             delete snapshot.loginConfirmation;
@@ -270,20 +273,16 @@ export class PurchaseRuns {
 
         // 只有本服務持有的現行 worker 能代表仍在執行，舊紀錄不推測續跑。
         if (record === this.current && this.child && record.snapshot.status === "running") {
-            if (record.snapshot.platform === "ticketplus") {
-                const event = record.snapshot.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
-                return event?.type === "ticketplus" &&
-                    ["waiting-for-sale", "refreshing-activity", "waiting-for-availability"].includes(event.stage)
-                    ? "等待開賣"
-                    : "執行中";
-            }
-            const state = record.snapshot.events.filter(item => item.event.type === "state").at(-1)?.event;
-            return state?.type === "state" && state.state === "WAITING_FOR_SALE" ? "等待開賣" : "執行中";
+            const event = record.snapshot.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
+            return event?.type === "ticketplus" &&
+                ["waiting-for-sale", "refreshing-activity", "waiting-for-availability"].includes(event.stage)
+                ? "等待開賣"
+                : "執行中";
         }
 
         if (record.fingerprintVersion !== 4 && record.fingerprintVersion !== 5) return "舊版執行紀錄";
         // 舊 TicketPlus 紀錄依原單目標形狀比對，純格式轉換不算設定變更。
-        if (record.fingerprintVersion === 4 && activity.settings.platform === "ticketplus") {
+        if (record.fingerprintVersion === 4) {
             if (
                 activity.settings.targets.length !== 1 ||
                 activity.settings.flowType === "lottery" ||
@@ -300,30 +299,19 @@ export class PurchaseRuns {
         return record.activity.settingsHash === settingsHash(activity.settings) ? "已執行" : "設定已更新";
     }
 
-    start(requestId: string, activityInput: unknown, contactInput: unknown, activityId?: string): PurchaseSnapshot {
-        // 檢查請求、活動與聯絡資料
+    start(requestId: string, activityInput: unknown, activityId?: string): PurchaseSnapshot {
+        // 檢查請求與活動
         if (activityId !== undefined && !z.string().uuid().safeParse(activityId).success) {
             throw new Error("活動識別碼無效。");
         }
 
         const activity = parseActivity(activityInput);
-        if (activity.platform === "ticketplus" && contactInput !== undefined) {
-            throw new Error("TicketPlus 本階段不接受聯絡資料。");
-        }
-        const contact = activity.platform === "klook" ? validateContactDetails(contactInput) : undefined;
         const fingerprint = createHash("sha256")
-            .update(
-                JSON.stringify(
-                    activity.platform === "klook"
-                        ? { activity: fingerprintSettings(activity), contact }
-                        : { activity: fingerprintSettings(activity) },
-                ),
-            )
+            .update(JSON.stringify({ activity: fingerprintSettings(activity) }))
             .digest("hex");
 
         // 同一個請求重送時，回傳原本的結果
         const legacyFingerprint =
-            activity.platform === "ticketplus" &&
             activity.targets.length === 1 &&
             activity.flowType !== "lottery" &&
             !activity.saleSchedule &&
@@ -332,12 +320,10 @@ export class PurchaseRuns {
                       .update(JSON.stringify({ activity: singleTicketPlusSelection(activity) }))
                       .digest("hex")
                 : undefined;
-        const previous = this.previousResult(requestId, activityId, fingerprint, activity.platform, legacyFingerprint);
+        const previous = this.previousResult(requestId, activityId, fingerprint, legacyFingerprint);
         if (previous) return previous;
-        if (activity.platform === "ticketplus") {
-            ticketPlusSessionSelection(activity);
-            validateTicketPlusRunSettings(activity);
-        }
+        ticketPlusSessionSelection(activity);
+        validateTicketPlusRunSettings(activity);
 
         // 確認沒有占用，且還沒超過開賣等待期限
         if (this.busy()) throw new Error("已有購票程序或瀏覽器占用，請先關閉原購票瀏覽器。");
@@ -348,7 +334,7 @@ export class PurchaseRuns {
         // 取得占用並建立執行紀錄
         const lease = acquirePurchaseLease(this.root);
         const record: Record = {
-            fingerprintVersion: activity.platform === "ticketplus" ? 5 : 4,
+            fingerprintVersion: 5,
             fingerprint,
             ...(activityId ? { activity: { id: activityId, settingsHash: settingsHash(activity) } } : {}),
             snapshot: {
@@ -357,7 +343,7 @@ export class PurchaseRuns {
                 requestId,
                 activityName: activity.eventName,
                 ...(activity.saleSchedule ? { saleAt: activity.saleSchedule.saleAt } : {}),
-                ...(activity.platform === "ticketplus" ? { flowType: ticketPlusFlowType(activity) } : {}),
+                flowType: ticketPlusFlowType(activity),
                 status: "running",
                 browserOpen: false,
                 occupied: true,
@@ -384,8 +370,7 @@ export class PurchaseRuns {
         this.attachWorker(child, record);
 
         // 傳送設定給子程序
-        const workerInput = activity.platform === "klook" ? { activity, contact, lease } : { activity, lease };
-        child.send(structuredClone(workerInput), error => {
+        child.send(structuredClone({ activity, lease }), error => {
             if (error) child.kill();
         });
 
@@ -398,19 +383,17 @@ export class PurchaseRuns {
         requestId: string,
         activityId: string | undefined,
         fingerprint: string,
-        platform: ActivitySettings["platform"],
         legacyFingerprint?: string,
     ): PurchaseSnapshot | undefined {
         const previous = this.read(requestId);
+        if (previous === "archived-klook") throw new Error("此開始請求屬於已停用的 Klook 流程，不會重新啟動。");
         if (!previous) return undefined;
 
         if (previous.fingerprintVersion !== 4 && previous.fingerprintVersion !== 5) {
             throw new Error("舊版開始請求結果需人工確認，請檢查原流程與訂單；不會重新啟動。");
         }
-        if (previous.snapshot.platform !== platform) throw new Error("同一開始請求不能更換平台。");
         if (previous.activity && previous.activity.id !== activityId) throw new Error("同一開始請求不能更換活動。");
-        const expectedFingerprint =
-            platform === "ticketplus" && previous.fingerprintVersion === 4 ? legacyFingerprint : fingerprint;
+        const expectedFingerprint = previous.fingerprintVersion === 4 ? legacyFingerprint : fingerprint;
         if (previous.fingerprint !== expectedFingerprint) throw new Error("同一開始請求不能更換設定。");
 
         const current = this.snapshot();
@@ -570,7 +553,6 @@ export class PurchaseRuns {
                 } else if (
                     value?.type === "result" &&
                     (["failed", "unknown"].includes(value.outcome) ||
-                        (record.snapshot.platform === "klook" && value.outcome === "payment-ready") ||
                         (record.snapshot.platform === "ticketplus" &&
                             ["information-ready", "payment-ready", "registration-ready"].includes(value.outcome)))
                 ) {

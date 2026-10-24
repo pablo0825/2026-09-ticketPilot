@@ -11,7 +11,6 @@ import { startLocalServer } from "../src/local/server.js";
 test("長紀錄在窄螢幕可捲動，閱讀舊紀錄時不被新事件拉回底部", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ticket-status-scroll-"));
     const service = await startLocalServer(new ActivityStore(join(directory, "events")), {
-        contactPath: join(directory, "contact.json"),
         runDirectory: join(directory, "runtime"),
     });
     const browser = await chromium.launch();

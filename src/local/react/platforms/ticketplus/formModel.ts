@@ -157,7 +157,7 @@ export function ticketPlusRecord(value: unknown, expectedId?: string): TicketPlu
     if (!value || typeof value !== "object") throw new Error("無法確認 TicketPlus 活動紀錄。");
     const record = value as Record<string, unknown>;
     if (
-        (record.schemaVersion !== 1 && record.schemaVersion !== 3) ||
+        record.schemaVersion !== 3 ||
         typeof record.id !== "string" ||
         !/^[A-Za-z0-9-]+$/.test(record.id) ||
         (expectedId !== undefined && record.id !== expectedId) ||

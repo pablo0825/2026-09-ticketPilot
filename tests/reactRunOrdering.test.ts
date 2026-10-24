@@ -27,7 +27,6 @@ test("React：新 POST 早於 SSE 時立即占用；SSE 先到時晚回應不倒
     const store = new ActivityStore(join(directory, "events"));
     const record = await store.save({ ...apiActivity, eventName: "新活動" });
     const service = await startLocalServer(store, {
-        contactPath: join(directory, "contact.json"),
         runDirectory: join(directory, "runtime"),
     });
     const browser = await chromium.launch();

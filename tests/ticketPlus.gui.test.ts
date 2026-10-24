@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { chromium } from "playwright";
 import type { Page, Browser } from "playwright";
@@ -38,14 +39,19 @@ interface Harness {
 async function fixture(work: (h: Harness) => Promise<void>) {
     const directory = await mkdtemp(join(tmpdir(), "ticketplus-gui-"));
     const store = new ActivityStore(join(directory, "events"));
-    const originalKlook = await store.save(klook);
     const original = await store.save(settings);
-    const klookPath = join(directory, "events", originalKlook.id + ".json");
-    const before = await readFile(klookPath, "utf8");
+    const klookPath = join(directory, "events", randomUUID() + ".json");
+    const before = JSON.stringify({
+        schemaVersion: 3,
+        id: klookPath.split("/").at(-1)!.slice(0, -5),
+        updatedAt: "2026-10-01T00:00:00.000Z",
+        settings: klook,
+    });
+    await writeFile(klookPath, before);
     // 刻意讓聯絡設定損壞，TicketPlus 設定不應依賴它。
     const contactPath = join(directory, "contact.json");
     await writeFile(contactPath, "{broken-contact");
-    const service = await startLocalServer(store, { contactPath, runDirectory: join(directory, "runtime") });
+    const service = await startLocalServer(store, { runDirectory: join(directory, "runtime") });
     const browser = await chromium.launch();
     const requests: Harness["requests"] = [];
     try {
@@ -334,7 +340,7 @@ test("TicketPlus GUI：保存成功但重載失敗仍保留 ID，再編輯以 PU
         await h.page.getByRole("alert").filter({ hasText: "活動已儲存，但列表" }).waitFor();
         assert.equal(posts, 1);
         assert.equal(puts, 1);
-        assert.equal((await h.store.list()).activities.length, 3);
+        assert.equal((await h.store.list()).activities.length, 2);
         assert.equal(
             (await h.store.list()).activities.filter(record => record.settings.eventName === "再次編輯").length,
             1,
@@ -350,7 +356,7 @@ test("TicketPlus GUI：刪除只刪指定平台活動，取消不送請求", asy
         h.page.once("dialog", dialog => dialog.accept());
         await h.page.getByRole("button", { name: "刪除", exact: true }).click();
         await eventually(async () => assert.equal(await h.page.locator("#activities tr").count(), 0));
-        assert.equal((await h.store.list()).activities.length, 1);
+        assert.equal((await h.store.list()).activities.length, 0);
         assert.deepEqual(
             h.requests.filter(request => request.method === "DELETE"),
             [{ method: "DELETE", path: "/api/activities/" + h.id }],
@@ -390,14 +396,14 @@ test("TicketPlus GUI：其他平台的載入回應不能成為編輯資料", asy
     });
 });
 
-test("TicketPlus GUI：Klook 瀏覽器仍占用時禁止變更，保留查看狀態與後端刪除防護", async () => {
+test("TicketPlus GUI：未知瀏覽器仍占用時禁止變更，保留查看狀態與後端刪除防護", async () => {
     await fixture(async h => {
         const lease = acquirePurchaseLease(join(h.directory, "runtime"));
         try {
             const occupied = {
-                id: "occupied-klook",
+                id: "occupied-external",
                 requestId: "fixture",
-                platform: "klook",
+                platform: null,
                 activityName: "占用活動",
                 status: "failed",
                 occupied: true,
@@ -417,7 +423,7 @@ test("TicketPlus GUI：Klook 瀏覽器仍占用時禁止變更，保留查看狀
             assert(await h.page.getByRole("button", { name: "刪除", exact: true }).isDisabled());
             assert(await h.page.locator("#new").isDisabled());
             await h.page.getByRole("button", { name: "查看目前狀態" }).click();
-            await h.page.locator("#logs").filter({ hasText: "購票平台：Klook" }).waitFor();
+            await h.page.locator("#logs").filter({ hasText: "購票平台：未知" }).waitFor();
             const token = await h.page.locator('meta[name="local-token"]').getAttribute("content");
             const response = await fetch(h.url + "/api/activities/" + h.id, {
                 method: "DELETE",

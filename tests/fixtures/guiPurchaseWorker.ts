@@ -3,8 +3,11 @@ import { releasePurchaseLease } from "../../src/app/purchaseLock.js";
 process.once("message", (input: any) => {
     if (input.activity.eventName === "CRASH") process.exit(1);
     process.send?.({ type: "browser", open: true });
-    process.send?.({ type: "event", event: { type: "state", state: "PAYMENT_READY" } });
-    process.send?.({ type: "event", event: { type: "log", message: `fixture ${input.activity.targets[0].area}` } });
+    process.send?.({ type: "event", event: { type: "ticketplus", stage: "submitting-information" } });
+    process.send?.({
+        type: "event",
+        event: { type: "log", message: `fixture ${input.activity.targets[0].ticketType}` },
+    });
     const result = () =>
         process.send?.({
             type: "result",
@@ -16,8 +19,11 @@ process.once("message", (input: any) => {
             message: "fixture：等待關閉瀏覽器",
         });
     if (input.activity.eventName === "HOLD_WAIT") {
-        process.send?.({ type: "event", event: { type: "state", state: "WAITING_FOR_SALE" } });
-        setTimeout(() => process.send?.({ type: "event", event: { type: "state", state: "TICKET_SELECTION" } }), 300);
+        process.send?.({ type: "event", event: { type: "ticketplus", stage: "waiting-for-sale" } });
+        setTimeout(
+            () => process.send?.({ type: "event", event: { type: "ticketplus", stage: "selecting-tickets" } }),
+            300,
+        );
         setTimeout(result, 600);
     } else result();
     const finish = () => {

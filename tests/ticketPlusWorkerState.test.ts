@@ -54,16 +54,12 @@ test("TicketPlus 狀態準備：新紀錄可重讀、資料頁不誤報付款、
         assert.match(presentation.instruction, /未核對付款結果/);
         assert.throws(
             () =>
-                runs.start(
-                    requestId,
-                    {
-                        platform: "ticketplus",
-                        eventUrl: "https://ticketplus.com.tw/activity/fixture",
-                        eventName: "測試活動",
-                        targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 }],
-                    },
-                    undefined,
-                ),
+                runs.start(requestId, {
+                    platform: "ticketplus",
+                    eventUrl: "https://ticketplus.com.tw/activity/fixture",
+                    eventName: "測試活動",
+                    targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 2 }],
+                }),
             /同一開始請求不能更換設定/,
         );
         assert.equal(runs.busy(), false);
@@ -172,17 +168,13 @@ test("TicketPlus 付款頁結果：主服務接受 payment-ready 與送出資料
     process.env.FIXTURE_STAGE = "submitting-information";
     try {
         const runs = new PurchaseRuns(directory, new URL("./fixtures/ticketplus/resultWorker.ts", import.meta.url));
-        runs.start(
-            "1f9a3d2e-5c6b-4a7d-8e9f-0a1b2c3d4e5f",
-            {
-                platform: "ticketplus",
-                eventUrl: "https://ticketplus.com.tw/activity/fixture",
-                eventName: "付款頁活動",
-                targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 1 }],
-                maxRunMinutes: 10,
-            },
-            undefined,
-        );
+        runs.start("1f9a3d2e-5c6b-4a7d-8e9f-0a1b2c3d4e5f", {
+            platform: "ticketplus",
+            eventUrl: "https://ticketplus.com.tw/activity/fixture",
+            eventName: "付款頁活動",
+            targets: [{ date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 1 }],
+            maxRunMinutes: 10,
+        });
         const deadline = Date.now() + 10_000;
         while (runs.busy() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
         const snapshot = runs.snapshot()!;
@@ -212,18 +204,14 @@ test("TicketPlus 抽選結果：主服務接受等待參加者階段與 registra
     process.env.FIXTURE_CONFIRMATION = "6a1f0c7e-2b3d-4e5f-8a9b-0c1d2e3f4a5b";
     try {
         const runs = new PurchaseRuns(directory, new URL("./fixtures/ticketplus/resultWorker.ts", import.meta.url));
-        runs.start(
-            "2a9b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
-            {
-                platform: "ticketplus",
-                eventUrl: "https://ticketplus.com.tw/activity/fixture",
-                eventName: "抽選活動",
-                flowType: "lottery",
-                targets: [{ date: "2026-12-26", time: "17:00", ticketType: "3880區~800區皆可", quantity: 1 }],
-                maxRunMinutes: 10,
-            },
-            undefined,
-        );
+        runs.start("2a9b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", {
+            platform: "ticketplus",
+            eventUrl: "https://ticketplus.com.tw/activity/fixture",
+            eventName: "抽選活動",
+            flowType: "lottery",
+            targets: [{ date: "2026-12-26", time: "17:00", ticketType: "3880區~800區皆可", quantity: 1 }],
+            maxRunMinutes: 10,
+        });
         const deadline = Date.now() + 10_000;
         while (runs.busy() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
         const snapshot = runs.snapshot()!;
@@ -270,7 +258,7 @@ test("TicketPlus 停止原因：只記錄已知原因，購票流程記錄 purch
         process.env.FIXTURE_STOP_REASON = "user-stop";
         const worker = new URL("./fixtures/ticketplus/resultWorker.ts", import.meta.url);
         const runs = new PurchaseRuns(directory, worker);
-        runs.start("3b0c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e", activity, undefined);
+        runs.start("3b0c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e", activity);
         const stopped = await finish(runs);
         assert.equal(stopped.status, "failed");
         assert.equal(stopped.flowType, "purchase");
@@ -285,7 +273,7 @@ test("TicketPlus 停止原因：只記錄已知原因，購票流程記錄 purch
         // 不認得的停止原因不寫入紀錄；有對應活動時，畫面拿得到活動 id。
         process.env.FIXTURE_STOP_REASON = "crash";
         const activityId = "5d2e6f7a-8b9c-4d0e-9f1a-3b4c5d6e7f80";
-        reread.start("4c1d5e6f-7a8b-4c9d-8e0f-2a3b4c5d6e7f", activity, undefined, activityId);
+        reread.start("4c1d5e6f-7a8b-4c9d-8e0f-2a3b4c5d6e7f", activity, activityId);
         const unknownReason = await finish(reread);
         assert.equal(unknownReason.status, "failed");
         assert.equal(unknownReason.stopReason, undefined);

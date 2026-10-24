@@ -30,16 +30,16 @@ test("階段分流：保留無事件回退、平台隔離與最近階段優先",
     assert.deepEqual(purchaseStatus(snapshot(), false, now), general);
     assert.deepEqual(purchaseStatus(snapshot([state]), false, now), login);
 
-    // 已知的一般階段不會回退套用 Klook 提示。
+    // 已知的一般階段不會回退套用舊版提示。
     for (const stage of ["starting", "selecting-session", "selecting-tickets"] as const) {
         const run = snapshot([{ type: "ticketplus", stage: "queue" }, { type: "ticketplus", stage }, state]);
         assert.deepEqual(purchaseStatus(run, false, now), general);
         assert.deepEqual(platformRunStatus(run), { label: "購票進行中", kind: "purchase" });
     }
 
-    // 其他平台忽略 TicketPlus 事件，未知階段保留一般提示。
+    // 未知平台忽略 TicketPlus 事件，未知階段保留一般提示。
     const events: PurchaseEvent[] = [state, { type: "ticketplus", stage: "queue" }];
-    for (const platform of ["klook", null] as const) {
+    for (const platform of [null] as const) {
         assert.deepEqual(purchaseStatus(snapshot(events, { platform }), false, now), login);
     }
     const futureEvent = { type: "ticketplus", stage: "future-stage" } as unknown as PurchaseEvent;
@@ -54,7 +54,7 @@ test("停止提示只覆蓋執行中的 TicketPlus，關閉提示只覆蓋已結
         title: "等待流程停止",
         instruction: "已送出停止要求，尚不代表流程已停止；請查看後續執行結果。",
     });
-    assert.deepEqual(purchaseStatus({ ...run, platform: "klook" }, true, now), general);
+    assert.deepEqual(purchaseStatus({ ...run, platform: null }, true, now), general);
 
     // 結束後忽略停止要求與舊進度，關閉時保留結果標題。
     for (const [status, title] of [
@@ -78,27 +78,23 @@ test("停止提示只覆蓋執行中的 TicketPlus，關閉提示只覆蓋已結
     }
 });
 
-test("開賣倒數：保留兩平台格式、進位、跨零與無效時間提示", () => {
-    // 固定時鐘，分別驗證兩平台原有文字與日期格式。
-    for (const platform of ["ticketplus", "klook"] as const) {
-        const event: PurchaseEvent =
-            platform === "ticketplus"
-                ? { type: "ticketplus", stage: "waiting-for-sale" }
-                : { type: "state", state: "WAITING_FOR_SALE" };
+test("開賣倒數：保留新舊事件格式、進位、跨零與無效時間提示", () => {
+    // 固定時鐘，分別驗證新舊事件文字與日期格式。
+    for (const legacy of [false, true]) {
+        const event: PurchaseEvent = !legacy
+            ? { type: "ticketplus", stage: "waiting-for-sale" }
+            : { type: "state", state: "WAITING_FOR_SALE" };
         const saleAt = "2026-10-19T07:00:01.001Z";
-        const run = snapshot([event], { platform, saleAt });
+        const run = snapshot([event], { saleAt });
         const date = new Date(saleAt).toLocaleString("zh-TW", {
             timeZone: "Asia/Taipei",
-            ...(platform === "ticketplus" ? { hour12: false } : {}),
+            ...(!legacy ? { hour12: false } : {}),
         });
         const prefix = `開賣時間：${date}（台灣時間）。`;
         assert.deepEqual(purchaseStatus(run, false, now), {
             title: "等待開賣",
             instruction:
-                prefix +
-                (platform === "ticketplus"
-                    ? "距開賣 2 秒；程式會依設定提前刷新活動頁。"
-                    : "距開賣 2 秒，程式會自動繼續。"),
+                prefix + (!legacy ? "距開賣 2 秒；程式會依設定提前刷新活動頁。" : "距開賣 2 秒，程式會自動繼續。"),
         });
 
         // 到點與過期都只顯示等待，不出現負數倒數。
@@ -106,7 +102,7 @@ test("開賣倒數：保留兩平台格式、進位、跨零與無效時間提�
             assert.equal(
                 purchaseStatus(run, false, clock).instruction,
                 prefix +
-                    (platform === "ticketplus"
+                    (!legacy
                         ? "已到設定時間，等待購票程序更新進度；不會由此畫面重新啟動。"
                         : "已到設定時間，正在等待開賣頁面。"),
             );
@@ -114,9 +110,7 @@ test("開賣倒數：保留兩平台格式、進位、跨零與無效時間提�
         for (const invalid of [undefined, "", "invalid"]) {
             assert.equal(
                 purchaseStatus({ ...run, saleAt: invalid }, false, now).instruction,
-                platform === "ticketplus"
-                    ? "等待指定開賣時間，程式會依設定提前刷新活動頁。"
-                    : "正在等待設定的開賣時間，程式會自動繼續。",
+                !legacy ? "等待指定開賣時間，程式會依設定提前刷新活動頁。" : "正在等待設定的開賣時間，程式會自動繼續。",
             );
         }
     }

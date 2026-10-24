@@ -107,14 +107,14 @@ function waitingRun(): PurchaseSnapshot {
     };
 }
 
-test("TicketPlus 登入 GUI：Klook、歷史紀錄及無即時資格都不能確認", async () => {
+test("TicketPlus 登入 GUI：未知平台、歷史紀錄及無即時資格都不能確認", async () => {
     await fixture(async (h, page, requests) => {
         let current = waitingRun();
         const feed = await snapshotFeed(page, "/api/purchase/events", current);
         await page.route("**/api/purchase", route => route.fulfill({ json: current }));
         for (const next of [
             waitingRun(),
-            { ...waitingRun(), platform: "klook" as const },
+            { ...waitingRun(), platform: null },
             { ...waitingRun(), status: "failed" as const, occupied: false },
             { ...waitingRun(), loginConfirmation: undefined },
         ]) {

@@ -14,7 +14,6 @@ for (const newerSnapshot of [false, true]) {
         // 使用本機服務與攔截回應，不連線購票網站。
         const directory = await mkdtemp(join(tmpdir(), "participants-ordering-"));
         const service = await startLocalServer(new ActivityStore(join(directory, "events")), {
-            contactPath: join(directory, "contact.json"),
             runDirectory: join(directory, "runtime"),
         });
         const browser = await chromium.launch();

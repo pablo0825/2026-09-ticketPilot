@@ -52,7 +52,6 @@ export async function apiHarness(mode = "success") {
         process.env.FIXTURE_REPORT = report;
         process.env.FIXTURE_MODE = mode;
         service = await startLocalServer(new ActivityStore(join(directory, "events")), {
-            contactPath,
             runDirectory: runtime,
             purchaseWorker: new URL("./worker.ts", import.meta.url),
         });

@@ -9,7 +9,6 @@ import { startLocalServer } from "../src/local/server.js";
 test("正式 GUI 提供 React 打包模組與 CSS，不再提供舊腳本", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ticket-gui-asset-"));
     const service = await startLocalServer(new ActivityStore(join(directory, "events")), {
-        contactPath: join(directory, "contact.json"),
         runDirectory: join(directory, "runtime"),
     });
     try {

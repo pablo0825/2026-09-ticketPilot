@@ -54,9 +54,9 @@ test("四種流程組合：步驟數與步驟名稱依流程類型及開賣時�
     assert.equal(labels(run({ flowType: "lottery", saleAt })).length, 9);
 });
 
-test("沒有流程類型的舊紀錄或其他平台不顯示步驟", () => {
+test("沒有流程類型的舊紀錄或未知平台不顯示步驟", () => {
     assert.equal(ticketPlusStepsView(run({ flowType: undefined }), false, now), undefined);
-    assert.equal(ticketPlusStepsView(run({ platform: "klook", flowType: undefined }), false, now), undefined);
+    assert.equal(ticketPlusStepsView(run({ platform: null, flowType: undefined }), false, now), undefined);
 });
 
 test("執行中：已經過的步驟完成，目前步驟轉圈，還沒輪到的等待", () => {

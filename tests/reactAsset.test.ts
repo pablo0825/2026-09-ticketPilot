@@ -10,7 +10,6 @@ import { startLocalServer } from "../src/local/server.js";
 test("React 正式打包由本機同源載入，保留 API 驗證與資源邊界", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ticket-react-asset-"));
     const service = await startLocalServer(new ActivityStore(join(directory, "events")), {
-        contactPath: join(directory, "contact.json"),
         runDirectory: join(directory, "runtime"),
     });
     const browser = await chromium.launch();

@@ -97,15 +97,15 @@ test("排程不被舊指紋投影丟掉；無排程 v4／v5 指紋及原紀錄�
                 updatedAt: "2026-10-14T00:00:00.000Z",
                 settings: activity,
             };
-            assert.equal(runs.start(requestId, activity, undefined, activityId).id, "123-history");
+            assert.equal(runs.start(requestId, activity, activityId).id, "123-history");
             assert.equal(runs.activityStatus(saved), "已執行");
             for (const advanceSeconds of [1, 2] as const) {
                 const scheduled = { ...activity, saleSchedule: { ...schedule, advanceSeconds } };
-                assert.throws(() => runs.start(requestId, scheduled, undefined, activityId), /更換設定/);
+                assert.throws(() => runs.start(requestId, scheduled, activityId), /更換設定/);
                 assert.equal(runs.activityStatus({ ...saved, settings: scheduled }), "設定已更新");
-                assert.throws(() => runs.start(randomUUID(), scheduled, undefined, activityId), /10～1440/);
+                assert.throws(() => runs.start(randomUUID(), scheduled, activityId), /10～1440/);
                 assert.throws(
-                    () => runs.start(randomUUID(), { ...scheduled, maxRunMinutes: 10 }, undefined, activityId),
+                    () => runs.start(randomUUID(), { ...scheduled, maxRunMinutes: 10 }, activityId),
                     /開賣等待時間已過/,
                 );
             }
@@ -142,7 +142,7 @@ test("API 排程可保存重讀；提前秒數與時間皆比對，過期啟動�
     const store = new ActivityStore(join(dir, "events"));
     const service = await startLocalServer(store, {
         runDirectory: runtime,
-        contactPath: join(dir, "missing-contact"),
+
         purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
     });
     try {
@@ -223,11 +223,11 @@ test("固定 v5 排程紀錄：同請求重播先於啟動限制，改時間或�
             updatedAt: "2026-10-14T00:00:00.000Z",
             settings: scheduled,
         };
-        assert.equal(runs.start(requestId, scheduled, undefined, activityId).id, "123-history");
+        assert.equal(runs.start(requestId, scheduled, activityId).id, "123-history");
         assert.equal(runs.activityStatus(saved), "已執行");
-        assert.throws(() => runs.start(randomUUID(), scheduled, undefined, activityId), /10～1440/);
+        assert.throws(() => runs.start(randomUUID(), scheduled, activityId), /10～1440/);
         assert.throws(
-            () => runs.start(randomUUID(), { ...scheduled, maxRunMinutes: 10 }, undefined, activityId),
+            () => runs.start(randomUUID(), { ...scheduled, maxRunMinutes: 10 }, activityId),
             /開賣等待時間已過/,
         );
         for (const saleSchedule of [
@@ -235,7 +235,7 @@ test("固定 v5 排程紀錄：同請求重播先於啟動限制，改時間或�
             { ...schedule, saleAt: "2026-10-21T12:00:00+08:00" },
         ]) {
             const changed = { ...activity, saleSchedule };
-            assert.throws(() => runs.start(requestId, changed, undefined, activityId), /更換設定/);
+            assert.throws(() => runs.start(requestId, changed, activityId), /更換設定/);
             assert.equal(runs.activityStatus({ ...saved, settings: changed }), "設定已更新");
         }
         assert(!runs.busy());

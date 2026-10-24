@@ -7,21 +7,13 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ActivityStore } from "../src/config/activityStore.js";
 import { startLocalServer } from "../src/local/server.js";
-const settings = {
-    eventName: "同名活動",
-    platform: "klook",
-    eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
-    fallbackMode: "STRICT",
-    excludeKeywords: [],
-    targets: [{ date: "2026-11-02", time: "19:30", area: "B區", unitPrice: 5280, quantity: 1, adjacent: false }],
-};
+const settings = apiActivity;
 
-test("啟動與刪除並發只有一方成功，不刪個資或執行紀錄", async () => {
+test("啟動與刪除並發只有一方成功，不刪執行紀錄", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-home-start-"));
     const store = new ActivityStore(join(dir, "events"));
     const activity = await store.save(settings);
     const service = await startLocalServer(store, {
-        contactPath: join(dir, "contact.json"),
         runDirectory: join(dir, "runtime"),
         purchaseWorker: new URL("./fixtures/guiPurchaseWorker.ts", import.meta.url),
     });
@@ -30,15 +22,7 @@ test("啟動與刪除並發只有一方成功，不刪個資或執行紀錄", as
         "X-Local-Token": html.match(/<meta name="local-token" content="([^"]+)"/)![1]!,
         "Content-Type": "application/json",
     };
-    const contact = {
-        firstName: "Demo",
-        lastName: "Test",
-        regionLabel: "台灣 (+886)",
-        phone: "0912345678",
-        email: "fixture@example.com",
-    };
     try {
-        await fetch(service.url + "/api/contact", { method: "PUT", headers, body: JSON.stringify(contact) });
         const [started, deleted] = await Promise.all([
             fetch(service.url + "/api/purchase", {
                 method: "POST",
@@ -47,13 +31,11 @@ test("啟動與刪除並發只有一方成功，不刪個資或執行紀錄", as
                     requestId: crypto.randomUUID(),
                     activityId: activity.id,
                     expectedActivity: settings,
-                    expectedContact: contact,
                 }),
             }),
             fetch(`${service.url}/api/activities/${activity.id}`, { method: "DELETE", headers }),
         ]);
         assert.notEqual(started.status === 200, deleted.status === 200);
-        assert.deepEqual((await (await fetch(service.url + "/api/contact", { headers })).json()).contact, contact);
         if (started.status === 200) {
             for (let i = 0; i < 150; i++) {
                 const run = await (await fetch(service.url + "/api/purchase", { headers })).json();

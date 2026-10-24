@@ -1,45 +1,38 @@
-import { klookSettings } from "./fixtures/klookSettings.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ActivityStore, parseActivity, toPurchaseConfig } from "../src/config/activityStore.js";
-import { saveContactDetails } from "../src/config/contact.config.js";
+import { ActivityStore, parseActivity } from "../src/config/activityStore.js";
+import { parseTicketPlusActivity } from "../src/config/ticketPlusActivity.js";
 
-export const activity = {
-    platform: "klook",
-    eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
+const activity = {
+    platform: "ticketplus",
+    eventUrl: "https://ticketplus.com.tw/activity/fixture",
     eventName: "測試活動",
-    fallbackMode: "STRICT",
-    excludeKeywords: ["身障"],
     targets: [
-        { date: "2026-11-02", time: "19:30", area: "B區", unitPrice: 5280, quantity: 2, adjacent: true },
-        { date: "2026-11-03", time: "18:00", area: "C區", unitPrice: 4880, quantity: 1, adjacent: false },
+        { date: "2026-11-02", time: "19:30", ticketType: "B區", quantity: 2 },
+        { date: "2026-11-02", time: "19:30", ticketType: "C區", quantity: 1 },
     ],
 };
 
-test("活動格式驗證、順位轉換保留核心條件", () => {
-    const config = toPurchaseConfig(parseActivity(activity));
-    assert.deepEqual(
-        config.targets.map(t => [t.date, t.area, t.quantity]),
-        [
-            ["2026-11-02", "B區", 2],
-            ["2026-11-03", "C區", 1],
-        ],
-    );
-    assert.equal(config.targets[0]!.expectation.eventName, activity.eventName);
+test("活動解析保持 TicketPlus 欄位順序與選項，不補預設流程或期限", () => {
+    for (const input of [activity, { ...activity, flowType: "lottery", maxRunMinutes: 30 }]) {
+        assert.equal(JSON.stringify(parseActivity(input)), JSON.stringify(parseTicketPlusActivity(input)));
+    }
     for (const value of [
         null,
         {},
         { ...activity, eventName: 123 },
-        { ...activity, fallbackMode: "ANY" },
+        { ...activity, platform: "klook" },
+        { ...activity, platform: "unknown" },
         { ...activity, targets: [{ ...activity.targets[0], quantity: "2" }] },
         { ...activity, targets: [{ ...activity.targets[0], date: "2026-02-30" }] },
-        { ...activity, targets: [{ ...activity.targets[0], area: "身障" }] },
         { ...activity, targets: [{ ...activity.targets[0], quantity: Number.MAX_SAFE_INTEGER + 1 }] },
-        { ...activity, eventUrl: "https://www.klook.com.evil.example/zh-TW/event-detail/a/" },
+        { ...activity, eventUrl: "https://ticketplus.com.tw.evil.example/activity/fixture" },
         { ...activity, saleSchedule: { saleAt: "2026-11-01T10:00:00" } },
+        { ...activity, unexpected: true },
     ])
         assert.throws(() => parseActivity(value));
 });
@@ -52,85 +45,21 @@ test("新增不覆蓋同名活動；修改失敗保留舊檔；損壞與版本�
         const b = await store.save(activity);
         assert.notEqual(a.id, b.id);
         await store.save({ ...activity, eventName: "更新活動" }, a.id);
-        assert.equal(klookSettings((await store.load(b.id)).settings).eventName, activity.eventName);
+        assert.equal((await store.load(b.id)).settings.eventName, activity.eventName);
+        const before = await readFile(join(dir, `${a.id}.json`), "utf8");
         await assert.rejects(store.save({}, a.id));
-        assert.equal(klookSettings((await store.load(a.id)).settings).eventName, "更新活動");
+        assert.equal(await readFile(join(dir, `${a.id}.json`), "utf8"), before);
+        assert.equal((await store.load(a.id)).settings.eventName, "更新活動");
+        await assert.rejects(store.save(activity, randomUUID()));
         await assert.rejects(store.load("../../contact.local"));
         await writeFile(join(dir, "corrupt.json"), "{broken");
         await writeFile(join(dir, `${b.id}.json`), JSON.stringify({ ...b, schemaVersion: 99 }));
         const result = await store.list();
         assert.equal(result.activities.length, 1);
         assert.equal(result.invalidFiles, 2);
+        await store.remove(a.id);
+        await assert.rejects(store.load(a.id));
     } finally {
         await rm(dir, { recursive: true, force: true });
     }
-});
-
-test("個資保存共用驗證，錯誤輸入不覆蓋原檔", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "ticket-contact-"));
-    const path = join(dir, "contact.local.json");
-    try {
-        const data = {
-            firstName: "Demo",
-            lastName: "Test",
-            regionLabel: "台灣 (+886)",
-            phone: "0912345678",
-            email: "fixture@example.com",
-        };
-        await saveContactDetails(data, path);
-        assert.deepEqual(JSON.parse(await readFile(path, "utf8")), data);
-        await assert.rejects(saveContactDetails({}, path));
-        assert.deepEqual(JSON.parse(await readFile(path, "utf8")), data);
-    } finally {
-        await rm(dir, { recursive: true, force: true });
-    }
-});
-
-test("舊活動金額欄位可讀取並移除，新格式不再保存價格；其他未知欄位仍拒絕", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "ticket-price-migration-"));
-    try {
-        const store = new ActivityStore(dir);
-        const record = await store.save(activity);
-        for (const currency of [undefined, "HKD", "USD", null]) {
-            const legacy = { ...activity, currency, targets: activity.targets.map(t => ({ ...t, unitPrice: null })) };
-            await writeFile(join(dir, `${record.id}.json`), JSON.stringify({ ...record, settings: legacy }));
-            const loaded = await store.load(record.id);
-            assert.equal("currency" in loaded.settings, false);
-            assert(klookSettings(loaded.settings).targets.every(t => !("unitPrice" in t)));
-            assert.deepEqual(toPurchaseConfig(loaded.settings).targets[0]!.expectation, {
-                eventName: activity.eventName,
-            });
-            await store.save(loaded.settings, record.id);
-            const saved = JSON.parse(await readFile(join(dir, `${record.id}.json`), "utf8"));
-            assert.equal("currency" in saved.settings, false);
-            assert.equal("unitPrice" in saved.settings.targets[0], false);
-        }
-        assert.throws(() => parseActivity({ ...activity, unknown: true }));
-        assert.throws(() => parseActivity({ ...activity, targets: [{ ...activity.targets[0], unknown: true }] }));
-    } finally {
-        await rm(dir, { recursive: true, force: true });
-    }
-});
-
-test("套票設定保留舊資料形狀，驗證必填及共用取票方式傳遞", () => {
-    const old = parseActivity(activity);
-    const disabled = parseActivity({
-        ...activity,
-        bundleEnabled: false,
-        targets: activity.targets.map(t => ({ ...t, bundle: "舊套票" })),
-    });
-    assert.equal(JSON.stringify(disabled), JSON.stringify(old));
-    const enabled = parseActivity({
-        ...activity,
-        bundleEnabled: true,
-        deliveryMethod: "指定地點自取",
-        targets: activity.targets.map(t => ({ ...t, bundle: "套票 1" })),
-    });
-    assert.deepEqual(parseActivity(JSON.parse(JSON.stringify(enabled))), enabled);
-    const config = toPurchaseConfig(enabled);
-    assert.equal(config.bundleEnabled, true);
-    assert.equal(config.deliveryMethod, "指定地點自取");
-    assert(config.targets.every(t => t.bundle === "套票 1"));
-    assert.throws(() => parseActivity({ ...activity, bundleEnabled: true }), /每個順位/);
-    assert.throws(() => parseActivity({ ...activity, deliveryMethod: 1 }));
 });

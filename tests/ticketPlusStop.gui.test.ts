@@ -402,13 +402,13 @@ test("TicketPlus 停止 GUI：確認框按取消不送出停止，流程繼續",
     });
 });
 
-test("TicketPlus 停止 GUI：Klook、歷史紀錄及缺停止資格均無停止操作", async () => {
+test("TicketPlus 停止 GUI：未知平台、歷史紀錄及缺停止資格均無停止操作", async () => {
     await fixture("success", async (h, page, requests) => {
         let current = waitingRun();
         const feed = await snapshotFeed(page, "/api/purchase/events", current);
         await page.route("**/api/purchase", route => route.fulfill({ json: current }));
         for (const next of [
-            { ...waitingRun(), platform: "klook" as const },
+            { ...waitingRun(), platform: null },
             { ...waitingRun(), status: "failed" as const, occupied: false },
             { ...waitingRun(), canStop: undefined },
         ]) {

@@ -1,8 +1,5 @@
 import { PurchaseRuns } from "./purchaseRuns.js";
-import { loadContactDetails, saveContactDetails, validateContactDetails } from "../config/contact.config.js";
-import { parseActivity, projectRoot } from "../config/activityStore.js";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { parseActivity } from "../config/activityStore.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -31,12 +28,10 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown>> 
 export async function startLocalServer(
     store = new ActivityStore(),
     options: {
-        contactPath?: string;
         runDirectory?: string;
         purchaseWorker?: URL;
     } = {},
 ) {
-    const contactPath = options.contactPath ?? join(projectRoot, "contact.local.json");
     const purchases = new PurchaseRuns(options.runDirectory, options.purchaseWorker);
     const token = randomBytes(32).toString("hex");
 
@@ -140,19 +135,6 @@ export async function startLocalServer(
                 return;
             }
 
-            if (request.method === "GET" && url.pathname === "/api/contact") {
-                json(response, 200, {
-                    contact: existsSync(contactPath) ? await loadContactDetails(contactPath) : null,
-                });
-                return;
-            }
-
-            if (request.method === "PUT" && url.pathname === "/api/contact") {
-                await saveContactDetails(await body(request), contactPath);
-                json(response, 200, { saved: true });
-                return;
-            }
-
             if (request.method === "GET" && url.pathname === "/api/purchase") {
                 json(response, 200, purchases.snapshot());
                 return;
@@ -220,24 +202,15 @@ export async function startLocalServer(
                 const requestId = input.requestId;
                 notAccepted = () => !purchases.hasRequest(requestId);
 
+                if ("expectedContact" in input) throw new Error("TicketPlus 不接受聯絡資料。");
+
                 // 確認使用者看過的設定，和存檔內容一致
                 const expectedActivity = parseActivity(input.expectedActivity);
                 const activity = await store.load(input.activityId);
                 if (JSON.stringify(activity.settings) !== JSON.stringify(expectedActivity)) {
-                    throw new Error("活動或聯絡資料已變更，請重新載入、儲存並確認摘要。");
+                    throw new Error("活動設定已變更，請重新載入、儲存並確認摘要。");
                 }
-                let contact;
-                if (activity.settings.platform === "klook") {
-                    const expectedContact = validateContactDetails(input.expectedContact);
-                    contact = await loadContactDetails(contactPath);
-                    if (JSON.stringify(contact) !== JSON.stringify(expectedContact)) {
-                        throw new Error("活動或聯絡資料已變更，請重新載入、儲存並確認摘要。");
-                    }
-                } else if ("expectedContact" in input) {
-                    throw new Error("TicketPlus 本階段不接受聯絡資料。");
-                }
-
-                json(response, 200, purchases.start(input.requestId, activity.settings, contact, activity.id));
+                json(response, 200, purchases.start(input.requestId, activity.settings, activity.id));
                 return;
             }
 
