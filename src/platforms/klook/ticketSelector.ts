@@ -4,7 +4,7 @@ import type { TargetGroup } from "./selectionOptions.js";
 import { KlookTicketExtras } from "./ticketExtras.js";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { validateTicketTarget } from "../../core/purchaseValidation.js";
-import { KlookSelectionControls } from "./selectionControls.js";
+import { KlookSelectionControls, verifySelectionControls } from "./selectionControls.js";
 import type { Page } from "playwright";
 import type { TicketTarget, TicketOptions } from "../../core/types.js";
 import { log } from "../../core/logger.js";
@@ -37,12 +37,21 @@ export class KlookTicketSelector {
         const controls = new KlookSelectionControls(this.page, this.timeout, this.observeSelectionNotice);
         await controls.select(target);
 
-        // 同批替換操作與最終核對，後續操作不得默默重設已選項目。
-        await this.verifyGroup("日期", target.date);
-        await this.verifyGroup("時間", target.time);
-        await this.verifyGroup("票種", target.area);
-        await controls.verify(target);
-        await extras.verify();
+        // 所有操作完成後，用同一份非載入中的 DOM 核對完整購票目標。
+        await pollSelection(
+            this.page,
+            snapshot => {
+                verifySelectedTarget(snapshot, "日期", target.date);
+                verifySelectedTarget(snapshot, "時間", target.time);
+                verifySelectedTarget(snapshot, "票種", target.area);
+                verifySelectionControls(snapshot, target);
+                extras.verifySnapshot(snapshot);
+                return true;
+            },
+            "最終選票資料尚未完整",
+            this.observeSelectionNotice,
+            this.timeout,
+        );
         log("選票驗證完成，目前尚未取得座位。");
         return "selected";
     }

@@ -1,6 +1,8 @@
 import type { Locator, Page } from "playwright";
 import type { TicketOptions, TicketTarget } from "../../core/types.js";
 import { SelectionExpiryNotice } from "./notices.js";
+import type { SelectionSnapshot } from "./selectionDom.js";
+import { selectionGroup } from "./selectionPolling.js";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 
 function escapeRegex(text: string): string {
@@ -80,6 +82,30 @@ export class KlookTicketExtras {
         } catch (error) {
             if (error instanceof PurchaseStop || error instanceof SelectionExpiryNotice) throw error;
             throw new PurchaseStop("套票或取票方式狀態未知，已停止；不換順位。");
+        }
+    }
+
+    // 與日期、時間、票種、張數使用同一份最終 DOM，避免各欄位分開讀取時互相重設。
+    verifySnapshot(snapshot: SelectionSnapshot): void {
+        for (const choice of this.choices) {
+            const group = selectionGroup(snapshot, choice.heading);
+            if (!group && choice.optionalGroup && !choice.groupSeen) continue;
+            if (!choice.wanted) {
+                if (group) throw new PurchaseStop(`頁面出現${choice.heading}，請先完成設定。`);
+                continue;
+            }
+            if (!group) throw new PurchaseStop(`${choice.heading}消失，已停止。`);
+            const matches = group.options.filter(option => matchesExtraName(option.text, choice.wanted!));
+            const option = matches[0];
+            if (matches.length !== 1 || !option)
+                throw new PurchaseStop(`${choice.heading}找不到唯一匹配選項，已停止。`);
+            if (option.disabled || option.soldOut)
+                throw new PurchaseStop(`${choice.heading}目前無法選取，已停止；不換順位。`);
+            if (normalizeName(option.text) !== choice.selectedText)
+                throw new PurchaseStop(`${choice.heading}選項內容已改變，已停止。`);
+            if (!option.selected || group.options.filter(item => item.selected).length !== 1) {
+                throw new PurchaseStop(`${choice.heading}選取結果不一致，已停止。`);
+            }
         }
     }
 

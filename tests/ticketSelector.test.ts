@@ -922,3 +922,52 @@ test("張數更新延遲只點一次；停用仍保留一般錯誤分類", async
         await page.close();
     }
 });
+
+test("最後核對等待載入結束；載入後重設時間或新增未設定套票都不放行", async t => {
+    const page = await browser.newPage();
+    const select = KlookSelectionControls.prototype.select;
+    let mode = "same";
+    t.mock.method(
+        KlookSelectionControls.prototype,
+        "select",
+        async function (this: KlookSelectionControls, value: Parameters<KlookSelectionControls["select"]>[0]) {
+            await select.call(this, value);
+            await page.evaluate(mode => {
+                const root = document.querySelector("#ticket-options")!;
+                const loading = document.createElement("div");
+                loading.className = "klk-loading";
+                loading.textContent = "載入中";
+                root.append(loading);
+                setTimeout(() => {
+                    if (mode === "time") {
+                        const group = [...root.querySelectorAll("div")].find(
+                            el => el.textContent === "時間",
+                        )!.nextElementSibling!;
+                        [...group.children].forEach(el =>
+                            el.classList.toggle("active-vB3nra", el.textContent === "18:00"),
+                        );
+                    }
+                    if (mode === "extra")
+                        root.insertAdjacentHTML(
+                            "beforeend",
+                            '<div><div>組合套票</div><div><div class="active-vB3nra">套票1</div></div></div>',
+                        );
+                    loading.remove();
+                    document.body.dataset.finishedLoading = "true";
+                }, 300);
+            }, mode);
+        },
+    );
+    try {
+        for (mode of ["same", "time", "extra"]) {
+            await page.setContent(fixture());
+            const run = new KlookTicketSelector(page, 1500).selectAndVerify(target);
+            if (mode === "same") assert.equal(await run, "selected");
+            else await assert.rejects(run, mode === "time" ? /時間最終驗證不一致/ : /請先完成設定/);
+            assert.equal(await page.locator("body").getAttribute("data-finished-loading"), "true");
+            assert.equal(await page.locator("body").getAttribute("data-next"), null);
+        }
+    } finally {
+        await page.close();
+    }
+});

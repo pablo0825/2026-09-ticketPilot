@@ -97,13 +97,6 @@ export class KlookSelectionControls {
         }
     }
 
-    async verify(target: TicketTarget): Promise<void> {
-        await this.wait(data => {
-            verifySelectionControls(data, target);
-            return true;
-        }, "票數或相連座位最終資料尚未完整");
-    }
-
     private async wait(check: (snapshot: SelectionSnapshot) => boolean, message: string): Promise<SelectionSnapshot> {
         try {
             return await pollSelection(this.page, check, message, this.observeNotice, this.timeout);
