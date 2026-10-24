@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
 import { chromium, type Page } from "playwright";
-import type { PurchaseSnapshot } from "../src/server/runs/purchaseRuns.js";
+import type { PurchaseSnapshot } from "../src/shared/runSnapshot.js";
 import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
 import { enterTicketPlus, eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
 

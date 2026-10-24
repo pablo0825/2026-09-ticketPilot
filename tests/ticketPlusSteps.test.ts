@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { PurchaseSnapshot } from "../src/server/runs/purchaseRuns.js";
+import type { PurchaseSnapshot } from "../src/shared/runSnapshot.js";
 import type { TicketPlusWorkerEvent } from "../src/shared/platforms/ticketplus/events.js";
 import { ticketPlusStepsView } from "../src/gui/platforms/ticketplus/runSteps.js";
 

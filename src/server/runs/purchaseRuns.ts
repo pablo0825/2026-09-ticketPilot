@@ -15,7 +15,6 @@ import { runSnapshotFields, type BoundRunRules } from "../../app/platforms/platf
 import { sendWorkerStop } from "./sendWorkerStop.js";
 import type { PurchaseEvent } from "../../shared/runEvents.js";
 
-export type { PurchaseSnapshot } from "../../shared/runSnapshot.js";
 import type { PurchaseSnapshot } from "../../shared/runSnapshot.js";
 
 import { parseRunRecord, type RunRecord as Record } from "./runRecord.js";

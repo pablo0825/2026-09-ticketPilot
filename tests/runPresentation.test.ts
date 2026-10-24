@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { PurchaseSnapshot } from "../src/server/runs/purchaseRuns.js";
+import type { PurchaseSnapshot } from "../src/shared/runSnapshot.js";
 import type { PurchaseEvent } from "../src/shared/runEvents.js";
 import { purchaseStatus } from "../src/gui/shared/runs/runPresentation.js";
 

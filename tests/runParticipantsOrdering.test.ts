@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { chromium } from "playwright";
 import { ActivityStore } from "../src/storage/activityStore.js";
 import { startLocalServer } from "../src/server/server.js";
-import type { PurchaseSnapshot } from "../src/server/runs/purchaseRuns.js";
+import type { PurchaseSnapshot } from "../src/shared/runSnapshot.js";
 import { enterTicketPlus, snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
 
 for (const newerSnapshot of [false, true]) {

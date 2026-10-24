@@ -6,7 +6,6 @@ import { stoppedSubmissionResult } from "../../platforms/ticketplus/submissionOu
 import type { TicketPlusStopReason } from "../../platforms/ticketplus/runControl.js";
 import type { WorkerPurchaseEvent } from "../../shared/runEvents.js";
 
-export type { WorkerResult as TicketPlusWorkerResult } from "../workerProtocol.js";
 import type { WorkerInput, WorkerEnvironment, WorkerResult } from "../workerProtocol.js";
 
 export async function runTicketPlusWorker(
