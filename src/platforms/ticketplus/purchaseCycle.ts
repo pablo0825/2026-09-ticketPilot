@@ -3,8 +3,8 @@ import {
     parseTicketPlusActivity,
     ticketPlusFlowType,
     ticketPlusSessionSelection,
-} from "../../config/ticketPlusActivity.js";
-import type { TicketPlusActivitySettings } from "../../config/ticketPlusActivity.js";
+} from "../../config/platforms/ticketplus/activitySettings.js";
+import type { TicketPlusActivitySettings } from "../../config/platforms/ticketplus/activitySettings.js";
 import { submitTicketPlusInformation } from "./informationSubmission.js";
 import type {
     InformationSubmissionOptions,

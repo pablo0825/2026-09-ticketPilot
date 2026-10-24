@@ -10,7 +10,7 @@ import {
     singleTicketPlusSelection,
     ticketPlusSessionSelection,
     validateTicketPlusRunSettings,
-} from "../src/config/ticketPlusActivity.js";
+} from "../src/config/platforms/ticketplus/activitySettings.js";
 import { ActivityStore } from "../src/storage/activityStore.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 import { startLocalServer } from "../src/local/server.js";

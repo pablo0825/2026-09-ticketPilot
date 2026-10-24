@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { z } from "zod";
-import { createSettingsParser, parsePlatformSettings } from "../src/config/platforms.js";
-import { parseTicketPlusActivity, type TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
+import { createSettingsParser, parsePlatformSettings } from "../src/config/settingsRegistry.js";
+import {
+    parseTicketPlusActivity,
+    type TicketPlusActivitySettings,
+} from "../src/config/platforms/ticketplus/activitySettings.js";
 const other = z.object({ platform: z.literal("fixture"), code: z.number().int() }).strict();
 type Other = z.infer<typeof other>;
 

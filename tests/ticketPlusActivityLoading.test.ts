@@ -6,7 +6,7 @@ import type { Page } from "playwright";
 import { readTicketPlusActivityObservation, readTicketPlusPage } from "../src/platforms/ticketplus/pageState.js";
 import { selectTicketPlusSession, TicketPlusSessionError } from "../src/platforms/ticketplus/sessionSelection.js";
 import { TicketPlusRunControl, TicketPlusStopError } from "../src/platforms/ticketplus/runControl.js";
-import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../src/config/platforms/ticketplus/activitySettings.js";
 import { activity, order, session } from "./fixtures/ticketplus/pages.js";
 import { loadingSession } from "./fixtures/ticketplus/activityLoading.js";
 

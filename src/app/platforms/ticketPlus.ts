@@ -3,8 +3,8 @@ import {
     singleTicketPlusSelection,
     ticketPlusSessionSelection,
     validateTicketPlusRunSettings,
-} from "../../config/ticketPlusActivity.js";
-import type { TicketPlusActivitySettings } from "../../config/ticketPlusActivity.js";
+} from "../../config/platforms/ticketplus/activitySettings.js";
+import type { TicketPlusActivitySettings } from "../../config/platforms/ticketplus/activitySettings.js";
 import type { PurchaseEvent } from "../../shared/runEvents.js";
 
 // 保留原始序列化順序；明寫 purchase 與省略流程類型共用同一指紋。
@@ -49,7 +49,7 @@ export function ticketPlusStopReason(value: unknown): value is "user-stop" | "ti
     return value === "user-stop" || value === "time-limit";
 }
 
-import { ticketPlusFlowType } from "../../config/ticketPlusActivity.js";
+import { ticketPlusFlowType } from "../../config/platforms/ticketplus/activitySettings.js";
 import { validateSaleSchedule } from "../../core/saleSchedule.js";
 import { ticketPlusEventSchema } from "../../shared/platforms/ticketplus/events.js";
 import type { PlatformDefinition } from "./platformDefinition.js";

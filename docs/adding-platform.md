@@ -19,7 +19,7 @@
 
 | 範圍 | 登記位置 | 平台提供的內容 |
 | --- | --- | --- |
-| 設定 | `src/config/platforms.ts` | 平台 ID 與設定解析器 |
+| 設定 | `src/config/settingsRegistry.ts` | 平台 ID 與設定解析器 |
 | 執行規則 | `src/app/platforms/index.ts` | `PlatformDefinition` |
 | worker | `src/local/workerEntries.ts` | 設定解析器與 worker 執行函式 |
 | 前端 | `workspaceRegistry.ts` 與 `runPresenterRegistry.ts` | 工作區元件及純狀態呈現函式 |

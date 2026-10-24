@@ -3,8 +3,8 @@ import {
     parseTicketPlusActivity,
     ticketPlusSessionSelection,
     validateTicketPlusRunSettings,
-} from "../../../../config/ticketPlusActivity.js";
-import type { TicketPlusActivitySettings } from "../../../../config/ticketPlusActivity.js";
+} from "../../../../config/platforms/ticketplus/activitySettings.js";
+import type { TicketPlusActivitySettings } from "../../../../config/platforms/ticketplus/activitySettings.js";
 import { api } from "../../shared/api.js";
 import type { ApiError } from "../../shared/api.js";
 import type { TicketPlusActivityRecord } from "./formModel.js";

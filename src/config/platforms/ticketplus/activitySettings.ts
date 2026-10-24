@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { validateSaleSchedule } from "../core/saleSchedule.js";
+import { validateSaleSchedule } from "../../../core/saleSchedule.js";
 
 function isCalendarDate(value: string): boolean {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;

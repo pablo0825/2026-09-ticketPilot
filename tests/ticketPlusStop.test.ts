@@ -9,7 +9,7 @@ import { selectTicketPlusSession } from "../src/platforms/ticketplus/sessionSele
 import { runTicketPlusSubmission } from "../src/platforms/ticketplus/submissionOutcome.js";
 import { installQuantityFixture, quantityState } from "./fixtures/ticketplus/quantityPage.js";
 import { installSubmission, submissionCounts } from "./fixtures/ticketplus/submissionPage.js";
-import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../src/config/platforms/ticketplus/activitySettings.js";
 import type { TicketSelectionPage } from "../src/platforms/ticketplus/ticketSelectionPage.js";
 
 const settings: TicketPlusSelection = {

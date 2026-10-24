@@ -4,7 +4,7 @@ import { chromium } from "playwright";
 import type { Page } from "playwright";
 import { selectTicketPlusTickets, TicketPlusQuantityError } from "../src/platforms/ticketplus/ticketQuantity.js";
 import type { QuantityReason, QuantityStage } from "../src/platforms/ticketplus/ticketQuantity.js";
-import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../src/config/platforms/ticketplus/activitySettings.js";
 import { installQuantityFixture, quantityPage, quantityState } from "./fixtures/ticketplus/quantityPage.js";
 import type { QuantityFixtureOptions } from "./fixtures/ticketplus/quantityPage.js";
 import { presale } from "./fixtures/ticketplus/pages.js";

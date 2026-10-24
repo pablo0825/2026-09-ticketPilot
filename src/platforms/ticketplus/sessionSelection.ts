@@ -1,7 +1,7 @@
 import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
 import type { Locator, Page } from "playwright";
-import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
-import type { TicketPlusFlowType, TicketPlusSelection } from "../../config/ticketPlusActivity.js";
+import { parseTicketPlusSelection } from "../../config/platforms/ticketplus/activitySettings.js";
+import type { TicketPlusFlowType, TicketPlusSelection } from "../../config/platforms/ticketplus/activitySettings.js";
 import { normalizeSessionName } from "./activityPage.js";
 import type { ActivityPage } from "./activityPage.js";
 import { dismissTicketPlusActivityNotice, TicketPlusNoticeError } from "./activityNotice.js";

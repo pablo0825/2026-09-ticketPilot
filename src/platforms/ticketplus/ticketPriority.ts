@@ -1,7 +1,13 @@
 import { TicketPlusRunControl } from "./runControl.js";
 import type { Page } from "playwright";
-import { parseTicketPlusActivity, ticketPlusSessionSelection } from "../../config/ticketPlusActivity.js";
-import type { TicketPlusActivitySettings, TicketPlusSelection } from "../../config/ticketPlusActivity.js";
+import {
+    parseTicketPlusActivity,
+    ticketPlusSessionSelection,
+} from "../../config/platforms/ticketplus/activitySettings.js";
+import type {
+    TicketPlusActivitySettings,
+    TicketPlusSelection,
+} from "../../config/platforms/ticketplus/activitySettings.js";
 import { expandTicketPlusArea } from "./areaExpansion.js";
 import { readTicketPlusPage } from "./pageState.js";
 import { selectTicketPlusTickets } from "./ticketQuantity.js";

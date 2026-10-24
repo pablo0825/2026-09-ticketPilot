@@ -1,4 +1,4 @@
-import { parseTicketPlusActivity } from "../src/config/ticketPlusActivity.js";
+import { parseTicketPlusActivity } from "../src/config/platforms/ticketplus/activitySettings.js";
 import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";

@@ -1,4 +1,4 @@
-import { parseTicketPlusActivity } from "../config/ticketPlusActivity.js";
+import { parseTicketPlusActivity } from "../config/platforms/ticketplus/activitySettings.js";
 import { runTicketPlusWorker } from "./ticketPlusWorker.js";
 import { createWorkerEntry, createWorkerRegistry } from "./workerProtocol.js";
 

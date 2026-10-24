@@ -1,6 +1,6 @@
-import type { TicketPlusActivitySettings } from "./ticketPlusActivity.js";
+import type { TicketPlusActivitySettings } from "./platforms/ticketplus/activitySettings.js";
 import { ArchivedKlookActivityError } from "./archivedKlookActivity.js";
-import { parsePlatformSettings } from "./platforms.js";
+import { parsePlatformSettings } from "./settingsRegistry.js";
 
 export type ActivitySettings = TicketPlusActivitySettings;
 

@@ -10,7 +10,7 @@ import { chromium } from "playwright";
 import type { Page, ElementHandle } from "playwright";
 import { submitTicketPlusSelection, TicketPlusSubmissionError } from "../src/platforms/ticketplus/ticketSubmission.js";
 import type { TicketSubmissionOptions } from "../src/platforms/ticketplus/ticketSubmission.js";
-import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../src/config/platforms/ticketplus/activitySettings.js";
 import type { TicketSelectionPage } from "../src/platforms/ticketplus/ticketSelectionPage.js";
 import { readTicketPlusPage } from "../src/platforms/ticketplus/pageState.js";
 import { selectTicketPlusTickets } from "../src/platforms/ticketplus/ticketQuantity.js";

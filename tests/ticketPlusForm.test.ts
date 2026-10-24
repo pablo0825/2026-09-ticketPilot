@@ -8,7 +8,7 @@ import {
     draftFingerprint,
     ticketPlusRecord,
 } from "../src/local/react/platforms/ticketplus/formModel.js";
-import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
+import type { TicketPlusActivitySettings } from "../src/config/platforms/ticketplus/activitySettings.js";
 
 const settings: TicketPlusActivitySettings = {
     platform: "ticketplus",

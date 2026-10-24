@@ -19,7 +19,7 @@ purchase runs; `src/core/` owns shared sale-schedule validation;
 `src/shared/` owns frontend-safe run contracts;
 `tests/` contains tests; `docs/` records DOM observations and integration guides.
 
-Platform settings register in `src/config/platforms.ts`, execution rules in
+Platform settings register in `src/config/settingsRegistry.ts`, execution rules in
 `src/app/platforms/index.ts`, and child workers in `src/local/workerEntries.ts`.
 GUI workspaces and run presenters register separately in
 `src/local/react/platforms/workspaceRegistry.ts` and

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import type { TicketPlusSelection } from "../src/config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../src/config/platforms/ticketplus/activitySettings.js";
 import type { TicketSelectionPage } from "../src/platforms/ticketplus/ticketSelectionPage.js";
 import { inspectTicketPlusReselection } from "../src/platforms/ticketplus/reselectionReadiness.js";
 import { runTicketPlusSubmission } from "../src/platforms/ticketplus/submissionOutcome.js";

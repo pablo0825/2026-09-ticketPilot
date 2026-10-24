@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
 import { selectTicketPlusPriority } from "../src/platforms/ticketplus/ticketPriority.js";
-import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
+import type { TicketPlusActivitySettings } from "../src/config/platforms/ticketplus/activitySettings.js";
 import * as fixture from "./fixtures/ticketplus/areaPage.js";
 
 const settings: TicketPlusActivitySettings = {

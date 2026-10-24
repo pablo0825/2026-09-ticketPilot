@@ -28,7 +28,7 @@ import {
     executionErrors,
 } from "./formModel.js";
 import type { ActivityForm, TicketPlusActivityRecord, ExecutionForm, ExecutionErrors } from "./formModel.js";
-import { ticketPlusSessionSelection } from "../../../../config/ticketPlusActivity.js";
+import { ticketPlusSessionSelection } from "../../../../config/platforms/ticketplus/activitySettings.js";
 import { PurchaseConfirmPage } from "../../pages/PurchaseConfirmPage.js";
 import { findPendingStart, hasPendingStart, startPurchase } from "./startPurchase.js";
 

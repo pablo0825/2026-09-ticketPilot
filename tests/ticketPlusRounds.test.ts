@@ -10,7 +10,7 @@ import { chromium } from "playwright";
 import type { Page } from "playwright";
 import { runTicketPlusCycle } from "../src/platforms/ticketplus/purchaseCycle.js";
 import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
-import type { TicketPlusActivitySettings } from "../src/config/ticketPlusActivity.js";
+import type { TicketPlusActivitySettings } from "../src/config/platforms/ticketplus/activitySettings.js";
 import { installRoundPage, roundState } from "./fixtures/ticketplus/roundPage.js";
 import type { RoundMode } from "./fixtures/ticketplus/roundPage.js";
 

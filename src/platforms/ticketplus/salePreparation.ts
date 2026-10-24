@@ -1,6 +1,6 @@
 import { errors } from "playwright";
 import type { Page } from "playwright";
-import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../../config/platforms/ticketplus/activitySettings.js";
 import type { SaleSchedule } from "../../core/saleSchedule.js";
 import { validateSaleSchedule } from "../../core/saleSchedule.js";
 import { dismissTicketPlusActivityNotice, TicketPlusNoticeError } from "./activityNotice.js";

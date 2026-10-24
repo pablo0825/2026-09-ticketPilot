@@ -5,8 +5,11 @@ import {
     ticketPlusDefaultRunMinutes,
     ticketPlusFlowType,
     validateTicketPlusRunSettings,
-} from "../../../../config/ticketPlusActivity.js";
-import type { TicketPlusActivitySettings, TicketPlusFlowType } from "../../../../config/ticketPlusActivity.js";
+} from "../../../../config/platforms/ticketplus/activitySettings.js";
+import type {
+    TicketPlusActivitySettings,
+    TicketPlusFlowType,
+} from "../../../../config/platforms/ticketplus/activitySettings.js";
 
 export type TicketPlusActivityRecord = ActivityRecord & { settings: TicketPlusActivitySettings };
 export interface TargetDraft {

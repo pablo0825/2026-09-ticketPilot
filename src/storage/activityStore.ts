@@ -1,7 +1,7 @@
 import type { ActivityRecord } from "../shared/activityRecord.js";
 import { z } from "zod";
 import { parseActivity } from "../config/activitySettings.js";
-import { parsePlatformSettings } from "../config/platforms.js";
+import { parsePlatformSettings } from "../config/settingsRegistry.js";
 import { mkdir, readFile, readdir, rename, writeFile, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";

@@ -1,4 +1,4 @@
-import { parseTicketPlusActivity } from "./ticketPlusActivity.js";
+import { parseTicketPlusActivity } from "./platforms/ticketplus/activitySettings.js";
 
 export interface SettingsParser<S extends { platform: string }> {
     id: S["platform"];

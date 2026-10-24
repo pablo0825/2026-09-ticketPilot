@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { executionPlatform } from "../app/platforms/index.js";
-import { platformIds } from "../config/platforms.js";
+import { platformIds } from "../config/settingsRegistry.js";
 import type { PurchaseSnapshot } from "../shared/runSnapshot.js";
 
 export interface RunRecord {

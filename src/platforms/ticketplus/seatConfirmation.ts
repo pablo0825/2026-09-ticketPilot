@@ -1,5 +1,5 @@
 import type { ElementHandle, Page } from "playwright";
-import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../../config/platforms/ticketplus/activitySettings.js";
 import type { InformationPage } from "./informationPage.js";
 import { readTicketPlusPage } from "./pageState.js";
 import type { TicketPlusPage } from "./pageState.js";

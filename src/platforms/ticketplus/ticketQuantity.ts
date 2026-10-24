@@ -1,7 +1,7 @@
 import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
 import type { ElementHandle, Page } from "playwright";
-import { parseTicketPlusSelection } from "../../config/ticketPlusActivity.js";
-import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
+import { parseTicketPlusSelection } from "../../config/platforms/ticketplus/activitySettings.js";
+import type { TicketPlusSelection } from "../../config/platforms/ticketplus/activitySettings.js";
 import { readTicketPlusPage } from "./pageState.js";
 import { findTargetTickets } from "./ticketSelectionPage.js";
 import type { TicketRow, TicketSelectionPage } from "./ticketSelectionPage.js";

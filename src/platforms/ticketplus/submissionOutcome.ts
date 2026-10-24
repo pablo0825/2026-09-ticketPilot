@@ -1,7 +1,7 @@
 import type { TicketPlusStopReason } from "./runControl.js";
 import { TicketPlusRunControl, TicketPlusStopError } from "./runControl.js";
 import type { Page } from "playwright";
-import type { TicketPlusSelection } from "../../config/ticketPlusActivity.js";
+import type { TicketPlusSelection } from "../../config/platforms/ticketplus/activitySettings.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 import type { InformationPage } from "./informationPage.js";
 import { emptySubmissionProgress, submitTicketPlusSelection, TicketPlusSubmissionError } from "./ticketSubmission.js";

@@ -4,7 +4,10 @@ import { mkdtemp, mkdir, readFile, writeFile, readdir, rm } from "node:fs/promis
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { parseTicketPlusActivity, ticketPlusSessionSelection } from "../src/config/ticketPlusActivity.js";
+import {
+    parseTicketPlusActivity,
+    ticketPlusSessionSelection,
+} from "../src/config/platforms/ticketplus/activitySettings.js";
 import { ActivityStore } from "../src/storage/activityStore.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 import { startLocalServer } from "../src/local/server.js";

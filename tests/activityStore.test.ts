@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseActivity } from "../src/config/activitySettings.js";
 import { ActivityStore } from "../src/storage/activityStore.js";
-import { parseTicketPlusActivity } from "../src/config/ticketPlusActivity.js";
+import { parseTicketPlusActivity } from "../src/config/platforms/ticketplus/activitySettings.js";
 
 const activity = {
     platform: "ticketplus",
