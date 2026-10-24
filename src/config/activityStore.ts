@@ -1,6 +1,9 @@
 import { z } from "zod";
-import { parseTicketPlusActivity } from "./ticketPlusActivity.js";
-import type { TicketPlusActivitySettings } from "./ticketPlusActivity.js";
+import { parseActivity } from "./activitySettings.js";
+import { parsePlatformSettings } from "./platforms.js";
+import type { ActivitySettings } from "./activitySettings.js";
+export { parseActivity } from "./activitySettings.js";
+export type { ActivitySettings } from "./activitySettings.js";
 import { mkdir, readFile, readdir, rename, writeFile, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -9,20 +12,11 @@ import { ArchivedKlookActivityError, isArchivedKlookActivity } from "./archivedK
 
 export const projectRoot = fileURLToPath(new URL("../../", import.meta.url));
 
-export type ActivitySettings = TicketPlusActivitySettings;
-
 export interface ActivityRecord {
     schemaVersion: 3;
     id: string;
     updatedAt: string;
     settings: ActivitySettings;
-}
-
-export function parseActivity(value: unknown): ActivitySettings {
-    if (value && typeof value === "object" && "platform" in value && value.platform === "klook") {
-        throw new ArchivedKlookActivityError();
-    }
-    return parseTicketPlusActivity(value);
 }
 
 export async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
@@ -71,7 +65,7 @@ export class ActivityStore {
         }
         if (record.data.schemaVersion !== 3) throw new Error("舊活動設定格式錯誤。");
         // 格式不完整的 Klook 檔案仍是無效資料，不能當成有效封存資料略過。
-        const settings = parseTicketPlusActivity(record.data.settings);
+        const settings = parsePlatformSettings(record.data.settings);
         return { ...record.data, schemaVersion: 3, settings };
     }
 

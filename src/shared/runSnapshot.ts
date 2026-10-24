@@ -1,4 +1,4 @@
-import type { ActivitySettings } from "../config/activityStore.js";
+import type { ActivitySettings } from "../config/activitySettings.js";
 import type { TicketPlusFlowType } from "../config/ticketPlusActivity.js";
 import type { TicketPlusStopReason } from "../platforms/ticketplus/runControl.js";
 import type { PurchaseEvent } from "./runEvents.js";
