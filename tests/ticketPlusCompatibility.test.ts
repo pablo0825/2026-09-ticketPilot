@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { chromium } from "playwright";
 import { parseTicketPlusActivity, parseTicketPlusSelection } from "../src/config/ticketPlusActivity.js";
-import { ActivityStore } from "../src/config/activityStore.js";
+import { ActivityStore } from "../src/storage/activityStore.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 import { startLocalServer } from "../src/local/server.js";
 import { runTicketPlus } from "../src/app/runTicketPlus.js";

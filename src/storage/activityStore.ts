@@ -1,16 +1,13 @@
 import type { ActivityRecord } from "../shared/activityRecord.js";
 import { z } from "zod";
-import { parseActivity } from "./activitySettings.js";
-import { parsePlatformSettings } from "./platforms.js";
-import type { ActivitySettings } from "./activitySettings.js";
-export { parseActivity } from "./activitySettings.js";
-export type { ActivitySettings } from "./activitySettings.js";
+import { parseActivity } from "../config/activitySettings.js";
+import { parsePlatformSettings } from "../config/platforms.js";
 import { mkdir, readFile, readdir, rename, writeFile, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { ArchivedKlookActivityError, isArchivedKlookActivity } from "./archivedKlookActivity.js";
+import { ArchivedKlookActivityError, isArchivedKlookActivity } from "../config/archivedKlookActivity.js";
 
-import { projectRoot } from "../storage/dataPaths.js";
+import { projectRoot } from "./dataPaths.js";
 
 export async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
     const temporary = `${path}.${randomUUID()}.tmp`;

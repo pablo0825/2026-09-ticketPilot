@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ActivityStore } from "../src/config/activityStore.js";
+import { ActivityStore } from "../src/storage/activityStore.js";
 import { startLocalServer } from "../src/local/server.js";
 const settings = apiActivity;
 

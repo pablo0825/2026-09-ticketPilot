@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { chromium } from "playwright";
 import type { Page, Browser } from "playwright";
 import { acquirePurchaseLease, releasePurchaseLease } from "../src/app/purchaseLock.js";
-import { ActivityStore } from "../src/config/activityStore.js";
+import { ActivityStore } from "../src/storage/activityStore.js";
 import { startLocalServer } from "../src/local/server.js";
 import { eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
 

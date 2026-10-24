@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { parseTicketPlusActivity, ticketPlusSessionSelection } from "../src/config/ticketPlusActivity.js";
-import { ActivityStore } from "../src/config/activityStore.js";
+import { ActivityStore } from "../src/storage/activityStore.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 import { startLocalServer } from "../src/local/server.js";
 import { purchaseOccupied } from "../src/app/purchaseLock.js";

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ActivityStore } from "../src/config/activityStore.js";
+import { ActivityStore } from "../src/storage/activityStore.js";
 import { startLocalServer } from "../src/local/server.js";
 
 test("正式 GUI 提供 React 打包模組與 CSS，不再提供舊腳本", async () => {

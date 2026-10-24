@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseTicketPlusActivity, ticketPlusFlowType } from "../src/config/ticketPlusActivity.js";
-import { parseActivity } from "../src/config/activityStore.js";
+import { parseActivity } from "../src/config/activitySettings.js";
 
 function validActivity() {
     return {

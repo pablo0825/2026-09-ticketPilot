@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
-import { ActivityStore } from "../src/config/activityStore.js";
+import { ActivityStore } from "../src/storage/activityStore.js";
 import { startLocalServer } from "../src/local/server.js";
 
 const activity = {

@@ -10,7 +10,7 @@ import { EventEmitter } from "node:events";
 import { chromium } from "playwright";
 import { acquirePurchaseLease, purchaseOccupied } from "../src/app/purchaseLock.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
-import { ActivityStore } from "../src/config/activityStore.js";
+import { ActivityStore } from "../src/storage/activityStore.js";
 import { runTicketPlus } from "../src/app/runTicketPlus.js";
 const worker = new URL("./fixtures/guiPurchaseWorker.ts", import.meta.url);
 const activity = { ...apiActivity, eventName: "Fixture" };

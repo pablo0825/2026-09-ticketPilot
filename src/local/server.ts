@@ -1,9 +1,9 @@
 import { PurchaseRuns } from "./purchaseRuns.js";
-import { parseActivity } from "../config/activityStore.js";
+import { parseActivity } from "../config/activitySettings.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { ActivityStore } from "../config/activityStore.js";
+import { ActivityStore } from "../storage/activityStore.js";
 
 async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
     // 讀取請求內容，限制大小

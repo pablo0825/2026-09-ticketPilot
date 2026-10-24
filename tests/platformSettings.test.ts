@@ -4,7 +4,8 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ActivityStore, parseActivity } from "../src/config/activityStore.js";
+import { parseActivity } from "../src/config/activitySettings.js";
+import { ActivityStore } from "../src/storage/activityStore.js";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
 
 const legacySettings = {

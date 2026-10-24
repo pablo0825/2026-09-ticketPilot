@@ -7,7 +7,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { parseActivity, type ActivitySettings } from "../config/activityStore.js";
+import { parseActivity, type ActivitySettings } from "../config/activitySettings.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
 import { runCapabilities } from "../app/platforms/runCapabilities.js";
 import { executionPlatform, platformFor } from "../app/platforms/index.js";
