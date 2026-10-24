@@ -1,11 +1,12 @@
 import { z } from "zod";
-import { ticketPlusEventSchema } from "../app/platforms/ticketPlusEvents.js";
+import { executionPlatform } from "../app/platforms/index.js";
+import { platformIds } from "../config/platforms.js";
 import type { PurchaseSnapshot } from "../shared/runSnapshot.js";
 
 export interface RunRecord {
     snapshot: PurchaseSnapshot;
     fingerprint: string;
-    fingerprintVersion?: 2 | 3 | 4 | 5;
+    fingerprintVersion?: number;
     activity?: { id: string; settingsHash: string };
 }
 
@@ -14,14 +15,14 @@ export function parseRunRecord(value: unknown, id: string): RunRecord | "archive
     const record = value as RunRecord;
     const valid = z
         .object({
-            fingerprintVersion: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
+            fingerprintVersion: z.number().int().optional(),
             fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
             activity: z
                 .object({ id: z.string().uuid(), settingsHash: z.string().regex(/^[0-9a-f]{64}$/) })
                 .strict()
                 .optional(),
             snapshot: z.object({
-                platform: z.enum(["klook", "ticketplus"]).optional(),
+                platform: z.enum(["klook", ...platformIds]).optional(),
                 id: z.string(),
                 requestId: z.literal(id),
                 activityName: z.string(),
@@ -46,10 +47,7 @@ export function parseRunRecord(value: unknown, id: string): RunRecord | "archive
                         z.object({
                             sequence: z.number().int(),
                             at: z.string(),
-                            event: z.union([
-                                z.object({ type: z.enum(["state", "log", "target", "recovery"]) }).passthrough(),
-                                ticketPlusEventSchema,
-                            ]),
+                            event: z.unknown(),
                         }),
                     )
                     .max(300),
@@ -58,23 +56,25 @@ export function parseRunRecord(value: unknown, id: string): RunRecord | "archive
         .safeParse(record);
     if (!valid.success) throw new Error("Invalid run record");
     const platform = valid.data.snapshot.platform ?? "klook";
-    if (record.fingerprintVersion === 5 && platform !== "ticketplus") {
+    const legacyEvent = z.object({ type: z.enum(["state", "log", "target", "recovery"]) }).passthrough();
+    const definition = platform === "klook" ? undefined : executionPlatform(platform);
+    const versions = definition?.recordVersions ?? [2, 3, 4];
+    if (record.fingerprintVersion !== undefined && !versions.includes(record.fingerprintVersion))
         throw new Error("Invalid fingerprint platform");
+    for (const item of valid.data.snapshot.events) {
+        if (!legacyEvent.safeParse(item.event).success && !definition?.parseEvent(item.event))
+            throw new Error("Invalid platform event");
     }
     if (
-        platform !== "ticketplus" &&
+        !definition &&
         (valid.data.snapshot.status === "information-ready" ||
             valid.data.snapshot.status === "registration-ready" ||
             valid.data.snapshot.flowType !== undefined ||
-            valid.data.snapshot.stopReason !== undefined ||
-            valid.data.snapshot.events.some(item => item.event.type === "ticketplus"))
-    ) {
-        throw new Error("Invalid platform event or result");
-    }
-
-    // 有效舊紀錄只回報封存標記。查詢請求 ID 時仍須拒絕重用，不能當成不存在。
+            valid.data.snapshot.stopReason !== undefined)
+    )
+        throw new Error("Invalid platform result");
     if (platform === "klook") return "archived-klook";
-    const snapshot = { ...record.snapshot, platform: "ticketplus" as const };
+    const snapshot = { ...record.snapshot, platform };
     delete snapshot.canStop;
     delete snapshot.stopRequest;
     delete snapshot.loginConfirmation;

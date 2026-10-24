@@ -5,18 +5,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { parseActivity, projectRoot, type ActivityRecord, type ActivitySettings } from "../config/activityStore.js";
-import { validateSaleSchedule } from "../core/saleSchedule.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
-import { ticketPlusFlowType } from "../config/ticketPlusActivity.js";
-import {
-    ticketPlusFingerprintSettings,
-    ticketPlusLegacySettings,
-    validateTicketPlusStart,
-    ticketPlusWaitingForSale,
-    ticketPlusAcceptsResult,
-    ticketPlusStopReason,
-} from "../app/platforms/ticketPlus.js";
-import { ticketPlusEventSchema } from "./purchaseEvents.js";
+import { executionPlatform, platformFor } from "../app/platforms/index.js";
+import { runSnapshotFields, type BoundRunRules } from "../app/platforms/platformDefinition.js";
 import { sendTicketPlusStop } from "./sendTicketPlusStop.js";
 import type { PurchaseEvent } from "./purchaseEvents.js";
 
@@ -27,10 +18,8 @@ import { parseRunRecord, type RunRecord as Record } from "./runRecord.js";
 
 export type ActivityExecutionStatus = "尚無執行紀錄" | "等待開賣" | "執行中" | "已執行" | "設定已更新" | "舊版執行紀錄";
 
-function settingsHash(settings: ActivitySettings): string {
-    return createHash("sha256")
-        .update(JSON.stringify(ticketPlusFingerprintSettings(settings)))
-        .digest("hex");
+function hashContent(value: unknown): string {
+    return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
 // 活動 id 只存在紀錄的活動資料，交給畫面時才帶入快照。
@@ -170,18 +159,16 @@ export class PurchaseRuns {
 
         // 只有本服務持有的現行 worker 能代表仍在執行，舊紀錄不推測續跑。
         if (record === this.current && this.child && record.snapshot.status === "running") {
-            return ticketPlusWaitingForSale(record.snapshot.events) ? "等待開賣" : "執行中";
+            return executionPlatform(record.snapshot.platform).waitingForSale(record.snapshot.events)
+                ? "等待開賣"
+                : "執行中";
         }
 
-        if (record.fingerprintVersion !== 4 && record.fingerprintVersion !== 5) return "舊版執行紀錄";
-        // 舊 TicketPlus 紀錄依原單目標形狀比對，純格式轉換不算設定變更。
-        if (record.fingerprintVersion === 4) {
-            const legacy = ticketPlusLegacySettings(activity.settings);
-            if (!legacy) return "設定已更新";
-            const legacyHash = createHash("sha256").update(JSON.stringify(legacy)).digest("hex");
-            return record.activity.settingsHash === legacyHash ? "已執行" : "設定已更新";
-        }
-        return record.activity.settingsHash === settingsHash(activity.settings) ? "已執行" : "設定已更新";
+        const rules = platformFor(activity.settings);
+        if (record.snapshot.platform !== activity.settings.platform) return "設定已更新";
+        if (!rules.comparableVersions.some(version => version === record.fingerprintVersion)) return "舊版執行紀錄";
+        const content = rules.settingsContent(record.fingerprintVersion);
+        return content !== undefined && record.activity.settingsHash === hashContent(content) ? "已執行" : "設定已更新";
     }
 
     start(requestId: string, activityInput: unknown, activityId?: string): PurchaseSnapshot {
@@ -191,40 +178,32 @@ export class PurchaseRuns {
         }
 
         const activity = parseActivity(activityInput);
-        const fingerprint = createHash("sha256")
-            .update(JSON.stringify({ activity: ticketPlusFingerprintSettings(activity) }))
-            .digest("hex");
-
-        // 同一個請求重送時，回傳原本的結果
-        const legacy = ticketPlusLegacySettings(activity);
-        const legacyFingerprint = legacy
-            ? createHash("sha256")
-                  .update(JSON.stringify({ activity: legacy }))
-                  .digest("hex")
-            : undefined;
-        const previous = this.previousResult(requestId, activityId, fingerprint, legacyFingerprint);
+        const rules = platformFor(activity);
+        const fingerprint = hashContent(rules.requestContent(rules.fingerprintVersion));
+        const previous = this.previousResult(requestId, activityId, activity.platform, rules);
         if (previous) return previous;
-        validateTicketPlusStart(activity);
-
-        // 確認沒有占用，且還沒超過開賣等待期限
+        rules.validateStart();
         if (this.busy()) throw new Error("已有購票程序或瀏覽器占用，請先關閉原購票瀏覽器。");
-        if (activity.saleSchedule && Date.now() >= validateSaleSchedule(activity.saleSchedule) + 120_000) {
-            throw new Error("開賣等待時間已過，請更新時間或選擇立即開始。");
-        }
+        rules.validateSchedule(Date.now());
 
         // 取得占用並建立執行紀錄
         const lease = acquirePurchaseLease(this.root);
         const record: Record = {
-            fingerprintVersion: 5,
+            fingerprintVersion: rules.fingerprintVersion,
             fingerprint,
-            ...(activityId ? { activity: { id: activityId, settingsHash: settingsHash(activity) } } : {}),
+            ...(activityId
+                ? {
+                      activity: {
+                          id: activityId,
+                          settingsHash: hashContent(rules.settingsContent(rules.fingerprintVersion)),
+                      },
+                  }
+                : {}),
             snapshot: {
                 platform: activity.platform,
                 id: `${Date.now()}-${randomUUID()}`,
                 requestId,
-                activityName: activity.eventName,
-                ...(activity.saleSchedule ? { saleAt: activity.saleSchedule.saleAt } : {}),
-                flowType: ticketPlusFlowType(activity),
+                ...runSnapshotFields(rules.snapshotFields),
                 status: "running",
                 browserOpen: false,
                 occupied: true,
@@ -263,18 +242,20 @@ export class PurchaseRuns {
     private previousResult(
         requestId: string,
         activityId: string | undefined,
-        fingerprint: string,
-        legacyFingerprint?: string,
+        platform: string,
+        rules: BoundRunRules,
     ): PurchaseSnapshot | undefined {
         const previous = this.read(requestId);
         if (previous === "archived-klook") throw new Error("此開始請求屬於已停用的 Klook 流程，不會重新啟動。");
         if (!previous) return undefined;
 
-        if (previous.fingerprintVersion !== 4 && previous.fingerprintVersion !== 5) {
+        if (!rules.comparableVersions.some(version => version === previous.fingerprintVersion)) {
             throw new Error("舊版開始請求結果需人工確認，請檢查原流程與訂單；不會重新啟動。");
         }
         if (previous.activity && previous.activity.id !== activityId) throw new Error("同一開始請求不能更換活動。");
-        const expectedFingerprint = previous.fingerprintVersion === 4 ? legacyFingerprint : fingerprint;
+        const content = rules.requestContent(previous.fingerprintVersion);
+        const expectedFingerprint = content === undefined ? undefined : hashContent(content);
+        if (previous.snapshot.platform !== platform) throw new Error("同一開始請求不能更換設定。");
         if (previous.fingerprint !== expectedFingerprint) throw new Error("同一開始請求不能更換設定。");
 
         const current = this.snapshot();
@@ -414,16 +395,17 @@ export class PurchaseRuns {
         // 接收子程序回報的事件、瀏覽器狀態與結果
         child.on("message", (value: any) => {
             try {
-                const ticketPlusEvent = ticketPlusEventSchema.safeParse(value?.event);
+                const definition = executionPlatform(record.snapshot.platform);
+                const platformEvent = definition.parseEvent(value?.event);
                 if (
                     value?.type === "event" &&
                     ((value.event?.type === "log" && typeof value.event.message === "string") ||
-                        ticketPlusEvent.success)
+                        platformEvent !== undefined)
                 ) {
                     record.snapshot.events.push({
                         sequence: (record.snapshot.events.at(-1)?.sequence ?? 0) + 1,
                         at: new Date().toISOString(),
-                        event: ticketPlusEvent.success ? ticketPlusEvent.data : value.event,
+                        event: platformEvent !== undefined ? platformEvent : value.event,
                     });
                     if (record.snapshot.events.length > 300) {
                         record.snapshot.events.shift();
@@ -433,13 +415,12 @@ export class PurchaseRuns {
                     record.snapshot.browserOpen = value.open === true;
                 } else if (
                     value?.type === "result" &&
-                    (["failed", "unknown"].includes(value.outcome) ||
-                        (record.snapshot.platform === "ticketplus" && ticketPlusAcceptsResult(value.outcome)))
+                    (["failed", "unknown"].includes(value.outcome) || definition.acceptsResult(value.outcome))
                 ) {
                     record.snapshot.status = value.outcome;
                     record.snapshot.message = value.message;
                     // 只保留 TicketPlus 已知的停止原因，其他值不寫入紀錄。
-                    if (record.snapshot.platform === "ticketplus" && ticketPlusStopReason(value.stopReason)) {
+                    if (definition.stopReason(value.stopReason)) {
                         record.snapshot.stopReason = value.stopReason;
                     }
                 } else if (value?.type === "finished") {
