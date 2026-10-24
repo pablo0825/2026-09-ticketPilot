@@ -9,11 +9,15 @@ import { fileURLToPath } from "node:url";
 const probe = fileURLToPath(new URL("./fixtures/structureProbe.ts", import.meta.url));
 const loader = new URL("../node_modules/tsx/dist/loader.mjs", import.meta.url).href;
 
-for (const mode of ["server-import", "paths", "default-worker", "main"]) {
+for (const mode of ["server-import", "paths", "default-paths", "default-worker", "main"]) {
     test(`結構保護：${mode} 在隔離工作目錄可執行`, async () => {
         const directory = await mkdtemp(join(tmpdir(), "ticket-structure-"));
         try {
-            const result = spawnSync(process.execPath, ["--import", loader, probe, mode, directory], {
+            const selectedProbe =
+                mode === "default-paths"
+                    ? fileURLToPath(new URL("./fixtures/defaultPathsProbe.ts", import.meta.url))
+                    : probe;
+            const result = spawnSync(process.execPath, ["--import", loader, selectedProbe, mode, directory], {
                 cwd: directory,
                 encoding: "utf8",
                 timeout: 30_000,
