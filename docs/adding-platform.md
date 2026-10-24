@@ -18,6 +18,22 @@
 
 `src/shared/` 包含活動紀錄、活動執行狀態、執行快照與控制契約，以及 `platforms/<platform>/events.ts` 的事件 schema 和推導型別。事件 schema 可以使用前端安全的 Zod；只需要型別的前端程式使用 `import type`。共用契約不反向引用 `app/`。`src/gui/shared/` 則只放前端共用元件與操作邏輯。
 
+`tests/dependencyBoundaries.test.ts` 以 TypeScript 語法樹檢查以下引用方向，`import type`、轉匯出、型別內的 `import()`、動態 `import()` 與 `require()` 都包含在內：
+
+| 來源 | 允許引用的專案目錄 |
+| --- | --- |
+| `src/gui/` | 自身、`shared/`、`config/`、`core/` |
+| `src/shared/` | 自身、`config/`、`core/` |
+| `src/config/` | 自身、`core/` |
+| `src/core/` | 自身 |
+| `src/app/platforms/` | 自身、`shared/`、`config/`、`core/` |
+
+上述各層禁止 Node 內建模組與未列入允許清單的套件。目前 GUI 允許 `react`、`react-dom/client`、`react/jsx-runtime`、`zod`；其餘各層只允許 `zod`。新增前端套件時須先確認相容性，再明確更新測試清單。不能用計算出的模組路徑繞過檢查；無法靜態判斷的引用會使測試失敗。
+
+測試也從主程式、伺服器與執行管理入口追蹤本地引用，拒絕包含函式內延遲載入的 Playwright 引用。`new URL(...)` 指定的 worker 入口不視為主服務模組引用，由 `tests/structureBoundaries.test.ts` 驗證實際入口。這些靜態檢查配合現有的主服務實際載入測試與 GUI 建置，不取代它們。
+
+掃描器不深入分析外部套件，也不分析 `eval` 或改名、包裝後的自訂載入器；新增這類寫法需要額外審查。測試 helper 使用現有 TypeScript 7 的 `unstable` AST API，升級 TypeScript 時應執行掃描器的正面與負面測試，確認引用解析仍然有效。
+
 ## 四個接入範圍
 
 | 範圍 | 登記位置 | 平台提供的內容 |
