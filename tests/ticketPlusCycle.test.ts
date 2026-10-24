@@ -11,7 +11,7 @@ import { runTicketPlusCycle } from "../src/platforms/ticketplus/purchaseCycle.js
 import type { TicketPlusCycleEvent } from "../src/platforms/ticketplus/purchaseCycle.js";
 import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
 import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
-import { ticketPlusResultMessage } from "../src/app/flows/ticketplus/runMessages.js";
+import { ticketPlusResultMessage } from "../src/workers/ticketplus/runMessages.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
 import type { TicketPlusActivitySettings } from "../src/config/platforms/ticketplus/activitySettings.js";
 import { installCyclePage, cycleState } from "./fixtures/ticketplus/cyclePage.js";

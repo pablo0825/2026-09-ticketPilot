@@ -1,6 +1,6 @@
-import { ticketPlusEventMessage } from "../src/app/flows/ticketplus/runMessages.js";
+import { ticketPlusEventMessage } from "../src/workers/ticketplus/runMessages.js";
 import { loggedInHome, loggedOutHome } from "./fixtures/ticketplus/loginPage.js";
-import { ticketPlusResultDiagnostic, ticketPlusResultMessage } from "../src/app/flows/ticketplus/runMessages.js";
+import { ticketPlusResultDiagnostic, ticketPlusResultMessage } from "../src/workers/ticketplus/runMessages.js";
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";

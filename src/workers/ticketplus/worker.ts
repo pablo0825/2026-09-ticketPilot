@@ -1,10 +1,6 @@
 import type { TicketPlusActivitySettings } from "../../config/platforms/ticketplus/activitySettings.js";
 import { runTicketPlus } from "../../app/flows/ticketplus/runTicketPlus.js";
-import {
-    ticketPlusEventMessage,
-    ticketPlusResultDiagnostic,
-    ticketPlusResultMessage,
-} from "../../app/flows/ticketplus/runMessages.js";
+import { ticketPlusEventMessage, ticketPlusResultDiagnostic, ticketPlusResultMessage } from "./runMessages.js";
 import { emptySubmissionProgress } from "../../platforms/ticketplus/ticketSubmission.js";
 import { stoppedSubmissionResult } from "../../platforms/ticketplus/submissionOutcome.js";
 import type { TicketPlusStopReason } from "../../platforms/ticketplus/runControl.js";

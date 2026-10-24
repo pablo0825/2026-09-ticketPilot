@@ -9,7 +9,7 @@
 - `src/app/flows/<platform>/`：協調平台流程與瀏覽器、驗證 lease 並管理釋放時機。
 - `src/platforms/<platform>/`：依觀察到的 DOM 實作網站操作、選票與平台恢復流程。
 - `src/server/runs/`：管理請求去重、子程序、執行紀錄及控制訊息。
-- `src/workers/`：接收子程序控制訊息；平台 worker 將詳細結果轉成可保存的摘要。
+- `src/workers/`：接收子程序控制訊息；平台 worker 將詳細結果轉成可保存的摘要。TicketPlus 的訊息轉換位於 `src/workers/ticketplus/runMessages.ts`。
 - `src/storage/`：讀寫活動設定，管理資料路徑與持續占用鎖。
 - `src/shared/`：前後端可共同引用的資料型別與事件 schema，不含 Node 或瀏覽器啟動的 runtime 依賴。
 - `src/gui/platforms/<platform>/`：平台表單、工作區、流程文字和步驟呈現。

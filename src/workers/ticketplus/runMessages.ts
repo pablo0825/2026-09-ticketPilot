@@ -1,18 +1,22 @@
-import type { TicketPlusSaleReason } from "../../../platforms/ticketplus/salePreparation.js";
-import type { TicketPlusRunEvent, TicketPlusRunResult, TicketPlusStage } from "./runTicketPlus.js";
+import type { TicketPlusSaleReason } from "../../platforms/ticketplus/salePreparation.js";
+import type {
+    TicketPlusRunEvent,
+    TicketPlusRunResult,
+    TicketPlusStage,
+} from "../../app/flows/ticketplus/runTicketPlus.js";
 import type {
     SessionDiagnostic,
     SessionEntryReason,
     SessionEntryStage,
-} from "../../../platforms/ticketplus/sessionSelection.js";
-import type { TicketPlusStopReason } from "../../../platforms/ticketplus/runControl.js";
-import type { Dismissal, SubmissionProgress } from "../../../platforms/ticketplus/ticketSubmission.js";
-import type { TicketRefreshResult } from "../../../platforms/ticketplus/ticketRefresh.js";
-import type { ReselectionBlockedReason } from "../../../platforms/ticketplus/reselectionReadiness.js";
-import type { InformationSubmissionReason } from "../../../platforms/ticketplus/informationSubmission.js";
-import type { LotteryFailure } from "./finishLottery.js";
-import type { TicketPlusLoginReason } from "../../../platforms/ticketplus/loginWait.js";
-import type { PriorityReason } from "../../../platforms/ticketplus/ticketPriority.js";
+} from "../../platforms/ticketplus/sessionSelection.js";
+import type { TicketPlusStopReason } from "../../platforms/ticketplus/runControl.js";
+import type { Dismissal, SubmissionProgress } from "../../platforms/ticketplus/ticketSubmission.js";
+import type { TicketRefreshResult } from "../../platforms/ticketplus/ticketRefresh.js";
+import type { ReselectionBlockedReason } from "../../platforms/ticketplus/reselectionReadiness.js";
+import type { InformationSubmissionReason } from "../../platforms/ticketplus/informationSubmission.js";
+import type { LotteryFailure } from "../../app/flows/ticketplus/finishLottery.js";
+import type { TicketPlusLoginReason } from "../../platforms/ticketplus/loginWait.js";
+import type { PriorityReason } from "../../platforms/ticketplus/ticketPriority.js";
 
 const sessionReasons: Record<SessionEntryReason, string> = {
     "activity-ready-timeout": "等待活動頁載入逾時，尚未取得完整場次",

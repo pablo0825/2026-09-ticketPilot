@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ticketPlusSessionDiagnostic, ticketPlusSessionMessage } from "../src/app/flows/ticketplus/runMessages.js";
+import { ticketPlusSessionDiagnostic, ticketPlusSessionMessage } from "../src/workers/ticketplus/runMessages.js";
 
 test("場次停止訊息區分點擊前後，不誤報重試", () => {
     const message = ticketPlusSessionMessage({ reason: "arrival-timeout", stage: "after-click-attempt" });
@@ -31,7 +31,7 @@ test("場次診斷只放在診斷資料，使用者訊息維持停止說明", ()
 });
 
 test("活動頁等待紀錄呈現耗時與觀測次數", async () => {
-    const { ticketPlusEventMessage } = await import("../src/app/flows/ticketplus/runMessages.js");
+    const { ticketPlusEventMessage } = await import("../src/workers/ticketplus/runMessages.js");
     assert.equal(
         ticketPlusEventMessage({ type: "activity-wait", elapsedMs: 1250, observations: 7 }),
         "活動頁核對等待：1250 毫秒，共觀測 7 次。",
@@ -39,7 +39,7 @@ test("活動頁等待紀錄呈現耗時與觀測次數", async () => {
 });
 
 test("順位紀錄區分初次、同輪候補與更新後的新輪次", async () => {
-    const { ticketPlusEventMessage } = await import("../src/app/flows/ticketplus/runMessages.js");
+    const { ticketPlusEventMessage } = await import("../src/workers/ticketplus/runMessages.js");
     const event = { type: "attempt-reset" as const, submissionAttempts: 0, nextPriorityIndex: 0 };
     assert.equal(ticketPlusEventMessage({ ...event, reason: "initial" }), undefined);
     assert.equal(ticketPlusEventMessage({ ...event, reason: "refreshed" }), "更新完成，從第一順位重新檢查。");
@@ -50,7 +50,7 @@ test("順位紀錄區分初次、同輪候補與更新後的新輪次", async ()
 });
 
 test("順位全部沒票的訊息同時涵蓋已售完與暫無票券，不只寫售完", async () => {
-    const { ticketPlusResultMessage } = await import("../src/app/flows/ticketplus/runMessages.js");
+    const { ticketPlusResultMessage } = await import("../src/workers/ticketplus/runMessages.js");
     type Result = Parameters<typeof ticketPlusResultMessage>[0];
     const message = ticketPlusResultMessage({
         outcome: "stopped",
@@ -62,7 +62,7 @@ test("順位全部沒票的訊息同時涵蓋已售完與暫無票券，不只�
 });
 
 test("提醒彈窗無法關閉的停止訊息說明尚未選場次", async () => {
-    const { ticketPlusResultMessage } = await import("../src/app/flows/ticketplus/runMessages.js");
+    const { ticketPlusResultMessage } = await import("../src/workers/ticketplus/runMessages.js");
     const progress = Object.freeze({
         submitAttempted: false,
         dismissAttempted: false,
@@ -90,7 +90,7 @@ test("場次停止訊息：流程類型不符說明檢查設定", () => {
 });
 
 test("確認選位停止訊息：不符與未確認各有說明，不會重試", async () => {
-    const { ticketPlusResultMessage } = await import("../src/app/flows/ticketplus/runMessages.js");
+    const { ticketPlusResultMessage } = await import("../src/workers/ticketplus/runMessages.js");
     const progress = Object.freeze({ submitAttempted: true, dismissAttempted: false, sawQueue: false }) as never;
     assert.match(
         ticketPlusResultMessage({ outcome: "stopped", reason: "seat-mismatch", progress }),
@@ -103,7 +103,7 @@ test("確認選位停止訊息：不符與未確認各有說明，不會重試",
 });
 
 test("付款頁與資料頁停止訊息：點擊前停止說明未送出，點擊後說明未確認", async () => {
-    const { ticketPlusResultMessage } = await import("../src/app/flows/ticketplus/runMessages.js");
+    const { ticketPlusResultMessage } = await import("../src/workers/ticketplus/runMessages.js");
     const progress = Object.freeze({ submitAttempted: true, dismissAttempted: false, sawQueue: false }) as never;
     assert.match(
         ticketPlusResultMessage({ outcome: "payment-ready", progress, submissionAttempts: 1 }),
@@ -131,7 +131,7 @@ test("付款頁與資料頁停止訊息：點擊前停止說明未送出，點�
 });
 
 test("資料頁送出前達期限或停止：說明已保留在資料頁未送出，不寫尚未提交選票", async () => {
-    const { ticketPlusResultMessage } = await import("../src/app/flows/ticketplus/runMessages.js");
+    const { ticketPlusResultMessage } = await import("../src/workers/ticketplus/runMessages.js");
     const progress = Object.freeze({ submitAttempted: true, dismissAttempted: false, sawQueue: false }) as never;
     for (const [failure, stopReason, pattern] of [
         ["time-limit", "time-limit", /已達最長執行時間/],
@@ -152,7 +152,7 @@ test("資料頁送出前達期限或停止：說明已保留在資料頁未送�
 });
 
 test("抽選結果訊息：停在確認登記前、等待中停止或頁面改變都說明未送出登記", async () => {
-    const { ticketPlusResultMessage } = await import("../src/app/flows/ticketplus/runMessages.js");
+    const { ticketPlusResultMessage } = await import("../src/workers/ticketplus/runMessages.js");
     const progress = Object.freeze({ submitAttempted: true, dismissAttempted: false, sawQueue: false }) as never;
     assert.match(
         ticketPlusResultMessage({ outcome: "registration-ready", progress, submissionAttempts: 1 }),
@@ -179,7 +179,7 @@ test("抽選結果訊息：停在確認登記前、等待中停止或頁面改�
 
 test("使用者訊息不含英文原因代碼，代碼改放在診斷資料", async () => {
     const { ticketPlusResultDiagnostic, ticketPlusResultMessage } =
-        await import("../src/app/flows/ticketplus/runMessages.js");
+        await import("../src/workers/ticketplus/runMessages.js");
     type Result = Parameters<typeof ticketPlusResultMessage>[0];
     const progress = Object.freeze({ submitAttempted: false, dismissAttempted: false, sawQueue: false });
     const cases: [Result, string, RegExp][] = [

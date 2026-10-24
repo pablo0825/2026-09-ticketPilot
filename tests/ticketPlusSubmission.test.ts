@@ -1,7 +1,7 @@
 import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
 import { presale, summary } from "./fixtures/ticketplus/pages.js";
 import { runTicketPlusSubmission, stoppedSubmissionResult } from "../src/platforms/ticketplus/submissionOutcome.js";
-import { ticketPlusResultDiagnostic, ticketPlusResultMessage } from "../src/app/flows/ticketplus/runMessages.js";
+import { ticketPlusResultDiagnostic, ticketPlusResultMessage } from "../src/workers/ticketplus/runMessages.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
