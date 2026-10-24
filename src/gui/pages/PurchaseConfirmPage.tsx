@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { primaryButton, panel, stepPanel, fieldLabel, fieldInput } from "../shared/styles.js";
-import type { PurchaseSummaryData } from "./purchaseSummary.js";
+import type { PurchaseSummaryData } from "./purchaseSummaryDefinition.js";
 
 interface Props {
     summary?: PurchaseSummaryData;

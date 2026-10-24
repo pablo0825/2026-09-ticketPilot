@@ -1,5 +1,5 @@
 import type { TicketPlusActivitySettings } from "../../../config/platforms/ticketplus/activitySettings.js";
-import type { PurchaseSummaryData } from "../../pages/purchaseSummary.js";
+import type { PurchaseSummaryData } from "../../pages/purchaseSummaryDefinition.js";
 
 function activityFields(eventName: string, eventUrl: string, canLink: boolean): PurchaseSummaryData["fields"] {
     return [
