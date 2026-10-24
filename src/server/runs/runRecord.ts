@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { executionPlatform } from "../app/platforms/executionRegistry.js";
-import { platformIds } from "../config/settingsRegistry.js";
-import type { PurchaseSnapshot } from "../shared/runSnapshot.js";
+import { executionPlatform } from "../../app/platforms/executionRegistry.js";
+import { platformIds } from "../../config/settingsRegistry.js";
+import type { PurchaseSnapshot } from "../../shared/runSnapshot.js";
 
 export interface RunRecord {
     snapshot: PurchaseSnapshot;

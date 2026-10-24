@@ -36,7 +36,7 @@ if (mode === "server-import") {
         throw intercepted;
     };
     syncBuiltinESMExports();
-    const { PurchaseRuns } = await import("../../src/local/purchaseRuns.js");
+    const { PurchaseRuns } = await import("../../src/server/runs/purchaseRuns.js");
     const runs = new PurchaseRuns(directory);
     assert.throws(
         () =>

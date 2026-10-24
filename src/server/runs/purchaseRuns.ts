@@ -1,22 +1,22 @@
-import { projectRoot } from "../storage/dataPaths.js";
-import type { ActivityExecutionStatus } from "../shared/activityExecutionStatus.js";
-import type { ActivityRecord } from "../shared/activityRecord.js";
+import { projectRoot } from "../../storage/dataPaths.js";
+import type { ActivityExecutionStatus } from "../../shared/activityExecutionStatus.js";
+import type { ActivityRecord } from "../../shared/activityRecord.js";
 import { fork, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { parseActivity, type ActivitySettings } from "../config/activitySettings.js";
-import { acquirePurchaseLease, purchaseOccupied } from "../storage/purchaseLock.js";
-import { runCapabilities } from "../app/platforms/runCapabilities.js";
-import { executionPlatform, platformFor } from "../app/platforms/executionRegistry.js";
-import { runSnapshotFields, type BoundRunRules } from "../app/platforms/platformDefinition.js";
+import { parseActivity, type ActivitySettings } from "../../config/activitySettings.js";
+import { acquirePurchaseLease, purchaseOccupied } from "../../storage/purchaseLock.js";
+import { runCapabilities } from "../../app/platforms/runCapabilities.js";
+import { executionPlatform, platformFor } from "../../app/platforms/executionRegistry.js";
+import { runSnapshotFields, type BoundRunRules } from "../../app/platforms/platformDefinition.js";
 import { sendWorkerStop } from "./sendWorkerStop.js";
-import type { PurchaseEvent } from "../shared/runEvents.js";
+import type { PurchaseEvent } from "../../shared/runEvents.js";
 
-export type { PurchaseSnapshot } from "../shared/runSnapshot.js";
-import type { PurchaseSnapshot } from "../shared/runSnapshot.js";
+export type { PurchaseSnapshot } from "../../shared/runSnapshot.js";
+import type { PurchaseSnapshot } from "../../shared/runSnapshot.js";
 
 import { parseRunRecord, type RunRecord as Record } from "./runRecord.js";
 
@@ -40,7 +40,7 @@ export class PurchaseRuns {
 
     constructor(
         private readonly root = join(projectRoot, "local-data"),
-        private readonly worker = new URL("./purchaseWorker.ts", import.meta.url),
+        private readonly worker = new URL("../../local/purchaseWorker.ts", import.meta.url),
     ) {
         // 讀取過去的執行紀錄，最新的當作目前紀錄
         this.directory = join(root, "runs");

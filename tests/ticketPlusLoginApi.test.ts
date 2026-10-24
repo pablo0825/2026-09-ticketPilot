@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
-import { PurchaseRuns } from "../src/local/purchaseRuns.js";
+import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
 import { purchaseOccupied } from "../src/storage/purchaseLock.js";
 
 async function start(h: Awaited<ReturnType<typeof apiHarness>>) {

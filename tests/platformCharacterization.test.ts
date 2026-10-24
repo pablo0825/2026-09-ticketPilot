@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PurchaseRuns } from "../src/local/purchaseRuns.js";
+import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
 import { parseActivity } from "../src/config/activitySettings.js";
 
 const settings = {

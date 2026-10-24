@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { parseActivity } from "../src/config/activitySettings.js";
 import { ActivityStore } from "../src/storage/activityStore.js";
-import { PurchaseRuns } from "../src/local/purchaseRuns.js";
+import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
 
 const legacySettings = {
     eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",

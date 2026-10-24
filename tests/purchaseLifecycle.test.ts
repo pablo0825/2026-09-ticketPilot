@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { chromium } from "playwright";
 import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
-import { PurchaseRuns } from "../src/local/purchaseRuns.js";
+import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
 import { ActivityStore } from "../src/storage/activityStore.js";
 import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
 const worker = new URL("./fixtures/guiPurchaseWorker.ts", import.meta.url);

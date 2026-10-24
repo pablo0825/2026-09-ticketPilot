@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PurchaseRuns } from "../src/local/purchaseRuns.js";
+import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
 import { eventLogs, purchaseStatus } from "../src/local/react/shared/runs/runPresentation.js";
 import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
 

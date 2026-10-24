@@ -12,7 +12,7 @@ import {
     validateTicketPlusRunSettings,
 } from "../src/config/platforms/ticketplus/activitySettings.js";
 import { ActivityStore } from "../src/storage/activityStore.js";
-import { PurchaseRuns } from "../src/local/purchaseRuns.js";
+import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
 import { startLocalServer } from "../src/local/server.js";
 import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
 import { purchaseOccupied } from "../src/storage/purchaseLock.js";
