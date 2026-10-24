@@ -1,10 +1,12 @@
+import type { ActivityExecutionStatus } from "../shared/activityExecutionStatus.js";
+import type { ActivityRecord } from "../shared/activityRecord.js";
 import { fork, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { parseActivity, projectRoot, type ActivityRecord, type ActivitySettings } from "../config/activityStore.js";
+import { parseActivity, projectRoot, type ActivitySettings } from "../config/activityStore.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
 import { runCapabilities } from "../app/platforms/runCapabilities.js";
 import { executionPlatform, platformFor } from "../app/platforms/index.js";
@@ -16,8 +18,6 @@ export type { PurchaseSnapshot } from "../shared/runSnapshot.js";
 import type { PurchaseSnapshot } from "../shared/runSnapshot.js";
 
 import { parseRunRecord, type RunRecord as Record } from "./runRecord.js";
-
-export type ActivityExecutionStatus = "尚無執行紀錄" | "等待開賣" | "執行中" | "已執行" | "設定已更新" | "舊版執行紀錄";
 
 function hashContent(value: unknown): string {
     return createHash("sha256").update(JSON.stringify(value)).digest("hex");

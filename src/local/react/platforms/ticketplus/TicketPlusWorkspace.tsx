@@ -1,9 +1,10 @@
+import type { ActivityExecutionStatus } from "../../../../shared/activityExecutionStatus.js";
+import type { ActivityRecord } from "../../../../shared/activityRecord.js";
 import { TicketPlusTargetRow } from "./TicketPlusTargetRow.js";
 import { TicketPlusActivitySettings } from "./ActivitySettings.js";
 import { primaryButton, secondaryButton, stepPanel } from "../../shared/styles.js";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { ActivityRecord } from "../../../../config/activityStore.js";
-import type { ActivityExecutionStatus } from "../../../purchaseRuns.js";
+
 import type { PurchaseSnapshot } from "../../../../shared/runSnapshot.js";
 import { api } from "../../shared/api.js";
 import { AppHeader } from "../../shared/navigation/AppHeader.js";

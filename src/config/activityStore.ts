@@ -1,3 +1,4 @@
+import type { ActivityRecord } from "../shared/activityRecord.js";
 import { z } from "zod";
 import { parseActivity } from "./activitySettings.js";
 import { parsePlatformSettings } from "./platforms.js";
@@ -11,13 +12,6 @@ import { join } from "node:path";
 import { ArchivedKlookActivityError, isArchivedKlookActivity } from "./archivedKlookActivity.js";
 
 export const projectRoot = fileURLToPath(new URL("../../", import.meta.url));
-
-export interface ActivityRecord {
-    schemaVersion: 3;
-    id: string;
-    updatedAt: string;
-    settings: ActivitySettings;
-}
 
 export async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
     const temporary = `${path}.${randomUUID()}.tmp`;

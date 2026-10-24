@@ -1,3 +1,4 @@
+import type { ActivityRecord } from "../src/shared/activityRecord.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
@@ -5,7 +6,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PurchaseRuns } from "../src/local/purchaseRuns.js";
-import { parseActivity, type ActivityRecord } from "../src/config/activityStore.js";
+import { parseActivity } from "../src/config/activityStore.js";
 
 const settings = {
     platform: "ticketplus",
