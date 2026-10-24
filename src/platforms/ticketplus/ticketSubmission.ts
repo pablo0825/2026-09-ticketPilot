@@ -11,6 +11,8 @@ import type { InformationPage } from "./informationPage.js";
 import { confirmTicketPlusSeats } from "./seatConfirmation.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 import { locateTargetRow } from "./ticketRowFinder.js";
+import { recordSubmissionSynchronously } from "./submissionTracking.js";
+import type { SubmissionRecorder } from "./submissionTracking.js";
 
 export interface TicketSubmissionOptions {
     preflightTimeoutMs?: number;
@@ -74,6 +76,7 @@ interface Submission {
     deadline: number;
     progress: SubmissionProgress;
     observer?: SubmissionObserver;
+    recorder?: SubmissionRecorder;
     diagnostic?: SubmissionDiagnostic;
     // 確認選位步驟每次提交最多一次；再次看到選位頁即停止。
     seatStepDone?: boolean;
@@ -97,8 +100,10 @@ export const emptySubmissionProgress = (): SubmissionProgress => ({
     dismissal: "not-attempted",
 });
 
-// 通知只接收複本，失敗不能改變購票流程或觸發重試。
-function notifyProgress(context: Submission): void {
+// 安全紀錄與一般通知只接收複本；紀錄失敗停止，一般通知失敗不影響流程。
+function reportProgress(context: Submission): void {
+    // 安全紀錄先同步完成；錯誤不能被下方一般通知的容錯吞掉。
+    recordSubmissionSynchronously(() => context.recorder?.(Object.freeze({ ...context.progress })));
     try {
         void Promise.resolve(context.observer?.(Object.freeze({ ...context.progress }))).catch(() => {});
     } catch {
@@ -273,7 +278,7 @@ async function submitOnce(page: Page, context: Submission, deadline: number): Pr
         );
         context.progress.submitAttempted = true;
         context.diagnostic = { phase: "after-submit" };
-        notifyProgress(context);
+        reportProgress(context);
         try {
             await button.click({
                 timeout: Math.min(timeout, remaining(context, deadline), remaining(context, waitDeadline)),
@@ -302,7 +307,7 @@ async function dismissFailure(page: Page, context: Submission, failure: OrderFai
     // 確認失敗後結果不再轉為成功；關閉另有一次額度且受總期限限制。
     context.progress.failure = failure.failure;
     const deadline = Math.min(context.deadline, performance.now() + context.options.closeTimeoutMs);
-    notifyProgress(context);
+    reportProgress(context);
     checkRoute(page, context, true);
     if (failure.dismissNames.length !== 1) throw stop(context, "dismiss-unavailable");
     const candidates = page.locator('[role="dialog"], .v-dialog, .v-dialog__content');
@@ -312,7 +317,7 @@ async function dismissFailure(page: Page, context: Submission, failure: OrderFai
         const latest = await snapshot(page, context, deadline);
         if (latest.kind === "ticket-selection" || latest.kind === "queue") {
             context.progress.dismissal = "disappeared";
-            notifyProgress(context);
+            reportProgress(context);
             throw stop(context, "order-rejected");
         }
         if (!sameFailure(latest, failure)) throw stop(context, "dismiss-changed");
@@ -352,7 +357,7 @@ async function dismissFailure(page: Page, context: Submission, failure: OrderFai
                 context.progress.dismissal = "unconfirmed";
                 const timeout = Math.min(context.options.clickTimeoutMs, remaining(context, deadline));
                 context.progress.dismissAttempted = true;
-                notifyProgress(context);
+                reportProgress(context);
                 await button.click({ timeout: Math.min(timeout, remaining(context, deadline)) });
             } finally {
                 await button.dispose().catch(() => {});
@@ -367,7 +372,7 @@ async function dismissFailure(page: Page, context: Submission, failure: OrderFai
             const current = await snapshot(page, context, deadline);
             if (current.kind === "ticket-selection" || current.kind === "queue") {
                 context.progress.dismissal = "confirmed";
-                notifyProgress(context);
+                reportProgress(context);
                 throw stop(context, "order-rejected");
             }
             if (!sameFailure(current, failure)) throw stop(context, "dismiss-unconfirmed");
@@ -420,7 +425,7 @@ async function waitForInformation(page: Page, context: Submission, initialDeadli
             if (!context.progress.sawQueue) {
                 context.progress.sawQueue = true;
                 deadline = Math.min(context.deadline, performance.now() + context.options.queueWaitMs);
-                notifyProgress(context);
+                reportProgress(context);
             }
         } else if (value.kind === "ticket-selection") {
             verifySelection(context, value);
@@ -437,6 +442,7 @@ export async function submitTicketPlusSelection(
     options: TicketSubmissionOptions = {},
     observer?: SubmissionObserver,
     control = new TicketPlusRunControl(),
+    recorder?: SubmissionRecorder,
 ): Promise<InformationPage> {
     let context: Submission | undefined;
     try {
@@ -456,6 +462,7 @@ export async function submitTicketPlusSelection(
             deadline: performance.now() + resolved.totalTimeoutMs,
             progress: emptySubmissionProgress(),
             observer,
+            recorder,
         };
         if (
             selected.eventId !== new URL(settings.eventUrl).pathname.split("/")[2] ||

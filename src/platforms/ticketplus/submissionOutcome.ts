@@ -4,6 +4,7 @@ import type { Page } from "playwright";
 import type { TicketPlusSelection } from "../../config/platforms/ticketplus/activitySettings.js";
 import type { TicketSelectionPage } from "./ticketSelectionPage.js";
 import type { InformationPage } from "./informationPage.js";
+import type { SubmissionRecorder } from "./submissionTracking.js";
 import { emptySubmissionProgress, submitTicketPlusSelection, TicketPlusSubmissionError } from "./ticketSubmission.js";
 import type {
     SubmissionDiagnostic,
@@ -77,6 +78,7 @@ export async function runTicketPlusSubmission(
     options: TicketSubmissionOptions = {},
     observer?: SubmissionObserver,
     control = new TicketPlusRunControl(),
+    recorder?: SubmissionRecorder,
 ): Promise<TicketPlusSubmissionResult> {
     let progress = emptySubmissionProgress();
     try {
@@ -91,6 +93,10 @@ export async function runTicketPlusSubmission(
                 return observer?.(Object.freeze({ ...value }));
             },
             control,
+            value => {
+                progress = { ...value };
+                return recorder?.(value);
+            },
         );
         return { outcome: "information-ready", information, progress: Object.freeze({ ...progress }) };
     } catch (error) {

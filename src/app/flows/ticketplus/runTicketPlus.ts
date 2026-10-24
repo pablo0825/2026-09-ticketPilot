@@ -42,6 +42,7 @@ import { emptySubmissionProgress } from "../../../platforms/ticketplus/ticketSub
 import { prepareTicketPlusSale, TicketPlusSaleError } from "../../../platforms/ticketplus/salePreparation.js";
 import type { TicketPlusSaleReason } from "../../../platforms/ticketplus/salePreparation.js";
 import type { SubmissionProgress } from "../../../platforms/ticketplus/ticketSubmission.js";
+import type { SubmissionStateRecorder } from "../../../platforms/ticketplus/submissionTracking.js";
 
 export type TicketPlusStage =
     | "starting"
@@ -91,6 +92,7 @@ export interface TicketPlusRunOptions {
     deadlineNow?: () => number;
     saleNow?: () => number;
     onEvent?: (event: TicketPlusRunEvent) => void | Promise<void>;
+    onSubmissionState?: SubmissionStateRecorder;
     onBrowser?: (context: BrowserContext) => void;
     lease?: PurchaseLease;
     webdriverExperiment?: boolean;
@@ -266,12 +268,23 @@ export async function runTicketPlus(
             control,
         );
         // 同場次候補與更新後循環由獨立模組編排；本次結果與歷史提交不混用。
-        const cycle = await runTicketPlusCycle(page, activity, session, control, event => {
-            if (event.type === "stage") stage = event.stage;
-            if (event.type === "attempt-reset") progress = emptySubmissionProgress();
-            if (event.type === "submission") progress = { ...event.progress };
-            notify(options, event);
-        });
+        const cycle = await runTicketPlusCycle(
+            page,
+            activity,
+            session,
+            control,
+            event => {
+                if (event.type === "stage") stage = event.stage;
+                if (event.type === "attempt-reset") progress = emptySubmissionProgress();
+                if (event.type === "submission") progress = { ...event.progress };
+                notify(options, event);
+            },
+            {},
+            state => {
+                progress = { ...state.progress };
+                return options.onSubmissionState?.(state);
+            },
+        );
 
         // 抽選到輸入資料頁：等待人工確認參加者後收尾，停在確認登記前。
         if (

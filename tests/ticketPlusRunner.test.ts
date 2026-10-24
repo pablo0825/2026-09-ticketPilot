@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
 import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
+import { runTicketPlusWorker } from "../src/workers/ticketplus/worker.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
 import type { TicketPlusActivitySettings } from "../src/config/platforms/ticketplus/activitySettings.js";
 import { activity, checkout } from "./fixtures/ticketplus/pages.js";
@@ -99,6 +100,45 @@ async function setup(context: BrowserContext, rejected: boolean, activityHtml = 
     );
     return requests;
 }
+
+test("正式平台 worker 經 runner 同步記錄提交；通知失敗可完成，安全紀錄失敗零提交", async () => {
+    for (const mode of ["notification-failed", "record-failed", "async-record"] as const) {
+        const directory = await mkdtemp(join(tmpdir(), "ticketplus-recording-"));
+        const browser = await chromium.launch();
+        const context = await browser.newContext();
+        await setup(context, false);
+        const launch = mock.method(chromium, "launchPersistentContext", async () => context);
+        let attempts = 0;
+        try {
+            const result = await runTicketPlusWorker(
+                { activity: settings, lease: acquirePurchaseLease(directory) },
+                {
+                    onBrowser: () => {},
+                    sendEvent: event => {
+                        if (event.type === "ticketplus") throw new Error("通知不能影響提交紀錄");
+                    },
+                    onSubmitAttempt: () => {
+                        attempts++;
+                        if (mode === "record-failed") throw new Error("無法記錄");
+                        if (mode === "async-record") return Promise.reject(new Error("不能非同步記錄"));
+                    },
+                },
+            );
+            const counts = await context.pages()[0]!.evaluate(() => JSON.parse(sessionStorage.getItem("counts")!));
+            assert.equal(attempts, 1);
+            assert.equal(counts.submit, mode === "notification-failed" ? 1 : 0);
+            assert.equal(counts.information, mode === "notification-failed" ? 1 : 0);
+            assert.equal(result.outcome, mode === "notification-failed" ? "payment-ready" : "unknown");
+            assert.equal(purchaseOccupied(directory), true);
+            await context.close();
+            assert.equal(purchaseOccupied(directory), false);
+        } finally {
+            launch.mock.restore();
+            await browser.close();
+            await rm(directory, { recursive: true, force: true });
+        }
+    }
+});
 
 test("TicketPlus runner：真實本機頁面串接到資料頁／失敗停止，保留瀏覽器與占用", { timeout: 20_000 }, async () => {
     for (const rejected of [false, true]) {

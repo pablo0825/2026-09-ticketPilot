@@ -22,6 +22,12 @@ export async function runTicketPlusWorker(
             webdriverExperiment: process.env.WEBDRIVER_EXPERIMENT === "1",
             onBrowser,
             waitForParticipants,
+            onSubmissionState: state => {
+                const attempted = state.submissionAttempts > submissionAttempts;
+                progress = { ...state.progress };
+                submissionAttempts = state.submissionAttempts;
+                if (attempted) return onSubmitAttempt();
+            },
             onEvent: event => {
                 if (event.type === "attempt-reset") {
                     progress = emptySubmissionProgress();
@@ -30,7 +36,6 @@ export async function runTicketPlusWorker(
                 if (event.type === "submission") {
                     if (event.progress.submitAttempted && !progress.submitAttempted) submissionAttempts++;
                     progress = { ...event.progress };
-                    if (progress.submitAttempted) onSubmitAttempt();
                 }
                 // 等待參加者的階段由帶確認 ID 的事件回報，避免送出缺 ID 的同名階段。
                 if (event.type === "participants-wait") {

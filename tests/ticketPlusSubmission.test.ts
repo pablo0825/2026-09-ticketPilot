@@ -93,6 +93,70 @@ async function failure(promise: Promise<unknown>): Promise<TicketPlusSubmissionE
 const submit = (page: Page, overrides: TicketSubmissionOptions = {}) =>
     submitTicketPlusSelection(page, settings, selection, { ...options, ...overrides });
 
+test("提交安全紀錄先於實際 click；一般通知拋錯或延遲不影響紀錄", async t => {
+    for (const observer of [
+        () => {
+            throw new Error("通知失敗");
+        },
+        async () => {
+            throw new Error("非同步通知失敗");
+        },
+    ]) {
+        await withPage("direct", async page => {
+            let recorded = false;
+            const handle = await page.getByRole("button", { name: "下一步", exact: true }).elementHandle();
+            assert(handle);
+            const prototype = Object.getPrototypeOf(handle);
+            const original = prototype.click;
+            const click = t.mock.method(
+                prototype,
+                "click",
+                function (this: ElementHandle, ...args: Parameters<ElementHandle["click"]>) {
+                    assert.equal(recorded, true, "必須在呼叫 click 前完成紀錄");
+                    return original.apply(this, args);
+                },
+            );
+            try {
+                const result = await submitTicketPlusSelection(
+                    page,
+                    settings,
+                    selection,
+                    options,
+                    observer,
+                    undefined,
+                    value => {
+                        recorded = value.submitAttempted;
+                    },
+                );
+                assert.equal(result.kind, "information");
+                assert.equal(click.mock.callCount(), 1);
+                assert.deepEqual(await submissionCounts(page), { ...zero, orderClicks: 1 });
+            } finally {
+                click.mock.restore();
+                await handle.dispose();
+            }
+        });
+    }
+});
+
+test("提交安全紀錄拋錯或回傳 Promise 都不點擊，也不重試", async () => {
+    for (const record of [
+        () => {
+            throw new Error("紀錄失敗");
+        },
+        async () => {
+            throw new Error("不能非同步紀錄");
+        },
+    ]) {
+        await withPage("direct", async page => {
+            await assert.rejects(
+                submitTicketPlusSelection(page, settings, selection, options, undefined, undefined, record),
+            );
+            assert.deepEqual(await submissionCounts(page), zero);
+        });
+    }
+});
+
 // 只觀察真實 click 的呼叫開始，不替換執行結果；瀏覽器仍自行做 actionability 等待。
 async function observeClick(
     testContext: TestContext,

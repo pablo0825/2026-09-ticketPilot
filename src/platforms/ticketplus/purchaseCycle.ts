@@ -24,6 +24,8 @@ import { refreshTicketPlusTickets } from "./ticketRefresh.js";
 import type { TicketRefreshOptions, TicketRefreshResult } from "./ticketRefresh.js";
 import { emptySubmissionProgress } from "./ticketSubmission.js";
 import type { SubmissionProgress, TicketSubmissionOptions } from "./ticketSubmission.js";
+import { recordSubmissionSynchronously } from "./submissionTracking.js";
+import type { SubmissionStateRecorder } from "./submissionTracking.js";
 
 export type TicketPlusCycleStage =
     "selecting-tickets" | "submitting" | "submitting-information" | "waiting-to-refresh" | "refreshing";
@@ -101,6 +103,7 @@ export async function runTicketPlusCycle(
     control: TicketPlusRunControl,
     observer?: (event: TicketPlusCycleEvent) => void | Promise<void>,
     options: TicketPlusCycleOptions = {},
+    recorder?: SubmissionStateRecorder,
 ): Promise<TicketPlusCycleResult> {
     let progress = emptySubmissionProgress();
     let submissionAttempts = 0;
@@ -113,6 +116,9 @@ export async function runTicketPlusCycle(
     };
     const reset = (nextPriorityIndex: number, reason: "initial" | "next-priority" | "refreshed") => {
         progress = emptySubmissionProgress();
+        recordSubmissionSynchronously(() =>
+            recorder?.({ progress: Object.freeze({ ...progress }), submissionAttempts }),
+        );
         notify({ type: "attempt-reset", submissionAttempts, nextPriorityIndex, reason });
     };
     try {
@@ -168,6 +174,11 @@ export async function runTicketPlusCycle(
                         notify({ type: "submission", progress: Object.freeze({ ...progress }) });
                     },
                     control,
+                    observed => {
+                        if (observed.submitAttempted && !progress.submitAttempted) submissionAttempts++;
+                        progress = { ...observed };
+                        return recorder?.({ progress: Object.freeze({ ...progress }), submissionAttempts });
+                    },
                 );
                 // 購票到資料頁後勾條款並送出一次，停在付款頁；抽選原樣交回人工確認流程。
                 if (result.outcome === "information-ready" && flowType === "purchase") {
