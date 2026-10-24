@@ -6,6 +6,7 @@ import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
 import { eventually } from "./fixtures/guiTestHelpers.js";
 
 const pendingKey = "ticketpilot-ticketplus-purchase-request";
+const sharedPendingKey = "ticketpilot-platform-purchase-request";
 const klookPendingKey = "ticketpilot-purchase-request";
 type Harness = Awaited<ReturnType<typeof apiHarness>>;
 type RequestLog = { path: string; method: string; body: any }[];
@@ -102,7 +103,7 @@ test("TicketPlus 啟動 GUI：保存摘要到真 API、網頁登入及資料頁�
         ]);
         assert.equal(starts(requests)[0]!.body.activityId, record.id);
         assert.deepEqual(starts(requests)[0]!.body.expectedActivity, apiActivity);
-        assert.equal(await page.evaluate(key => sessionStorage.getItem(key), pendingKey), null);
+        assert.equal(await page.evaluate(key => sessionStorage.getItem(key), sharedPendingKey), null);
         assert.equal(
             await page.evaluate(key => sessionStorage.getItem(key), klookPendingKey),
             "klook-independent-marker",
@@ -207,7 +208,7 @@ test("TicketPlus 啟動 GUI：別頁修改保存設定後，真後端拒絕舊�
         assert.equal(starts(requests).length, 1);
         assert.equal(await h.snapshot(), null);
         await assert.rejects(readFile(h.report + ".starts", "utf8"), { code: "ENOENT" });
-        assert.equal(await page.evaluate(key => sessionStorage.getItem(key), pendingKey), null);
+        assert.equal(await page.evaluate(key => sessionStorage.getItem(key), sharedPendingKey), null);
     });
 });
 
@@ -228,7 +229,7 @@ test("TicketPlus 啟動 GUI：真接受後回應遺失，重載查詢原請求�
                 run?.events.some(item => item.event.type === "ticketplus" && item.event.stage === "waiting-for-login"),
             ),
         );
-        await eventually(async () => assert(await page.evaluate(key => sessionStorage.getItem(key), pendingKey)));
+        await eventually(async () => assert(await page.evaluate(key => sessionStorage.getItem(key), sharedPendingKey)));
         await page.reload();
 
         await page.getByRole("button", { name: "查看待確認的啟動結果", exact: true }).click();
@@ -241,7 +242,7 @@ test("TicketPlus 啟動 GUI：真接受後回應遺失，重載查詢原請求�
         await verifyInformation(h, page);
         assert.equal(starts(requests).length, 1);
         assert.equal(starts(requests)[0]!.body.requestId, ready.requestId);
-        assert.equal(await page.evaluate(key => sessionStorage.getItem(key), pendingKey), null);
+        assert.equal(await page.evaluate(key => sessionStorage.getItem(key), sharedPendingKey), null);
     });
 });
 
