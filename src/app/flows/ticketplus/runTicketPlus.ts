@@ -275,8 +275,6 @@ export async function runTicketPlus(
             control,
             event => {
                 if (event.type === "stage") stage = event.stage;
-                if (event.type === "attempt-reset") progress = emptySubmissionProgress();
-                if (event.type === "submission") progress = { ...event.progress };
                 notify(options, event);
             },
             {},

@@ -87,11 +87,7 @@ export async function runTicketPlusSubmission(
             settings,
             selected,
             options,
-            value => {
-                // 先保存內部狀態，再通知外部；外部出錯仍有可靠的提交紀錄。
-                progress = { ...value };
-                return observer?.(Object.freeze({ ...value }));
-            },
+            observer,
             control,
             value => {
                 progress = { ...value };

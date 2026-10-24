@@ -169,9 +169,7 @@ export async function runTicketPlusCycle(
                     selected.snapshot,
                     options.submission,
                     observed => {
-                        if (observed.submitAttempted && !progress.submitAttempted) submissionAttempts++;
-                        progress = { ...observed };
-                        notify({ type: "submission", progress: Object.freeze({ ...progress }) });
+                        notify({ type: "submission", progress: observed });
                     },
                     control,
                     observed => {

@@ -9,8 +9,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runTicketPlusCycle } from "../src/platforms/ticketplus/purchaseCycle.js";
 import type { TicketPlusCycleEvent } from "../src/platforms/ticketplus/purchaseCycle.js";
+import type { SubmissionState } from "../src/platforms/ticketplus/submissionTracking.js";
 import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
 import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
+import { runTicketPlusWorker } from "../src/workers/ticketplus/worker.js";
 import { ticketPlusResultMessage } from "../src/workers/ticketplus/runMessages.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
 import type { TicketPlusActivitySettings } from "../src/config/platforms/ticketplus/activitySettings.js";
@@ -62,6 +64,81 @@ async function withPage(mode: CycleMode, run: (page: Page) => Promise<void>) {
         await browser.close();
     }
 }
+
+test("安全紀錄獨立於通知：換順位與刷新後仍精確累計，不帶入上一輪失敗", async () => {
+    for (const mode of ["success", "unknown", "next-round-unknown"] as const) {
+        await withPage(mode, async page => {
+            const states: Readonly<SubmissionState>[] = [];
+            const control = new TicketPlusRunControl();
+            control.startDeadline(1);
+            const result = await runTicketPlusCycle(
+                page,
+                settings,
+                session,
+                control,
+                () => {
+                    throw new Error("一般通知失敗");
+                },
+                options,
+                state => {
+                    states.push(state);
+                },
+            );
+            const attempts = mode === "next-round-unknown" ? 3 : 2;
+            assert.equal(result.outcome, mode === "success" ? "payment-ready" : "unknown");
+            assert.equal(result.submissionAttempts, attempts);
+            assert.equal((await cycleState(page)).submissions.length, attempts);
+            assert.equal(states.at(-1)?.submissionAttempts, attempts);
+            // 選填 failure 可能省略或明寫 undefined，核對各欄位的意義。
+            for (const field of ["submitAttempted", "dismissAttempted", "sawQueue", "dismissal", "failure"] as const) {
+                assert.equal(states.at(-1)?.progress[field], result.progress[field]);
+            }
+            assert.equal(result.progress.failure, undefined);
+            assert.deepEqual(
+                states.filter(state => !state.progress.submitAttempted).map(state => state.submissionAttempts),
+                // 全順位耗盡與刷新完成各重設一次；兩者都不能增加提交次數。
+                mode === "next-round-unknown" ? [0, 1, 2, 2] : [0, 1],
+            );
+            assert(
+                states
+                    .filter(state => !state.progress.submitAttempted)
+                    .every(state => state.progress.failure === undefined),
+            );
+        });
+    }
+});
+
+test("售完關窗或換順位時安全紀錄失敗，不提交下一順位也不刷新", async () => {
+    for (const phase of ["dismissal", "reset"] as const) {
+        await withPage("success", async page => {
+            let failed = false;
+            const result = await runTicketPlusCycle(
+                page,
+                settings,
+                session,
+                new TicketPlusRunControl(),
+                undefined,
+                options,
+                state => {
+                    const shouldFail =
+                        phase === "dismissal"
+                            ? state.progress.dismissal === "confirmed"
+                            : state.submissionAttempts === 1 && !state.progress.submitAttempted;
+                    if (!failed && shouldFail) {
+                        failed = true;
+                        throw new Error("只失敗一次，後續也不能再操作");
+                    }
+                },
+            );
+            assert.equal(failed, true);
+            assert.notEqual(result.outcome, "payment-ready");
+            const actual = await cycleState(page);
+            assert.equal(actual.submissions.length, 1);
+            assert(!actual.actions.includes("refresh"));
+            assert(!actual.actions.includes("B區+"));
+        });
+    }
+});
 
 test("循環：A 真提交售完清零後只試 B，不額外再試 A；成功停資料頁", async () => {
     await withPage("success", async page => {
@@ -373,6 +450,45 @@ test("循環：B 尚未提交停止與 B 排隊中停止分開分類", async () 
             assert.equal(result.progress.failure, undefined);
             assert(!(await cycleState(page)).actions.includes("refresh"));
         });
+    }
+});
+
+test("平台 worker 每次選票提交只標記一次，換順位不靠一般通知累計", async t => {
+    for (const mode of ["success", "unknown"] as const) {
+        const directory = await mkdtemp(join(tmpdir(), "ticketplus-worker-tracking-"));
+        const browser = await chromium.launch();
+        const context = await browser.newContext();
+        await installCyclePage(context, mode);
+        await context.route("https://ticketplus.com.tw/", route =>
+            route.fulfill({ contentType: "text/html; charset=utf-8", body: loggedInHome }),
+        );
+        await context.newPage();
+        const launch = t.mock.method(chromium, "launchPersistentContext", async () => context);
+        let attempts = 0;
+        try {
+            const result = await runTicketPlusWorker(
+                { activity: settings, lease: acquirePurchaseLease(directory) },
+                {
+                    onBrowser: () => {},
+                    onSubmitAttempt: () => {
+                        attempts++;
+                    },
+                    sendEvent: event => {
+                        if (event.type === "ticketplus") throw new Error("顯示通知失敗");
+                    },
+                },
+            );
+            assert.equal(result.outcome, mode === "success" ? "payment-ready" : "unknown");
+            assert.equal(attempts, 2);
+            assert.equal((await cycleState(context.pages()[0]!)).submissions.length, 2);
+            assert.equal(launch.mock.callCount(), 1);
+            await context.close();
+            assert.equal(purchaseOccupied(directory), false);
+        } finally {
+            launch.mock.restore();
+            await browser.close();
+            await rm(directory, { recursive: true, force: true });
+        }
     }
 });
 

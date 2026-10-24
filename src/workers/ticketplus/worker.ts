@@ -29,14 +29,6 @@ export async function runTicketPlusWorker(
                 if (attempted) return onSubmitAttempt();
             },
             onEvent: event => {
-                if (event.type === "attempt-reset") {
-                    progress = emptySubmissionProgress();
-                    submissionAttempts = event.submissionAttempts;
-                }
-                if (event.type === "submission") {
-                    if (event.progress.submitAttempted && !progress.submitAttempted) submissionAttempts++;
-                    progress = { ...event.progress };
-                }
                 // 等待參加者的階段由帶確認 ID 的事件回報，避免送出缺 ID 的同名階段。
                 if (event.type === "participants-wait") {
                     sendEvent({
