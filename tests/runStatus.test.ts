@@ -1,4 +1,4 @@
-import { snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
+import { enterTicketPlus, snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -33,6 +33,7 @@ test("長紀錄在窄螢幕可捲動，閱讀舊紀錄時不被新事件拉回�
         };
         const feed = await snapshotFeed(page, "/api/purchase/events", run);
         await page.goto(service.url);
+        await enterTicketPlus(page);
         await page.locator("#viewRun").click();
         await page.locator("details > summary").click();
         const logs = page.getByLabel("執行紀錄", { exact: true });

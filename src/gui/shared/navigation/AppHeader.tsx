@@ -12,8 +12,8 @@ export function AppHeader({ disabled, onHome }: Props) {
                     <button
                         id="brandHome"
                         className="rounded bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600 disabled:opacity-50"
-                        aria-label="TicketPilot，返回活動列表"
-                        title="返回活動列表"
+                        aria-label="TicketPilot，返回平台首頁"
+                        title="返回平台首頁"
                         disabled={disabled}
                         onClick={onHome}
                     >

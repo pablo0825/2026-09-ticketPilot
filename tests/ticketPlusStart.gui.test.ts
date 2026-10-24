@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { chromium, type Page } from "playwright";
 import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
-import { eventually } from "./fixtures/guiTestHelpers.js";
+import { enterTicketPlus, eventually } from "./fixtures/guiTestHelpers.js";
 
 const pendingKey = "ticketpilot-ticketplus-purchase-request";
 const sharedPendingKey = "ticketpilot-platform-purchase-request";
@@ -31,6 +31,7 @@ async function fixture(
             });
         });
         await page.goto(h.url);
+        await enterTicketPlus(page);
         await work(h, page, record, requests);
         assert(!requests.some(request => request.path === "/api/contact"), "TicketPlus 不得讀寫 Klook 聯絡設定");
     } finally {
@@ -271,6 +272,7 @@ test("TicketPlus 啟動 GUI：開始回應晚於 SSE，導覽保留最新等待�
             };
         });
         await page.reload();
+        await enterTicketPlus(page);
         let release!: () => void;
         const gate = new Promise<void>(resolve => {
             release = resolve;
@@ -481,9 +483,13 @@ test(
     async () => {
         await fixture(
             async (h, page, record, requests) => {
-                await h.request("/api/activities", apiActivity);
-
-                await page.getByRole("button", { name: "編輯活動", exact: true }).first().click();
+                const other = await (await h.request("/api/activities", apiActivity)).json();
+                await page.locator("#brandHome").click();
+                await enterTicketPlus(page);
+                await page
+                    .locator(`[data-activity-id="${record.id}"]`)
+                    .getByRole("button", { name: "編輯活動", exact: true })
+                    .click();
                 await page.getByRole("button", { name: "執行狀態", exact: true }).click();
                 await page.getByText("尚未開始", { exact: true }).waitFor();
                 await review(page);
@@ -561,9 +567,8 @@ test(
                     /\/api\/activities\/[^/]+$/.test(new URL(response.url()).pathname),
                 );
                 await page
-                    .locator("#activities tr")
+                    .locator(`[data-activity-id="${other.id}"]`)
                     .getByRole("button", { name: "編輯活動", exact: true })
-                    .nth(1)
                     .click();
                 assert.notEqual((await (await loadedOther).json()).id, starts(requests)[0]!.body.activityId);
                 await page.getByRole("button", { name: "執行狀態", exact: true }).click();

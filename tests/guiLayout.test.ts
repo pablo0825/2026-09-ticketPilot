@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium, type Locator } from "playwright";
 import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
-import { snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
+import { enterTicketPlus, snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
 
 async function assertJoined(top: Locator, bottom: Locator) {
     const topBox = await top.boundingBox();
@@ -24,6 +24,7 @@ test("標題列與分頁連接內容外框，桌面與手機保留底線選中�
         for (const width of [1280, 390]) {
             await page.setViewportSize({ width, height: 900 });
             await page.goto(h.url);
+            await enterTicketPlus(page);
             const listHeader = page.getByRole("heading", { name: "活動列表", exact: true }).locator("..");
             await page.getByRole("button", { name: "編輯活動", exact: true }).waitFor();
             await assertJoined(listHeader, listHeader.locator("xpath=following-sibling::*[1]"));

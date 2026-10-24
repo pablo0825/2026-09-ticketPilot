@@ -29,3 +29,8 @@ export async function eventually(assertion: () => Promise<void>): Promise<void> 
         }
     }
 }
+
+// 真正從平台首頁進入工作區，避免測試繞過正式導覽。
+export async function enterTicketPlus(page: Page): Promise<void> {
+    await page.getByRole("button", { name: "進入 TicketPlus", exact: true }).click();
+}

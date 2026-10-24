@@ -7,7 +7,7 @@ import { chromium } from "playwright";
 import { ActivityStore } from "../src/storage/activityStore.js";
 import { startLocalServer } from "../src/server/server.js";
 import type { PurchaseSnapshot } from "../src/server/runs/purchaseRuns.js";
-import { snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
+import { enterTicketPlus, snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
 
 for (const newerSnapshot of [false, true]) {
     test(`參加者確認回應：${newerSnapshot ? "晚到不能覆蓋即時終局" : "沒有新快照時接受回應"}`, async () => {
@@ -67,6 +67,7 @@ for (const newerSnapshot of [false, true]) {
 
             // 先顯示等待狀態，再暫停快照與確認回應。
             await page.goto(service.url);
+            await enterTicketPlus(page);
             await page.getByRole("button", { name: "查看目前狀態", exact: true }).click();
             await eventually(async () => assert.equal(await page.locator("#status").innerText(), "請填寫參加者"));
             feed.publish(undefined);

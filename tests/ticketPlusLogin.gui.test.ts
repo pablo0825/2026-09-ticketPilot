@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { chromium, type Page } from "playwright";
 import type { PurchaseSnapshot } from "../src/server/runs/purchaseRuns.js";
 import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
-import { eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
+import { enterTicketPlus, eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
 
 type Harness = Awaited<ReturnType<typeof apiHarness>>;
 const confirmLabel = "我已登入，開始選票";
@@ -41,6 +41,7 @@ async function start(h: Harness) {
 
 async function showRun(page: Page, url: string) {
     await page.goto(url);
+    await enterTicketPlus(page);
     await page.getByRole("button", { name: /^查看(?:目前)?狀態$/ }).click();
     await page.locator("#status").waitFor();
 }

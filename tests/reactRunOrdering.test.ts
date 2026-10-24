@@ -7,7 +7,7 @@ import { chromium } from "playwright";
 import { ActivityStore } from "../src/storage/activityStore.js";
 import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
 import { startLocalServer } from "../src/server/server.js";
-import { snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
+import { enterTicketPlus, snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
 
 const oldRun = {
     id: "old",
@@ -53,6 +53,7 @@ test("React：新 POST 早於 SSE 時立即占用；SSE 先到時晚回應不倒
                 await route.fulfill({ json: { ...next, requestId: route.request().postDataJSON().requestId } });
             });
             await page.goto(service.url);
+            await enterTicketPlus(page);
             await page.getByText("編輯活動", { exact: true }).click();
             await page.getByRole("button", { name: "確認與開始" }).click();
             await page.getByRole("checkbox", { name: /我已確認活動、順位與張數/ }).check();

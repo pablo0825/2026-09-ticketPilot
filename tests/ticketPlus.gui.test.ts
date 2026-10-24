@@ -9,7 +9,7 @@ import type { Page, Browser } from "playwright";
 import { acquirePurchaseLease, releasePurchaseLease } from "../src/storage/purchaseLock.js";
 import { ActivityStore } from "../src/storage/activityStore.js";
 import { startLocalServer } from "../src/server/server.js";
-import { eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
+import { enterTicketPlus, eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
 
 const settings = {
     platform: "ticketplus",
@@ -61,6 +61,7 @@ async function fixture(work: (h: Harness) => Promise<void>) {
             requests.push({ method: request.method(), path: new URL(request.url()).pathname }),
         );
         await page.goto(service.url);
+        await enterTicketPlus(page);
 
         await page.getByRole("button", { name: "編輯活動" }).waitFor();
         await work({ page, browser, url: service.url, store, id: original.id, directory, requests });
@@ -159,12 +160,12 @@ test("TicketPlus GUI：活動保存保留原排程與期限，跨場次保存但
         await page.getByRole("button", { name: "編輯活動" }).click();
         await page.getByRole("heading", { name: "編輯活動", exact: true }).waitFor();
 
-        // 活動名稱移到麵包屑，返回鍵維持原本的名稱。
+        // 完整麵包屑保留平台與已保存活動名稱，平台鍵返回列表。
         assert.equal(await page.locator(".breadcrumb-current").innerText(), settings.eventName);
         const crumbs = page.getByRole("navigation", { name: "目前位置" });
         assert.equal(
             await crumbs.getByRole("button", { name: "返回 TicketPlus 活動列表", exact: true }).innerText(),
-            "活動列表",
+            "TicketPlus",
         );
         assert.equal(await crumbs.locator('[aria-current="page"]').innerText(), settings.eventName);
 
@@ -243,6 +244,7 @@ test("TicketPlus GUI：兩分頁真 revision 衝突不覆蓋，失敗保留草�
         await page.getByRole("button", { name: "編輯活動" }).click();
         const other = await page.context().newPage();
         await other.goto(h.url);
+        await enterTicketPlus(other);
 
         await other.getByRole("button", { name: "編輯活動" }).click();
         await page.locator("#eventName").fill("A分頁已保存");
@@ -373,6 +375,7 @@ test("TicketPlus GUI：列表載入失敗可重新載入，不需切換平台", 
             }),
         );
         await h.page.reload();
+        await enterTicketPlus(h.page);
         await h.page.getByRole("alert").filter({ hasText: "LIST_LOAD_ERROR" }).waitFor();
         assert(await h.page.locator("#new").isDisabled());
         await h.page.unroute("**/api/activities");
@@ -414,6 +417,7 @@ test("TicketPlus GUI：未知瀏覽器仍占用時禁止變更，保留查看狀
             };
             await snapshotFeed(h.page, "/api/purchase/events", occupied);
             await h.page.reload();
+            await enterTicketPlus(h.page);
 
             await eventually(async () => assert(await h.page.locator("#new").isDisabled()));
             // 列表頁也用麵包屑的鎖定標籤說明，不再顯示整行說明文字。

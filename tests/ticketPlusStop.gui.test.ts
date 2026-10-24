@@ -5,7 +5,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { chromium, type Dialog, type Page } from "playwright";
 import type { PurchaseSnapshot } from "../src/server/runs/purchaseRuns.js";
 import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
-import { eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
+import { enterTicketPlus, eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
 
 type Harness = Awaited<ReturnType<typeof apiHarness>>;
 const stopLabel = "停止購票";
@@ -43,6 +43,7 @@ async function start(h: Harness) {
 
 async function showRun(page: Page, url: string) {
     await page.goto(url);
+    await enterTicketPlus(page);
     await page.getByRole("button", { name: /^查看(?:目前)?狀態$/ }).click();
     await page.locator("#status").waitFor();
 }
@@ -61,6 +62,7 @@ test("TicketPlus 執行狀態分頁：依活動 id 顯示目前這一輪，同�
         const opened = new Map<string, Page>();
         for (const [index, current] of pages.entries()) {
             await current.goto(h.url);
+            await enterTicketPlus(current);
 
             const loaded = current.waitForResponse(response =>
                 /\/api\/activities\/[^/]+$/.test(new URL(response.url()).pathname),
@@ -107,6 +109,7 @@ test("TicketPlus 活動列表：執行中的活動那一列顯示即時狀態與
         const run = await start(h);
         assert(run?.activityId);
         await page.goto(h.url);
+        await enterTicketPlus(page);
 
         // 那一列標出來，狀態跟著執行進度顯示，按鈕換成「查看狀態」。
         const row = page.locator("#activities tr", { hasText: apiActivity.eventName });
@@ -142,6 +145,7 @@ test("TicketPlus 活動列表：執行中的活動那一列顯示即時狀態與
         await eventually(async () => assert.equal(await page.locator(".lock-chip").count(), 0));
         assert.equal(await page.locator("#status").innerText(), "購票已停止");
         await page.locator("#brandHome").click();
+        await enterTicketPlus(page);
 
         await eventually(async () => assert(await row.getByRole("button", { name: "編輯活動" }).isEnabled()));
         assert(!(await row.evaluate(element => element.classList.contains("running-row"))));
@@ -154,6 +158,7 @@ test("TicketPlus 活動列表：查看狀態載入活動失敗時改看獨立狀
     await fixture("success", async (h, page) => {
         await start(h);
         await page.goto(h.url);
+        await enterTicketPlus(page);
 
         const row = page.locator("#activities tr", { hasText: apiActivity.eventName });
         await row.locator(".status-badge").waitFor();
@@ -164,7 +169,7 @@ test("TicketPlus 活動列表：查看狀態載入活動失敗時改看獨立狀
         );
         await row.getByRole("button", { name: /^查看(?:目前)?狀態$/ }).click();
         await eventually(async () => assert.equal(await page.locator("#status").innerText(), "請手動登入"));
-        assert.equal(await page.locator(".breadcrumb").count(), 0);
+        assert.match(await page.locator(".breadcrumb").innerText(), /首頁.*執行結果/s);
         assert.match(await page.getByRole("alert").innerText(), /無法開啟活動/);
     });
 });
@@ -189,7 +194,7 @@ test(
             await snapshotFeed(page, "/api/purchase/events", legacy);
             await page.route("**/api/purchase", route => route.fulfill({ json: legacy }));
             await showRun(page, h.url);
-            assert.equal(await page.locator(".breadcrumb").count(), 0);
+            assert.match(await page.locator(".breadcrumb").innerText(), /首頁.*執行結果/s);
             assert.equal(await page.locator("#status").innerText(), "請手動登入");
         });
     },
@@ -355,6 +360,7 @@ test("TicketPlus 停止 GUI：傳送未確認仍有舊資格時不重送或登�
         await unavailable(page, stopLabel);
         await unavailable(page, loginLabel);
         await page.locator("#brandHome").click();
+        await enterTicketPlus(page);
         await page.getByRole("button", { name: /^查看(?:目前)?狀態$/ }).click();
         await unavailable(page, stopLabel);
         await unavailable(page, loginLabel);
@@ -368,6 +374,7 @@ test("TicketPlus 停止 GUI：傳送未確認仍有舊資格時不重送或登�
         await receivedNext;
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         await page.locator("#brandHome").click();
+        await enterTicketPlus(page);
         await eventually(async () =>
             assert.equal(await page.getByRole("button", { name: /^查看(?:目前)?狀態$/ }).count(), 1),
         );

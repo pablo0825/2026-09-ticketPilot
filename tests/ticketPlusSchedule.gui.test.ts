@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { chromium, type Page } from "playwright";
 import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
-import { eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
+import { enterTicketPlus, eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
 import type { PurchaseSnapshot } from "../src/server/runs/purchaseRuns.js";
 
 type Harness = Awaited<ReturnType<typeof apiHarness>>;
@@ -31,6 +31,7 @@ async function fixture(
             }),
         );
         await page.goto(h.url);
+        await enterTicketPlus(page);
 
         await page.getByRole("button", { name: "編輯活動", exact: true }).click();
         await review(page);
@@ -312,6 +313,7 @@ test("TicketPlus 排程 GUI：倒數跨過零只更新文字，不自行啟動�
         const feed = await snapshotFeed(page, "/api/purchase/events", run);
         await page.route("**/api/purchase", route => route.fulfill({ json: run }));
         await page.goto(h.url);
+        await enterTicketPlus(page);
         await page.getByRole("button", { name: /^查看(?:目前)?狀態$/ }).click();
         await eventually(async () => assert.match(await page.locator("body").innerText(), /距開賣 \d+ 秒/));
         await eventually(async () => assert.match(await page.locator("body").innerText(), /已到設定時間/));

@@ -50,6 +50,7 @@ export function TicketPlusWorkspace({
     message,
     setMessage,
     runs,
+    onHome,
     onViewRun,
     onPendingResolved,
     registerLeaveGuard,
@@ -219,8 +220,9 @@ export function TicketPlusWorkspace({
     }
 
     // 開啟執行中的活動並停在執行狀態分頁；欄位仍因占用而鎖住，只能查看。
-    function openRunActivity(id: string) {
-        void action(async () => {
+    async function openRunActivity(id: string) {
+        let showStandaloneRun = false;
+        await action(async () => {
             let next: TicketPlusActivityRecord;
             try {
                 next = ticketPlusRecord(await api<unknown>("/api/activities/" + id), id);
@@ -228,7 +230,7 @@ export function TicketPlusWorkspace({
                 // 活動不存在或無法載入時改看獨立的狀態頁，不留下空白的編輯頁。
                 if (!active.current) return;
                 setMessage(`無法開啟活動（${(error as Error).message}），改為顯示目前狀態。`);
-                onViewRun();
+                showStandaloneRun = true;
                 return;
             }
             if (!active.current) return;
@@ -236,6 +238,8 @@ export function TicketPlusWorkspace({
             setStep("status");
             if (runs.purchase?.activityId === id) setFollowedRunId(runs.purchase.id);
         });
+        // 先結束讀取動作，讓外層導覽仍可套用離開保護。
+        if (active.current && showStandaloneRun) onViewRun();
     }
 
     function changeStep(next: Step) {
@@ -338,7 +342,7 @@ export function TicketPlusWorkspace({
 
     return (
         <div data-tailwind>
-            <AppHeader disabled={locked} onHome={() => leave()} />
+            <AppHeader disabled={locked} onHome={onHome} />
             <div
                 id="message"
                 role="alert"
@@ -364,8 +368,9 @@ export function TicketPlusWorkspace({
                     {/* 只顯示已儲存的名稱，輸入中的名稱要按儲存後才更新。 */}
                     <Breadcrumbs
                         items={[
+                            { label: "首頁", actionLabel: "返回平台首頁", onSelect: onHome },
                             {
-                                label: "活動列表",
+                                label: "TicketPlus",
                                 id: "homeButton",
                                 actionLabel: "返回 TicketPlus 活動列表",
                                 onSelect: () => leave(),
@@ -473,7 +478,10 @@ export function TicketPlusWorkspace({
             ) : (
                 <>
                     <Breadcrumbs
-                        items={[{ label: "TicketPlus" }]}
+                        items={[
+                            { label: "首頁", actionLabel: "返回平台首頁", onSelect: onHome },
+                            { label: "TicketPlus" },
+                        ]}
                         disabled={locked}
                         lockReason={occupied ? "購票瀏覽器使用中，暫時無法變更活動設定" : undefined}
                     />

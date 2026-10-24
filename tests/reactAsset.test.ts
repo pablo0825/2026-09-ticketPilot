@@ -1,3 +1,4 @@
+import { enterTicketPlus } from "./fixtures/guiTestHelpers.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -18,6 +19,7 @@ test("React 正式打包由本機同源載入，保留 API 驗證與資源邊界
         const errors: string[] = [];
         page.on("pageerror", error => errors.push(error.message));
         const response = await page.goto(service.url);
+        await enterTicketPlus(page);
         await page.locator("#new").click();
         await page.getByLabel("活動名稱", { exact: true }).waitFor();
         assert.match(response!.headers()["content-security-policy"]!, /frame-ancestors 'none'/);

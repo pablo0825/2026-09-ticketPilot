@@ -5,6 +5,7 @@ export interface WorkspaceProps {
     message: string;
     setMessage: (message: string) => void;
     runs: ReturnType<typeof useRunStatus>;
+    onHome: () => void;
     onViewRun: () => void;
     onPendingResolved: () => void;
     registerLeaveGuard: (guard: () => boolean) => () => void;

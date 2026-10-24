@@ -7,7 +7,7 @@ import { chromium } from "playwright";
 import { ActivityStore } from "../src/storage/activityStore.js";
 import { startLocalServer } from "../src/server/server.js";
 import type { PurchaseSnapshot } from "../src/shared/runSnapshot.js";
-import { snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
+import { enterTicketPlus, snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
 
 for (const mode of ["accepted", "late", "wrong-platform"] as const) {
     test(`關窗回應核對身份與即時狀態：${mode}`, async () => {
@@ -45,6 +45,7 @@ for (const mode of ["accepted", "late", "wrong-platform"] as const) {
                 await route.fulfill({ json: mode === "wrong-platform" ? { ...closed, platform: null } : closed });
             });
             await page.goto(service.url);
+            await enterTicketPlus(page);
             await page.getByRole("button", { name: "查看目前狀態", exact: true }).click();
             await page.locator("#status").waitFor();
             feed.publish(undefined);

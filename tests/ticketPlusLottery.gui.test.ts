@@ -1,3 +1,4 @@
+import { enterTicketPlus } from "./fixtures/guiTestHelpers.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
@@ -48,6 +49,7 @@ test(
                 if (request.method() === "POST") posts.push(new URL(request.url()).pathname);
             });
             await page.goto(h.url);
+            await enterTicketPlus(page);
             await page.getByRole("button", { name: "查看狀態", exact: true }).click();
             await eventually(async () => assert.equal(await page.locator("#status").innerText(), "請填寫參加者"));
             assert.match(await page.locator("#instruction").innerText(), /網站倒數結束前須完成/);

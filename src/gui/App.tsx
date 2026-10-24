@@ -1,3 +1,7 @@
+import { PlatformHome } from "./pages/PlatformHome.js";
+import { Breadcrumbs } from "./shared/navigation/Breadcrumbs.js";
+import { purchaseStatus } from "./shared/runs/runPresentation.js";
+import { secondaryButton } from "./shared/styles.js";
 import { AppHeader } from "./shared/navigation/AppHeader.js";
 import { useCallback, useRef, useState } from "react";
 import { registeredWorkspaces } from "./platforms/workspaceRegistry.js";
@@ -17,7 +21,7 @@ export function App({ workspaces = registeredWorkspaces }: Props) {
     }
     // 全域狀態不隨活動列表與結果頁的切換而重建。
     const [message, setMessage] = useState("");
-    const [page, setPage] = useState<"workspace" | "run">("workspace");
+    const [page, setPage] = useState<"home" | "workspace" | "run">("home");
     const [platform, setPlatform] = useState(first.id);
     const [pending, setPending] = useState(hasPendingStart);
     const [checkingPending, setCheckingPending] = useState(false);
@@ -32,16 +36,22 @@ export function App({ workspaces = registeredWorkspaces }: Props) {
     const refreshPending = useCallback(() => setPending(hasPendingStart()), []);
     const runs = useRunStatus(setMessage);
 
-    function showActivities() {
-        if (runs.closing || checkingPendingRef.current) return;
+    function showHome() {
+        if (runs.closing || checkingPendingRef.current || !canLeaveWorkspace()) return;
+        refreshPending();
         setMessage("");
-        setPage("workspace");
+        setPage("home");
+    }
+
+    function showCurrentRun() {
+        if (runs.closing || checkingPendingRef.current || !canLeaveWorkspace()) return;
+        runs.showCurrent();
+        setPage("run");
     }
 
     const definition = workspaces.find(item => item.id === platform);
     if (!definition) throw new Error("找不到平台工作區。");
     const Workspace = definition.Workspace;
-    const multiplePlatforms = workspaces.length > 1;
 
     function canLeaveWorkspace() {
         return page !== "workspace" || leaveGuard.current?.() === true;
@@ -49,7 +59,7 @@ export function App({ workspaces = registeredWorkspaces }: Props) {
 
     function selectPlatform(id: string) {
         if (id === platform && page === "workspace") return;
-        if (checkingPendingRef.current || runs.closing) return;
+        if (checkingPendingRef.current || runs.closing || !runs.ready) return;
         // 每次操作重讀暫存；不能依賴較早 render 的值允許切換。
         if (hasPendingStart()) {
             setPending(true);
@@ -84,26 +94,29 @@ export function App({ workspaces = registeredWorkspaces }: Props) {
     // 頁面只負責導覽，真正啟動仍經過平台與後端驗證
     return (
         <main>
-            {multiplePlatforms && (
-                <nav aria-label="平台選擇">
-                    {workspaces.map(item => (
-                        <button
-                            key={item.id}
-                            type="button"
-                            aria-pressed={platform === item.id}
-                            disabled={runs.closing || checkingPending}
-                            onClick={() => selectPlatform(item.id)}
-                        >
-                            {item.name}
-                        </button>
-                    ))}
-                </nav>
+            {page !== "workspace" && (
+                <>
+                    <AppHeader disabled={runs.closing || checkingPending} onHome={showHome} />
+                    <div
+                        id="message"
+                        role="alert"
+                        data-tailwind
+                        className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 empty:hidden"
+                    >
+                        {message}
+                    </div>
+                </>
             )}
-            {multiplePlatforms && pending && (
-                <section aria-label="待確認的啟動請求">
+            {page !== "workspace" && pending && (
+                <section
+                    data-tailwind
+                    aria-label="待確認的啟動請求"
+                    className="mb-4 space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4"
+                >
                     <p>有待確認的啟動請求。請先核對原流程，不會自動重新開始。</p>
                     <button
                         type="button"
+                        className={secondaryButton}
                         disabled={checkingPending || runs.closing || !runs.ready}
                         onClick={() => void inspectPending()}
                     >
@@ -111,12 +124,38 @@ export function App({ workspaces = registeredWorkspaces }: Props) {
                     </button>
                 </section>
             )}
+            {page === "home" && (
+                <PlatformHome
+                    disabled={!runs.ready || runs.closing || checkingPending}
+                    entryBlocked={pending}
+                    platforms={workspaces.map(item => ({
+                        id: item.id,
+                        name: item.name,
+                        status: !runs.ready
+                            ? "載入中…"
+                            : runs.purchase?.platform === item.id
+                              ? purchaseStatus(runs.purchase, runs.closing, Date.now()).title
+                              : "可進入設定",
+                        onEnter: () => selectPlatform(item.id),
+                        onViewRun: runs.purchase?.platform === item.id ? showCurrentRun : undefined,
+                    }))}
+                    unknownRun={
+                        runs.purchase && !workspaces.some(item => item.id === runs.purchase?.platform)
+                            ? {
+                                  status: purchaseStatus(runs.purchase, runs.closing, Date.now()).title,
+                                  onView: showCurrentRun,
+                              }
+                            : undefined
+                    }
+                />
+            )}
             {page === "workspace" && (
                 <Workspace
                     key={platform}
                     registerLeaveGuard={registerLeaveGuard}
                     navigationBusy={checkingPending}
-                    managesPendingStart={multiplePlatforms}
+                    managesPendingStart={false}
+                    onHome={showHome}
                     onPendingChange={refreshPending}
                     message={message}
                     setMessage={setMessage}
@@ -125,19 +164,18 @@ export function App({ workspaces = registeredWorkspaces }: Props) {
                         refreshPending();
                         setPage("run");
                     }}
-                    onViewRun={() => {
-                        if (checkingPendingRef.current) return;
-                        runs.showCurrent();
-                        setPage("run");
-                    }}
+                    onViewRun={showCurrentRun}
                 />
             )}
             {page === "run" && (
                 <>
-                    <AppHeader disabled={runs.closing || checkingPending} onHome={showActivities} />
-                    <div id="message" role="alert">
-                        {message}
-                    </div>
+                    <Breadcrumbs
+                        items={[
+                            { label: "首頁", actionLabel: "返回平台首頁", onSelect: showHome },
+                            { label: "執行結果" },
+                        ]}
+                        disabled={runs.closing || checkingPending}
+                    />
                     <RunStatus
                         displayed={runs.displayed}
 
