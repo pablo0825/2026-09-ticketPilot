@@ -6,11 +6,8 @@ export interface WorkerInput<S> {
     activity: S;
     lease: PurchaseLease;
 }
-export interface WorkerResult {
-    outcome: "information-ready" | "payment-ready" | "registration-ready" | "failed" | "unknown";
-    message: string;
-    stopReason?: "user-stop" | "time-limit";
-}
+import type { WorkerResult } from "./workerReports.js";
+export type { WorkerResult } from "./workerReports.js";
 export interface WorkerEnvironment {
     onBrowser(context: BrowserContext): void;
     sendEvent(event: WorkerPurchaseEvent): void;

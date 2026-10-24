@@ -17,6 +17,7 @@ import type { PurchaseSnapshot } from "../../shared/runSnapshot.js";
 
 import type { RunRecord as Record } from "./runRecord.js";
 import { RunRecordStore } from "./runRecordStore.js";
+import { parseWorkerReport } from "../../workers/workerReports.js";
 
 function hashContent(value: unknown): string {
     return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -368,39 +369,35 @@ export class PurchaseRuns {
     private attachWorker(child: ChildProcess, record: Record): void {
         // 只有收到 finished 且沒有錯誤，才算正常結束
         let clean = false;
+        let invalidReport = false;
 
         // 接收子程序回報的事件、瀏覽器狀態與結果
-        child.on("message", (value: any) => {
+        child.on("message", (value: unknown) => {
+            if (invalidReport) return;
             try {
                 const definition = executionPlatform(record.snapshot.platform);
-                const platformEvent = definition.parseEvent(value?.event);
-                if (
-                    value?.type === "event" &&
-                    ((value.event?.type === "log" && typeof value.event.message === "string") ||
-                        platformEvent !== undefined)
-                ) {
+                const report = parseWorkerReport(value, definition);
+                if (!report || report.type === "close-error") return;
+                if (report.type === "event") {
                     record.snapshot.events.push({
                         sequence: (record.snapshot.events.at(-1)?.sequence ?? 0) + 1,
                         at: new Date().toISOString(),
-                        event: platformEvent !== undefined ? platformEvent : value.event,
+                        event: report.event,
                     });
                     if (record.snapshot.events.length > 300) {
                         record.snapshot.events.shift();
                         record.snapshot.historyTruncated = true;
                     }
-                } else if (value?.type === "browser") {
-                    record.snapshot.browserOpen = value.open === true;
-                } else if (
-                    value?.type === "result" &&
-                    (["failed", "unknown"].includes(value.outcome) || definition.acceptsResult(value.outcome))
-                ) {
-                    record.snapshot.status = value.outcome;
-                    record.snapshot.message = value.message;
+                } else if (report.type === "browser") {
+                    record.snapshot.browserOpen = report.open;
+                } else if (report.type === "result") {
+                    record.snapshot.status = report.outcome;
+                    record.snapshot.message = report.message;
                     // 只保留 TicketPlus 已知的停止原因，其他值不寫入紀錄。
-                    if (definition.stopReason(value.stopReason)) {
-                        record.snapshot.stopReason = value.stopReason;
+                    if (report.stopReason) {
+                        record.snapshot.stopReason = report.stopReason;
                     }
-                } else if (value?.type === "finished") {
+                } else if (report.type === "finished") {
                     clean = true;
                 } else {
                     return;
@@ -409,6 +406,8 @@ export class PurchaseRuns {
                 this.recordStore.replace(record);
                 this.notify();
             } catch {
+                invalidReport = true;
+                clean = false;
                 child.kill();
             }
         });
@@ -463,8 +462,13 @@ export class PurchaseRuns {
             };
 
             const onClose = () => finish();
-            const onMessage = (value: any) => {
-                if (value?.type === "close-error") finish(new Error("瀏覽器關閉失敗，請檢查原視窗或手動關閉。"));
+            const onMessage = (value: unknown) => {
+                try {
+                    const report = parseWorkerReport(value, executionPlatform(run.platform));
+                    if (report?.type === "close-error") finish(new Error("瀏覽器關閉失敗，請檢查原視窗或手動關閉。"));
+                } catch {
+                    finish(new Error("購票程序回報無效，請檢查原視窗；占用不會強制解除。"));
+                }
             };
 
             const timer = setTimeout(
