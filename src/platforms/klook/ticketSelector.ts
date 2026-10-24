@@ -1,3 +1,4 @@
+import { waitForTicketOptions, selectionWaitTimeout } from "./selectionPolling.js";
 import { KlookTicketExtras } from "./ticketExtras.js";
 import { SelectionExpiryNotice } from "./notices.js";
 import { parseDateOption, matchesDateOption } from "./eventDate.js";
@@ -41,7 +42,7 @@ export class KlookTicketSelector {
     // page, timeout 作為物件的私有屬性
     constructor(
         private readonly page: Page,
-        private readonly timeout = 10_000,
+        private readonly timeout = selectionWaitTimeout,
         private readonly observeSelectionNotice: () => Promise<void> = async () => {},
     ) {
         // 建立定位器
@@ -53,8 +54,8 @@ export class KlookTicketSelector {
         // 檢查票券格式是否符合
         validateTicketTarget(target);
 
-        // 確認票券選擇區只有一個元素
-        await this.waitForUniqueElement(this.root, "票券選擇區");
+        // 日期、時間、票種陣列完整後才開始選取；不跨輪沿用資料。
+        await waitForTicketOptions(this.page, this.observeSelectionNotice, this.timeout);
 
         // 選擇日期；不可選就回報 disabled
         if (!(await this.selectDate(target.date))) {
