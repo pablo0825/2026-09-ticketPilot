@@ -1,4 +1,4 @@
-import { validateSaleSchedule } from "../../../../core/purchaseValidation.js";
+import { validateSaleSchedule } from "../../../../core/saleSchedule.js";
 import {
     parseTicketPlusActivity,
     ticketPlusDefaultRunMinutes,

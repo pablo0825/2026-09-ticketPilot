@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import { validateSaleSchedule } from "../../core/purchaseValidation.js";
+import { validateSaleSchedule } from "../../core/saleSchedule.js";
 import type { TicketPlusRunControl } from "./runControl.js";
 
 // 開賣時間依日曆時鐘核對；購票期限由 runner 在等待完成後另行啟動。

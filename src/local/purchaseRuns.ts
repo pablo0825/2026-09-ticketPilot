@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { parseActivity, projectRoot, type ActivityRecord, type ActivitySettings } from "../config/activityStore.js";
 import { validateContactDetails } from "../config/contact.config.js";
-import { validateSaleSchedule } from "../core/purchaseValidation.js";
+import { validateSaleSchedule } from "../core/saleSchedule.js";
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
 import {
     singleTicketPlusSelection,

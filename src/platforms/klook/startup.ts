@@ -1,6 +1,6 @@
 import { log } from "../../core/logger.js";
-import type { SaleSchedule } from "../../core/types.js";
-import { validateSaleSchedule } from "../../core/purchaseValidation.js";
+import type { SaleSchedule } from "../../core/saleSchedule.js";
+import { validateSaleSchedule } from "../../core/saleSchedule.js";
 import type { Page } from "playwright";
 import { PurchaseStop } from "../../core/purchaseStop.js";
 import { reportState } from "../../core/state.js";

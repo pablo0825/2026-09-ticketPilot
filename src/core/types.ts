@@ -1,3 +1,5 @@
+import type { SaleSchedule } from "./saleSchedule.js";
+
 export interface TicketTarget {
     date: string;
     time: string;
@@ -5,11 +7,6 @@ export interface TicketTarget {
     quantity: number;
     bundle?: string;
     adjacent: boolean; // 多張票才套用，單張票不操作連票設定。
-}
-
-export interface SaleSchedule {
-    saleAt: string; // 完整台灣時間，例如 2026-10-10T10:00:00+08:00。
-    advanceSeconds?: 1 | 2; // 預設提前 1 秒刷新。
 }
 
 export interface TicketOptions {

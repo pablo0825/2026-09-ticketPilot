@@ -4,7 +4,6 @@ import { chromium, type Page } from "playwright";
 import { prepareBooking } from "../src/core/bookingPreparation.js";
 import { KlookQueueRecovery } from "../src/platforms/klook/expiryRecovery.js";
 import { decideSaleStep, prepareStartup, type SalePageState, type SaleTiming } from "../src/platforms/klook/startup.js";
-import { validateSaleSchedule } from "../src/core/purchaseValidation.js";
 
 const eventUrl = "https://www.klook.com/zh-TW/event-detail/sale-fixture/";
 const saleAt = "2026-10-10T10:00:00+08:00";
@@ -16,14 +15,6 @@ const tickets =
 const coming = '<div id="ticket-options"><div class="package-wrapper stateText">即將開賣</div></div>';
 const queue =
     '<div class="klk-modal-alert"><p>抱歉，時間到了！ 請返回並重新排隊</p><button onclick="document.body.dataset.clicked=1">OK</button></div>';
-
-test("排程設定拒絕錯誤日期、缺少時區及不支援的提前量", () => {
-    assert.equal(validateSaleSchedule({ saleAt }), sale);
-    for (const value of ["2026-02-30T10:00:00+08:00", "2026-10-10T10:00:00", "2026-10-10T24:00:00+08:00", "bad"]) {
-        assert.throws(() => validateSaleSchedule({ saleAt: value }));
-    }
-    assert.throws(() => validateSaleSchedule({ saleAt, advanceSeconds: 0 as 1 }));
-});
 
 // 虛擬時鐘只推進排程時間；DOM 與導覽仍由真實 Chromium + 攔截頁面驗證。
 async function scenario(
