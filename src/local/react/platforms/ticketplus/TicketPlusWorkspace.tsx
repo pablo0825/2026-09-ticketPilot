@@ -1,13 +1,13 @@
 import { TicketPlusTargetRow } from "./TicketPlusTargetRow.js";
 import { TicketPlusActivitySettings } from "./ActivitySettings.js";
 import { primaryButton, secondaryButton, stepPanel } from "../../shared/styles.js";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ActivityRecord } from "../../../../config/activityStore.js";
 import type { ActivityExecutionStatus } from "../../../purchaseRuns.js";
 import type { PurchaseSnapshot } from "../../../../shared/runSnapshot.js";
 import { api } from "../../shared/api.js";
 import { AppHeader } from "../../shared/navigation/AppHeader.js";
-import type { useRunStatus } from "../../shared/runs/useRunStatus.js";
+import type { WorkspaceProps } from "../platformDefinition.js";
 import { RunStatus } from "../../shared/runs/RunStatus.js";
 import { ticketPlusSummary } from "./purchaseSummary.js";
 import { ActivityListPage } from "../../pages/ActivityListPage.js";
@@ -33,13 +33,6 @@ import { findPendingStart, hasPendingStart, startPurchase } from "./startPurchas
 
 type ActivityListEntry = TicketPlusActivityRecord & { executionStatus: ActivityExecutionStatus | "待重新載入" };
 
-interface Props {
-    message: string;
-    setMessage: (message: string) => void;
-    runs: ReturnType<typeof useRunStatus>;
-    onViewRun: () => void;
-    onPendingResolved: () => void;
-}
 interface ActivityListData {
     activities: (ActivityRecord & { executionStatus: ActivityExecutionStatus })[];
     invalidFiles: number;
@@ -52,7 +45,17 @@ const steps: { id: Step; label: string }[] = [
     { id: "status", label: "執行狀態" },
 ];
 
-export function TicketPlusWorkspace({ message, setMessage, runs, onViewRun, onPendingResolved }: Props) {
+export function TicketPlusWorkspace({
+    message,
+    setMessage,
+    runs,
+    onViewRun,
+    onPendingResolved,
+    registerLeaveGuard,
+    navigationBusy,
+    managesPendingStart,
+    onPendingChange,
+}: WorkspaceProps) {
     const [activities, setActivities] = useState<ActivityListEntry[]>([]);
     const [record, setRecord] = useState<TicketPlusActivityRecord | null>(null);
     const [form, setForm] = useState(activityForm);
@@ -126,7 +129,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onViewRun, onPe
     }, [refreshList, statusKey, setMessage]);
 
     const occupied = runs.purchase?.occupied === true;
-    const locked = busy || runs.closing;
+    const locked = busy || runs.closing || navigationBusy;
     const activityTitle = record?.settings.eventName ?? "新增活動";
     const blocked = locked || !initialized || !runs.ready || occupied;
     const activityDirty = editing && draftFingerprint(form) !== baseline;
@@ -162,7 +165,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onViewRun, onPe
 
     async function action(work: () => Promise<unknown>) {
         // 同步鎖涵蓋保存與導覽，避免 React 尚未更新按鈕時重複送出。
-        if (busyRef.current || runs.closing) return;
+        if (busyRef.current || runs.closing || navigationBusy) return;
         busyRef.current = true;
         setBusy(true);
         setMessage("");
@@ -175,12 +178,23 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onViewRun, onPe
             if (active.current) {
                 setBusy(false);
                 setPendingStart(hasPendingStart());
+                onPendingChange();
             }
         }
     }
 
+    // 外層切換只詢問能否離開，不觸發列表刷新或重設草稿。
+    useLayoutEffect(
+        () =>
+            registerLeaveGuard(() => {
+                if (busyRef.current || runs.closing || navigationBusy) return false;
+                return !dirty || window.confirm("有尚未儲存的修改，要放棄並離開嗎？");
+            }),
+        [registerLeaveGuard, dirty, runs.closing, navigationBusy],
+    );
+
     function leave() {
-        if (busyRef.current || runs.closing) return;
+        if (busyRef.current || runs.closing || navigationBusy) return;
         if (dirty && !window.confirm("有尚未儲存的修改，要放棄並離開嗎？")) return;
         setMessage("");
         setEditing(false);
@@ -224,7 +238,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onViewRun, onPe
     }
 
     function changeStep(next: Step) {
-        if (busyRef.current || runs.closing) return;
+        if (busyRef.current || runs.closing || navigationBusy) return;
         setStep(next);
     }
 
@@ -331,7 +345,7 @@ export function TicketPlusWorkspace({ message, setMessage, runs, onViewRun, onPe
             >
                 {message}
             </div>
-            {pendingStart && (
+            {pendingStart && !managesPendingStart && (
                 <div role="status" className="mb-4 space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
                     <p>有待確認的 TicketPlus 啟動請求。先核對原流程，暫不變更或刪除設定；不會自動重跑。</p>
                     <button
