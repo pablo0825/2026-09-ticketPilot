@@ -1,6 +1,6 @@
 import type { TicketPlusWorkerEvent } from "../../../shared/platforms/ticketplus/events.js";
 import type { PurchaseSnapshot } from "../../../shared/runSnapshot.js";
-import { latestTicketPlusStage, purchaseStatus } from "./runStatus.js";
+import { latestTicketPlusStage, ticketPlusPurchaseStatus } from "./runStatus.js";
 
 import type { RunStep } from "../../shared/runs/runStep.js";
 
@@ -73,7 +73,7 @@ export function ticketPlusStepsView(
     markSteps(run, steps, keys, current, latestStage);
 
     // 標題沿用既有狀態標題，說明改用較短的文字。
-    const title = flowTitle(run, purchaseStatus(run, closingBrowser, now).title);
+    const title = flowTitle(run, ticketPlusPurchaseStatus(run, closingBrowser, now).title);
     return { title, badge: badge(run, latestStage), summary: summary(run, closingBrowser, now, latestStage), steps };
 }
 
@@ -198,7 +198,7 @@ function summary(
 
     // 執行中依目前狀況提示。
     if (run.status === "running") {
-        if (run.stopRequest) return purchaseStatus(run, closingBrowser, now).instruction;
+        if (run.stopRequest) return ticketPlusPurchaseStatus(run, closingBrowser, now).instruction;
         if (latestStage === "waiting-for-login") return "請在購票瀏覽器手動登入，登入後會自動繼續。";
         if (latestStage === "waiting-for-sale") return saleSummary(run.saleAt, now);
         if (latestStage === "waiting-for-participants") {

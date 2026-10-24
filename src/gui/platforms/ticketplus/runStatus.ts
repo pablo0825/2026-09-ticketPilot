@@ -66,7 +66,7 @@ const ticketPlusStageStatus: Record<FixedTicketPlusStage, RunStatusText> = {
     },
 };
 
-export function purchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, now: number): RunStatusText {
+export function ticketPlusPurchaseStatus(run: PurchaseSnapshot, closingBrowser: boolean, now: number): RunStatusText {
     // 已結束的流程顯示結果。
     if (run.status !== "running") {
         return finishedStatus(run, closingBrowser);
