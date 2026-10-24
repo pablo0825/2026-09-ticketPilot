@@ -2,7 +2,6 @@
 
 這份指南說明如何把新平台接入設定、執行管理、購票程序與 GUI。正式入口目前只有 TicketPlus；測試中的假平台不是可執行的購票平台。Klook 已封存，不得透過登記處重新啟用。
 
-
 ## 模組責任與依賴
 
 - `src/config/`：解析活動設定。不要引用執行管理、worker 或瀏覽器。
@@ -12,10 +11,12 @@
 - `src/server/runs/`：管理請求去重、子程序、執行紀錄及控制訊息。
 - `src/workers/`：接收子程序控制訊息；平台 worker 將詳細結果轉成可保存的摘要。
 - `src/storage/`：讀寫活動設定，管理資料路徑與持續占用鎖。
-- `src/shared/`：前後端可共同引用的資料型別，不含 Node 或瀏覽器啟動的 runtime 依賴。
+- `src/shared/`：前後端可共同引用的資料型別與事件 schema，不含 Node 或瀏覽器啟動的 runtime 依賴。
 - `src/gui/platforms/<platform>/`：平台表單、工作區、流程文字和步驟呈現。
 
-後端依賴方向為 `server／workers → app → config`。前端可以引用安全的設定解析與 shared 型別；不要讓前端載入檔案系統、子程序或 Playwright。
+主服務與 worker 使用平台執行規則；只有 worker 載入實際購票流程及瀏覽器操作。`src/app/platforms/`、設定解析及共用契約不能載入 Playwright。儲存模組可以使用 Node，負責資料與鎖；前端不可引用它的實作。前端可以使用安全的設定解析與 `src/shared/` 契約，不引用主服務、worker 或購票流程。
+
+`src/shared/` 包含活動紀錄、活動執行狀態、執行快照與控制契約，以及 `platforms/<platform>/events.ts` 的事件 schema 和推導型別。事件 schema 可以使用前端安全的 Zod；只需要型別的前端程式使用 `import type`。共用契約不反向引用 `app/`。`src/gui/shared/` 則只放前端共用元件與操作邏輯。
 
 ## 四個接入範圍
 
@@ -24,22 +25,22 @@
 | 設定 | `src/config/settingsRegistry.ts` | 平台 ID 與設定解析器 |
 | 執行規則 | `src/app/platforms/executionRegistry.ts` | `PlatformDefinition` |
 | worker | `src/workers/workerRegistry.ts` | 設定解析器與 worker 執行函式 |
-| 前端 | `workspaceRegistry.ts` 與 `runPresenterRegistry.ts` | 工作區元件及純狀態呈現函式 |
+| 前端 | `src/gui/platforms/workspaceRegistry.ts` 與 `src/gui/platforms/runPresenterRegistry.ts` | 工作區元件及純狀態呈現函式 |
 
 前端刻意分成兩份 runtime 清單。工作區會使用 `RunStatus`，而 `RunStatus` 會查找 presenter；如果 presenter 清單又載入工作區，就會形成循環。不要把兩份清單合成會互相載入的模組。
 
 登記處不會自動擴充 TypeScript 型別。新增真實平台時，仍須明確擴充下面的聯集和驗證：
 
-- `config/platforms.ts` 的 `platformIds`。
-- `config/activitySettings.ts` 的 `ActivitySettings`。
-- `shared/runEvents.ts` 的新 worker 事件聯集；不要把新事件放入 `HistoricalRunEvent`。
-- 若新平台有不同流程、結果或停止原因，檢查 `shared/runSnapshot.ts`、`shared/runControls.ts`、`app/platforms/platformDefinition.ts`、`local/workerProtocol.ts` 及 `local/runRecord.ts` 的型別與驗證。
+- `src/config/settingsRegistry.ts` 的 `platformIds`。
+- `src/config/activitySettings.ts` 的 `ActivitySettings`。
+- `src/shared/runEvents.ts` 的新 worker 事件聯集；不要把新事件放入 `HistoricalRunEvent`。
+- 若新平台有不同流程、結果或停止原因，檢查 `src/shared/runSnapshot.ts`、`src/shared/runControls.ts`、`src/app/platforms/platformDefinition.ts`、`src/workers/workerProtocol.ts` 及 `src/server/runs/runRecord.ts` 的型別與驗證。
 
 目前的流程類型仍是 `purchase | lottery`，交接結果仍包含 `information-ready`、`payment-ready`、`registration-ready`。新平台若無法用現有約定表達，應明確擴充介面、驗證、畫面和測試；不要用型別斷言繞過檢查，也不要把不同意思的狀態硬套成現有名稱。
 
 ## 1. 設定解析
 
-新增平台設定型別與 `parse<Platform>Activity(unknown)`，再登記到 `parsePlatformSettings`。
+在 `src/config/platforms/<platform>/activitySettings.ts` 定義平台設定型別與解析函式，再登記到 `src/config/settingsRegistry.ts`。
 
 解析器必須：
 
@@ -51,7 +52,7 @@
 
 ## 2. 平台執行規則
 
-在 `src/app/platforms/` 建立平台定義，參考 `ticketplus/definition.ts`，並登記到 `executionPlatform`。
+在 `src/app/platforms/<platform>/definition.ts` 建立平台定義，再登記到 `src/app/platforms/executionRegistry.ts`。新平台事件的 schema 與推導型別放在 `src/shared/platforms/<platform>/events.ts`，平台定義透過它驗證新事件，`src/shared/runEvents.ts` 明確加入事件聯集。
 
 `PlatformDefinition` 提供：
 
@@ -67,7 +68,7 @@
 
 ## 3. 購票流程與 worker
 
-新增平台網站操作、app runner 與 worker，再透過 `createWorkerEntry(id, parse, run)` 登記到 `workerRegistry.ts`。
+網站操作放在 `src/platforms/<platform>/`，流程協調放在 `src/app/flows/<platform>/`，worker 轉接放在 `src/workers/<platform>/worker.ts`，再透過 `createWorkerEntry(id, parse, run)` 加入 `src/workers/workerRegistry.ts`。
 
 worker 接收：
 
@@ -88,13 +89,13 @@ worker 應回傳 `WorkerResult`，不要把頁面 HTML、參加者身分資料�
 
 共用層提供去重、持續占用鎖和 lease 工具，但不替每個平台 runner 自動完成釋放。
 
-平台 runner 必須驗證收到的 lease，並保證流程與瀏覽器都結束後才釋放。外層 worker 不能再新增第二個釋放者。參考 `runTicketPlus.ts` 的處理，測試流程先結束、瀏覽器先關閉、啟動前停止與父服務失聯的情況。
+平台 runner 必須驗證收到的 lease，並保證流程與瀏覽器都結束後才釋放。外層 worker 不能再新增第二個釋放者。參考 `src/app/flows/ticketplus/runTicketPlus.ts` 的處理；lease 工具由 `src/storage/purchaseLock.ts` 提供。測試應涵蓋流程先結束、瀏覽器先關閉、啟動前停止與父服務失聯的情況。
 
 關閉 GUI 工作區、隱藏活動或封存紀錄都不能釋放 lease。程序失聯或提交結果不明，也不能自行重新啟動購票。
 
 ## 4. GUI 工作區
 
-建立符合 `WorkspaceProps` 的工作區，登記到 `registeredWorkspaces`。目前只有一個正式平台時，App 仍直接顯示該工作區；有多個平台才顯示選擇按鈕。
+依 `src/gui/platforms/workspaceDefinition.ts` 建立符合 `WorkspaceProps` 的工作區，登記到 `src/gui/platforms/workspaceRegistry.ts`。目前只有一個正式平台時，App 仍直接顯示該工作區；有多個平台才顯示選擇按鈕。
 
 工作區應：
 
@@ -109,7 +110,7 @@ App 切換平台會先檢查 pending、關窗與離開 guard。工作區卸載�
 
 ### 待確認的開始請求
 
-新平台使用 `shared/runs/pendingStart.ts`，不要自行建立另一個互不相通的 pending key。
+新平台使用 `src/gui/shared/runs/pendingStart.ts`，不要自行建立另一個互不相通的 pending key。
 
 - 新 key：`ticketpilot-platform-purchase-request`，version 2，包含平台、request ID、活動 ID 與設定 signature。
 - 舊 TicketPlus key：`ticketpilot-ticketplus-purchase-request`，version 1，仍可讀；不自動改寫原文或 signature。
@@ -121,7 +122,7 @@ App 切換平台會先檢查 pending、關窗與離開 guard。工作區卸載�
 
 ## 狀態呈現與 GUI 操作控制
 
-在平台目錄提供 `RunPresenter`，登記到 `runPresenterRegistry.ts`：
+依 `src/gui/platforms/runPresenterDefinition.ts` 提供 `RunPresenter`，登記到 `src/gui/platforms/runPresenterRegistry.ts`。參考 TicketPlus 的 `src/gui/platforms/ticketplus/runPresenter.ts` 與 `runSteps.ts`：
 
 - `status(run, closing, now)`：標題與提示。
 - 選填 `steps`：共用 `RunStepsView`。
@@ -135,13 +136,19 @@ GUI 操作控制約定：`capabilities` 表示平台能力；`canStop`、確認 
 
 ## 歷史紀錄與相容性
 
-`local/runRecord.ts` 與新事件驗證分開。歷史紀錄保留原本允許的欄位與事件範圍，不直接套用新 worker 的嚴格訊息格式。
+`src/server/runs/runRecord.ts` 與新事件驗證分開。歷史紀錄保留原本允許的欄位與事件範圍，不直接套用新 worker 的嚴格訊息格式。
 
 - 先驗證格式、版本與平台組合，再判定 Klook 封存；不能看到 Klook 就略過合法性檢查。
 - 平台歷史版本由各自的 `recordVersions` 提供；不同平台可以使用相同版本數字，但不能因此視為同一種格式或接受其他平台事件。
 - 磁碟上的 `capabilities`、`canStop`、確認 ID、關窗資格及停止要求不能直接授權新操作；讀取時移除舊資格，由目前服務產生。
 - 舊 request ID 與持續鎖仍有效，不得因紀錄被隱藏、格式升級或平台封存而重用。
 - 新平台若增加流程或結果型別，必須同步修改歷史驗證器；不能只讓新 worker 回傳而忽略後續重啟讀取。
+
+## 路徑與命名
+
+`src/storage/dataPaths.ts` 透過 `import.meta.url` 定位專案根目錄，不能改成依啟動工作目錄決定資料位置。`local-data`、購票鎖、瀏覽器 profile、API 路徑和瀏覽器儲存 key 不因來源目錄重整而改變。GUI 原始碼在 `src/gui/`，正式產物仍是 `dist/react`。
+
+平台資料夾使用小寫名稱，例如 `ticketplus`；一般 TypeScript 檔案用 camelCase，React 元件用 PascalCase。登記處依責任命名，避免只叫 `index.ts`。搬檔案時同步更新一般 import、動態 import、worker URL、測試 fixture 和建置設定。使用 `git mv` 並控制同次內容修改，方便追蹤更名歷史。現行指南使用新路徑；歷史計畫、設計及 DOM 觀察記錄保留當時內容。
 
 ## 測試與驗證
 
@@ -156,6 +163,10 @@ GUI 操作控制約定：`capabilities` 表示平台能力；`canStop`、確認 
 可參考：`platformSettings.test.ts`、`platformRegistry.test.ts`、`workerRegistry.test.ts`、`pendingStart.test.ts`、`platformWorkspaces.gui.test.ts`、`runPresenterRegistry.test.ts`、`runEligibility.test.ts`、`runCloseOrdering.test.ts`、`runParticipantsOrdering.test.ts` 及 TicketPlus 的實際流程測試。
 
 假平台只用於測試登記處或透過 `App({ workspaces })` 注入。`tests/fixtures/platformWorkspaces.tsx` 使用真 React App 與本機 Vite，驗證平台切換；不得把假平台登記到正式清單，也不得加入可在正式 GUI 啟用它的選項。
+
+`tests/structureBoundaries.test.ts` 在隔離工作目錄執行四項保護：阻止 Playwright 解析後載入主服務；核對專案根與預設鎖路徑；攔截實際 fork 並確認預設 worker 可載入且註冊訊息接收器；替換服務後驗證 main 的 `--no-open` 與關閉訊號。這些測試不讀寫使用者資料，也不向正式 worker 傳送購票設定。HTTP 與正式 GUI 資源另由 `guiAsset`、`reactAsset` 等隔離測試驗證。
+
+GUI 搬移後，清除舊 `dist/react` 再建置，確認輸出位置及 CSS 生效，避免舊產物掩蓋錯誤。`npm run test:gui` 包含關窗晚回應、操作資格、平台呈現與 pending 測試；按改動範圍補上其他相關測試。
 
 從 repository root 執行：
 

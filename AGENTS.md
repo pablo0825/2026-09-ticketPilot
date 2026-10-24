@@ -13,11 +13,15 @@ Read the skill once per conversation and apply it throughout.
 ## Structure & Commands
 
 This TypeScript/Playwright project automates TicketPlus ticket purchases and lottery registration.
-`src/main.ts` starts the GUI, the only entry point; `src/app/` orchestrates
-purchase runs; `src/core/` owns shared sale-schedule validation;
-`src/platforms/` owns platform-specific browser interactions; `src/config/` owns configuration;
-`src/shared/` owns frontend-safe run contracts;
-`tests/` contains tests; `docs/` records DOM observations and integration guides.
+`src/main.ts` starts the local service and GUI, the only application entry point.
+`src/server/` owns HTTP APIs and run management; `src/workers/` owns child-process
+entry points and IPC; `src/storage/` owns activity persistence, data paths and purchase locks.
+`src/app/platforms/` owns browser-free execution rules; `src/app/flows/` coordinates
+platform flows; `src/platforms/` owns platform-specific browser interactions.
+`src/config/` parses settings; `src/core/` owns shared sale-schedule validation;
+`src/shared/` owns frontend-safe activity/run contracts and platform event schemas;
+`src/gui/` owns the React frontend. `tests/` contains tests; `docs/` records DOM
+observations and integration guides.
 
 Platform settings register in `src/config/settingsRegistry.ts`, execution rules in
 `src/app/platforms/executionRegistry.ts`, and child workers in `src/workers/workerRegistry.ts`.
@@ -48,6 +52,10 @@ Before writing, modifying, refactoring, or reviewing code, read and follow:
 This repository's rules take precedence over these guides.
 
 Follow existing file naming conventions, including PascalCase for React component files.
+Use lowercase platform directory names such as `ticketplus`, camelCase for ordinary
+TypeScript files, and PascalCase for React components. Name registries for their
+responsibility. Keep frontend helpers in `src/gui/shared/` and frontend/backend
+contracts in `src/shared/`.
 Use strict TypeScript and `.js` extensions for relative imports.
 
 ## Browser Flow & Recovery
