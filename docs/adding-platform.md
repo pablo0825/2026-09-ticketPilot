@@ -95,18 +95,21 @@ worker 應回傳 `WorkerResult`，不要把頁面 HTML、參加者身分資料�
 
 ## 4. GUI 工作區
 
-依 `src/gui/platforms/workspaceDefinition.ts` 建立符合 `WorkspaceProps` 的工作區，登記到 `src/gui/platforms/workspaceRegistry.ts`。目前只有一個正式平台時，App 仍直接顯示該工作區；有多個平台才顯示選擇按鈕。
+依 `src/gui/platforms/workspaceDefinition.ts` 建立符合 `WorkspaceProps` 的工作區，登記到 `src/gui/platforms/workspaceRegistry.ts`。App 啟動時一律顯示平台首頁，即使只有一個正式平台也一樣。`src/gui/pages/PlatformHome.tsx` 依 App 傳入的登記資料呈現平台名稱、目前狀態與進入按鈕；新增平台不需在首頁另寫平台判斷。
 
 工作區應：
 
 - 使用 App 提供的 `runs`，不要重新呼叫 `useRunStatus` 建立另一份全域訂閱或操作鎖。
+- 以 `onHome` 返回平台首頁；工作區自行呈現「首頁 / 平台 / 活動」麵包屑，活動層使用已儲存名稱或「新增活動」。
 - 透過 `registerLeaveGuard` 註冊離開檢查並在卸載時清理；使用 `useLayoutEffect` 或等效方式，避免使用舊草稿狀態。
 - 保存或啟動中用同步 ref 擋住離開，未儲存草稿須取得使用者同意後才離開。
 - 尊重 `navigationBusy`，在共用 pending 核對期間禁止其他變更及導覽。
 - 在 pending 改變後呼叫 `onPendingChange`。
-- `managesPendingStart` 為 true 時，不重複顯示平台自己的 pending 按鈕；由 App 的共用入口核對。
+- `managesPendingStart` 為 true 時，不重複顯示平台自己的 pending 按鈕。目前 App 傳入 false，由工作區提供自己的核對入口；首頁及獨立結果頁則由 App 提供共用入口。
 
-App 切換平台會先檢查 pending、關窗與離開 guard。工作區卸載不會清除全域執行狀態，也不能繞過占用限制。
+App 進入平台前會檢查 pending、狀態是否就緒、關窗與離開 guard。返回首頁或獨立結果頁也會檢查離開 guard；若工作區要在讀取失敗後切換至結果頁，應先結束自己的忙碌動作，避免被守衛擋住。工作區卸載不會清除全域執行狀態，也不能繞過占用限制。
+
+活動列表應分開處理載入中、成功空列表與載入失敗。錯誤與重試入口保留在列表區域，不覆蓋全域執行訊息；失敗時保留已讀取資料，成功才移除重試入口。背景刷新與手動重試若先後回應，只接受最新請求的結果。
 
 ### 待確認的開始請求
 
