@@ -58,6 +58,17 @@ export const ticketPlusDefinition: PlatformDefinition = {
     id: "ticketplus",
     name: "TicketPlus",
     recordVersions: [2, 3, 4, 5],
+    stop: { message: { type: "stop-ticketplus" } },
+    participants: {
+        messageType: "confirm-ticketplus-participants",
+        pending(events) {
+            const event = events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
+            return event?.type === "ticketplus" && event.stage === "waiting-for-participants"
+                ? event.confirmationId
+                : undefined;
+        },
+        message: confirmationId => ({ type: "confirm-ticketplus-participants", confirmationId }),
+    },
     bind(input) {
         const settings = parseTicketPlusActivity(input);
         const current = ticketPlusFingerprintSettings(settings);

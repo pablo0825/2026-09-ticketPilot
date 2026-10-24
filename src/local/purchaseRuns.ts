@@ -8,7 +8,7 @@ import { parseActivity, projectRoot, type ActivityRecord, type ActivitySettings 
 import { acquirePurchaseLease, purchaseOccupied } from "../app/purchaseLock.js";
 import { executionPlatform, platformFor } from "../app/platforms/index.js";
 import { runSnapshotFields, type BoundRunRules } from "../app/platforms/platformDefinition.js";
-import { sendTicketPlusStop } from "./sendTicketPlusStop.js";
+import { sendWorkerStop } from "./sendWorkerStop.js";
 import type { PurchaseEvent } from "./purchaseEvents.js";
 
 export type { PurchaseSnapshot } from "../shared/runSnapshot.js";
@@ -271,7 +271,8 @@ export class PurchaseRuns {
     private stopAvailable(): boolean {
         return Boolean(
             this.child?.connected &&
-            this.current?.snapshot.platform === "ticketplus" &&
+            this.current &&
+            executionPlatform(this.current.snapshot.platform).stop &&
             this.current.snapshot.status === "running" &&
             this.stopRequest?.record !== this.current,
         );
@@ -290,8 +291,9 @@ export class PurchaseRuns {
         const existing = this.stopRequest;
         if (existing?.record === record) return this.stopResponse(existing);
         const child = this.child;
-        if (!this.stopAvailable() || !child) {
-            throw new Error("目前沒有可停止的 TicketPlus 執行，請查看目前狀態。");
+        const definition = executionPlatform(record.snapshot.platform);
+        if (!this.stopAvailable() || !child || !definition.stop) {
+            throw new Error(`目前沒有可停止的 ${definition.name} 執行，請查看目前狀態。`);
         }
 
         // 先固定停止要求；停止傳送不能依賴磁碟寫入成功。
@@ -301,7 +303,7 @@ export class PurchaseRuns {
 
         // 傳送完成只更新要求狀態，購票結果仍由 worker 回報。
         try {
-            await sendTicketPlusStop(child);
+            await sendWorkerStop(child, definition.stop.message);
             request.status = "sent";
         } catch {
             request.status = "unconfirmed";
@@ -333,18 +335,19 @@ export class PurchaseRuns {
     // 只有本服務現行的 TicketPlus 執行、最後進度為等待參加者且尚未送出確認時，才提供確認 ID。
     private pendingParticipants(): { confirmationId: string } | undefined {
         const record = this.current;
-        if (!record || record.snapshot.platform !== "ticketplus" || record.snapshot.status !== "running") {
+        if (!record || record.snapshot.status !== "running") {
             return undefined;
         }
         // 已提出停止要求後不再提供確認，避免停止中又繼續收尾。
         if (this.stopRequest?.record === record) return undefined;
         if (!this.child?.connected) return undefined;
-        const event = record.snapshot.events.filter(item => item.event.type === "ticketplus").at(-1)?.event;
-        if (event?.type !== "ticketplus" || event.stage !== "waiting-for-participants") return undefined;
-        if (this.participantsSent?.record === record && this.participantsSent.confirmationId === event.confirmationId) {
+        const confirmationId = executionPlatform(record.snapshot.platform).participants?.pending(
+            record.snapshot.events,
+        );
+        if (!confirmationId) return undefined;
+        if (this.participantsSent?.record === record && this.participantsSent.confirmationId === confirmationId)
             return undefined;
-        }
-        return { confirmationId: event.confirmationId };
+        return { confirmationId };
     }
 
     // 轉送「參加者已填完」：ID 須與目前等待相同；每個等待只轉送一次，不重送。
@@ -354,9 +357,10 @@ export class PurchaseRuns {
     ): Promise<{ status: "sent" | "unconfirmed"; message: string; run: PurchaseSnapshot }> {
         const record = this.current;
         if (!record || record.snapshot.id !== runId) throw new Error("執行紀錄已變更，請重新查看目前狀態。");
+        const participants = executionPlatform(record.snapshot.platform).participants;
         const pending = this.pendingParticipants();
         const child = this.child;
-        if (!pending || pending.confirmationId !== confirmationId || !child) {
+        if (!participants || !pending || pending.confirmationId !== confirmationId || !child) {
             throw new Error("目前沒有等待中的參加者確認，或確認已送出；不會重送。");
         }
 
@@ -364,7 +368,7 @@ export class PurchaseRuns {
         this.participantsSent = { record, confirmationId };
         this.notify();
         const delivered = await new Promise<boolean>(resolve => {
-            child.send({ type: "confirm-ticketplus-participants", confirmationId }, error => resolve(!error));
+            child.send(participants.message(confirmationId), error => resolve(!error));
         });
         return delivered
             ? {

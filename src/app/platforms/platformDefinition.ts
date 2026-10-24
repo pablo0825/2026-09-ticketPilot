@@ -18,6 +18,12 @@ export interface PlatformDefinition<E extends { type: string } = PurchaseEvent> 
     id: string;
     name: string;
     recordVersions: readonly number[];
+    stop?: { message: { type: string } };
+    participants?: {
+        messageType: string;
+        pending(events: { event: E }[]): string | undefined;
+        message(confirmationId: string): { type: string; confirmationId: string };
+    };
     bind(settings: unknown): BoundRunRules;
     parseEvent(value: unknown): E | undefined;
     waitingForSale(events: { event: E }[]): boolean;

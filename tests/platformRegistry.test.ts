@@ -33,6 +33,8 @@ test("執行登記處分派平台事件，正式入口不提供假平台，平�
         ...ticketPlusDefinition,
         id: "fixture",
         name: "Fixture",
+        participants: undefined,
+        stop: undefined,
         parseEvent(value) {
             const parsed = z
                 .object({ type: z.literal("fixture"), count: z.number() })
@@ -47,6 +49,8 @@ test("執行登記處分派平台事件，正式入口不提供假平台，平�
     assert.equal(lookup("ticketplus").parseEvent({ type: "fixture", count: 2 }), undefined);
     assert.equal(lookup("fixture").parseEvent({ type: "ticketplus", stage: "starting" }), undefined);
     assert.throws(() => executionPlatform("fixture"));
+    assert.equal(lookup("fixture").stop, undefined);
+    assert.equal(lookup("fixture").participants, undefined);
     const fields = { activityName: "Fixture", requestId: "forged", status: "running", occupied: false };
     assert.deepEqual(runSnapshotFields(fields), { activityName: "Fixture" });
 });
