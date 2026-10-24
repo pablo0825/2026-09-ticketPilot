@@ -7,26 +7,9 @@ import { tmpdir } from "node:os";
 import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
 import { acquirePurchaseLease, purchaseOccupied, releasePurchaseLease } from "../src/storage/purchaseLock.js";
 import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
+import { historicalRecord } from "./fixtures/runRecords.js";
 
 const worker = new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url);
-function historicalRecord(requestId: string, platform?: string, status = "unknown") {
-    return {
-        fingerprintVersion: 4,
-        fingerprint: "a".repeat(64),
-        snapshot: {
-            ...(platform === undefined ? {} : { platform }),
-            id: `1-${requestId}`,
-            requestId,
-            activityName: "舊活動",
-            status,
-            browserOpen: false,
-            occupied: false,
-            message: "提交結果不明",
-            historyTruncated: false,
-            events: [{ sequence: 1, at: "2026-10-01T00:00:00.000Z", event: { type: "log", message: "舊紀錄" } }],
-        },
-    };
-}
 
 for (const platform of [undefined, "klook"]) {
     for (const status of ["running", "unknown", "payment-ready"]) {
