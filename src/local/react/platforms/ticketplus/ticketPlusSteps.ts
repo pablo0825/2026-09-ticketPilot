@@ -1,17 +1,11 @@
 import type { TicketPlusWorkerEvent } from "../../../purchaseEvents.js";
 import type { PurchaseSnapshot } from "../../../../shared/runSnapshot.js";
-import { latestTicketPlusStage, purchaseStatus } from "../../shared/runs/runPresentation.js";
+import { latestTicketPlusStage, purchaseStatus } from "./runStatus.js";
 
 import type { RunStep } from "../../shared/runs/runStep.js";
 
-export type BadgeTone = "info" | "action" | "done" | "neutral" | "error" | "unknown";
-
-export interface TicketPlusStepsView {
-    title: string;
-    badge: { text: string; tone: BadgeTone };
-    summary: string;
-    steps: RunStep[];
-}
+import type { BadgeTone, RunStepsView as TicketPlusStepsView } from "../../shared/runs/runView.js";
+export type { BadgeTone, RunStepsView as TicketPlusStepsView } from "../../shared/runs/runView.js";
 
 type StepKey =
     | "launch"

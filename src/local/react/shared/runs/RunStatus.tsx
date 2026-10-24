@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import type { DisplayedRun } from "./useRunStatus.js";
 import { eventLogs, purchaseStatus, stopRequestPresentation } from "./runPresentation.js";
 import type { StopRequestStatus } from "./runPresentation.js";
-import { ticketPlusStepsView } from "../../platforms/ticketplus/ticketPlusSteps.js";
-import type { TicketPlusStepsView } from "../../platforms/ticketplus/ticketPlusSteps.js";
+import { presenterFor } from "../../platforms/runPresenterRegistry.js";
+import type { RunStepsView } from "./runView.js";
 import { RunSteps } from "./RunSteps.js";
 
 interface Props {
@@ -39,13 +39,13 @@ export function RunStatus({
     let title = "尚未執行";
     let instruction = "請在第三步確認設定並開始。";
     let logs = "尚無紀錄。";
-    let stepsView: TicketPlusStepsView | undefined;
+    let stepsView: RunStepsView | undefined;
     if (displayed?.kind === "purchase") {
         const run = displayed.run;
         ({ title, instruction } = purchaseStatus(run, closing, now));
 
         // 有流程類型的 TicketPlus 執行改用步驟清單與較短的說明。
-        stepsView = ticketPlusStepsView(run, closing, now);
+        stepsView = presenterFor(run.platform)?.steps?.(run, closing, now);
         if (stepsView) ({ title, summary: instruction } = stepsView);
 
         // 畫面送出的停止要求優先於階段提示。
@@ -55,13 +55,13 @@ export function RunStatus({
         }
         const recordedAt = run.events[0]?.at;
         logs =
-            `購票平台：${run.platform === "ticketplus" ? "TicketPlus" : "未知"}\n` +
+            `購票平台：${presenterFor(run.platform)?.name ?? "未知"}\n` +
             `本次活動：${run.activityName}\n` +
             (recordedAt
                 ? `紀錄起始時間：${new Date(recordedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}\n`
                 : "") +
             (run.status !== "running" && run.message ? `執行結果：${run.message}\n` : "") +
-            eventLogs(run.events, run.historyTruncated);
+            eventLogs(run.events, run.historyTruncated, run.platform);
     }
 
     useEffect(() => {
