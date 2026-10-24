@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PurchaseSnapshot } from "../../../purchaseRuns.js";
+import type { PurchaseSnapshot } from "../../../../shared/runSnapshot.js";
 import { api, localToken } from "../api.js";
 import type { StopRequestStatus } from "./runPresentation.js";
 

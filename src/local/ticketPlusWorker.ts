@@ -10,7 +10,7 @@ import {
 import { emptySubmissionProgress } from "../platforms/ticketplus/ticketSubmission.js";
 import { stoppedSubmissionResult } from "../platforms/ticketplus/submissionOutcome.js";
 import type { TicketPlusStopReason } from "../platforms/ticketplus/runControl.js";
-import type { WorkerPurchaseEvent } from "./purchaseEvents.js";
+import type { WorkerPurchaseEvent } from "../shared/runEvents.js";
 
 export interface TicketPlusWorkerResult {
     outcome: "information-ready" | "payment-ready" | "registration-ready" | "failed" | "unknown";

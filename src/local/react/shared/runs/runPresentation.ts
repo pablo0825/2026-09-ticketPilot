@@ -1,5 +1,5 @@
 import type { TicketPlusWorkerEvent } from "../../../purchaseEvents.js";
-import type { PurchaseSnapshot } from "../../../purchaseRuns.js";
+import type { PurchaseSnapshot } from "../../../../shared/runSnapshot.js";
 
 export type StopRequestStatus = NonNullable<PurchaseSnapshot["stopRequest"]>["status"];
 

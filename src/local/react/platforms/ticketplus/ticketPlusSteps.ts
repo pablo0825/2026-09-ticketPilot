@@ -1,5 +1,5 @@
 import type { TicketPlusWorkerEvent } from "../../../purchaseEvents.js";
-import type { PurchaseSnapshot } from "../../../purchaseRuns.js";
+import type { PurchaseSnapshot } from "../../../../shared/runSnapshot.js";
 import { latestTicketPlusStage, purchaseStatus } from "../../shared/runs/runPresentation.js";
 
 import type { RunStep } from "../../shared/runs/runStep.js";
