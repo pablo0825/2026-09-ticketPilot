@@ -40,16 +40,22 @@ When several approaches work, choose the one that is easiest to understand.
    validating data, sending a request, and updating the UI should be separated by blank lines.
    This applies even to short functions, but you do not need a blank line between every line of code.
 
-4. **Make responsibilities clear**: Give each function one job that can be clearly described.
+4. **Split validation checks by purpose**: Use separate `if` statements for checks with different purposes
+   so the validation steps are easy to follow. Keep conditions that serve the same purpose together;
+   you do not need a separate `if` for every condition. For example, check the object structure,
+   then the field's type, then whether its value matches the expected value.
+   Preserve the original evaluation order, short-circuit behavior, and error handling when splitting checks.
+
+5. **Make responsibilities clear**: Give each function one job that can be clearly described.
    If it mixes work serving different purposes, extract that work when doing so makes the code easier to understand or modify.
 
-5. **Split code where it helps**: Split code to make it easier to understand, modify, or reuse, not merely because it has many lines.
+6. **Split code where it helps**: Split code to make it easier to understand, modify, or reuse, not merely because it has many lines.
    Related small functions can stay in the same file to avoid constant navigation while reading.
 
-6. **Use clear names**: Function names should describe what they do; variable names should describe what they hold.
+7. **Use clear names**: Function names should describe what they do; variable names should describe what they hold.
    Avoid obscure abbreviations and names that hide their purpose.
 
-7. **Use comments to aid understanding**: For longer flows or flows with multiple steps, use short Chinese comments to explain each section's purpose.
+8. **Use comments to aid understanding**: For longer flows or flows with multiple steps, use short Chinese comments to explain each section's purpose.
    Explain the reasons behind non-obvious code; do not restate the code line by line.
 
 ## Change Principles
