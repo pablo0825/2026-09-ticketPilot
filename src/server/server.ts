@@ -16,10 +16,11 @@ export async function startLocalServer(
 ) {
     const purchases = new PurchaseRuns(options.runDirectory, options.purchaseWorker);
     const token = randomBytes(32).toString("hex");
-
     const streams = new Set<ServerResponse>();
+
     const purchaseServices = { purchases, store, streams };
     const activityServices = { store, purchases };
+
     let origin = "";
     let mutationTail = Promise.resolve();
 
@@ -58,6 +59,7 @@ export async function startLocalServer(
                 mutationTail = new Promise<void>(resolve => {
                     releaseMutation = resolve;
                 });
+
                 await previous;
             }
 
@@ -70,6 +72,7 @@ export async function startLocalServer(
         } catch (error) {
             // 設定與購票只回傳固定驗證訊息；檔案系統細節不輸出。
             const message = error instanceof Error && !("code" in error) ? error.message : "本機資料處理失敗。";
+
             if (!response.headersSent) json(response, 400, { error: message, notAccepted: api?.notAccepted?.() });
             else response.end();
         } finally {
@@ -88,6 +91,7 @@ export async function startLocalServer(
 
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("無法啟動本機服務。");
+
     origin = `http://127.0.0.1:${address.port}`;
 
     // 回傳網址，以及關閉服務的方法
@@ -95,7 +99,9 @@ export async function startLocalServer(
         url: origin,
         async close() {
             purchases.close();
+
             for (const stream of streams) stream.end();
+
             await new Promise<void>((resolve, reject) => server.close(error => (error ? reject(error) : resolve())));
         },
     };
