@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { executionPlatform } from "../../app/platforms/executionRegistry.js";
 import { platformIds } from "../../config/settingsRegistry.js";
-import type { PurchaseSnapshot } from "../../shared/runSnapshot.js";
+import type { PurchaseSnapshot, RunSnapshot } from "../../shared/runSnapshot.js";
 
 export interface RunRecord {
-    snapshot: PurchaseSnapshot;
+    snapshot: RunSnapshot;
     fingerprint: string;
     fingerprintVersion?: number;
     activity?: { id: string; settingsHash: string };
@@ -12,7 +12,8 @@ export interface RunRecord {
 
 // 歷史紀錄保留原接受範圍與未知欄位；不能套用新 worker 的嚴格訊息格式。
 export function parseRunRecord(value: unknown, id: string): RunRecord | "archived-klook" {
-    const record = value as RunRecord;
+    // 舊檔案可能帶有 GUI 欄位；先驗證資料，再清除已知的操作欄位。
+    const record = value as Omit<RunRecord, "snapshot"> & { snapshot: PurchaseSnapshot };
     const valid = z
         .object({
             fingerprintVersion: z.number().int().optional(),

@@ -30,9 +30,9 @@ test("能力由登記處產生；歷史磁碟不能恢復操作資格", () => {
     );
     assert.notEqual(record, "archived-klook");
     if (record === "archived-klook") return;
-    assert.equal(record.snapshot.capabilities, undefined);
-    assert.equal(record.snapshot.canStop, undefined);
-    assert.equal(record.snapshot.participantConfirmation, undefined);
+    assert.equal(Object.hasOwn(record.snapshot, "capabilities"), false);
+    assert.equal(Object.hasOwn(record.snapshot, "canStop"), false);
+    assert.equal(Object.hasOwn(record.snapshot, "participantConfirmation"), false);
     assert.deepEqual(runCapabilities("ticketplus"), { stop: true, participants: true });
     assert.deepEqual(runCapabilities(null), { stop: false, participants: false });
 });

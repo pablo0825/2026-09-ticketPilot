@@ -1,7 +1,7 @@
-import type { PurchaseSnapshot } from "../../shared/runSnapshot.js";
+import type { RunSnapshot } from "../../shared/runSnapshot.js";
 import type { PurchaseEvent } from "../../shared/runEvents.js";
 
-export type PlatformSnapshotFields = Pick<PurchaseSnapshot, "activityName" | "saleAt" | "flowType">;
+export type PlatformSnapshotFields = Pick<RunSnapshot, "activityName" | "saleAt" | "flowType">;
 export type PlatformOutcome = "information-ready" | "payment-ready" | "registration-ready";
 
 export interface BoundRunRules {

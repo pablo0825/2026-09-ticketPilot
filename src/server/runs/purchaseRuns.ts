@@ -12,7 +12,7 @@ import { executionPlatform, platformFor } from "../../app/platforms/executionReg
 import { runSnapshotFields, type BoundRunRules } from "../../app/platforms/platformDefinition.js";
 import { sendWorkerStop } from "./sendWorkerStop.js";
 import type { PurchaseEvent } from "../../shared/runEvents.js";
-import type { PurchaseSnapshot } from "../../shared/runSnapshot.js";
+import type { PurchaseSnapshot, RunSnapshot } from "../../shared/runSnapshot.js";
 import type { RunRecord } from "./runRecord.js";
 import { RunRecordStore } from "./runRecordStore.js";
 import { parseWorkerReport } from "../../workers/workerReports.js";
@@ -22,7 +22,7 @@ function hashContent(value: unknown): string {
 }
 
 // 活動 id 只存在紀錄的活動資料，交給畫面時才帶入快照。
-function withActivityId(record: RunRecord, snapshot: PurchaseSnapshot): PurchaseSnapshot {
+function withActivityId(record: RunRecord, snapshot: RunSnapshot): PurchaseSnapshot {
     return record.activity ? { ...snapshot, activityId: record.activity.id } : snapshot;
 }
 
