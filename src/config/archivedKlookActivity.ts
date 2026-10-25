@@ -46,5 +46,6 @@ const archivedPlatformSettings = archivedSettings.extend({ platform: z.literal("
 export function isArchivedKlookActivity(schemaVersion: number, settings: unknown): boolean {
     if (schemaVersion === 1) return archivedSettings.safeParse(settings).success;
     if (schemaVersion === 3) return archivedPlatformSettings.safeParse(settings).success;
+
     return false;
 }

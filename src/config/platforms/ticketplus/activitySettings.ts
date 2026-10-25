@@ -3,6 +3,7 @@ import { validateSaleSchedule } from "../../../core/saleSchedule.js";
 
 function isCalendarDate(value: string): boolean {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
     const date = new Date(`${value}T00:00:00Z`);
     return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
@@ -16,6 +17,7 @@ const activityIdentity = {
         .regex(/^https:\/\/ticketplus\.com\.tw\/activity\/[A-Za-z0-9_-]+\/?$/),
     eventName: z.string().trim().min(1),
 };
+
 const targetSchema = z
     .object({
         date: z.string().refine(isCalendarDate),
@@ -25,12 +27,14 @@ const targetSchema = z
     })
     .strict();
 const selectionSchema = z.object({ ...activityIdentity, target: targetSchema }).strict();
+
 const scheduleSchema = z
     .object({
         saleAt: z.string(),
         advanceSeconds: z.union([z.literal(1), z.literal(2)]).optional(),
     })
     .strict();
+
 const activitySchema = z
     .object({
         ...activityIdentity,
@@ -40,12 +44,14 @@ const activitySchema = z
         maxRunMinutes: z.number().int().min(1).max(1440).optional(),
     })
     .strict();
+
 const invalidSettings =
     "TicketPlus 活動設定格式錯誤，請檢查活動網址、名稱、流程類型、日期、時間、票種、張數、開賣時間與提前秒數，以及最長執行時間（1～1440 整數分鐘）。";
 
 export type TicketPlusActivitySettings = z.infer<typeof activitySchema>;
 export type TicketPlusSelection = z.infer<typeof selectionSchema>;
 export type TicketPlusFlowType = "purchase" | "lottery";
+
 export class TicketPlusCapabilityError extends Error {}
 
 export const ticketPlusDefaultRunMinutes = 10;
@@ -53,12 +59,15 @@ export const ticketPlusDefaultRunMinutes = 10;
 // 舊設定仍原樣讀取；只有新的購票啟動必須提供完整期限。
 export function validateTicketPlusRunSettings(settings: TicketPlusActivitySettings): void {
     const minutes = settings.maxRunMinutes;
-    if (
-        minutes === undefined ||
-        !Number.isInteger(minutes) ||
-        minutes < ticketPlusDefaultRunMinutes ||
-        minutes > 1440
-    ) {
+    if (minutes === undefined) {
+        throw new TicketPlusCapabilityError("最長執行時間必須填寫 10～1440 的整數分鐘。");
+    }
+
+    if (!Number.isInteger(minutes)) {
+        throw new TicketPlusCapabilityError("最長執行時間必須填寫 10～1440 的整數分鐘。");
+    }
+
+    if (minutes < ticketPlusDefaultRunMinutes || minutes > 1440) {
         throw new TicketPlusCapabilityError("最長執行時間必須填寫 10～1440 的整數分鐘。");
     }
 }
@@ -71,7 +80,9 @@ export function ticketPlusFlowType(settings: TicketPlusActivitySettings): Ticket
 export function parseTicketPlusActivity(value: unknown): TicketPlusActivitySettings {
     const result = activitySchema.safeParse(value);
     if (!result.success) throw new Error(invalidSettings);
+
     if (result.data.saleSchedule) validateSaleSchedule(result.data.saleSchedule);
+
     return result.data;
 }
 
@@ -79,6 +90,7 @@ export function parseTicketPlusActivity(value: unknown): TicketPlusActivitySetti
 export function parseTicketPlusSelection(value: unknown): TicketPlusSelection {
     const result = selectionSchema.safeParse(value);
     if (!result.success) throw new Error(invalidSettings);
+
     return result.data;
 }
 
@@ -87,14 +99,17 @@ export function singleTicketPlusSelection(settings: TicketPlusActivitySettings):
     if (settings.maxRunMinutes !== undefined) {
         throw new TicketPlusCapabilityError("TicketPlus 最長執行時間不能投影成舊版單目標紀錄。");
     }
+
     if (settings.saleSchedule) {
         throw new TicketPlusCapabilityError("TicketPlus 排程不能投影成舊版單目標紀錄。");
     }
+
     if (settings.targets.length !== 1) {
         throw new TicketPlusCapabilityError(
             "TicketPlus 多順位執行尚未接通；目前只能啟動單一順位，不會只執行第一順位。",
         );
     }
+
     return {
         platform: settings.platform,
         eventUrl: settings.eventUrl,
@@ -109,5 +124,6 @@ export function ticketPlusSessionSelection(settings: TicketPlusActivitySettings)
     if (settings.targets.some(target => target.date !== first.date || target.time !== first.time)) {
         throw new TicketPlusCapabilityError("TicketPlus 目前只支援同場次多順位；不同日期或時間不會啟動購票。");
     }
+
     return { platform: settings.platform, eventUrl: settings.eventUrl, eventName: settings.eventName, target: first };
 }

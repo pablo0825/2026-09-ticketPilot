@@ -8,5 +8,6 @@ export function parseActivity(value: unknown): ActivitySettings {
     if (value && typeof value === "object" && "platform" in value && value.platform === "klook") {
         throw new ArchivedKlookActivityError();
     }
+
     return parsePlatformSettings(value);
 }
