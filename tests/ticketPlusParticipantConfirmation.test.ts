@@ -14,6 +14,13 @@ test("參加者確認閘門：只接受等待中的同一 ID 一次，提早、�
         resolved = true;
     });
     for (const message of [
+        null,
+        42,
+        [],
+        {},
+        { confirmationId: "id-1", extra: true },
+        { type: "confirm-ticketplus-participants", extra: true },
+        { type: "confirm-ticketplus-participants", confirmationId: 42 },
         { type: "confirm-ticketplus-participants", confirmationId: "wrong" },
         { type: "confirm-ticketplus-participants", confirmationId: "id-1", extra: true },
         { type: "other", confirmationId: "id-1" },

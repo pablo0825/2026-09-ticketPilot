@@ -156,6 +156,7 @@ export function ticketPlusSessionDiagnostic(failure: {
     diagnostic?: SessionDiagnostic;
 }): string | undefined {
     if (!failure.diagnostic) return undefined;
+
     return `場次診斷（${failure.stage}；最後一次觀測）：${JSON.stringify(failure.diagnostic)}`;
 }
 
@@ -194,6 +195,7 @@ export function ticketPlusResultDiagnostic(result: TicketPlusRunResult): string 
 
 function stopCodes(result: TicketPlusRunResult): string | undefined {
     if (!("reason" in result)) return undefined;
+
     const codes: Record<string, unknown> = { reason: result.reason };
 
     // 各階段的細部原因代碼。
@@ -215,6 +217,7 @@ function stopCodes(result: TicketPlusRunResult): string | undefined {
         codes.sessionFailure = `${result.sessionFailure.reason}／${result.sessionFailure.stage}`;
     }
     if ("refresh" in result && result.refresh?.kind === "stopped") codes.refresh = result.refresh.reason;
+
     return `停止代碼：${JSON.stringify(codes)}`;
 }
 
@@ -309,6 +312,7 @@ function lotteryStoppedMessage(result: {
     if (result.lotteryFailure === "time-limit" || result.lotteryFailure === "user-stopped") {
         return `登記送出前停止：${tail}`;
     }
+
     return `登記送出前停止：${lotteryReasons[result.lotteryFailure]}。${tail}`;
 }
 
@@ -326,6 +330,7 @@ function informationStoppedMessage(result: {
     if (result.informationFailure === "time-limit" || result.informationFailure === "user-stopped") {
         return `資料頁送出前停止：${tail}`;
     }
+
     return `資料頁送出前停止：${informationReasons[result.informationFailure]}。${tail}`;
 }
 
@@ -334,6 +339,7 @@ function priorSubmissionText(result: TicketPlusRunResult): string {
     if (attempts > 0 && !result.progress.submitAttempted) {
         return `先前 ${attempts} 次提交已確認售完，目前未開始下一次提交。`;
     }
+
     return "尚未嘗試選票提交。";
 }
 
@@ -347,6 +353,7 @@ function controlStopMessage(
     if (outcome === "rejected") {
         return `${lead}；已確認購票失敗，請人工檢查彈窗與頁面。程式不會再處理彈窗或重試。`;
     }
+
     return `${lead}。${prior}瀏覽器保留供人工檢查，關閉後才解除購票占用。`;
 }
 
@@ -359,6 +366,7 @@ function rejectedMessage(result: {
     if (result.reselectionFailure) {
         return `${reason}，${dismissal}。重新選票前的頁面核對未通過，無法安全改選下一順位，流程停止；不刷新、不重送。`;
     }
+
     return `${reason}，${dismissal}。流程停止，不刷新、不切換候補。`;
 }
 
@@ -384,6 +392,7 @@ export function ticketPlusEventMessage(event: TicketPlusRunEvent): string | unde
     if (event.type === "lease-release-failed") return "無法釋放購票占用，請人工檢查；不會自動解除。";
     if (event.type === "attempt-reset") return attemptResetMessages[event.reason];
     if (event.type === "participants-wait") return undefined;
+
     return submissionProgressMessage(event.progress);
 }
 
@@ -392,5 +401,6 @@ function submissionProgressMessage(progress: Readonly<SubmissionProgress>): stri
     if (progress.failure) return "偵測到購票失敗，完成彈窗處理後停止。";
     if (progress.sawQueue) return "排隊中，等待網站處理，不重送。";
     if (progress.submitAttempted) return "已開始一次提交嘗試，結果尚待確認。";
+
     return undefined;
 }

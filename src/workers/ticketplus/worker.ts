@@ -5,7 +5,6 @@ import { emptySubmissionProgress } from "../../platforms/ticketplus/ticketSubmis
 import { stoppedSubmissionResult } from "../../platforms/ticketplus/submissionOutcome.js";
 import type { TicketPlusStopReason } from "../../platforms/ticketplus/runControl.js";
 import type { WorkerPurchaseEvent } from "../../shared/runEvents.js";
-
 import type { WorkerInput, WorkerEnvironment, WorkerResult } from "../workerProtocol.js";
 
 export async function runTicketPlusWorker(
@@ -15,6 +14,7 @@ export async function runTicketPlusWorker(
     // 提交標記先於通知保存；外圍錯誤不能把已嘗試提交改成未提交。
     let progress = emptySubmissionProgress();
     let submissionAttempts = 0;
+
     try {
         const result = await runTicketPlus(activity, {
             lease,
@@ -26,6 +26,7 @@ export async function runTicketPlusWorker(
                 const attempted = state.submissionAttempts > submissionAttempts;
                 progress = { ...state.progress };
                 submissionAttempts = state.submissionAttempts;
+
                 if (attempted) return onSubmitAttempt();
             },
             onEvent: event => {
@@ -41,6 +42,7 @@ export async function runTicketPlusWorker(
                 } else if (event.type === "submission" && event.progress.sawQueue && !event.progress.failure) {
                     sendEvent({ type: "ticketplus", stage: "queue" });
                 }
+
                 const message = ticketPlusEventMessage(event);
                 if (message) sendEvent({ type: "log", message });
             },
@@ -67,6 +69,7 @@ export async function runTicketPlusWorker(
     } catch (error) {
         const result = { ...stoppedSubmissionResult(error, progress), submissionAttempts };
         sendDiagnostic(result, sendEvent);
+
         return {
             outcome: result.outcome === "unknown" ? "unknown" : "failed",
             message: ticketPlusResultMessage(result),

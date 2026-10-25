@@ -12,17 +12,16 @@ process.once("disconnect", () => process.exit(finished ? 0 : 1));
 
 // 控制訊息不能消耗唯一一次啟動機會；開始後不接受第二份設定。
 function receiveStart(message: unknown): void {
-    if (
-        !message ||
-        typeof message !== "object" ||
-        "type" in message ||
-        !("activity" in message) ||
-        !("lease" in message)
-    )
-        return;
+    if (!message || typeof message !== "object") return;
+
+    if ("type" in message) return;
+
+    if (!("activity" in message) || !("lease" in message)) return;
+
     process.removeListener("message", receiveStart);
     void startWorker(message as { activity: unknown; lease: PurchaseLease });
 }
+
 process.on("message", receiveStart);
 
 async function startWorker(input: { activity: unknown; lease: PurchaseLease }): Promise<void> {
@@ -51,10 +50,14 @@ async function startWorker(input: { activity: unknown; lease: PurchaseLease }): 
 
     // 收到關閉指令時，關閉購票瀏覽器
     process.on("message", async (message: unknown) => {
-        if (!message || typeof message !== "object" || !("type" in message) || message.type !== "close-browser") return;
+        if (!message || typeof message !== "object") return;
+
+        if (!("type" in message) || message.type !== "close-browser") return;
+
         if (!settled || !context || closing) return;
 
         closing = true;
+
         try {
             await context.close();
         } catch {
@@ -69,11 +72,13 @@ async function startWorker(input: { activity: unknown; lease: PurchaseLease }): 
         process.send?.({ type: "browser", open: true });
         browser.once("close", () => process.send?.({ type: "browser", open: false }));
     };
+
     try {
         const activity = parseActivity(input.activity);
         const definition = executionPlatform(activity.platform);
         stopType = definition.stop?.message.type;
         if (definition.participants) participants = createParticipantGate(definition.participants.messageType);
+
         const gate = participants;
         const result = await workerFor(activity.platform).run(
             { activity, lease: input.lease },
@@ -89,6 +94,7 @@ async function startWorker(input: { activity: unknown; lease: PurchaseLease }): 
                 waitForParticipants: gate ? confirmationId => gate.wait(confirmationId) : undefined,
             },
         );
+
         settled = true;
         process.send?.({ type: "result", ...result });
     } catch {
@@ -104,6 +110,7 @@ async function startWorker(input: { activity: unknown; lease: PurchaseLease }): 
 
     // 等瀏覽器關閉後，才通知主服務結束
     if (context) await closed;
+
     process.send?.({ type: "finished" }, error => {
         finished = !error;
         process.disconnect?.();
