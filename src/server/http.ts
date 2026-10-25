@@ -18,9 +18,11 @@ export async function readJsonBody(request: IncomingMessage): Promise<Record<str
     // 讀取請求內容，限制大小
     const chunks: Buffer[] = [];
     let bytes = 0;
+
     for await (const chunk of request) {
         bytes += chunk.length;
         if (bytes > 64 * 1024) throw new Error("設定內容過大。");
+
         chunks.push(chunk);
     }
 
@@ -28,6 +30,7 @@ export async function readJsonBody(request: IncomingMessage): Promise<Record<str
     try {
         const value: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
         if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
+
         return value as Record<string, unknown>;
     } catch {
         throw new Error("請提供有效的 JSON 物件。");

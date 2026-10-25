@@ -34,6 +34,7 @@ export async function handlePurchaseRoute(api: ApiRequest, services: PurchaseSer
             unsubscribe();
             streams.delete(response);
         });
+
         return true;
     }
 
@@ -47,6 +48,7 @@ export async function handlePurchaseRoute(api: ApiRequest, services: PurchaseSer
         if (Object.keys(input).length !== 1 || typeof input.runId !== "string" || !input.runId.trim()) {
             throw new Error("停止請求格式錯誤。");
         }
+
         json(response, 200, await purchases.stop(input.runId));
         return true;
     }
@@ -61,6 +63,7 @@ export async function handlePurchaseRoute(api: ApiRequest, services: PurchaseSer
         ) {
             throw new Error("登入確認請求格式錯誤。");
         }
+
         // 此回應不是新的購票啟動，不使用 notAccepted 授權另開一輪。
         json(response, 200, await purchases.confirmLogin(input.runId, input.confirmationId));
         return true;
@@ -76,6 +79,7 @@ export async function handlePurchaseRoute(api: ApiRequest, services: PurchaseSer
         ) {
             throw new Error("參加者確認請求格式錯誤。");
         }
+
         json(response, 200, await purchases.confirmParticipants(input.runId, input.confirmationId));
         return true;
     }
@@ -85,6 +89,7 @@ export async function handlePurchaseRoute(api: ApiRequest, services: PurchaseSer
         if (Object.keys(input).some(key => key !== "runId") || typeof input.runId !== "string") {
             throw new Error("關閉請求格式錯誤。");
         }
+
         json(response, 200, await purchases.closeBrowser(input.runId));
         return true;
     }
@@ -101,6 +106,7 @@ export async function handlePurchaseRoute(api: ApiRequest, services: PurchaseSer
         ) {
             throw new Error("購票請求格式錯誤。");
         }
+
         const requestId = input.requestId;
         // 保持延後判斷：啟動途中出錯時，紀錄可能已寫入，必須回報為已接受。
         api.notAccepted = () => !purchases.hasRequest(requestId);
@@ -113,6 +119,7 @@ export async function handlePurchaseRoute(api: ApiRequest, services: PurchaseSer
         if (JSON.stringify(activity.settings) !== JSON.stringify(expectedActivity)) {
             throw new Error("活動設定已變更，請重新載入、儲存並確認摘要。");
         }
+
         json(response, 200, purchases.start(input.requestId, activity.settings, activity.id));
         return true;
     }

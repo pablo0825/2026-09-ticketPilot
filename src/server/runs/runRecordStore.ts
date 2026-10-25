@@ -17,6 +17,7 @@ export class RunRecordStore {
     loadAll(): RunRecord[] {
         // 檔名規則同時排除寫入中斷留下的暫存檔
         const files = readdirSync(this.directory).filter(name => /^[0-9a-f-]{36}\.json$/.test(name));
+
         return files
             .map(name => this.read(name.slice(0, -5)))
             .filter((record): record is RunRecord => record !== undefined && record !== "archived-klook");
@@ -28,6 +29,7 @@ export class RunRecordStore {
             return parseRunRecord(JSON.parse(readFileSync(this.file(id), "utf8")), id);
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+
             throw new Error("執行紀錄無法讀取，請先人工檢查。");
         }
     }
@@ -46,12 +48,14 @@ export class RunRecordStore {
     replace(record: RunRecord): void {
         const path = this.file(record.snapshot.requestId);
         const temporary = `${path}.${randomUUID()}.tmp`;
+
         writeFileSync(temporary, JSON.stringify(record), { mode: 0o600 });
         renameSync(temporary, path);
     }
 
     private file(id: string): string {
         if (!z.string().uuid().safeParse(id).success) throw new Error("開始請求識別碼無效。");
+
         return join(this.directory, `${id}.json`);
     }
 }

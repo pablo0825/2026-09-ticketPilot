@@ -14,6 +14,7 @@ export async function handleActivityRoute(api: ApiRequest, services: ActivitySer
 
     if (request.method === "GET" && url.pathname === "/api/activities") {
         const result = await store.list();
+
         json(response, 200, {
             ...result,
             activities: result.activities.map(activity => ({
@@ -30,6 +31,7 @@ export async function handleActivityRoute(api: ApiRequest, services: ActivitySer
         if (purchases.busy()) {
             throw new Error("執行或瀏覽器占用中，不能刪除活動。");
         }
+
         await store.remove(match[1]!);
         json(response, 200, { deleted: true });
         return true;
@@ -51,6 +53,7 @@ export async function handleActivityRoute(api: ApiRequest, services: ActivitySer
         if (revision !== undefined && revision !== (await store.load(match[1]!)).updatedAt) {
             throw new Error("活動設定已被其他分頁修改，請重新載入並確認。");
         }
+
         json(response, 200, await store.save(input, match[1]!));
         return true;
     }

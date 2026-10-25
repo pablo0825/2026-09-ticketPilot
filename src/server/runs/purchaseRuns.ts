@@ -12,9 +12,7 @@ import { executionPlatform, platformFor } from "../../app/platforms/executionReg
 import { runSnapshotFields, type BoundRunRules } from "../../app/platforms/platformDefinition.js";
 import { sendWorkerStop } from "./sendWorkerStop.js";
 import type { PurchaseEvent } from "../../shared/runEvents.js";
-
 import type { PurchaseSnapshot } from "../../shared/runSnapshot.js";
-
 import type { RunRecord as Record } from "./runRecord.js";
 import { RunRecordStore } from "./runRecordStore.js";
 import { parseWorkerReport } from "../../workers/workerReports.js";
@@ -139,6 +137,7 @@ export class PurchaseRuns {
         const rules = platformFor(activity.settings);
         if (record.snapshot.platform !== activity.settings.platform) return "設定已更新";
         if (!rules.comparableVersions.some(version => version === record.fingerprintVersion)) return "舊版執行紀錄";
+
         const content = rules.settingsContent(record.fingerprintVersion);
         return content !== undefined && record.activity.settingsHash === hashContent(content) ? "已執行" : "設定已更新";
     }
@@ -152,8 +151,10 @@ export class PurchaseRuns {
         const activity = parseActivity(activityInput);
         const rules = platformFor(activity);
         const fingerprint = hashContent(rules.requestContent(rules.fingerprintVersion));
+
         const previous = this.previousResult(requestId, activityId, activity.platform, rules);
         if (previous) return previous;
+
         rules.validateStart();
         if (this.busy()) throw new Error("已有購票程序或瀏覽器占用，請先關閉原購票瀏覽器。");
         rules.validateSchedule(Date.now());
@@ -225,6 +226,7 @@ export class PurchaseRuns {
             throw new Error("舊版開始請求結果需人工確認，請檢查原流程與訂單；不會重新啟動。");
         }
         if (previous.activity && previous.activity.id !== activityId) throw new Error("同一開始請求不能更換活動。");
+
         const content = rules.requestContent(previous.fingerprintVersion);
         const expectedFingerprint = content === undefined ? undefined : hashContent(content);
         if (previous.snapshot.platform !== platform) throw new Error("同一開始請求不能更換設定。");
@@ -261,8 +263,10 @@ export class PurchaseRuns {
         if (!record || record.snapshot.id !== runId) {
             throw new Error("執行紀錄已變更，請重新查看目前狀態。");
         }
+
         const existing = this.stopRequest;
         if (existing?.record === record) return this.stopResponse(existing);
+
         const child = this.child;
         const definition = executionPlatform(record.snapshot.platform);
         if (!this.stopAvailable() || !child || !definition.stop) {
@@ -281,6 +285,7 @@ export class PurchaseRuns {
         } catch {
             request.status = "unconfirmed";
         }
+
         if (this.current === record && this.child === child) this.notify();
         return this.stopResponse(request);
     }
@@ -292,6 +297,7 @@ export class PurchaseRuns {
             sent: "已送出停止要求，尚不代表流程已停止；請查看後續執行狀態。",
             unconfirmed: "停止要求傳送結果未確認，請檢查目前流程；不會自動重送。",
         };
+
         const run =
             this.current === record
                 ? this.snapshot()!
@@ -303,6 +309,7 @@ export class PurchaseRuns {
                       canCloseBrowser: false,
                       stopRequest: { status },
                   };
+
         return { status, message: messages[status], run };
     }
 
@@ -312,15 +319,18 @@ export class PurchaseRuns {
         if (!record || record.snapshot.status !== "running") {
             return undefined;
         }
+
         // 已提出停止要求後不再提供確認，避免停止中又繼續收尾。
         if (this.stopRequest?.record === record) return undefined;
         if (!this.child?.connected) return undefined;
+
         const confirmationId = executionPlatform(record.snapshot.platform).participants?.pending(
             record.snapshot.events,
         );
         if (!confirmationId) return undefined;
         if (this.participantsSent?.record === record && this.participantsSent.confirmationId === confirmationId)
             return undefined;
+
         return { confirmationId };
     }
 
@@ -331,6 +341,7 @@ export class PurchaseRuns {
     ): Promise<{ status: "sent" | "unconfirmed"; message: string; run: PurchaseSnapshot }> {
         const record = this.current;
         if (!record || record.snapshot.id !== runId) throw new Error("執行紀錄已變更，請重新查看目前狀態。");
+
         const participants = executionPlatform(record.snapshot.platform).participants;
         const pending = this.pendingParticipants();
         const child = this.child;
@@ -341,9 +352,11 @@ export class PurchaseRuns {
         // 先記錄已送出，再傳送；傳送失敗也不重送，由 worker 結果決定後續。
         this.participantsSent = { record, confirmationId };
         this.notify();
+
         const delivered = await new Promise<boolean>(resolve => {
             child.send(participants.message(confirmationId), error => resolve(!error));
         });
+
         return delivered
             ? {
                   status: "sent",
@@ -374,16 +387,19 @@ export class PurchaseRuns {
         // 接收子程序回報的事件、瀏覽器狀態與結果
         child.on("message", (value: unknown) => {
             if (invalidReport) return;
+
             try {
                 const definition = executionPlatform(record.snapshot.platform);
                 const report = parseWorkerReport(value, definition);
                 if (!report || report.type === "close-error") return;
+
                 if (report.type === "event") {
                     record.snapshot.events.push({
                         sequence: (record.snapshot.events.at(-1)?.sequence ?? 0) + 1,
                         at: new Date().toISOString(),
                         event: report.event,
                     });
+
                     if (record.snapshot.events.length > 300) {
                         record.snapshot.events.shift();
                         record.snapshot.historyTruncated = true;
@@ -393,6 +409,7 @@ export class PurchaseRuns {
                 } else if (report.type === "result") {
                     record.snapshot.status = report.outcome;
                     record.snapshot.message = report.message;
+
                     // 只保留 TicketPlus 已知的停止原因，其他值不寫入紀錄。
                     if (report.stopReason) {
                         record.snapshot.stopReason = report.stopReason;
@@ -458,6 +475,7 @@ export class PurchaseRuns {
                 clearTimeout(timer);
                 child.off("close", onClose);
                 child.off("message", onMessage);
+
                 error ? reject(error) : resolve();
             };
 

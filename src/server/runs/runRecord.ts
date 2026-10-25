@@ -55,16 +55,19 @@ export function parseRunRecord(value: unknown, id: string): RunRecord | "archive
         })
         .safeParse(record);
     if (!valid.success) throw new Error("Invalid run record");
+
     const platform = valid.data.snapshot.platform ?? "klook";
     const legacyEvent = z.object({ type: z.enum(["state", "log", "target", "recovery"]) }).passthrough();
     const definition = platform === "klook" ? undefined : executionPlatform(platform);
     const versions = definition?.recordVersions ?? [2, 3, 4];
     if (record.fingerprintVersion !== undefined && !versions.includes(record.fingerprintVersion))
         throw new Error("Invalid fingerprint platform");
+
     for (const item of valid.data.snapshot.events) {
         if (!legacyEvent.safeParse(item.event).success && !definition?.parseEvent(item.event))
             throw new Error("Invalid platform event");
     }
+
     if (
         !definition &&
         (valid.data.snapshot.status === "information-ready" ||
@@ -73,7 +76,9 @@ export function parseRunRecord(value: unknown, id: string): RunRecord | "archive
             valid.data.snapshot.stopReason !== undefined)
     )
         throw new Error("Invalid platform result");
+
     if (platform === "klook") return "archived-klook";
+
     const snapshot = { ...record.snapshot, platform };
     delete snapshot.capabilities;
     delete snapshot.canStop;
@@ -81,5 +86,6 @@ export function parseRunRecord(value: unknown, id: string): RunRecord | "archive
     delete snapshot.loginConfirmation;
     delete snapshot.participantConfirmation;
     delete snapshot.canCloseBrowser;
+
     return { ...record, snapshot };
 }

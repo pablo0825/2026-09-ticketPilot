@@ -34,6 +34,7 @@ export async function serveStatic(
     if (request.method === "GET" && /^\/assets\/[a-zA-Z0-9_-]+\.(js|css)$/.test(url.pathname)) {
         const asset = new URL(`../../dist/react${url.pathname}`, import.meta.url);
         const content = await readFile(asset);
+
         response.writeHead(200, {
             "Content-Type": url.pathname.endsWith(".js") ? "text/javascript; charset=utf-8" : "text/css; charset=utf-8",
             "Cache-Control": "no-store",
