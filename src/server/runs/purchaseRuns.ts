@@ -345,7 +345,15 @@ export class PurchaseRuns {
         const participants = executionPlatform(record.snapshot.platform).participants;
         const pending = this.pendingParticipants();
         const child = this.child;
-        if (!participants || !pending || pending.confirmationId !== confirmationId || !child) {
+        if (!participants || !pending) {
+            throw new Error("目前沒有等待中的參加者確認，或確認已送出；不會重送。");
+        }
+
+        if (pending.confirmationId !== confirmationId) {
+            throw new Error("目前沒有等待中的參加者確認，或確認已送出；不會重送。");
+        }
+
+        if (!child) {
             throw new Error("目前沒有等待中的參加者確認，或確認已送出；不會重送。");
         }
 

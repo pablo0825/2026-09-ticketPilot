@@ -241,11 +241,30 @@ test("本機服務：各執行 API 的格式錯誤保留各自訊息，購票格
         const headers = { "X-Local-Token": token, "Content-Type": "application/json" };
         for (const [path, input, message] of [
             ["/api/purchase", {}, "購票請求格式錯誤。"],
+            ["/api/purchase", { requestId: "request", activityId: "activity", extra: true }, "購票請求格式錯誤。"],
+            ["/api/purchase", { requestId: 42, activityId: "activity" }, "購票請求格式錯誤。"],
+            ["/api/purchase", { requestId: "request", activityId: null }, "購票請求格式錯誤。"],
             ["/api/purchase/stop", {}, "停止請求格式錯誤。"],
+            ["/api/purchase/stop", { runId: 42 }, "停止請求格式錯誤。"],
             ["/api/purchase/stop", { runId: " " }, "停止請求格式錯誤。"],
             ["/api/purchase/confirm-login", { runId: "run" }, "登入確認請求格式錯誤。"],
+            ["/api/purchase/confirm-login", { runId: 42, confirmationId: "confirm" }, "登入確認請求格式錯誤。"],
+            ["/api/purchase/confirm-login", { runId: " ", confirmationId: "confirm" }, "登入確認請求格式錯誤。"],
+            ["/api/purchase/confirm-login", { runId: "run", confirmationId: null }, "登入確認請求格式錯誤。"],
             ["/api/purchase/confirm-participants", { runId: "run" }, "參加者確認請求格式錯誤。"],
+            [
+                "/api/purchase/confirm-participants",
+                { runId: 42, confirmationId: "confirm" },
+                "參加者確認請求格式錯誤。",
+            ],
+            [
+                "/api/purchase/confirm-participants",
+                { runId: " ", confirmationId: "confirm" },
+                "參加者確認請求格式錯誤。",
+            ],
+            ["/api/purchase/confirm-participants", { runId: "run", confirmationId: null }, "參加者確認請求格式錯誤。"],
             ["/api/purchase/close-browser", { runId: "run", extra: true }, "關閉請求格式錯誤。"],
+            ["/api/purchase/close-browser", { runId: 42 }, "關閉請求格式錯誤。"],
         ] as const) {
             const response = await rawRequest(url, path, { method: "POST", headers, body: JSON.stringify(input) });
             assert.equal(response.status, 400, path);

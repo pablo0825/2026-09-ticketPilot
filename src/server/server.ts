@@ -31,10 +31,12 @@ export async function startLocalServer(
 
         try {
             // 只接受本機介面的請求
-            if (
-                request.headers.host !== new URL(origin).host ||
-                (request.headers.origin && request.headers.origin !== origin)
-            ) {
+            if (request.headers.host !== new URL(origin).host) {
+                json(response, 403, { error: "僅接受本機介面請求。" });
+                return;
+            }
+
+            if (request.headers.origin && request.headers.origin !== origin) {
                 json(response, 403, { error: "僅接受本機介面請求。" });
                 return;
             }

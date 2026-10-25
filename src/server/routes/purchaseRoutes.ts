@@ -45,7 +45,15 @@ export async function handlePurchaseRoute(api: ApiRequest, services: PurchaseSer
 
     if (request.method === "POST" && url.pathname === "/api/purchase/stop") {
         const input = await readJsonBody(request);
-        if (Object.keys(input).length !== 1 || typeof input.runId !== "string" || !input.runId.trim()) {
+        if (Object.keys(input).length !== 1) {
+            throw new Error("停止請求格式錯誤。");
+        }
+
+        if (typeof input.runId !== "string") {
+            throw new Error("停止請求格式錯誤。");
+        }
+
+        if (!input.runId.trim()) {
             throw new Error("停止請求格式錯誤。");
         }
 
@@ -55,12 +63,19 @@ export async function handlePurchaseRoute(api: ApiRequest, services: PurchaseSer
 
     if (request.method === "POST" && url.pathname === "/api/purchase/confirm-login") {
         const input = await readJsonBody(request);
-        if (
-            Object.keys(input).length !== 2 ||
-            typeof input.runId !== "string" ||
-            !input.runId.trim() ||
-            typeof input.confirmationId !== "string"
-        ) {
+        if (Object.keys(input).length !== 2) {
+            throw new Error("登入確認請求格式錯誤。");
+        }
+
+        if (typeof input.runId !== "string") {
+            throw new Error("登入確認請求格式錯誤。");
+        }
+
+        if (!input.runId.trim()) {
+            throw new Error("登入確認請求格式錯誤。");
+        }
+
+        if (typeof input.confirmationId !== "string") {
             throw new Error("登入確認請求格式錯誤。");
         }
 
@@ -71,12 +86,19 @@ export async function handlePurchaseRoute(api: ApiRequest, services: PurchaseSer
 
     if (request.method === "POST" && url.pathname === "/api/purchase/confirm-participants") {
         const input = await readJsonBody(request);
-        if (
-            Object.keys(input).length !== 2 ||
-            typeof input.runId !== "string" ||
-            !input.runId.trim() ||
-            typeof input.confirmationId !== "string"
-        ) {
+        if (Object.keys(input).length !== 2) {
+            throw new Error("參加者確認請求格式錯誤。");
+        }
+
+        if (typeof input.runId !== "string") {
+            throw new Error("參加者確認請求格式錯誤。");
+        }
+
+        if (!input.runId.trim()) {
+            throw new Error("參加者確認請求格式錯誤。");
+        }
+
+        if (typeof input.confirmationId !== "string") {
             throw new Error("參加者確認請求格式錯誤。");
         }
 
@@ -86,7 +108,11 @@ export async function handlePurchaseRoute(api: ApiRequest, services: PurchaseSer
 
     if (request.method === "POST" && url.pathname === "/api/purchase/close-browser") {
         const input = await readJsonBody(request);
-        if (Object.keys(input).some(key => key !== "runId") || typeof input.runId !== "string") {
+        if (Object.keys(input).some(key => key !== "runId")) {
+            throw new Error("關閉請求格式錯誤。");
+        }
+
+        if (typeof input.runId !== "string") {
             throw new Error("關閉請求格式錯誤。");
         }
 
@@ -100,10 +126,12 @@ export async function handlePurchaseRoute(api: ApiRequest, services: PurchaseSer
         if (
             Object.keys(input).some(
                 key => !["requestId", "activityId", "expectedActivity", "expectedContact"].includes(key),
-            ) ||
-            typeof input.requestId !== "string" ||
-            typeof input.activityId !== "string"
+            )
         ) {
+            throw new Error("購票請求格式錯誤。");
+        }
+
+        if (typeof input.requestId !== "string" || typeof input.activityId !== "string") {
             throw new Error("購票請求格式錯誤。");
         }
 
