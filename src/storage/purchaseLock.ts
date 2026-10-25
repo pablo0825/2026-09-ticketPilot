@@ -50,17 +50,17 @@ export function acquirePurchaseLease(directory = localDataDirectory): PurchaseLe
 export function verifyPurchaseLease(lease: PurchaseLease): void {
     try {
         const record: unknown = JSON.parse(readFileSync(lease.path, "utf8"));
-        if (
-            typeof record !== "object" ||
-            record === null ||
-            Array.isArray(record) ||
-            !("token" in record) ||
-            typeof record.token !== "string"
-        ) {
+        if (typeof record !== "object" || record === null || Array.isArray(record)) {
             throw new PurchaseLockError("verification-failed");
         }
 
-        if (record.token !== lease.token) throw new PurchaseLockError("verification-failed");
+        if (!("token" in record) || typeof record.token !== "string") {
+            throw new PurchaseLockError("verification-failed");
+        }
+
+        if (record.token !== lease.token) {
+            throw new PurchaseLockError("verification-failed");
+        }
     } catch {
         throw new PurchaseLockError("verification-failed");
     }
