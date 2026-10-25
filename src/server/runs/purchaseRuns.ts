@@ -13,7 +13,7 @@ import { runSnapshotFields, type BoundRunRules } from "../../app/platforms/platf
 import { sendWorkerStop } from "./sendWorkerStop.js";
 import type { PurchaseEvent } from "../../shared/runEvents.js";
 import type { PurchaseSnapshot } from "../../shared/runSnapshot.js";
-import type { RunRecord as Record } from "./runRecord.js";
+import type { RunRecord } from "./runRecord.js";
 import { RunRecordStore } from "./runRecordStore.js";
 import { parseWorkerReport } from "../../workers/workerReports.js";
 
@@ -22,16 +22,16 @@ function hashContent(value: unknown): string {
 }
 
 // 活動 id 只存在紀錄的活動資料，交給畫面時才帶入快照。
-function withActivityId(record: Record, snapshot: PurchaseSnapshot): PurchaseSnapshot {
+function withActivityId(record: RunRecord, snapshot: PurchaseSnapshot): PurchaseSnapshot {
     return record.activity ? { ...snapshot, activityId: record.activity.id } : snapshot;
 }
 
 export class PurchaseRuns {
-    private current?: Record;
-    private latestByActivity = new Map<string, Record>();
+    private current?: RunRecord;
+    private latestByActivity = new Map<string, RunRecord>();
     private child?: ChildProcess;
-    private stopRequest?: { child: ChildProcess; record: Record; status: "sending" | "sent" | "unconfirmed" };
-    private participantsSent?: { record: Record; confirmationId: string };
+    private stopRequest?: { child: ChildProcess; record: RunRecord; status: "sending" | "sent" | "unconfirmed" };
+    private participantsSent?: { record: RunRecord; confirmationId: string };
     private listeners = new Set<() => void>();
     private readonly recordStore: RunRecordStore;
 
@@ -161,7 +161,7 @@ export class PurchaseRuns {
 
         // 取得占用並建立執行紀錄
         const lease = acquirePurchaseLease(this.root);
-        const record: Record = {
+        const record: RunRecord = {
             fingerprintVersion: rules.fingerprintVersion,
             fingerprint,
             ...(activityId
@@ -379,7 +379,7 @@ export class PurchaseRuns {
     }
 
     // 接收子程序回報；結束時依是否正常完成更新紀錄。
-    private attachWorker(child: ChildProcess, record: Record): void {
+    private attachWorker(child: ChildProcess, record: RunRecord): void {
         // 只有收到 finished 且沒有錯誤，才算正常結束
         let clean = false;
         let invalidReport = false;
