@@ -2,6 +2,10 @@ import type { ActivitySettings } from "../config/activitySettings.js";
 import type { RunStopReason, RunCapabilities } from "./runControls.js";
 import type { PurchaseEvent } from "./runEvents.js";
 
+// flowType、participantConfirmation 與 capabilities.participants 目前只由 TicketPlus 使用，暫時保留現有結構。
+// 新增平台時，先確認語意是否相同；不同的平台資料應另行定義，不要直接擴充共用欄位。
+// 調整時須保留歷史紀錄相容性與確認防重送規則。
+
 // 執行紀錄的存檔欄位；型別用來防止直接誤寫 GUI 欄位，不會過濾執行期資料。
 export interface RunSnapshot {
     platform: ActivitySettings["platform"];
