@@ -42,6 +42,7 @@ export function parseActivityPage(
               );
     if (targetName !== undefined && rows.length > 1) return unknownPage("ambiguous-data");
     if (targetName === undefined && dom.activityNames.length > 1) return unknownPage("ambiguous-data");
+
     const eventName = targetName ?? single(dom.activityNames);
     if (!eventName || rows.length === 0) return unknownPage("incomplete-data");
 
@@ -51,22 +52,31 @@ export function parseActivityPage(
         if ([row.names, row.dates, row.times, row.saleButtons].some(values => values.length > 1)) {
             return unknownPage("ambiguous-data");
         }
+
         // 欄位容器也必須唯一，不能漏掉重複但空白的值容器。
         const counts = [row.dateField.labels, row.dateField.values, row.timeField.labels, row.timeField.values];
         if (counts.some(count => count > 1)) return unknownPage("ambiguous-data");
         if (counts.some(count => count !== 1)) return unknownPage("incomplete-data");
+
         const name = single(row.names);
         const date = single(row.dates)?.replace(/\([一二三四五六日]\)$/, "");
         const time = single(row.times);
         const button = single(row.saleButtons);
-        if (!name || !date || !time || !button || !validDate(date) || !validTime(time)) {
+        if (!name || !date || !time || !button) {
             return unknownPage("incomplete-data");
         }
+
+        if (!validDate(date) || !validTime(time)) {
+            return unknownPage("incomplete-data");
+        }
+
         const buttonText = button.text;
         if (!isSessionButtonText(buttonText)) return unknownPage("incomplete-data");
+
         const saleState = buttonText === "尚未開賣" ? "not-on-sale" : button.enabled ? "available" : "disabled";
         sessions.push({ name, date, time, buyEnabled: saleState === "available", saleState, buttonText });
     }
+
     return { kind: "activity", eventId, eventName, sessions };
 }
 

@@ -43,10 +43,20 @@ function sameSession(page: TicketPlusPage, session: VerifiedTicketPlusSession): 
 // 讀取並核對仍是同場次的購票資料頁；抽選輸入資料頁（有參加者資訊）不能用購票流程送出。
 async function readPurchaseInformation(page: Page, session: VerifiedTicketPlusSession, control: TicketPlusRunControl) {
     const { page: value, markers } = await control.read(() => readTicketPlusPageWithMarkers(page));
-    if (value.kind !== "information" || !sameSession(value, session) || !markers) {
+    if (value.kind !== "information") {
         throw new InformationStop("not-purchase-page");
     }
+
+    if (!sameSession(value, session)) {
+        throw new InformationStop("not-purchase-page");
+    }
+
+    if (!markers) {
+        throw new InformationStop("not-purchase-page");
+    }
+
     if (markers.participantSections > 0) throw new InformationStop("not-purchase-page");
+
     return value;
 }
 
@@ -72,6 +82,7 @@ export async function submitTicketPlusInformation(
 ): Promise<InformationSubmissionResult> {
     const clickTimeoutMs = options.clickTimeoutMs ?? 5_000;
     let clicked = false;
+
     try {
         // 核對同活動、同場次的購票資料頁。
         control.check();
@@ -105,6 +116,7 @@ export async function submitTicketPlusInformation(
         if (error instanceof TicketPlusStopError) {
             return { outcome: "stopped", reason: error.stopReason === "time-limit" ? "time-limit" : "user-stopped" };
         }
+
         // 點擊前的其他錯誤（頁面重繪、讀取失敗）仍是未送出，明確停止而非未確認。
         return { outcome: "stopped", reason: "read-failed" };
     }

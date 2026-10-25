@@ -44,10 +44,13 @@ async function readReadyInput(
 ): Promise<{ termsChecked: boolean; nextEnabled: boolean }> {
     const read = await control.read(() => readTicketPlusPageWithMarkers(page));
     if (read.markers && read.markers.dialogs > 0) throw new LotteryStop("dialog-open");
+
     const input = readTicketPlusLotteryInput(read, session);
     if (input.kind !== "input" || read.page.kind !== "information") throw new LotteryStop("not-input-page");
+
     if (input.applicants.length !== quantity) throw new LotteryStop("participant-count");
     if (!input.applicants.every(applicant => applicant.filled)) throw new LotteryStop("participant-incomplete");
+
     return { termsChecked: read.page.termsChecked, nextEnabled: read.page.nextEnabled };
 }
 
@@ -76,6 +79,7 @@ export async function completeTicketPlusLottery(
 ): Promise<LotteryCompletionResult> {
     const clickTimeoutMs = options.clickTimeoutMs ?? 5_000;
     let clicked = false;
+
     try {
         // 核對輸入資料頁與參加者狀態。
         control.check();
@@ -109,6 +113,7 @@ export async function completeTicketPlusLottery(
         if (error instanceof TicketPlusStopError) {
             return { outcome: "stopped", reason: error.stopReason === "time-limit" ? "time-limit" : "user-stopped" };
         }
+
         // 點擊前的其他錯誤仍是未送出，明確停止而非未確認。
         return { outcome: "stopped", reason: "read-failed" };
     }

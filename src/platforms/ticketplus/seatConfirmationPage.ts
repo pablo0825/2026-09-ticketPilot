@@ -17,6 +17,7 @@ export function parseSeatConfirmationPage(
     if (dom.seatResultHeadingCount > 1 || dom.nextButtons.length > 1 || dom.cancelButtons.length > 1) {
         return unknownPage("ambiguous-data");
     }
+
     const nextEnabled = single(dom.nextButtons);
     if (dom.seatResultHeadingCount !== 1 || nextEnabled === undefined || dom.cancelButtons.length !== 1) {
         return unknownPage("incomplete-data");
@@ -24,11 +25,16 @@ export function parseSeatConfirmationPage(
 
     // 座位列前三欄必須有值；金額只確認存在，不核價。
     if (dom.checkout.length === 0) return unknownPage("incomplete-data");
+
     const seats: SeatConfirmationPage["seats"] = [];
     for (const columns of dom.checkout) {
         const [area, position, ticketType, price] = columns;
-        if (columns.length !== 4 || !area || !position || !ticketType || !price) return unknownPage("incomplete-data");
+        if (columns.length !== 4) return unknownPage("incomplete-data");
+
+        if (!area || !position || !ticketType || !price) return unknownPage("incomplete-data");
+
         seats.push({ area, position, ticketType });
     }
+
     return { kind: "seat-confirmation", ...identity, seats, nextEnabled };
 }

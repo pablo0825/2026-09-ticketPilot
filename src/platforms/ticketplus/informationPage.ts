@@ -7,6 +7,7 @@ export interface ContactFieldState {
     hasValue: boolean;
     disabled: boolean;
 }
+
 export interface InformationPage extends PageIdentity {
     kind: "information";
     contactFields: { name: ContactFieldState; phone: ContactFieldState; email: ContactFieldState };
@@ -25,6 +26,7 @@ export function parseInformationPage(dom: TicketPlusDom, identity: PageIdentity)
     ) {
         return unknownPage("ambiguous-data");
     }
+
     const termsChecked = single(data.terms);
     const nextEnabled = single(dom.nextButtons);
     if (data.headingCount !== 1 || termsChecked === undefined || nextEnabled === undefined)
@@ -35,6 +37,7 @@ export function parseInformationPage(dom: TicketPlusDom, identity: PageIdentity)
         const field = single(values);
         return field ? { present: true, ...field } : { present: false, hasValue: false, disabled: false };
     });
+
     return {
         kind: "information",
         ...identity,

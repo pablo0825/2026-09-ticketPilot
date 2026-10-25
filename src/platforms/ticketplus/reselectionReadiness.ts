@@ -52,15 +52,18 @@ export async function inspectTicketPlusReselection(
 
     // 驗證場次資料與讀取上限，不接受空白身分或無限等待。
     const fields = [identity.eventId, identity.sessionId, identity.eventName, identity.date, identity.time];
-    if (
-        fields.some(value => typeof value !== "string" || !value.trim()) ||
-        !/^[A-Za-z0-9_-]+$/.test(identity.eventId) ||
-        !/^[A-Za-z0-9_-]+$/.test(identity.sessionId) ||
-        !validDate(identity.date) ||
-        !validTime(identity.time)
-    ) {
+    if (fields.some(value => typeof value !== "string" || !value.trim())) {
         return blocked("invalid-session");
     }
+
+    if (!/^[A-Za-z0-9_-]+$/.test(identity.eventId) || !/^[A-Za-z0-9_-]+$/.test(identity.sessionId)) {
+        return blocked("invalid-session");
+    }
+
+    if (!validDate(identity.date) || !validTime(identity.time)) {
+        return blocked("invalid-session");
+    }
+
     const timeout = options.readTimeoutMs ?? 2_000;
     if (!Number.isFinite(timeout) || timeout <= 0 || timeout > 2_147_483_647) return blocked("invalid-options");
 
@@ -83,6 +86,7 @@ export async function inspectTicketPlusReselection(
     } catch (error) {
         control.check();
         if (error instanceof TicketPlusStopError) throw error;
+
         return blocked(error === timeoutError ? "read-timeout" : "read-failed");
     } finally {
         clearTimeout(timer);
@@ -101,5 +105,6 @@ export async function inspectTicketPlusReselection(
         return blocked("identity-mismatch");
     }
     if (snapshot.tickets.some(ticket => ticket.selectedQuantity !== 0)) return blocked("remaining-quantity");
+
     return { kind: "ready", snapshot };
 }

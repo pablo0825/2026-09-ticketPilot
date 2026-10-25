@@ -39,6 +39,7 @@ export interface TicketRefreshOptions {
     timeoutMs?: number;
     clickTimeoutMs?: number;
 }
+
 class RefreshBlocked extends Error {
     constructor(readonly reason: TicketRefreshReason) {
         super(reason);
@@ -67,16 +68,24 @@ export async function refreshTicketPlusTickets(
         if (
             [identity.eventId, identity.sessionId, identity.eventName, identity.date, identity.time].some(
                 value => typeof value !== "string" || !value.trim(),
-            ) ||
-            typeof identity.eventId !== "string" ||
-            typeof identity.sessionId !== "string" ||
-            !/^[A-Za-z0-9_-]+$/.test(identity.eventId) ||
-            !/^[A-Za-z0-9_-]+$/.test(identity.sessionId) ||
-            typeof identity.eventName !== "string" ||
-            !identity.eventName.trim() ||
-            !validDate(identity.date) ||
-            !validTime(identity.time)
+            )
         ) {
+            return stopped("invalid-session");
+        }
+
+        if (typeof identity.eventId !== "string" || typeof identity.sessionId !== "string") {
+            return stopped("invalid-session");
+        }
+
+        if (!/^[A-Za-z0-9_-]+$/.test(identity.eventId) || !/^[A-Za-z0-9_-]+$/.test(identity.sessionId)) {
+            return stopped("invalid-session");
+        }
+
+        if (typeof identity.eventName !== "string" || !identity.eventName.trim()) {
+            return stopped("invalid-session");
+        }
+
+        if (!validDate(identity.date) || !validTime(identity.time)) {
             return stopped("invalid-session");
         }
         const timeout = options.timeoutMs ?? 5_000;

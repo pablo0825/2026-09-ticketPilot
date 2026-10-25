@@ -49,12 +49,15 @@ export async function prepareTicketPlusSale(
     } catch {
         throw new TicketPlusSaleError("invalid-schedule");
     }
+
     const now = options.now ?? Date.now;
     const calendarNow = () => {
         const value = now();
         if (!Number.isFinite(value)) throw new TicketPlusSaleError("invalid-clock");
+
         return value;
     };
+
     const cutoff = saleAt + 120_000;
     const deadline = performance.now() + Math.max(0, cutoff - calendarNow());
     const refreshAt = saleAt - (schedule.advanceSeconds ?? 1) * 1000;
@@ -69,14 +72,17 @@ export async function prepareTicketPlusSale(
         if (page.isClosed() || crashed) throw new TicketPlusSaleError("page-closed");
         const value = Math.min(cutoff - calendarNow(), deadline - performance.now(), control.remainingMs());
         if (value <= 0) throw new TicketPlusSaleError("sale-expired");
+
         return value;
     };
+
     const requireActivityUrl = () => {
         remaining();
         if (page.url().replace(/\/$/, "") !== settings.eventUrl.replace(/\/$/, "")) {
             throw new TicketPlusSaleError("unexpected-page");
         }
     };
+
     const pause = async (milliseconds: number) => {
         await control.wait(Math.max(1, Math.min(250, milliseconds, remaining())));
         remaining();
@@ -88,6 +94,7 @@ export async function prepareTicketPlusSale(
             await dismissTicketPlusActivityNotice(page, control, { timeoutMs: Math.min(5_000, remaining()) });
         } catch (error) {
             if (error instanceof TicketPlusNoticeError) throw new TicketPlusSaleError("notice-dismiss-failed");
+
             throw error;
         }
     };
@@ -134,12 +141,14 @@ export async function prepareTicketPlusSale(
             ) {
                 throw new TicketPlusSaleError("activity-mismatch");
             }
+
             const matches = snapshot.sessions.filter(
                 session => session.date === settings.target.date && session.time === settings.target.time,
             );
             if (matches.length === 0) throw new TicketPlusSaleError("session-missing");
             if (matches.length !== 1) throw new TicketPlusSaleError("session-ambiguous");
             if (matches[0]!.saleState === "disabled") throw new TicketPlusSaleError("session-disabled");
+
             return matches[0]!.saleState;
         }
     };
@@ -151,6 +160,7 @@ export async function prepareTicketPlusSale(
                 options.onStage?.("waiting-for-sale");
                 while (calendarNow() < saleAt) await pause(saleAt - calendarNow());
             }
+
             const state = await readReady();
             remaining();
             if (calendarNow() >= saleAt) return state;
@@ -163,6 +173,7 @@ export async function prepareTicketPlusSale(
         requireActivityUrl();
         options.onStage?.("waiting-for-sale");
         while (calendarNow() < refreshAt) await pause(refreshAt - calendarNow());
+
         while (true) {
             requireActivityUrl();
             options.onStage?.("refreshing-activity");
@@ -192,6 +203,7 @@ export async function prepareTicketPlusSale(
             while (performance.now() - refreshedAt < 3_000) {
                 await pause(3_000 - (performance.now() - refreshedAt));
             }
+
             // 刷新前重新核對，頁面自行開賣或變更時不沿用舊的尚未開賣快照。
             state = await readAfterSale();
             if (state === "available") return;

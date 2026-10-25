@@ -16,14 +16,17 @@ export interface ReadFailureDiagnostic {
 
 export function diagnosticRouteKind(pathname: string): RouteKind {
     if (/^\/activity\/[A-Za-z0-9_-]+\/?$/.test(pathname)) return "activity";
+
     for (const kind of ["order", "confirmSeat", "confirm", "checkout"] as const) {
         if (new RegExp(`^/${kind}/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/?$`).test(pathname)) return kind;
     }
+
     return "other";
 }
 
 function routeKind(url: string | undefined): RouteKind | null {
     if (url === undefined) return null;
+
     try {
         return diagnosticRouteKind(new URL(url).pathname);
     } catch {
@@ -69,6 +72,7 @@ export function diagnoseReadFailure(
               : /Execution context was destroyed/i.test(message)
                 ? "navigation-interrupted"
                 : "other-read-error";
+
     return {
         step,
         category,

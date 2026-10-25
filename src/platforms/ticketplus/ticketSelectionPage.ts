@@ -14,12 +14,14 @@ export interface TicketRow {
     canIncrease: boolean;
     canDecrease: boolean;
 }
+
 export interface TicketArea {
     name: string;
     // 票區標題的剩餘張數；熱賣中為 null。
     remainingQuantity: number | null;
     expanded: boolean;
 }
+
 export interface TicketSelectionPage extends PageIdentity, EventDetails {
     kind: "ticket-selection";
     tickets: TicketRow[];

@@ -21,8 +21,10 @@ export async function waitForTicketPlusSale(
                 try {
                     control.check();
                     if (page.isClosed()) throw new Error("等待開賣時購票頁已關閉。");
+
                     const current = now();
                     if (!Number.isFinite(current)) throw new Error("無法核對開賣時間。");
+
                     const remaining = timestamp - current;
                     if (remaining <= 0) resolve();
                     else timer = setTimeout(check, Math.min(remaining, 250));
@@ -30,6 +32,7 @@ export async function waitForTicketPlusSale(
                     reject(error);
                 }
             };
+
             cancel = () => {
                 try {
                     control.check();
@@ -37,6 +40,7 @@ export async function waitForTicketPlusSale(
                     reject(error);
                 }
             };
+
             closed = () => reject(new Error("等待開賣時購票頁已關閉或中斷。"));
             control.signal?.addEventListener("abort", cancel, { once: true });
             page.on("close", closed);

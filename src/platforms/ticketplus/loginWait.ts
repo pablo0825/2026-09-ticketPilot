@@ -8,6 +8,7 @@ export interface TicketPlusLoginSummary {
     observations: number;
     lastObservation?: TicketPlusLoginObservation;
 }
+
 export type TicketPlusLoginReason =
     | "page-timeout"
     | "login-timeout"
@@ -27,6 +28,7 @@ export class TicketPlusLoginError extends Error {
         this.name = "TicketPlusLoginError";
     }
 }
+
 export interface TicketPlusLoginOptions {
     signal?: AbortSignal;
     onObservation?: (observation: TicketPlusLoginObservation, summary: TicketPlusLoginSummary) => void;
@@ -49,12 +51,14 @@ export async function waitForTicketPlusLogin(
     const loginTimeout = options.loginTimeoutMs ?? 300_000;
     const readTimeout = options.readTimeoutMs ?? 5_000;
     const interval = options.pollIntervalMs ?? 250;
-    if (
-        ![pageTimeout, loginTimeout, readTimeout, interval].every(value => Number.isFinite(value) && value > 0) ||
-        (options.deadline !== undefined && !Number.isFinite(options.deadline))
-    ) {
+    if (![pageTimeout, loginTimeout, readTimeout, interval].every(value => Number.isFinite(value) && value > 0)) {
         throw new Error("登入等待時間設定無效。");
     }
+
+    if (options.deadline !== undefined && !Number.isFinite(options.deadline)) {
+        throw new Error("登入等待時間設定無效。");
+    }
+
     const now = options.now ?? Date.now;
     const started = performance.now();
     let phaseDeadline = started + pageTimeout;
@@ -73,20 +77,25 @@ export async function waitForTicketPlusLogin(
     const fail = (reason: TicketPlusLoginReason): never => {
         throw new TicketPlusLoginError(reason, summary());
     };
+
     const remaining = () => {
         if (options.signal?.aborted) throw new TicketPlusStopError();
         if (crashed) return fail("page-crashed");
         if (page.isClosed()) return fail("page-closed");
+
         const saleRemaining = Math.min(
             saleDeadline - performance.now(),
             options.deadline === undefined ? Infinity : options.deadline - now(),
         );
         if (Number.isNaN(saleRemaining)) return fail("read-failed");
         if (saleRemaining <= 0) return fail("sale-expired");
+
         const phaseRemaining = phaseDeadline - performance.now();
         if (phaseRemaining <= 0) return fail(waiting ? "login-timeout" : "page-timeout");
+
         return Math.min(phaseRemaining, saleRemaining);
     };
+
     const onCrash = () => {
         crashed = true;
     };
@@ -126,9 +135,11 @@ export async function waitForTicketPlusLogin(
                 watchDeadline();
                 interrupt();
             });
+
             const result = await Promise.race([readTicketPlusLoginState(page), stopped]);
             remaining();
             if (performance.now() >= readDeadline) fail("read-timeout");
+
             return result;
         } finally {
             clearTimeout(timer);
@@ -137,6 +148,7 @@ export async function waitForTicketPlusLogin(
             page.off("crash", interrupt);
         }
     };
+
     const pause = async () => {
         const budget = Math.min(interval, remaining());
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -229,17 +241,21 @@ export async function waitForTicketPlusLogin(
                             },
                         };
                         if (location.origin !== "https://ticketplus.com.tw" || location.pathname !== "/") return false;
+
                         const headers = [...document.querySelectorAll("header.headerApp")].filter(dom.visible);
                         if (headers.length !== 1) return false;
+
                         const dialogs = [
                             ...document.querySelectorAll('.v-dialog__content--active, [role="dialog"]'),
                         ].filter(element => dom.visible(element) && !dom.inactiveLoginShell(element));
                         const drawers = [...document.querySelectorAll("nav.v-navigation-drawer")].filter(dom.visible);
                         if (dialogs.length > 0 || drawers.length > 0) return false;
+
                         const buttons = [
                             ...headers[0]!.querySelectorAll("button.mdi-menu, button:has(.mdi-menu)"),
                         ].filter(dom.visible);
                         if (buttons.length !== 1) return false;
+
                         const button = buttons[0]!;
                         if (
                             !(button instanceof HTMLButtonElement) ||
@@ -248,9 +264,11 @@ export async function waitForTicketPlusLogin(
                         ) {
                             return false;
                         }
+
                         const rect = button.getBoundingClientRect();
                         const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
                         if (!hit || !button.contains(hit)) return false;
+
                         button.click();
                         return true;
                     });

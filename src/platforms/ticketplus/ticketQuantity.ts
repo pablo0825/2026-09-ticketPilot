@@ -196,12 +196,19 @@ function copyIdentity(settings: TicketPlusSelection, value: VerifiedTicketPlusSe
         identity.eventId !== new URL(settings.eventUrl).pathname.split("/")[2] ||
         identity.eventName !== settings.eventName ||
         identity.date !== settings.target.date ||
-        identity.time !== settings.target.time ||
-        typeof identity.sessionId !== "string" ||
-        !/^[A-Za-z0-9_-]+$/.test(identity.sessionId)
+        identity.time !== settings.target.time
     ) {
         throw new TicketPlusQuantityError("before-click", "invalid-session", undefined, 0);
     }
+
+    if (typeof identity.sessionId !== "string") {
+        throw new TicketPlusQuantityError("before-click", "invalid-session", undefined, 0);
+    }
+
+    if (!/^[A-Za-z0-9_-]+$/.test(identity.sessionId)) {
+        throw new TicketPlusQuantityError("before-click", "invalid-session", undefined, 0);
+    }
+
     return identity;
 }
 

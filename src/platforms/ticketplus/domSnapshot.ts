@@ -11,6 +11,7 @@ export interface RefreshEvidence {
     dynamicGap: boolean;
     invalid: boolean;
 }
+
 export interface RefreshMonitorRequest {
     token: string;
     action: "install" | "read" | "dispose";
@@ -485,7 +486,13 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                         current.origin !== baseline.origin ||
                         current.pathname !== baseline.pathname ||
                         current.extraUrlParts ||
-                        JSON.stringify(current.identities) !== identities ||
+                        JSON.stringify(current.identities) !== identities
+                    ) {
+                        evidence.invalid = true;
+                        return;
+                    }
+
+                    if (
                         current.dialogs.length ||
                         current.queueCount ||
                         current.activity.length ||
@@ -494,7 +501,13 @@ const readInPage = withTicketRows((findLayout, request: RefreshMonitorRequest | 
                         current.information.contact.some(fields => fields.length) ||
                         current.paymentButtons.length ||
                         current.checkoutStepCount ||
-                        current.checkout.length ||
+                        current.checkout.length
+                    ) {
+                        evidence.invalid = true;
+                        return;
+                    }
+
+                    if (
                         current.tickets.some(row => row.quantities.some(value => value !== "0")) ||
                         current.areas.some(area => area.hiddenQuantities.some(value => value !== "0"))
                     ) {

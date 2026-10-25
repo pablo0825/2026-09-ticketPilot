@@ -62,6 +62,7 @@ export type TicketPlusCycleResult = (
     // 抵達資料頁時本次提交的張數；抽選核對參加者列數使用。
     submittedQuantity?: number;
 };
+
 export interface TicketPlusCycleOptions {
     refreshDelayMs?: number;
     selection?: TicketPriorityOptions;

@@ -51,11 +51,19 @@ export async function selectTicketPlusPriority(
     const settings = parseTicketPlusActivity(input);
     const first = ticketPlusSessionSelection(settings);
     const start = options.startPriorityIndex ?? 0;
-    if (!Number.isInteger(start) || start < 0 || start >= settings.targets.length) {
+    if (!Number.isInteger(start)) {
         throw new TicketPlusPriorityError("invalid-options");
     }
+
+    if (start < 0 || start >= settings.targets.length) {
+        throw new TicketPlusPriorityError("invalid-options");
+    }
+
     const timeout = options.timeoutMs ?? 30_000;
-    if (!Number.isFinite(timeout) || timeout <= 0 || timeout > 2_147_483_647) throw new Error("無效的選票期限。");
+    if (!Number.isFinite(timeout)) throw new Error("無效的選票期限。");
+
+    if (timeout <= 0 || timeout > 2_147_483_647) throw new Error("無效的選票期限。");
+
     const deadline = performance.now() + timeout;
     const identity = { ...session };
     if (
@@ -67,10 +75,12 @@ export async function selectTicketPlusPriority(
     ) {
         throw new TicketPlusPriorityError("identity-mismatch");
     }
+
     const remaining = () => {
         control.check();
         const value = deadline - performance.now();
         if (value <= 0) throw new TicketPlusPriorityError("operation-timeout");
+
         return value;
     };
 
@@ -101,6 +111,7 @@ export async function selectTicketPlusPriority(
         ) {
             throw new TicketPlusPriorityError("identity-mismatch");
         }
+
         return snapshot;
     };
 
@@ -126,6 +137,7 @@ export async function selectTicketPlusPriority(
         const matches = findTargetTickets(snapshot.tickets, target.ticketType);
         if (matches.length === 0) throw new TicketPlusPriorityError("ticket-missing");
         if (matches.length !== 1) throw new TicketPlusPriorityError("ticket-ambiguous");
+
         const ticket = matches[0]!;
         // 售完或暫無票券（他人保留中）都不能購買，跳下一順位；暫無票券不記為售完。
         const closed = ticket.saleStatus !== "selling";
@@ -153,5 +165,6 @@ export async function selectTicketPlusPriority(
         );
         return { selection, snapshot: selected, priorityIndex };
     }
+
     throw new TicketPlusPriorityError("all-targets-sold-out");
 }

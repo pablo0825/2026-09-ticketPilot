@@ -21,10 +21,14 @@ export function parseCheckoutPage(dom: TicketPlusDom, identity: PageIdentity): C
     for (const columns of dom.checkout) {
         const [name, count] = columns;
         const value = count === undefined ? undefined : quantity(count);
-        if (columns.length !== 4 || !name || value === undefined || value === 0 || !columns[2] || !columns[3]) {
+        if (columns.length !== 4) return unknownPage("incomplete-data");
+
+        if (!name || value === undefined || value === 0 || !columns[2] || !columns[3]) {
             return unknownPage("incomplete-data");
         }
+
         tickets.push({ name, quantity: value });
     }
+
     return { kind: "checkout", ...identity, ...event, tickets, paymentEnabled };
 }

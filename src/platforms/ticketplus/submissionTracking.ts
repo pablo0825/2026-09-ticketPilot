@@ -5,6 +5,7 @@ export interface SubmissionState {
     progress: Readonly<SubmissionProgress>;
     submissionAttempts: number;
 }
+
 export type SubmissionStateRecorder = (state: Readonly<SubmissionState>) => void;
 
 // 安全紀錄只能同步更新記憶體。void 回呼仍可能被傳入 async 函式，必須在執行期拒絕。

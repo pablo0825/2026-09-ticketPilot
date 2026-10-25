@@ -22,9 +22,11 @@ export class TicketPlusRunControl {
     startDeadline(minutes?: number): void {
         this.check();
         if (this.started) throw new Error("TicketPlus 全程期限已啟動。");
+
         if (minutes !== undefined && (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440)) {
             throw new Error("TicketPlus 最長執行時間必須為 1 至 1440 的整數分鐘。");
         }
+
         this.started = true;
         if (minutes !== undefined) this.deadline = this.now() + minutes * 60_000;
     }
@@ -34,6 +36,7 @@ export class TicketPlusRunControl {
         this.check();
         const remaining = this.deadline === undefined ? undefined : this.deadline - this.now();
         this.deadline = undefined;
+
         try {
             return await work();
         } finally {
@@ -48,6 +51,7 @@ export class TicketPlusRunControl {
                 this.stopped = new TicketPlusStopError("time-limit");
             }
         }
+
         if (this.stopped) throw this.stopped;
     }
 
@@ -59,6 +63,7 @@ export class TicketPlusRunControl {
             this.stopped = new TicketPlusStopError("time-limit");
             throw this.stopped;
         }
+
         return remaining;
     }
 
@@ -66,6 +71,7 @@ export class TicketPlusRunControl {
     async read<T>(read: () => Promise<T>): Promise<T> {
         this.check();
         if (!this.signal && this.deadline === undefined) return read();
+
         let timer: ReturnType<typeof setTimeout> | undefined;
         let cancel = () => {};
         try {
@@ -89,10 +95,12 @@ export class TicketPlusRunControl {
                 };
                 watchDeadline();
             });
+
             const operation = Promise.resolve().then(() => {
                 this.check();
                 return read();
             });
+
             const result = await Promise.race([operation, interrupted]);
             this.check();
             return result;

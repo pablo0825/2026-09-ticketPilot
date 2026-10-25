@@ -17,10 +17,12 @@ export function activityReadiness(
 ): PageReadiness {
     // 等待只讀同活動頁；跨流程內容與彈窗立即停止。
     if (!dom) return { status: "stop", reason: "read-failed" };
+
     const route = /^\/activity\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
     if (dom.origin !== "https://ticketplus.com.tw" || dom.extraUrlParts || route?.[1] !== target.eventId) {
         return { status: "stop", reason: "route-mismatch" };
     }
+
     // 只有已知提醒時交由選場次關閉；與其他彈窗並存仍停止。
     if (result.kind === "unknown" && result.reason === "notice-dialog") {
         return { status: "pending", reason: "notice-dialog" };
@@ -44,6 +46,7 @@ export function activityReadiness(
     if (result.kind === "unknown" && ["read-failed", "page-changed"].includes(result.reason)) {
         return { status: "stop", reason: result.reason };
     }
+
     const matches = dom.activity.filter(row =>
         row.names.some(name => normalizeSessionName(name) === normalizeSessionName(target.eventName)),
     );
@@ -57,10 +60,12 @@ export function activityReadiness(
         return { status: "stop", reason: "session-ambiguous" };
     }
     if (matches[0]!.timeRanges.length > 0) return { status: "stop", reason: "session-time-invalid" };
+
     return result.kind === "activity"
         ? { status: "ready", reason: "activity-parsed" }
         : { status: "pending", reason: "activity-not-ready" };
 }
+
 export interface SelectionEntryTarget extends ActivityLoadingTarget {
     sessionName: string;
     date: string;
@@ -74,6 +79,7 @@ export function selectionReadiness(
 ): PageReadiness {
     // 暫時讀不到時只等待；外層仍檢查實際網址與期限。
     if (!dom) return { status: "pending", reason: "read-failed" };
+
     const route = /^\/(activity|order)\/([A-Za-z0-9_-]+)(?:\/([A-Za-z0-9_-]+))?\/?$/.exec(dom.pathname);
     if (
         dom.origin !== "https://ticketplus.com.tw" ||
@@ -98,6 +104,7 @@ export function selectionReadiness(
 
     // 明確錯誤的活動或完整場次仍停止；重疊及殘缺不改寫成合法頁面。
     if (result.kind === "ticket-selection") return { status: "ready", reason: "selection-parsed" };
+
     const details = readEventDetails(dom);
     if (
         details &&
@@ -105,10 +112,12 @@ export function selectionReadiness(
     ) {
         return { status: "stop", reason: "selection-identity-mismatch" };
     }
+
     const matchingRows = dom.activity.filter(row =>
         row.names.some(name => normalizeSessionName(name) === normalizeSessionName(target.eventName)),
     );
     if (matchingRows.length > 1) return { status: "stop", reason: "activity-session-mismatch" };
+
     const activity = parseActivityPage(dom, target.eventId, target.eventName);
     if (activity.kind === "activity") {
         const matches = activity.sessions.filter(
@@ -121,6 +130,7 @@ export function selectionReadiness(
             return { status: "stop", reason: "activity-session-mismatch" };
         }
     }
+
     return { status: "pending", reason: "selection-not-ready" };
 }
 
@@ -131,6 +141,7 @@ export function informationReadiness(
 ): PageReadiness {
     // 網址仍須同場次；排隊與失敗沿用原本分支及額度。
     if (!dom) return { status: "pending", reason: "read-failed" };
+
     const route = /^\/(order|confirmSeat|confirm)\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?$/.exec(dom.pathname);
     if (
         dom.origin !== "https://ticketplus.com.tw" ||
@@ -143,6 +154,7 @@ export function informationReadiness(
     if (result.kind === "queue" || result.kind === "order-failure") {
         return { status: "pending", reason: result.kind };
     }
+
     // 確認選位結果交由提交流程核對座位；不在此判斷是否抵達資料頁。
     if (result.kind === "seat-confirmation") return { status: "ready", reason: "seat-confirmation" };
     if (
@@ -163,10 +175,12 @@ export function informationReadiness(
     ) {
         return { status: "stop", reason: "selection-mismatch" };
     }
+
     const selection = parseTicketSelectionPage(dom, { eventId: route[2]!, sessionId: route[3]! });
     if (selection.kind === "ticket-selection" && !matchesSubmittedSelection(selection, target)) {
         return { status: "stop", reason: "selection-mismatch" };
     }
+
     return result.kind === "information"
         ? { status: "ready", reason: "information-parsed" }
         : { status: "pending", reason: "information-not-ready" };

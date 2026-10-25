@@ -19,6 +19,7 @@ interface ResultProgress {
     progress: Readonly<SubmissionProgress>;
     diagnostic?: SubmissionDiagnostic;
 }
+
 export type TicketPlusSubmissionResult =
     | (ResultProgress & { outcome: "information-ready"; information: InformationPage })
     | (ResultProgress & { outcome: "rejected" | "unknown" | "stopped"; reason: SubmissionReason | "unexpected-error" });

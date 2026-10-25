@@ -21,6 +21,7 @@ type NoticeState = "none" | "notice" | "other";
 
 function noticeState(dom: TicketPlusDom): NoticeState {
     if (dom.dialogs.length === 0) return "none";
+
     return dom.dialogs.length === 1 && dom.dialogs[0]!.kind === "notice" ? "notice" : "other";
 }
 
@@ -47,11 +48,13 @@ function claimConfirm(): Element | null {
     // 再次核對白名單標題與兩顆按鈕，避免點到剛換上的其他彈窗。
     const dialogs = Array.from(document.querySelectorAll(".v-dialog")).filter(element => view.visible(element));
     if (dialogs.length !== 1) return null;
+
     const title = (dialogs[0] as HTMLElement).innerText
         .split("\n")
         .map(line => line.trim())
         .find(Boolean);
     if (title !== "實名抽選制售票提醒" && title !== "入場規定") return null;
+
     const buttons = Array.from(dialogs[0]!.querySelectorAll('button, [role="button"]')).filter(element =>
         view.usable(element),
     );
@@ -86,6 +89,7 @@ export async function dismissTicketPlusActivityNotice(
                 ]),
             );
             if (!dom) throw fail();
+
             return noticeState(dom);
         } finally {
             clearTimeout(timer);
@@ -104,6 +108,7 @@ export async function dismissTicketPlusActivityNotice(
         await handle.dispose().catch(() => {});
         throw fail();
     }
+
     try {
         control.check();
         await button.click({ timeout: Math.max(1, deadline - performance.now()) });
@@ -125,7 +130,9 @@ export async function dismissTicketPlusActivityNotice(
             goneAt ??= performance.now();
             if (performance.now() - goneAt >= (options.settleMs ?? 300)) return "dismissed";
         }
+
         await pause(Math.min(interval, deadline - performance.now()));
     }
+
     throw fail();
 }

@@ -21,6 +21,7 @@ export function refreshReadiness(
     ) {
         return { status: "stop", reason: "identity-mismatch" };
     }
+
     const identity = readEventDetails(dom);
     if (
         !identity ||
@@ -54,6 +55,7 @@ export function refreshReadiness(
     }
     if (dom.refreshEvidence?.invalid) return { status: "stop", reason: "unexpected-page" };
     if (dom.refreshButtons.length > 1) return { status: "stop", reason: "button-unavailable" };
+
     const evidence = dom.refreshEvidence;
     if (page.kind === "ticket-selection") {
         return evidence?.clicked && evidence.buttonAbsent && evidence.dynamicGap && dom.refreshButtons[0] === true
@@ -89,6 +91,7 @@ export function refreshReadiness(
         dom.areas.length > 0 &&
         dom.areas.every(area => area.names.length === 1 && area.names[0]?.trim() && area.stock.length === 0);
     const gap = countersComplete && (rowGap || areaGap);
+
     return gap && dom.nextButtons.length === 1
         ? { status: "pending", reason: "refresh-data-loading" }
         : { status: "stop", reason: "unexpected-page" };

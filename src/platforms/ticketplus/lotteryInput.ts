@@ -14,19 +14,23 @@ export function readTicketPlusLotteryInput(
 ): LotteryInputState {
     const { page, markers } = read;
     const inputPath = `/confirm/${session.eventId}/${session.sessionId}`;
-    if (
-        !markers ||
-        markers.origin !== "https://ticketplus.com.tw" ||
-        markers.pathname.replace(/\/$/, "") !== inputPath ||
-        markers.participantSections !== 1
-    ) {
+    if (!markers) return { kind: "other" };
+
+    if (markers.origin !== "https://ticketplus.com.tw" || markers.pathname.replace(/\/$/, "") !== inputPath) {
         return { kind: "other" };
     }
+
+    if (markers.participantSections !== 1) {
+        return { kind: "other" };
+    }
+
     if (markers.dialogs > 0) {
         return markers.participantDialogs === markers.dialogs ? { kind: "editing" } : { kind: "other" };
     }
+
     if (page.kind !== "information" || page.eventId !== session.eventId || page.sessionId !== session.sessionId) {
         return { kind: "other" };
     }
+
     return { kind: "input", applicants: markers.applicants.map(applicant => ({ ...applicant })) };
 }

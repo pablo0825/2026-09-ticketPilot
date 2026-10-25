@@ -44,6 +44,7 @@ export function inspectActivityLoading(dom: TicketPlusDom, target: ActivityLoadi
     if (dom.activityNames.length > 1 || (heading !== undefined && heading !== "" && heading !== target.eventName)) {
         return "none";
     }
+
     const row = single(dom.activity);
     if (
         !row ||
@@ -57,9 +58,17 @@ export function inspectActivityLoading(dom: TicketPlusDom, target: ActivityLoadi
 
     // 佔位日期與時間須為合法範圍；不依固定年份或缺時間的計數猜測。
     const dates = row.dates.map(value => value.replace(/\([一二三四五六日]\)$/, ""));
-    if (!dates.every(validDate) || dates[0]! >= dates[1]!) return "none";
+    if (!dates.every(validDate)) return "none";
+
+    if (dates[0]! >= dates[1]!) return "none";
+
     const range = single(row.timeRanges)?.split(/\s*~\s*/);
-    if (!range || range.length !== 2 || !range.every(validTime) || range[0]! >= range[1]!) return "none";
+    if (!range || range.length !== 2) return "none";
+
+    if (!range.every(validTime)) return "none";
+
+    if (range[0]! >= range[1]!) return "none";
+
     return "loading-placeholder";
 }
 
@@ -75,9 +84,11 @@ function isReadableSessionRow(row: ActivityRow): boolean {
     // 日期為單日或遞增兩日區間；時間為單一時間或時間區間，欄位與值容器各一個。
     const counts = [row.dateField.labels, row.dateField.values, row.timeField.labels, row.timeField.values];
     if (counts.some(count => count !== 1)) return false;
+
     const dates = row.dates.map(value => value.replace(/\([一二三四五六日]\)$/, ""));
     if (dates.length < 1 || dates.length > 2 || !dates.every(validDate)) return false;
     if (dates.length === 2 && dates[0]! >= dates[1]!) return false;
+
     const times = [...row.times, ...row.timeRanges.flatMap(range => range.split(/\s*~\s*/))];
     if (row.times.length + row.timeRanges.length !== 1 || !times.every(validTime)) return false;
 

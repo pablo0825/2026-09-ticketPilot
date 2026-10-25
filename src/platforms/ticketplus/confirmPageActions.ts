@@ -29,6 +29,7 @@ function locateTermsControl(pattern: string): Element | null {
         ),
     );
     if (inputs.length !== 1) return null;
+
     return inputs[0]!.closest(".v-input--selection-controls__input") ?? inputs[0]!;
 }
 
@@ -49,11 +50,13 @@ export async function checkTicketPlusTerms(
         await handle.dispose().catch(() => {});
         throw new TermsStop("terms-missing");
     }
+
     try {
         control.check();
         await target.click({ timeout: bounded(control, clickTimeoutMs) });
     } catch (error) {
         if (error instanceof TicketPlusStopError) throw error;
+
         throw new TermsStop("terms-unchecked");
     } finally {
         await target.dispose().catch(() => {});
@@ -74,10 +77,12 @@ export async function pressNextOnce(
 ): Promise<"clicked" | "unavailable"> {
     const locator = page.getByRole("button", { name: "下一步", exact: true }).filter({ visible: true });
     if ((await control.read(() => locator.count())) !== 1) return "unavailable";
+
     let handle: ElementHandle | null = null;
     try {
         handle = await control.read(() => locator.elementHandle({ timeout: bounded(control, clickTimeoutMs) }));
         if (!(await recheck())) return "unavailable";
+
         const timeout = bounded(control, clickTimeoutMs);
         markAttempt();
         await handle.click({ timeout });
@@ -95,10 +100,12 @@ export async function waitForMarkers(
     options: { timeoutMs?: number; pollIntervalMs?: number },
 ): Promise<boolean> {
     const deadline = performance.now() + bounded(control, options.timeoutMs ?? 15_000);
+
     while (performance.now() < deadline) {
         const after = await control.read(() => readTicketPlusPageWithMarkers(page)).catch(() => undefined);
         if (accept(after?.markers)) return true;
         await control.wait(Math.max(1, Math.min(options.pollIntervalMs ?? 100, deadline - performance.now())));
     }
+
     return false;
 }

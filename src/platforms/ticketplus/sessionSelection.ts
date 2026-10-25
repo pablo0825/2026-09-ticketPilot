@@ -92,10 +92,12 @@ function requireTargetSession(
 ): Session {
     // 先核對活動網址，再以設定名稱找唯一場次。
     if (snapshot.kind !== "activity") throw new TicketPlusSessionError("before-click", "unexpected-page");
+
     const eventId = new URL(settings.eventUrl).pathname.split("/")[2];
     if (snapshot.eventId !== eventId) {
         throw new TicketPlusSessionError("before-click", "activity-mismatch");
     }
+
     const matches = snapshot.sessions.filter(
         session => normalizeSessionName(session.name) === normalizeSessionName(settings.eventName),
     );
@@ -115,6 +117,7 @@ function requireTargetSession(
         throw new TicketPlusSessionError("before-click", "flow-mismatch");
     }
     if (!session.buyEnabled) throw new TicketPlusSessionError("before-click", "session-disabled");
+
     return session;
 }
 
@@ -152,6 +155,7 @@ function arrivalRouteFailure(page: Page, settings: TicketPlusSelection): Session
     if (current.search || current.hash || current.username || current.password) {
         return { check: "arrival-route", reason: "extra-url-parts" };
     }
+
     const eventId = expected.pathname.split("/")[2]!;
     const matches =
         current.pathname.replace(/\/$/, "") === expected.pathname.replace(/\/$/, "") ||
@@ -217,6 +221,7 @@ async function dismissNotice(page: Page, state: ActivityWaitState, control: Tick
         if (error instanceof TicketPlusNoticeError) {
             throw new TicketPlusSessionError("before-click", "notice-dismiss-failed");
         }
+
         throw error;
     }
 }
@@ -269,6 +274,7 @@ async function waitForActivitySession(
         if (observation.page.kind === "activity") return requireTargetSession(observation.page, settings, flowType);
         await control.wait(Math.min(interval, Math.max(0, state.deadline - performance.now())));
     }
+
     throw new TicketPlusSessionError("before-click", "activity-ready-timeout");
 }
 
@@ -283,6 +289,7 @@ async function waitForSelection(
 ): Promise<TicketSelectionPage> {
     // 只設一次期限，暫時缺資料不會延長等待，也不會回到點擊流程。
     const deadline = performance.now() + timeout;
+
     const eventId = new URL(settings.eventUrl).pathname.split("/")[2];
     while (performance.now() < deadline) {
         control.check();
@@ -327,6 +334,7 @@ async function waitForSelection(
         // 等待期間不刷新、不處理排隊，也不碰選票頁的任何控制項。
         await control.wait(Math.min(interval, Math.max(0, deadline - performance.now())));
     }
+
     throw new TicketPlusSessionError("after-click-attempt", "arrival-timeout");
 }
 
@@ -405,10 +413,11 @@ export async function selectTicketPlusSession(
             onDiagnostic,
         );
         const button = sessionButton(page, target, flowType);
-        if (
-            (await control.read(() => button.count())) !== 1 ||
-            !(await control.read(() => button.isEnabled({ timeout: Math.min(clickTimeout, control.remainingMs()) })))
-        ) {
+        if ((await control.read(() => button.count())) !== 1) {
+            throw new TicketPlusSessionError(stage, "button-unavailable");
+        }
+
+        if (!(await control.read(() => button.isEnabled({ timeout: Math.min(clickTimeout, control.remainingMs()) })))) {
             throw new TicketPlusSessionError(stage, "button-unavailable");
         }
 
@@ -427,10 +436,11 @@ export async function selectTicketPlusSession(
         }
 
         // 最後一次核對（可能剛關閉提醒）之後再確認一次按鈕唯一且可用，不沿用關閉前的檢查。
-        if (
-            (await control.read(() => button.count())) !== 1 ||
-            !(await control.read(() => button.isEnabled({ timeout: Math.min(clickTimeout, control.remainingMs()) })))
-        ) {
+        if ((await control.read(() => button.count())) !== 1) {
+            throw new TicketPlusSessionError(stage, "button-unavailable");
+        }
+
+        if (!(await control.read(() => button.isEnabled({ timeout: Math.min(clickTimeout, control.remainingMs()) })))) {
             throw new TicketPlusSessionError(stage, "button-unavailable");
         }
 
@@ -450,8 +460,10 @@ export async function selectTicketPlusSession(
         if (error instanceof TicketPlusStopError) throw error;
         if (error instanceof TicketPlusSessionError) {
             error.diagnostic ??= diagnostic;
+
             throw error;
         }
+
         // 原始 Playwright 錯誤可能包含網址或 DOM，僅回傳固定階段與原因。
         throw new TicketPlusSessionError(stage, reason, diagnostic);
     }

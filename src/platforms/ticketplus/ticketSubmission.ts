@@ -24,6 +24,7 @@ export interface TicketSubmissionOptions {
     readTimeoutMs?: number;
     pollIntervalMs?: number;
 }
+
 export type SubmissionReason =
     | "user-stopped"
     | "time-limit"
@@ -52,11 +53,13 @@ export interface SubmissionProgress {
     failure?: OrderFailurePage["failure"];
     dismissal: Dismissal;
 }
+
 export interface SubmissionDiagnostic {
     phase: "before-submit" | "after-submit" | "dismiss-failure";
     page?: TicketPlusPageDiagnostic;
     routeFailure?: "origin-mismatch" | "extra-url-parts" | "path-mismatch" | "snapshot-identity-mismatch";
 }
+
 export class TicketPlusSubmissionError extends Error {
     constructor(
         public readonly reason: SubmissionReason,
@@ -68,6 +71,7 @@ export class TicketPlusSubmissionError extends Error {
         this.name = "TicketPlusSubmissionError";
     }
 }
+
 interface Submission {
     control: TicketPlusRunControl;
     settings: TicketPlusSelection;
@@ -91,6 +95,7 @@ const defaults: Required<TicketSubmissionOptions> = {
     readTimeoutMs: 2_000,
     pollIntervalMs: 500,
 };
+
 export type SubmissionObserver = (progress: Readonly<SubmissionProgress>) => void | Promise<void>;
 
 export const emptySubmissionProgress = (): SubmissionProgress => ({
@@ -114,15 +119,18 @@ function reportProgress(context: Submission): void {
 function stop(context: Submission, reason: SubmissionReason): TicketPlusSubmissionError {
     return new TicketPlusSubmissionError(reason, { ...context.progress }, undefined, context.diagnostic);
 }
+
 function localRemaining(context: Submission, deadline: number): number {
     context.control.check();
     const value = Math.min(context.deadline, deadline) - performance.now();
     if (value <= 0) throw stop(context, "wait-timeout");
     return value;
 }
+
 function remaining(context: Submission, deadline: number): number {
     return Math.min(localRemaining(context, deadline), context.control.remainingMs());
 }
+
 async function readBounded<T>(context: Submission, deadline: number, read: () => Promise<T>): Promise<T> {
     // 只對唯讀工作設外層期限；逾時後停止，不另開下一個讀取。
     const timeout = Math.min(localRemaining(context, deadline), context.options.readTimeoutMs);
@@ -142,6 +150,7 @@ async function readBounded<T>(context: Submission, deadline: number, read: () =>
         clearTimeout(timer);
     }
 }
+
 function checkRoute(page: Page, context: Submission, orderOnly = false): void {
     context.control.check();
     if (page.isClosed()) throw stop(context, "read-failed");
@@ -161,6 +170,7 @@ function checkRoute(page: Page, context: Submission, orderOnly = false): void {
         throw stop(context, "unexpected-route");
     }
 }
+
 function submissionPhase(context: Submission): SubmissionDiagnostic["phase"] {
     return context.progress.failure
         ? "dismiss-failure"
@@ -210,6 +220,7 @@ async function snapshot(
     }
     return value;
 }
+
 function submissionTarget(context: Submission): SubmittedSelectionTarget {
     return {
         eventId: context.selected.eventId,
@@ -221,10 +232,12 @@ function submissionTarget(context: Submission): SubmittedSelectionTarget {
         quantity: context.settings.target.quantity,
     };
 }
+
 function verifySelection(context: Submission, value: TicketPlusPage): asserts value is TicketSelectionPage {
     if (value.kind !== "ticket-selection") throw stop(context, "unexpected-page");
     if (!matchesSubmittedSelection(value, submissionTarget(context))) throw stop(context, "selection-mismatch");
 }
+
 async function submitOnce(page: Page, context: Submission, deadline: number): Promise<number> {
     // 先讀全頁，再將按鈕限定於有正確票名與張數的選票畫面。
     checkRoute(page, context, true);
@@ -293,6 +306,7 @@ async function submitOnce(page: Page, context: Submission, deadline: number): Pr
         await button.dispose().catch(() => {});
     }
 }
+
 function sameFailure(value: TicketPlusPage, expected: OrderFailurePage): value is OrderFailurePage {
     return (
         value.kind === "order-failure" &&
@@ -303,6 +317,7 @@ function sameFailure(value: TicketPlusPage, expected: OrderFailurePage): value i
         value.dismissNames[0] === expected.dismissNames[0]
     );
 }
+
 async function dismissFailure(page: Page, context: Submission, failure: OrderFailurePage): Promise<never> {
     // 確認失敗後結果不再轉為成功；關閉另有一次額度且受總期限限制。
     context.progress.failure = failure.failure;
@@ -382,6 +397,7 @@ async function dismissFailure(page: Page, context: Submission, failure: OrderFai
         await dialog.dispose().catch(() => {});
     }
 }
+
 async function pause(context: Submission, deadline: number): Promise<void> {
     await context.control.wait(Math.min(context.options.pollIntervalMs, remaining(context, deadline)));
 }
@@ -464,13 +480,18 @@ export async function submitTicketPlusSelection(
             observer,
             recorder,
         };
-        if (
-            selected.eventId !== new URL(settings.eventUrl).pathname.split("/")[2] ||
-            typeof selected.sessionId !== "string" ||
-            !/^[A-Za-z0-9_-]+$/.test(selected.sessionId)
-        ) {
+        if (selected.eventId !== new URL(settings.eventUrl).pathname.split("/")[2]) {
             throw stop(context, "invalid-input");
         }
+
+        if (typeof selected.sessionId !== "string") {
+            throw stop(context, "invalid-input");
+        }
+
+        if (!/^[A-Za-z0-9_-]+$/.test(selected.sessionId)) {
+            throw stop(context, "invalid-input");
+        }
+
         verifySelection(context, selected);
 
         // 前置核對有獨立期限；提交後只進入唯讀等待或單次關閉。
@@ -486,6 +507,7 @@ export async function submitTicketPlusSelection(
                 if (caught instanceof TicketPlusStopError) stopError = caught;
             }
         }
+
         if (stopError) {
             throw new TicketPlusSubmissionError(
                 stopError.stopReason === "time-limit" ? "time-limit" : "user-stopped",
@@ -494,6 +516,7 @@ export async function submitTicketPlusSelection(
                 context?.diagnostic,
             );
         }
+
         if (error instanceof TicketPlusSubmissionError) throw error;
         if (context) throw stop(context, context.progress.failure ? "dismiss-unconfirmed" : "read-failed");
         throw new TicketPlusSubmissionError("invalid-input", emptySubmissionProgress());
