@@ -28,3 +28,6 @@ local-data/
 # TicketPlus 專用登入與本機設定
 browser-profile-ticketplus/
 ticketplus.local.json
+
+# 僅保留本機的開發筆記與舊版使用說明
+/internal-docs/

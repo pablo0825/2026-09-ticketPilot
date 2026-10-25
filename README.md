@@ -95,9 +95,6 @@ npm run gui
 
 `WEBDRIVER_EXPERIMENT=1` 仍是選用的瀏覽器參數開關。TicketPlus 使用獨立的 `browser-profile-ticketplus/` 保存登入，本機設定與登入資料不納入版本控制。操作結束後請關閉購票 Chrome，流程與瀏覽器都結束後才釋放購票占用；異常中斷時先人工確認瀏覽器與訂單狀態，不自動清鎖。
 
-
-詳細操作與異常處理請參閱 [GUI 使用說明](docs/gui-usage.md)；排程規則請參閱 [開賣時間設定](docs/sale-schedule.md)。
-
 ## 舊 Klook 版本與資料
 
 `main` 只支援 TicketPlus。完整 Klook 程式及當時文件保存在 `archive/klook` 分支。

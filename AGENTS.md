@@ -20,16 +20,19 @@ entry points and IPC; `src/storage/` owns activity persistence, data paths and p
 platform flows; `src/platforms/` owns platform-specific browser interactions.
 `src/config/` parses settings; `src/core/` owns shared sale-schedule validation;
 `src/shared/` owns frontend-safe activity/run contracts and platform event schemas;
-`src/gui/` owns the React frontend. `tests/` contains tests; `docs/` records DOM
-observations and integration guides.
+`src/gui/` owns the React frontend. `tests/` contains tests; `docs/architecture/`
+contains architecture diagrams. `internal-docs/` contains local-only development
+notes and previous usage guides; it is ignored by Git and absent from fresh clones.
 
 Platform settings register in `src/config/settingsRegistry.ts`, execution rules in
 `src/app/platforms/executionRegistry.ts`, and child workers in `src/workers/workerRegistry.ts`.
 GUI workspaces and run presenters register separately in
 `src/gui/platforms/workspaceRegistry.ts` and
 `src/gui/platforms/runPresenterRegistry.ts` to avoid circular imports.
-See [adding a platform](docs/adding-platform.md) for contracts, compatibility,
-lease responsibilities, and verification requirements.
+When available, consult the local `internal-docs/adding-platform.md` guide for
+contracts, compatibility, lease responsibilities, and verification requirements.
+Keep shared implementation requirements in this file, source contracts, and tests;
+do not make builds or tests depend on local-only documentation.
 
 From the repository root:
 
