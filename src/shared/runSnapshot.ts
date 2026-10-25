@@ -15,13 +15,10 @@ export interface RunSnapshot {
     saleAt?: string;
     flowType?: "purchase" | "lottery"; // 只有 TicketPlus 新紀錄才有；舊紀錄沒有時畫面退回純紀錄。
     stopReason?: RunStopReason; // TicketPlus 因使用者停止或時間上限結束時才有。
-
     status:
         "running" | "payment-ready" | "information-ready" | "registration-ready" | "failed" | "unknown" | "interrupted";
-
     browserOpen: boolean;
     occupied: boolean;
-
     message: string;
     events: { sequence: number; at: string; event: PurchaseEvent }[];
     historyTruncated: boolean;
