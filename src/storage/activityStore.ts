@@ -6,11 +6,11 @@ import { mkdir, readFile, readdir, rename, writeFile, unlink } from "node:fs/pro
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { ArchivedKlookActivityError, isArchivedKlookActivity } from "../config/archivedKlookActivity.js";
-
 import { activityDirectory } from "./dataPaths.js";
 
 export async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
     const temporary = `${path}.${randomUUID()}.tmp`;
+
     try {
         await writeFile(temporary, JSON.stringify(value, null, 4) + "\n", { flag: "wx", mode: 0o600 });
         await rename(temporary, path);
@@ -26,6 +26,7 @@ export class ActivityStore {
 
     private path(id: string): string {
         if (!z.string().uuid().safeParse(id).success) throw new Error("活動識別碼無效。");
+
         return join(this.directory, `${id}.json`);
     }
 
@@ -54,6 +55,7 @@ export class ActivityStore {
             throw new ArchivedKlookActivityError();
         }
         if (record.data.schemaVersion !== 3) throw new Error("舊活動設定格式錯誤。");
+
         // 格式不完整的 Klook 檔案仍是無效資料，不能當成有效封存資料略過。
         const settings = parsePlatformSettings(record.data.settings);
         return { ...record.data, schemaVersion: 3, settings };
@@ -77,11 +79,13 @@ export class ActivityStore {
         // 寫入檔案
         await mkdir(this.directory, { recursive: true, mode: 0o700 });
         await writeJsonAtomic(this.path(record.id), record);
+
         return record;
     }
 
     async remove(id: string): Promise<void> {
         await this.load(id);
+
         await unlink(this.path(id));
     }
 
@@ -89,12 +93,14 @@ export class ActivityStore {
         // 讀取資料夾；資料夾不存在就當作沒有活動
         const files = await readdir(this.directory).catch(error => {
             if (error.code === "ENOENT") return [];
+
             throw error;
         });
 
         // 逐一載入活動，並計算無效的檔案數
         const activities: ActivityRecord[] = [];
         let invalidFiles = 0;
+
         for (const file of files.filter(file => file.endsWith(".json"))) {
             try {
                 activities.push(await this.load(file.slice(0, -5)));

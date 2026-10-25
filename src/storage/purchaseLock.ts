@@ -32,6 +32,7 @@ export function purchaseOccupied(directory?: string): boolean {
 // 購票程序共用持久占用；異常退出保留檔案，不猜測訂單或自動解鎖。
 export function acquirePurchaseLease(directory = localDataDirectory): PurchaseLease {
     const lease = { path: purchaseLockPath(directory), token: randomUUID() };
+
     try {
         mkdirSync(directory, { recursive: true, mode: 0o700 });
         writeFileSync(lease.path, JSON.stringify({ token: lease.token, pid: process.pid }), {
@@ -57,5 +58,6 @@ export function verifyPurchaseLease(lease: PurchaseLease): void {
 
 export function releasePurchaseLease(lease: PurchaseLease): void {
     verifyPurchaseLease(lease);
+
     unlinkSync(lease.path);
 }
