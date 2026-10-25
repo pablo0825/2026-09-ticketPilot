@@ -11,18 +11,18 @@ import type { PurchaseEvent } from "../../../shared/runEvents.js";
 export function ticketPlusFingerprintSettings(settings: TicketPlusActivitySettings) {
     const parsed = parseTicketPlusActivity(settings);
     if (parsed.flowType !== "purchase") return parsed;
+
     const { flowType: _purchase, ...withoutDefault } = parsed;
     return withoutDefault;
 }
 
 export function ticketPlusLegacySettings(settings: TicketPlusActivitySettings) {
-    if (
-        settings.targets.length !== 1 ||
-        settings.flowType === "lottery" ||
-        settings.saleSchedule ||
-        settings.maxRunMinutes !== undefined
-    )
-        return undefined;
+    if (settings.targets.length !== 1) return undefined;
+
+    if (settings.flowType === "lottery") return undefined;
+
+    if (settings.saleSchedule || settings.maxRunMinutes !== undefined) return undefined;
+
     return singleTicketPlusSelection(settings);
 }
 
@@ -73,6 +73,7 @@ export const ticketPlusDefinition: PlatformDefinition = {
         const settings = parseTicketPlusActivity(input);
         const current = ticketPlusFingerprintSettings(settings);
         const legacy = ticketPlusLegacySettings(settings);
+
         return {
             fingerprintVersion: 5,
             comparableVersions: [4, 5],

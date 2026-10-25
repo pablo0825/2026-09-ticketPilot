@@ -49,6 +49,7 @@ async function waitForConfirmation(
             status.value = "failed";
         },
     );
+
     while (true) {
         // 先處理已收到的確認或確認失敗。
         control.check();
@@ -57,13 +58,16 @@ async function waitForConfirmation(
 
         // 讀頁確認仍在輸入資料頁；頁面關閉或離開即停止，讀取暫時失敗則繼續等待。
         if (page.isClosed()) return "page-changed";
+
         const read = await control
             .read(() => readTicketPlusPageWithMarkers(page))
             .catch(error => {
                 if (error instanceof TicketPlusStopError) throw error;
+
                 return undefined;
             });
         if (status.value !== "waiting") continue;
+
         if (read?.markers) {
             otherReads = readTicketPlusLotteryInput(read, session).kind === "other" ? otherReads + 1 : 0;
             if (otherReads >= 2) return "page-changed";
@@ -85,6 +89,7 @@ export async function finishTicketPlusLottery(
 ): Promise<TicketPlusLotteryResult> {
     const stopped = (lotteryFailure: LotteryFailure, outcome: "stopped" | "unknown" = "stopped") =>
         ({ ...base, outcome, reason: "lottery-stopped", lotteryFailure }) as const;
+
     try {
         // 通知等待並取得確認；等待時間不計入最長執行時間。
         const confirmationId = randomUUID();
@@ -108,9 +113,11 @@ export async function finishTicketPlusLottery(
             completeTicketPlusLottery(page, session, quantity, control),
         );
         if (result.outcome === "registration-ready") return { ...base, outcome: "registration-ready" };
+
         const failure = stopped(result.reason, result.outcome);
         if (result.reason === "time-limit") return { ...failure, stopReason: "time-limit" };
         if (result.reason === "user-stopped") return { ...failure, stopReason: "user-stop" };
+
         return failure;
     } catch (error) {
         // 等待中或確認前停止都是未送出登記。
@@ -120,6 +127,7 @@ export async function finishTicketPlusLottery(
                 stopReason: error.stopReason,
             };
         }
+
         throw error;
     }
 }

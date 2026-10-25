@@ -42,9 +42,11 @@ export function runSnapshotFields(fields: PlatformSnapshotFields): PlatformSnaps
 
 export function createExecutionRegistry<E extends { type: string }>(entries: readonly PlatformDefinition<E>[]) {
     if (new Set(entries.map(entry => entry.id)).size !== entries.length) throw new Error("平台執行規則重複登記。");
+
     return (id: string | null): PlatformDefinition<E> => {
         const entry = entries.find(item => item.id === id);
         if (!entry) throw new Error("不支援的執行平台。");
+
         return entry;
     };
 }

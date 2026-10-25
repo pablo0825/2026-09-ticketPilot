@@ -56,6 +56,7 @@ export type TicketPlusStage =
     | "waiting-for-participants"
     | "completing-registration"
     | TicketPlusCycleStage;
+
 export type TicketPlusRunEvent =
     | { type: "stage"; stage: TicketPlusStage }
     | { type: "login-observation"; summary: TicketPlusLoginSummary }
@@ -65,6 +66,7 @@ export type TicketPlusRunEvent =
     | TicketPlusCycleEvent
     | { type: "participants-wait"; confirmationId: string }
     | { type: "lease-release-failed" };
+
 export type TicketPlusRunResult = (
     | TicketPlusSubmissionResult
     | TicketPlusCycleResult
@@ -87,6 +89,7 @@ export type TicketPlusRunResult = (
           activityLoginFailure?: "unconfirmed";
       }
 ) & { loginDiagnostic?: TicketPlusLoginSummary };
+
 export interface TicketPlusRunOptions {
     signal?: AbortSignal;
     deadlineNow?: () => number;
@@ -123,6 +126,7 @@ export async function runTicketPlus(
     const activity = parseTicketPlusActivity(input);
     const settings = ticketPlusSessionSelection(activity);
     validateTicketPlusRunSettings(activity);
+
     const control = new TicketPlusRunControl(options.signal, options.deadlineNow);
     if (options.signal?.aborted && !options.lease) {
         return {
@@ -132,8 +136,10 @@ export async function runTicketPlus(
             progress: Object.freeze(emptySubmissionProgress()),
         };
     }
+
     const lease = options.lease ?? acquirePurchaseLease();
     verifyPurchaseLease(lease);
+
     let settled = false;
     let browserClosed = true;
     let released = false;
@@ -145,6 +151,7 @@ export async function runTicketPlus(
     // 流程與瀏覽器皆結束才釋放；失敗也不自動關閉供人工檢查的畫面。
     const release = () => {
         if (!settled || !browserClosed || released) return;
+
         released = true;
         try {
             releasePurchaseLease(lease);
@@ -152,10 +159,12 @@ export async function runTicketPlus(
             notify(options, { type: "lease-release-failed" });
         }
     };
+
     const report = (value: TicketPlusStage) => {
         stage = value;
         notify(options, { type: "stage", stage });
     };
+
     try {
         report("starting");
         control.check();
@@ -173,9 +182,11 @@ export async function runTicketPlus(
         });
         options.onBrowser?.(context);
         control.check();
+
         // persistent context 應有初始分頁；缺頁時停止，避免重新開頁或留下無期限建立工作。
         const page = context.pages()[0];
         if (!page) throw new Error("購票瀏覽器沒有可用分頁。");
+
         control.check();
         const response = await page.goto("https://ticketplus.com.tw/", {
             waitUntil: "domcontentloaded",
@@ -194,6 +205,7 @@ export async function runTicketPlus(
             onObservation: (observation, summary) => {
                 const fingerprint = JSON.stringify(observation);
                 if (fingerprint === lastLoginFingerprint) return;
+
                 lastLoginFingerprint = fingerprint;
                 notify(options, { type: "login-observation", summary: structuredClone(summary) });
             },
@@ -205,11 +217,13 @@ export async function runTicketPlus(
         notify(options, { type: "login-wait", elapsedMs: login.elapsedMs, observations: login.observations });
         control.check();
         if (page.isClosed()) throw new Error("購票頁已關閉。");
+
         report("opening-activity");
         control.check();
         const targetResponse = await page.goto(settings.eventUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
         control.check();
         if (targetResponse && !targetResponse.ok()) throw new Error("活動頁無法載入。");
+
         // 開啟活動頁後若已顯示已知提醒就先關閉；其他狀態交給後續登入與場次核對。
         let openingReadTimer: ReturnType<typeof setTimeout> | undefined;
         try {
@@ -228,6 +242,7 @@ export async function runTicketPlus(
         } finally {
             clearTimeout(openingReadTimer);
         }
+
         let loginReadTimer: ReturnType<typeof setTimeout> | undefined;
         try {
             const targetLogin = await control.read(() =>
@@ -239,15 +254,17 @@ export async function runTicketPlus(
                 ]),
             );
             control.check();
-            if (
-                targetLogin.state === "logged-out" ||
-                ["unexpected-route", "read-failed", "page-closed"].includes(targetLogin.reason)
-            ) {
+            if (targetLogin.state === "logged-out") {
+                throw new TicketPlusActivityLoginError();
+            }
+
+            if (["unexpected-route", "read-failed", "page-closed"].includes(targetLogin.reason)) {
                 throw new TicketPlusActivityLoginError();
             }
         } finally {
             clearTimeout(loginReadTimer);
         }
+
         if (activity.saleSchedule) {
             report("waiting-for-sale");
             await prepareTicketPlusSale(page, settings, activity.saleSchedule, control, {
@@ -255,6 +272,7 @@ export async function runTicketPlus(
                 onStage: report,
             });
         }
+
         // 登入與開賣等待不消耗購票期限；之後各階段共用同一期限。
         control.startDeadline(activity.maxRunMinutes);
         report("selecting-session");
@@ -267,6 +285,7 @@ export async function runTicketPlus(
             },
             control,
         );
+
         // 同場次候補與更新後循環由獨立模組編排；本次結果與歷史提交不混用。
         const cycle = await runTicketPlusCycle(
             page,
@@ -285,14 +304,14 @@ export async function runTicketPlus(
         );
 
         // 抽選到輸入資料頁：等待人工確認參加者後收尾，停在確認登記前。
-        if (
-            cycle.outcome !== "information-ready" ||
-            ticketPlusFlowType(activity) !== "lottery" ||
-            !options.waitForParticipants ||
-            cycle.submittedQuantity === undefined
-        ) {
+        if (cycle.outcome !== "information-ready" || ticketPlusFlowType(activity) !== "lottery") {
             return cycle;
         }
+
+        if (!options.waitForParticipants) return cycle;
+
+        if (cycle.submittedQuantity === undefined) return cycle;
+
         const waitForParticipants = options.waitForParticipants;
         return await finishTicketPlusLottery(
             page,
@@ -318,11 +337,14 @@ export async function runTicketPlus(
                 if (caught instanceof TicketPlusStopError) stopError = caught;
             }
         }
+
         if (stopError) {
             const result = stoppedSubmissionResult(stopError, progress);
             return { ...result, ...(loginDiagnostic ? { loginDiagnostic } : {}) };
         }
+
         if (progress.submitAttempted || progress.failure) return stoppedSubmissionResult(error, progress);
+
         if ((stage as TicketPlusStage) === "selecting-session" && error instanceof TicketPlusSessionError) {
             return {
                 outcome: "stopped",
@@ -331,6 +353,7 @@ export async function runTicketPlus(
                 progress: Object.freeze(emptySubmissionProgress()),
             };
         }
+
         if (error instanceof TicketPlusSaleError) {
             return {
                 outcome: "stopped",
@@ -339,6 +362,7 @@ export async function runTicketPlus(
                 progress: Object.freeze(emptySubmissionProgress()),
             };
         }
+
         const reason =
             stage === "starting" || stage === "opening-activity"
                 ? "startup-stopped"
