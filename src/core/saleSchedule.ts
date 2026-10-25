@@ -6,16 +6,21 @@ export interface SaleSchedule {
 export function validateSaleSchedule(schedule: SaleSchedule): number {
     // 確認開賣時間的格式
     const value = schedule?.saleAt;
-    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d\+08:00$/.test(value)) {
+    if (typeof value !== "string") {
+        throw new Error("開賣時間必須包含日期、秒與台灣時區 +08:00。");
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d\+08:00$/.test(value)) {
         throw new Error("開賣時間必須包含日期、秒與台灣時區 +08:00。");
     }
 
     // 確認日期真的存在，例如不能是 2 月 30 日
     const timestamp = Date.parse(value);
-    if (
-        !Number.isFinite(timestamp) ||
-        new Date(timestamp + 8 * 3600_000).toISOString().slice(0, 19) !== value.slice(0, 19)
-    ) {
+    if (!Number.isFinite(timestamp)) {
+        throw new Error("開賣日期無效。");
+    }
+
+    if (new Date(timestamp + 8 * 3600_000).toISOString().slice(0, 19) !== value.slice(0, 19)) {
         throw new Error("開賣日期無效。");
     }
 
