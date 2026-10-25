@@ -54,12 +54,12 @@ sequenceDiagram
 
 ## 對應程式
 
-- [GUI 操作](../../src/gui/shared/runs/useRunStatus.ts)：停止與參加者確認 API。
-- [後端操作管理](../../src/server/runs/purchaseRuns.ts)：`stop`、`pendingParticipants`、`confirmParticipants`。
-- [停止訊息傳送](../../src/server/runs/sendWorkerStop.ts)：傳送回呼、逾時及失聯處理。
-- [子程序控制](../../src/workers/purchaseWorker.ts)：停止訊號與確認訊息接收。
-- [一次性參加者確認](../../src/workers/participantConfirmation.ts)：目前等待的確認編號核對。
-- [抽選收尾](../../src/app/flows/ticketplus/finishLottery.ts)：等待確認及核對後繼續流程。
-- [DOM 快照](../../src/platforms/ticketplus/domSnapshot.ts) 與 [參加者狀態解析](../../src/platforms/ticketplus/lotteryInput.ts)：將參加者列轉成填寫狀態，供後續核對。
+- [GUI 操作](../src/gui/shared/runs/useRunStatus.ts)：停止與參加者確認 API。
+- [後端操作管理](../src/server/runs/purchaseRuns.ts)：`stop`、`pendingParticipants`、`confirmParticipants`。
+- [停止訊息傳送](../src/server/runs/sendWorkerStop.ts)：傳送回呼、逾時及失聯處理。
+- [子程序控制](../src/workers/purchaseWorker.ts)：停止訊號與確認訊息接收。
+- [一次性參加者確認](../src/workers/participantConfirmation.ts)：目前等待的確認編號核對。
+- [抽選收尾](../src/app/flows/ticketplus/finishLottery.ts)：等待確認及核對後繼續流程。
+- [DOM 快照](../src/platforms/ticketplus/domSnapshot.ts) 與 [參加者狀態解析](../src/platforms/ticketplus/lotteryInput.ts)：將參加者列轉成填寫狀態，供後續核對。
 
 [← 上一節：子程序異常結束](interrupted-run.md) · [回到導覽](README.md)

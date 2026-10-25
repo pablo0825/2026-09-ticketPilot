@@ -39,9 +39,9 @@ sequenceDiagram
 
 ## 對應程式
 
-- [關閉與結束管理](../../src/server/runs/purchaseRuns.ts)：`closeBrowser`、`attachWorker`。
-- [子程序控制](../../src/workers/purchaseWorker.ts)：關窗訊息、`result` 與 `finished`。
-- [TicketPlus 流程](../../src/app/flows/ticketplus/runTicketPlus.ts)：`release` 與瀏覽器關閉事件。
-- [占用鎖](../../src/storage/purchaseLock.ts)：`verifyPurchaseLease`、`releasePurchaseLease`。
+- [關閉與結束管理](../src/server/runs/purchaseRuns.ts)：`closeBrowser`、`attachWorker`。
+- [子程序控制](../src/workers/purchaseWorker.ts)：關窗訊息、`result` 與 `finished`。
+- [TicketPlus 流程](../src/app/flows/ticketplus/runTicketPlus.ts)：`release` 與瀏覽器關閉事件。
+- [占用鎖](../src/storage/purchaseLock.ts)：`verifyPurchaseLease`、`releasePurchaseLease`。
 
 [← 上一節：開始購票與回報進度](start-and-progress.md) · [導覽](README.md) · [下一節：子程序異常結束 →](interrupted-run.md)

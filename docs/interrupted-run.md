@@ -27,8 +27,8 @@ sequenceDiagram
 
 ## 對應程式
 
-- [執行管理](../../src/server/runs/purchaseRuns.ts)：建構子讀取歷史紀錄，`attachWorker` 處理異常結束。
-- [購票子程序](../../src/workers/purchaseWorker.ts)：父服務失聯處理。
-- [執行紀錄儲存](../../src/server/runs/runRecordStore.ts)：紀錄讀寫。
+- [執行管理](../src/server/runs/purchaseRuns.ts)：建構子讀取歷史紀錄，`attachWorker` 處理異常結束。
+- [購票子程序](../src/workers/purchaseWorker.ts)：父服務失聯處理。
+- [執行紀錄儲存](../src/server/runs/runRecordStore.ts)：紀錄讀寫。
 
 [← 上一節：關閉瀏覽器與解除占用](close-and-release.md) · [導覽](README.md) · [下一節：停止與抽選人工確認 →](run-controls.md)

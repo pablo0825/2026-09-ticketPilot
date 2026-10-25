@@ -20,7 +20,7 @@ entry points and IPC; `src/storage/` owns activity persistence, data paths and p
 platform flows; `src/platforms/` owns platform-specific browser interactions.
 `src/config/` parses settings; `src/core/` owns shared sale-schedule validation;
 `src/shared/` owns frontend-safe activity/run contracts and platform event schemas;
-`src/gui/` owns the React frontend. `tests/` contains tests; `docs/architecture/`
+`src/gui/` owns the React frontend. `tests/` contains tests; `docs/`
 contains architecture diagrams. `internal-docs/` contains local-only development
 notes and previous usage guides; it is ignored by Git and absent from fresh clones.
 

@@ -52,10 +52,10 @@ sequenceDiagram
 
 ## 對應程式
 
-- [GUI 開始請求](../../src/gui/platforms/ticketplus/startPurchase.ts)：保存設定、待確認請求及開始 API。
-- [GUI 狀態訂閱](../../src/gui/shared/runs/useRunStatus.ts)：SSE 與初始查詢。
-- [購票 API](../../src/server/routes/purchaseRoutes.ts)：設定比對與 SSE。
-- [執行管理](../../src/server/runs/purchaseRuns.ts)：`start`、`previousResult`、`attachWorker`。
-- [購票子程序](../../src/workers/purchaseWorker.ts)：IPC 與結果回報。
+- [GUI 開始請求](../src/gui/platforms/ticketplus/startPurchase.ts)：保存設定、待確認請求及開始 API。
+- [GUI 狀態訂閱](../src/gui/shared/runs/useRunStatus.ts)：SSE 與初始查詢。
+- [購票 API](../src/server/routes/purchaseRoutes.ts)：設定比對與 SSE。
+- [執行管理](../src/server/runs/purchaseRuns.ts)：`start`、`previousResult`、`attachWorker`。
+- [購票子程序](../src/workers/purchaseWorker.ts)：IPC 與結果回報。
 
 [← 導覽](README.md) · [下一節：關閉瀏覽器與解除占用 →](close-and-release.md)
