@@ -52,6 +52,14 @@
 - `src/shared/runEvents.ts` 的新 worker 事件聯集；不要把新事件放入 `HistoricalRunEvent`。
 - 若新平台有不同流程、結果或停止原因，檢查 `src/shared/runSnapshot.ts`、`src/shared/runControls.ts`、`src/app/platforms/platformDefinition.ts`、`src/workers/workerProtocol.ts` 及 `src/server/runs/runRecord.ts` 的型別與驗證。
 
+執行快照的欄位依用途區分：
+
+- 新的存檔欄位放在 `RunSnapshot`。
+- 給 GUI 使用的衍生欄位與即時計算的操作欄位放在 `PurchaseSnapshot`。
+- 只有某個平台才有的資料，不要直接加入共用快照的頂層欄位。
+
+這個型別區分用來防止直接誤寫 GUI 欄位，不會在執行期過濾物件內容。歷史紀錄仍須由 `parseRunRecord()` 驗證並清除已知的操作欄位；新增欄位時須另行確認讀寫相容性，不能只依靠型別。
+
 目前的流程類型仍是 `purchase | lottery`，交接結果仍包含 `information-ready`、`payment-ready`、`registration-ready`。新平台若無法用現有約定表達，應明確擴充介面、驗證、畫面和測試；不要用型別斷言繞過檢查，也不要把不同意思的狀態硬套成現有名稱。
 
 ## 1. 設定解析
