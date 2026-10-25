@@ -9,6 +9,7 @@ export const ticketPlusEventSchema = z.discriminatedUnion("stage", [
             confirmationId: z.string().uuid(),
         })
         .strict(),
+
     // 抽選等待使用者在 GUI 確認參加者已填完；確認 ID 只用於本輪轉送。
     z
         .object({
@@ -17,6 +18,7 @@ export const ticketPlusEventSchema = z.discriminatedUnion("stage", [
             confirmationId: z.string().uuid(),
         })
         .strict(),
+
     z
         .object({
             type: z.literal("ticketplus"),
@@ -40,4 +42,5 @@ export const ticketPlusEventSchema = z.discriminatedUnion("stage", [
         })
         .strict(),
 ]);
+
 export type TicketPlusWorkerEvent = z.infer<typeof ticketPlusEventSchema>;

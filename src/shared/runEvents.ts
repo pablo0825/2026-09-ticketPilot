@@ -7,4 +7,5 @@ type HistoricalRunEvent =
     | { type: "state"; state: string }
     | { type: "target"; index: number; total: number; area: string; quantity: number; date: string; time: string }
     | { type: "recovery"; queue: number; reservation: number };
+
 export type PurchaseEvent = WorkerPurchaseEvent | HistoricalRunEvent;
