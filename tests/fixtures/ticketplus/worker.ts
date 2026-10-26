@@ -1,8 +1,9 @@
+import { applicationActivity as activity, installFixtureSessionNavigation } from "./sessionNavigation.js";
 import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
 import { writeFile, readFile, rename } from "node:fs/promises";
 import { appendFileSync, watchFile, unwatchFile } from "node:fs";
-import { activity, student, presale, soldOut, checkout } from "./pages.js";
+import { student, presale, soldOut, checkout } from "./pages.js";
 import { readyOrder, readyInformation, failureDialog, queueDialog } from "./submissionPage.js";
 import { lotteryInputPage, registerPage } from "./lotteryPages.js";
 
@@ -69,23 +70,26 @@ chromium.launchPersistentContext = async (_profile, options) => {
         await route.fulfill({
             contentType: "text/html; charset=utf-8",
             body:
-                path === "/"
-                    ? loggedOutHome
-                    : path.startsWith("/activity/")
-                      ? mode === "lottery"
-                          ? activity.replaceAll("立即購買", "立即登記")
-                          : activity
-                      : path.startsWith("/confirm/")
+                path === "/order/event-fixture/session-A"
+                    ? order.replaceAll("2026孿生姐妹之夜之鬼迷心竅", "另一個不應選擇的場次")
+                    : path === "/"
+                      ? loggedOutHome
+                      : path.startsWith("/activity/")
                         ? mode === "lottery"
-                            ? lotteryInputPage({ rows: ["filled", "filled"] })
-                            : readyInformation + "<p>PRIVATE_INFORMATION_MARKER</p>"
-                        : path.startsWith("/checkout/")
+                            ? activity.replaceAll("立即購買", "立即登記")
+                            : activity
+                        : path.startsWith("/confirm/")
                           ? mode === "lottery"
-                              ? registerPage
-                              : checkout
-                          : order,
+                              ? lotteryInputPage({ rows: ["filled", "filled"] })
+                              : readyInformation + "<p>PRIVATE_INFORMATION_MARKER</p>"
+                          : path.startsWith("/checkout/")
+                            ? mode === "lottery"
+                                ? registerPage
+                                : checkout
+                            : order,
         });
     });
+    await context.addInitScript(installFixtureSessionNavigation);
     await context.addInitScript(
         ({ mode, failure, queue }) => {
             let submitted = 0;
@@ -114,8 +118,7 @@ chromium.launchPersistentContext = async (_profile, options) => {
                 const button = (event.target as Element).closest("button");
                 if (!button) return;
                 if (button.textContent === "立即購買" || button.textContent === "立即登記") {
-                    await (window as any).recordFixture("session");
-                    location.assign("/order/event-fixture/session-B");
+                    return; // 場次導頁由共用的 fixture 事件處理。
                 } else if (button.querySelector(".mdi-plus")) {
                     const value = button.parentElement!.querySelector("div")!;
                     if (mode === "held-plus") {

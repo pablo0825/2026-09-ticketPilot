@@ -27,6 +27,13 @@ async function withPage(html: string, run: (page: Page) => Promise<void>, next =
         await page.addInitScript(() =>
             document.addEventListener("click", event => {
                 if (!(event.target as Element).closest(".sesstion-item button")) return;
+                sessionStorage.setItem(
+                    "clicked-session",
+                    (event.target as Element)
+                        .closest(".sesstion-item")!
+                        .querySelector(".is-word-break")!
+                        .textContent!.trim(),
+                );
                 sessionStorage.setItem("clicks", String(Number(sessionStorage.getItem("clicks") ?? 0) + 1));
                 location.href = "/order/event-fixture/session-A";
             }),
@@ -60,6 +67,7 @@ test("名稱定位：不依賴 h1，其他場次時間範圍不阻擋，只點�
         await withPage(heading + other + session, async page => {
             const result = await selectTicketPlusSession(page, settings, options);
             assert.equal(result.sessionId, "session-A");
+            assert.equal(await page.evaluate(() => sessionStorage.getItem("clicked-session")), name);
             assert.equal(await page.evaluate(() => sessionStorage.getItem("clicks")), "1");
         });
     }
