@@ -2,16 +2,16 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { submitTicketPlusInformation } from "../src/platforms/ticketplus/informationSubmission.js";
-import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
+import { submitTicketPlusInformation } from "../../../src/platforms/ticketplus/informationSubmission.js";
+import { TicketPlusRunControl } from "../../../src/platforms/ticketplus/runControl.js";
 import {
     informationBehavior,
     purchaseCheckout,
     mixedCheckout,
     purchaseInformation,
     registerCheckout,
-} from "./fixtures/ticketplus/informationSubmitPage.js";
-import type { InformationOptions, NextMode } from "./fixtures/ticketplus/informationSubmitPage.js";
+} from "../../fixtures/ticketplus/informationSubmitPage.js";
+import type { InformationOptions, NextMode } from "../../fixtures/ticketplus/informationSubmitPage.js";
 
 const confirmPath = "/confirm/event-fixture/session-B";
 const checkoutPath = "/checkout/event-fixture/session-B";

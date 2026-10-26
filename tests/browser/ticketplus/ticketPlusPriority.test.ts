@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { chromium } from "playwright";
-import { selectTicketPlusPriority } from "../src/platforms/ticketplus/ticketPriority.js";
-import type { TicketPlusActivitySettings } from "../src/config/platforms/ticketplus/activitySettings.js";
-import { installQuantityFixture, quantityPage, quantityState } from "./fixtures/ticketplus/quantityPage.js";
-import { presale } from "./fixtures/ticketplus/pages.js";
+import { selectTicketPlusPriority } from "../../../src/platforms/ticketplus/ticketPriority.js";
+import type { TicketPlusActivitySettings } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { installQuantityFixture, quantityPage, quantityState } from "../../fixtures/ticketplus/quantityPage.js";
+import { presale } from "../../fixtures/ticketplus/pages.js";
 
 const settings: TicketPlusActivitySettings = {
     platform: "ticketplus",

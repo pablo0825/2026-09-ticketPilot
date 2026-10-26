@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { confirmTicketPlusSeats } from "../src/platforms/ticketplus/seatConfirmation.js";
-import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
-import type { TicketPlusSelection } from "../src/config/platforms/ticketplus/activitySettings.js";
-import { observedSeat, seatBehavior, seatConfirmPage } from "./fixtures/ticketplus/seatConfirmPage.js";
-import type { SeatNextMode, SeatRow } from "./fixtures/ticketplus/seatConfirmPage.js";
-import { readyInformation } from "./fixtures/ticketplus/submissionPage.js";
+import { confirmTicketPlusSeats } from "../../../src/platforms/ticketplus/seatConfirmation.js";
+import { TicketPlusRunControl } from "../../../src/platforms/ticketplus/runControl.js";
+import type { TicketPlusSelection } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { observedSeat, seatBehavior, seatConfirmPage } from "../../fixtures/ticketplus/seatConfirmPage.js";
+import type { SeatNextMode, SeatRow } from "../../fixtures/ticketplus/seatConfirmPage.js";
+import { readyInformation } from "../../fixtures/ticketplus/submissionPage.js";
 
 const seatPath = "/confirmSeat/event-fixture/session-B";
 const informationPath = "/confirm/event-fixture/session-B";

@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { selectTicketPlusSession, TicketPlusSessionError } from "../src/platforms/ticketplus/sessionSelection.js";
-import { activity, session, order } from "./fixtures/ticketplus/pages.js";
+import { selectTicketPlusSession, TicketPlusSessionError } from "../../../src/platforms/ticketplus/sessionSelection.js";
+import { activity, session, order } from "../../fixtures/ticketplus/pages.js";
 
 const name = "2026孿生姐妹之夜之鬼迷心竅";
 const settings = {

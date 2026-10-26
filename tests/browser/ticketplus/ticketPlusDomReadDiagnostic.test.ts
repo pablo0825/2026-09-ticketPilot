@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { readTicketPlusDom } from "../src/platforms/ticketplus/domSnapshot.js";
-import { DomCaptureError } from "../src/platforms/ticketplus/domReadFailure.js";
-import { readTicketPlusActivityObservation } from "../src/platforms/ticketplus/pageState.js";
-import type { TicketPlusPageDiagnostic } from "../src/platforms/ticketplus/pageState.js";
-import { diagnoseReadFailure } from "../src/platforms/ticketplus/readFailure.js";
-import { activity } from "./fixtures/ticketplus/pages.js";
+import { readTicketPlusDom } from "../../../src/platforms/ticketplus/domSnapshot.js";
+import { DomCaptureError } from "../../../src/platforms/ticketplus/domReadFailure.js";
+import { readTicketPlusActivityObservation } from "../../../src/platforms/ticketplus/pageState.js";
+import type { TicketPlusPageDiagnostic } from "../../../src/platforms/ticketplus/pageState.js";
+import { diagnoseReadFailure } from "../../../src/platforms/ticketplus/readFailure.js";
+import { activity } from "../../fixtures/ticketplus/pages.js";
 
 const url = "https://ticketplus.com.tw/activity/event-fixture";
 const target = { eventId: "event-fixture", eventName: "2026孿生姐妹之夜之鬼迷心竅" };

@@ -2,15 +2,15 @@ import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { getEventListeners } from "node:events";
 import { chromium } from "playwright";
-import { TicketPlusRunControl, TicketPlusStopError } from "../src/platforms/ticketplus/runControl.js";
-import { selectTicketPlusTickets } from "../src/platforms/ticketplus/ticketQuantity.js";
-import { selectTicketPlusPriority } from "../src/platforms/ticketplus/ticketPriority.js";
-import { selectTicketPlusSession } from "../src/platforms/ticketplus/sessionSelection.js";
-import { runTicketPlusSubmission } from "../src/platforms/ticketplus/submissionOutcome.js";
-import { installQuantityFixture, quantityState } from "./fixtures/ticketplus/quantityPage.js";
-import { installSubmission, submissionCounts } from "./fixtures/ticketplus/submissionPage.js";
-import type { TicketPlusSelection } from "../src/config/platforms/ticketplus/activitySettings.js";
-import type { TicketSelectionPage } from "../src/platforms/ticketplus/ticketSelectionPage.js";
+import { TicketPlusRunControl, TicketPlusStopError } from "../../../src/platforms/ticketplus/runControl.js";
+import { selectTicketPlusTickets } from "../../../src/platforms/ticketplus/ticketQuantity.js";
+import { selectTicketPlusPriority } from "../../../src/platforms/ticketplus/ticketPriority.js";
+import { selectTicketPlusSession } from "../../../src/platforms/ticketplus/sessionSelection.js";
+import { runTicketPlusSubmission } from "../../../src/platforms/ticketplus/submissionOutcome.js";
+import { installQuantityFixture, quantityState } from "../../fixtures/ticketplus/quantityPage.js";
+import { installSubmission, submissionCounts } from "../../fixtures/ticketplus/submissionPage.js";
+import type { TicketPlusSelection } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import type { TicketSelectionPage } from "../../../src/platforms/ticketplus/ticketSelectionPage.js";
 
 const settings: TicketPlusSelection = {
     platform: "ticketplus",
@@ -240,7 +240,7 @@ test("停止控制：選場次到達等待與順位唯讀取消後均不續行",
     try {
         const page = await browser.newPage();
         // 固定活動頁按鈕只計數，故場次操作會停在等待到達選票頁。
-        const { activity } = await import("./fixtures/ticketplus/pages.js");
+        const { activity } = await import("../../fixtures/ticketplus/pages.js");
         await page.route("**/*", route => route.fulfill({ contentType: "text/html; charset=utf-8", body: activity }));
         await page.goto(settings.eventUrl);
         await page.evaluate(() => {

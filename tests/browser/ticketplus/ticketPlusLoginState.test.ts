@@ -3,9 +3,9 @@ import { test } from "node:test";
 import type { EventEmitter } from "node:events";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { readTicketPlusLoginState } from "../src/platforms/ticketplus/loginState.js";
-import { TicketPlusLoginError, waitForTicketPlusLogin } from "../src/platforms/ticketplus/loginWait.js";
-import { TicketPlusStopError } from "../src/platforms/ticketplus/runControl.js";
+import { readTicketPlusLoginState } from "../../../src/platforms/ticketplus/loginState.js";
+import { TicketPlusLoginError, waitForTicketPlusLogin } from "../../../src/platforms/ticketplus/loginWait.js";
+import { TicketPlusStopError } from "../../../src/platforms/ticketplus/runControl.js";
 
 const member =
     '<div class="font-weight-bold">0912***345 <span class="primary-1--text ml-3 cursor-pointer">登出</span></div>';
@@ -282,7 +282,7 @@ test("登入停止診斷：取消前無觀測、讀取懸掛及通知失敗均�
     await fixture(header("<div>會員登入</div>"), async page => {
         const pre = new AbortController();
         pre.abort();
-        let empty: import("../src/platforms/ticketplus/loginWait.js").TicketPlusLoginSummary | undefined;
+        let empty: import("../../../src/platforms/ticketplus/loginWait.js").TicketPlusLoginSummary | undefined;
         await assert.rejects(
             waitForTicketPlusLogin(page, {
                 signal: pre.signal,
@@ -316,7 +316,7 @@ test("登入停止診斷：取消前無觀測、讀取懸掛及通知失敗均�
                 finished();
             }
         }) as typeof page.evaluate;
-        let stopped: import("../src/platforms/ticketplus/loginWait.js").TicketPlusLoginSummary | undefined;
+        let stopped: import("../../../src/platforms/ticketplus/loginWait.js").TicketPlusLoginSummary | undefined;
         try {
             await assert.rejects(
                 waitForTicketPlusLogin(page, {
@@ -362,7 +362,7 @@ test("登入停止診斷：第二次讀取中取消保留前次快照，晚到�
         });
         let reads = 0;
         let notifications = 0;
-        let stopped: import("../src/platforms/ticketplus/loginWait.js").TicketPlusLoginSummary | undefined;
+        let stopped: import("../../../src/platforms/ticketplus/loginWait.js").TicketPlusLoginSummary | undefined;
         page.evaluate = (async (...args: any[]) => {
             reads++;
             if (reads === 1) return (original as any)(...args);

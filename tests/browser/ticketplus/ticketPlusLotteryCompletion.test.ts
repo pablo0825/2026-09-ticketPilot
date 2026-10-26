@@ -2,20 +2,20 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { readTicketPlusPageWithMarkers } from "../src/platforms/ticketplus/pageState.js";
-import { readTicketPlusDom } from "../src/platforms/ticketplus/domSnapshot.js";
-import { readTicketPlusLotteryInput } from "../src/platforms/ticketplus/lotteryInput.js";
-import { completeTicketPlusLottery } from "../src/platforms/ticketplus/lotteryCompletion.js";
-import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
-import { purchaseInformation } from "./fixtures/ticketplus/informationSubmitPage.js";
+import { readTicketPlusPageWithMarkers } from "../../../src/platforms/ticketplus/pageState.js";
+import { readTicketPlusDom } from "../../../src/platforms/ticketplus/domSnapshot.js";
+import { readTicketPlusLotteryInput } from "../../../src/platforms/ticketplus/lotteryInput.js";
+import { completeTicketPlusLottery } from "../../../src/platforms/ticketplus/lotteryCompletion.js";
+import { TicketPlusRunControl } from "../../../src/platforms/ticketplus/runControl.js";
+import { purchaseInformation } from "../../fixtures/ticketplus/informationSubmitPage.js";
 import {
     fakeParticipant,
     lotteryBehavior,
     lotteryInputPage,
     mixedRegisterPage,
     registerPage,
-} from "./fixtures/ticketplus/lotteryPages.js";
-import type { LotteryInputOptions, LotteryNextMode } from "./fixtures/ticketplus/lotteryPages.js";
+} from "../../fixtures/ticketplus/lotteryPages.js";
+import type { LotteryInputOptions, LotteryNextMode } from "../../fixtures/ticketplus/lotteryPages.js";
 
 const inputPath = "/confirm/event-fixture/session-B";
 const registerPath = "/checkout/event-fixture/session-B";

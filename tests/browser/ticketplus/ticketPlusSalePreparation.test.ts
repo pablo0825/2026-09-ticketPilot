@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { prepareTicketPlusSale, TicketPlusSaleError } from "../src/platforms/ticketplus/salePreparation.js";
-import { TicketPlusRunControl, TicketPlusStopError } from "../src/platforms/ticketplus/runControl.js";
-import type { TicketPlusSelection } from "../src/config/platforms/ticketplus/activitySettings.js";
-import * as fixture from "./fixtures/ticketplus/pages.js";
-import { noticeBehavior, noticeDialog, noticeTitles } from "./fixtures/ticketplus/activityNotice.js";
+import { prepareTicketPlusSale, TicketPlusSaleError } from "../../../src/platforms/ticketplus/salePreparation.js";
+import { TicketPlusRunControl, TicketPlusStopError } from "../../../src/platforms/ticketplus/runControl.js";
+import type { TicketPlusSelection } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import * as fixture from "../../fixtures/ticketplus/pages.js";
+import { noticeBehavior, noticeDialog, noticeTitles } from "../../fixtures/ticketplus/activityNotice.js";
 
 const saleAt = "2026-12-06T17:00:00+08:00";
 const sale = Date.parse(saleAt);

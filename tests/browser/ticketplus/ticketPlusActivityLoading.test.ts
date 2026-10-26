@@ -3,12 +3,12 @@ import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { readTicketPlusActivityObservation, readTicketPlusPage } from "../src/platforms/ticketplus/pageState.js";
-import { selectTicketPlusSession, TicketPlusSessionError } from "../src/platforms/ticketplus/sessionSelection.js";
-import { TicketPlusRunControl, TicketPlusStopError } from "../src/platforms/ticketplus/runControl.js";
-import type { TicketPlusSelection } from "../src/config/platforms/ticketplus/activitySettings.js";
-import { activity, order, session } from "./fixtures/ticketplus/pages.js";
-import { loadingSession } from "./fixtures/ticketplus/activityLoading.js";
+import { readTicketPlusActivityObservation, readTicketPlusPage } from "../../../src/platforms/ticketplus/pageState.js";
+import { selectTicketPlusSession, TicketPlusSessionError } from "../../../src/platforms/ticketplus/sessionSelection.js";
+import { TicketPlusRunControl, TicketPlusStopError } from "../../../src/platforms/ticketplus/runControl.js";
+import type { TicketPlusSelection } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { activity, order, session } from "../../fixtures/ticketplus/pages.js";
+import { loadingSession } from "../../fixtures/ticketplus/activityLoading.js";
 
 const eventName = "2026孿生姐妹之夜之鬼迷心竅";
 const activityUrl = "https://ticketplus.com.tw/activity/event-fixture";

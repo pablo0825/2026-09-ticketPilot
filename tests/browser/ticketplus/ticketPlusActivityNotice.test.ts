@@ -2,13 +2,16 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { readTicketPlusPage } from "../src/platforms/ticketplus/pageState.js";
-import { readTicketPlusDom } from "../src/platforms/ticketplus/domSnapshot.js";
-import * as fixture from "./fixtures/ticketplus/pages.js";
-import { noticeBehavior, noticeDialog, noticeTitles } from "./fixtures/ticketplus/activityNotice.js";
-import type { NoticeMode } from "./fixtures/ticketplus/activityNotice.js";
-import { dismissTicketPlusActivityNotice, TicketPlusNoticeError } from "../src/platforms/ticketplus/activityNotice.js";
-import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
+import { readTicketPlusPage } from "../../../src/platforms/ticketplus/pageState.js";
+import { readTicketPlusDom } from "../../../src/platforms/ticketplus/domSnapshot.js";
+import * as fixture from "../../fixtures/ticketplus/pages.js";
+import { noticeBehavior, noticeDialog, noticeTitles } from "../../fixtures/ticketplus/activityNotice.js";
+import type { NoticeMode } from "../../fixtures/ticketplus/activityNotice.js";
+import {
+    dismissTicketPlusActivityNotice,
+    TicketPlusNoticeError,
+} from "../../../src/platforms/ticketplus/activityNotice.js";
+import { TicketPlusRunControl } from "../../../src/platforms/ticketplus/runControl.js";
 
 const origin = "https://ticketplus.com.tw";
 const eventId = "0233a891800ffaa343bf8bff73d390e8";

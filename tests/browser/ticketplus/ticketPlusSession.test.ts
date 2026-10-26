@@ -1,15 +1,15 @@
-import { TicketPlusRunControl, TicketPlusStopError } from "../src/platforms/ticketplus/runControl.js";
-import { readTicketPlusPage } from "../src/platforms/ticketplus/pageState.js";
+import { TicketPlusRunControl, TicketPlusStopError } from "../../../src/platforms/ticketplus/runControl.js";
+import { readTicketPlusPage } from "../../../src/platforms/ticketplus/pageState.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import type { TicketPlusSelection } from "../src/config/platforms/ticketplus/activitySettings.js";
-import { selectTicketPlusSession, TicketPlusSessionError } from "../src/platforms/ticketplus/sessionSelection.js";
-import type { SessionEntryStage, SessionEntryReason } from "../src/platforms/ticketplus/sessionSelection.js";
-import * as fixture from "./fixtures/ticketplus/pages.js";
-import { delayedNotice, noticeBehavior, noticeDialog, noticeTitles } from "./fixtures/ticketplus/activityNotice.js";
+import type { TicketPlusSelection } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { selectTicketPlusSession, TicketPlusSessionError } from "../../../src/platforms/ticketplus/sessionSelection.js";
+import type { SessionEntryStage, SessionEntryReason } from "../../../src/platforms/ticketplus/sessionSelection.js";
+import * as fixture from "../../fixtures/ticketplus/pages.js";
+import { delayedNotice, noticeBehavior, noticeDialog, noticeTitles } from "../../fixtures/ticketplus/activityNotice.js";
 
 const origin = "https://ticketplus.com.tw";
 const activityUrl = `${origin}/activity/event-fixture`;

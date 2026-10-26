@@ -3,11 +3,11 @@ import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { readTicketPlusDom } from "../src/platforms/ticketplus/domSnapshot.js";
-import { readTicketPlusActivityObservation, readTicketPlusPage } from "../src/platforms/ticketplus/pageState.js";
-import { selectTicketPlusSession } from "../src/platforms/ticketplus/sessionSelection.js";
-import type { TicketPlusSelection } from "../src/config/platforms/ticketplus/activitySettings.js";
-import { order } from "./fixtures/ticketplus/pages.js";
+import { readTicketPlusDom } from "../../../src/platforms/ticketplus/domSnapshot.js";
+import { readTicketPlusActivityObservation, readTicketPlusPage } from "../../../src/platforms/ticketplus/pageState.js";
+import { selectTicketPlusSession } from "../../../src/platforms/ticketplus/sessionSelection.js";
+import type { TicketPlusSelection } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { order } from "../../fixtures/ticketplus/pages.js";
 import {
     observedActivity,
     observedField,
@@ -15,7 +15,7 @@ import {
     observedSpinner,
     observedBuyButton,
     observedEventName,
-} from "./fixtures/ticketplus/observedActivityFields.js";
+} from "../../fixtures/ticketplus/observedActivityFields.js";
 
 const activityUrl = "https://ticketplus.com.tw/activity/event-fixture";
 const target = { eventId: "event-fixture", eventName: observedEventName };

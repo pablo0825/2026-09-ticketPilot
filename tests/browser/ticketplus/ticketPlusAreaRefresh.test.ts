@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { refreshTicketPlusTickets } from "../src/platforms/ticketplus/ticketRefresh.js";
-import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
-import { readTicketPlusDom } from "../src/platforms/ticketplus/domSnapshot.js";
-import { installRefreshExample } from "./fixtures/ticketplus/refreshPage.js";
-import type { RefreshExampleMode } from "./fixtures/ticketplus/refreshPage.js";
-import { areaOrder } from "./fixtures/ticketplus/areaPage.js";
+import { refreshTicketPlusTickets } from "../../../src/platforms/ticketplus/ticketRefresh.js";
+import { TicketPlusRunControl } from "../../../src/platforms/ticketplus/runControl.js";
+import { readTicketPlusDom } from "../../../src/platforms/ticketplus/domSnapshot.js";
+import { installRefreshExample } from "../../fixtures/ticketplus/refreshPage.js";
+import type { RefreshExampleMode } from "../../fixtures/ticketplus/refreshPage.js";
+import { areaOrder } from "../../fixtures/ticketplus/areaPage.js";
 
 const session = {
     eventId: "event-fixture",

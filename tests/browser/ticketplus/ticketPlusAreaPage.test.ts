@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { readTicketPlusPage } from "../src/platforms/ticketplus/pageState.js";
-import { findTargetTickets } from "../src/platforms/ticketplus/ticketSelectionPage.js";
-import * as fixture from "./fixtures/ticketplus/areaPage.js";
-import { order, presale } from "./fixtures/ticketplus/pages.js";
-import { selectTicketPlusTickets, TicketPlusQuantityError } from "../src/platforms/ticketplus/ticketQuantity.js";
-import type { TicketPlusSelection } from "../src/config/platforms/ticketplus/activitySettings.js";
+import { readTicketPlusPage } from "../../../src/platforms/ticketplus/pageState.js";
+import { findTargetTickets } from "../../../src/platforms/ticketplus/ticketSelectionPage.js";
+import * as fixture from "../../fixtures/ticketplus/areaPage.js";
+import { order, presale } from "../../fixtures/ticketplus/pages.js";
+import { selectTicketPlusTickets, TicketPlusQuantityError } from "../../../src/platforms/ticketplus/ticketQuantity.js";
+import type { TicketPlusSelection } from "../../../src/config/platforms/ticketplus/activitySettings.js";
 
 const orderUrl = "https://ticketplus.com.tw/order/0233a891800ffaa343bf8bff73d390e8/62ecd68cb52728a63ac9cff43172e04f";
 

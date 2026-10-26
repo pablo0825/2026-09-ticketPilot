@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { readTicketPlusPage } from "../src/platforms/ticketplus/pageState.js";
-import { readTicketPlusDom } from "../src/platforms/ticketplus/domSnapshot.js";
-import * as fixture from "./fixtures/ticketplus/pages.js";
+import { readTicketPlusPage } from "../../../src/platforms/ticketplus/pageState.js";
+import { readTicketPlusDom } from "../../../src/platforms/ticketplus/domSnapshot.js";
+import * as fixture from "../../fixtures/ticketplus/pages.js";
 
 const origin = "https://ticketplus.com.tw";
 const eventId = "0233a891800ffaa343bf8bff73d390e8";
@@ -673,7 +673,7 @@ test("TicketPlus 活動：抽選的「立即登記」視為可進入，並保留
 
         // 診斷也視為已知按鈕
         const dom = await readTicketPlusDom(page);
-        const { diagnoseActivityFields } = await import("../src/platforms/ticketplus/activityPage.js");
+        const { diagnoseActivityFields } = await import("../../../src/platforms/ticketplus/activityPage.js");
         assert.equal(diagnoseActivityFields(dom, event.eventName).rows[0]!.knownButtonText, true);
     });
 });
@@ -721,7 +721,7 @@ test("TicketPlus 資料頁：A 坐席與抽選輸入資料頁皆解析為資料�
 });
 
 test("TicketPlus 確認選位：confirmSeat 解析座位列，不被當成付款頁", async () => {
-    const { seatConfirmPage, observedSeat } = await import("./fixtures/ticketplus/seatConfirmPage.js");
+    const { seatConfirmPage, observedSeat } = await import("../../fixtures/ticketplus/seatConfirmPage.js");
     const seatUrl = `${origin}/confirmSeat/${eventId}/${sessionId}`;
     await withPage(async page => {
         // 實站結構：一列座位、取消購票與啟用的下一步
@@ -754,7 +754,7 @@ test("TicketPlus 確認選位：confirmSeat 解析座位列，不被當成付款
 });
 
 test("TicketPlus 確認選位：診斷路徑種類為 confirmSeat", async () => {
-    const { diagnosticRouteKind } = await import("../src/platforms/ticketplus/readFailure.js");
+    const { diagnosticRouteKind } = await import("../../../src/platforms/ticketplus/readFailure.js");
     assert.equal(diagnosticRouteKind(`/confirmSeat/${eventId}/${sessionId}`), "confirmSeat");
     assert.equal(diagnosticRouteKind(`/confirm/${eventId}/${sessionId}`), "confirm");
 });
