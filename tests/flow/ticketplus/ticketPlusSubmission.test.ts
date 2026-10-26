@@ -1,20 +1,26 @@
-import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
-import { presale, summary } from "./fixtures/ticketplus/pages.js";
-import { runTicketPlusSubmission, stoppedSubmissionResult } from "../src/platforms/ticketplus/submissionOutcome.js";
-import { ticketPlusResultDiagnostic, ticketPlusResultMessage } from "../src/workers/ticketplus/runMessages.js";
+import { TicketPlusRunControl } from "../../../src/platforms/ticketplus/runControl.js";
+import { presale, summary } from "../../fixtures/ticketplus/pages.js";
+import {
+    runTicketPlusSubmission,
+    stoppedSubmissionResult,
+} from "../../../src/platforms/ticketplus/submissionOutcome.js";
+import { ticketPlusResultDiagnostic, ticketPlusResultMessage } from "../../../src/workers/ticketplus/runMessages.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import type { TestContext } from "node:test";
 import { chromium } from "playwright";
 import type { Page, ElementHandle } from "playwright";
-import { submitTicketPlusSelection, TicketPlusSubmissionError } from "../src/platforms/ticketplus/ticketSubmission.js";
-import type { TicketSubmissionOptions } from "../src/platforms/ticketplus/ticketSubmission.js";
-import type { TicketPlusSelection } from "../src/config/platforms/ticketplus/activitySettings.js";
-import type { TicketSelectionPage } from "../src/platforms/ticketplus/ticketSelectionPage.js";
-import { readTicketPlusPage } from "../src/platforms/ticketplus/pageState.js";
-import { selectTicketPlusTickets } from "../src/platforms/ticketplus/ticketQuantity.js";
-import { selectTicketPlusSession } from "../src/platforms/ticketplus/sessionSelection.js";
+import {
+    submitTicketPlusSelection,
+    TicketPlusSubmissionError,
+} from "../../../src/platforms/ticketplus/ticketSubmission.js";
+import type { TicketSubmissionOptions } from "../../../src/platforms/ticketplus/ticketSubmission.js";
+import type { TicketPlusSelection } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import type { TicketSelectionPage } from "../../../src/platforms/ticketplus/ticketSelectionPage.js";
+import { readTicketPlusPage } from "../../../src/platforms/ticketplus/pageState.js";
+import { selectTicketPlusTickets } from "../../../src/platforms/ticketplus/ticketQuantity.js";
+import { selectTicketPlusSession } from "../../../src/platforms/ticketplus/sessionSelection.js";
 import {
     installSubmission,
     lotteryQueueDialog,
@@ -24,8 +30,8 @@ import {
     queueDialog,
     readyOrder,
     readyInformation,
-} from "./fixtures/ticketplus/submissionPage.js";
-import type { Mode } from "./fixtures/ticketplus/submissionPage.js";
+} from "../../fixtures/ticketplus/submissionPage.js";
+import type { Mode } from "../../fixtures/ticketplus/submissionPage.js";
 
 const settings: TicketPlusSelection = {
     platform: "ticketplus",
@@ -1037,8 +1043,9 @@ const areaSelection: TicketSelectionPage = {
 };
 
 async function withSeatedSite(rows: number, run: (page: Page) => Promise<void>, seatDelayMs = 0) {
-    const { seatConfirmPage, seatBehavior, observedSeat } = await import("./fixtures/ticketplus/seatConfirmPage.js");
-    const area = await import("./fixtures/ticketplus/areaPage.js");
+    const { seatConfirmPage, seatBehavior, observedSeat } =
+        await import("../../fixtures/ticketplus/seatConfirmPage.js");
+    const area = await import("../../fixtures/ticketplus/areaPage.js");
     const order = area.areaOrder([
         area.area({
             name: "C 區",
@@ -1113,7 +1120,7 @@ test("TicketPlus 提交：選位結果轉資料頁比送出等待更久時，座
 });
 
 test("TicketPlus 提交：選位結果張數不符時停止，結果為已提交但停止而非未確認", async () => {
-    const { stoppedSubmissionResult } = await import("../src/platforms/ticketplus/submissionOutcome.js");
+    const { stoppedSubmissionResult } = await import("../../../src/platforms/ticketplus/submissionOutcome.js");
     await withSeatedSite(1, async page => {
         const error = await failure(submitTicketPlusSelection(page, areaSettings, areaSelection, options));
         assert.equal(error.reason, "seat-mismatch");

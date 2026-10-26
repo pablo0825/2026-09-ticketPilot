@@ -5,14 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
-import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
-import type { TicketPlusRunEvent } from "../src/app/flows/ticketplus/runTicketPlus.js";
-import { acquirePurchaseLease } from "../src/storage/purchaseLock.js";
-import type { TicketPlusActivitySettings } from "../src/config/platforms/ticketplus/activitySettings.js";
-import { loggedInHome } from "./fixtures/ticketplus/loginPage.js";
-import { activity } from "./fixtures/ticketplus/pages.js";
-import { readyOrder } from "./fixtures/ticketplus/submissionPage.js";
-import { lotteryInputPage, registerPage } from "./fixtures/ticketplus/lotteryPages.js";
+import { runTicketPlus } from "../../../src/app/flows/ticketplus/runTicketPlus.js";
+import type { TicketPlusRunEvent } from "../../../src/app/flows/ticketplus/runTicketPlus.js";
+import { acquirePurchaseLease } from "../../../src/storage/purchaseLock.js";
+import type { TicketPlusActivitySettings } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { loggedInHome } from "../../fixtures/ticketplus/loginPage.js";
+import { activity } from "../../fixtures/ticketplus/pages.js";
+import { readyOrder } from "../../fixtures/ticketplus/submissionPage.js";
+import { lotteryInputPage, registerPage } from "../../fixtures/ticketplus/lotteryPages.js";
 
 // 抽選：活動頁「立即登記」→ 選票 → 輸入資料頁（參加者已填）→ 確認登記頁。
 const settings: TicketPlusActivitySettings = {

@@ -3,16 +3,16 @@ import { test } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
-import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
-import { loggedInHome } from "./fixtures/ticketplus/loginPage.js";
+import { runTicketPlus } from "../../../src/app/flows/ticketplus/runTicketPlus.js";
+import { acquirePurchaseLease, purchaseOccupied } from "../../../src/storage/purchaseLock.js";
+import { loggedInHome } from "../../fixtures/ticketplus/loginPage.js";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
-import { runTicketPlusCycle } from "../src/platforms/ticketplus/purchaseCycle.js";
-import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
-import type { TicketPlusActivitySettings } from "../src/config/platforms/ticketplus/activitySettings.js";
-import { installRoundPage, roundState } from "./fixtures/ticketplus/roundPage.js";
-import type { RoundMode } from "./fixtures/ticketplus/roundPage.js";
+import { runTicketPlusCycle } from "../../../src/platforms/ticketplus/purchaseCycle.js";
+import { TicketPlusRunControl } from "../../../src/platforms/ticketplus/runControl.js";
+import type { TicketPlusActivitySettings } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { installRoundPage, roundState } from "../../fixtures/ticketplus/roundPage.js";
+import type { RoundMode } from "../../fixtures/ticketplus/roundPage.js";
 
 const session = {
     eventId: "event-fixture",

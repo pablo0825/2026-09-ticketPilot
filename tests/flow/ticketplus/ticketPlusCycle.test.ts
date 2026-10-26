@@ -1,5 +1,5 @@
-import { installRefreshExample } from "./fixtures/ticketplus/refreshPage.js";
-import { loggedInHome } from "./fixtures/ticketplus/loginPage.js";
+import { installRefreshExample } from "../../fixtures/ticketplus/refreshPage.js";
+import { loggedInHome } from "../../fixtures/ticketplus/loginPage.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
@@ -7,17 +7,17 @@ import type { Page } from "playwright";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { runTicketPlusCycle } from "../src/platforms/ticketplus/purchaseCycle.js";
-import type { TicketPlusCycleEvent } from "../src/platforms/ticketplus/purchaseCycle.js";
-import type { SubmissionState } from "../src/platforms/ticketplus/submissionTracking.js";
-import { TicketPlusRunControl } from "../src/platforms/ticketplus/runControl.js";
-import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
-import { runTicketPlusWorker } from "../src/workers/ticketplus/worker.js";
-import { ticketPlusResultMessage } from "../src/workers/ticketplus/runMessages.js";
-import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
-import type { TicketPlusActivitySettings } from "../src/config/platforms/ticketplus/activitySettings.js";
-import { installCyclePage, cycleState } from "./fixtures/ticketplus/cyclePage.js";
-import type { CycleMode } from "./fixtures/ticketplus/cyclePage.js";
+import { runTicketPlusCycle } from "../../../src/platforms/ticketplus/purchaseCycle.js";
+import type { TicketPlusCycleEvent } from "../../../src/platforms/ticketplus/purchaseCycle.js";
+import type { SubmissionState } from "../../../src/platforms/ticketplus/submissionTracking.js";
+import { TicketPlusRunControl } from "../../../src/platforms/ticketplus/runControl.js";
+import { runTicketPlus } from "../../../src/app/flows/ticketplus/runTicketPlus.js";
+import { runTicketPlusWorker } from "../../../src/workers/ticketplus/worker.js";
+import { ticketPlusResultMessage } from "../../../src/workers/ticketplus/runMessages.js";
+import { acquirePurchaseLease, purchaseOccupied } from "../../../src/storage/purchaseLock.js";
+import type { TicketPlusActivitySettings } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { installCyclePage, cycleState } from "../../fixtures/ticketplus/cyclePage.js";
+import type { CycleMode } from "../../fixtures/ticketplus/cyclePage.js";
 
 const session = {
     eventId: "event-fixture",

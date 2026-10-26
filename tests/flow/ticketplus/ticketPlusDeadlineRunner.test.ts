@@ -1,4 +1,4 @@
-import { loggedInHome, loggedOutHome } from "./fixtures/ticketplus/loginPage.js";
+import { loggedInHome, loggedOutHome } from "../../fixtures/ticketplus/loginPage.js";
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -6,11 +6,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
-import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
-import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
-import type { TicketPlusActivitySettings } from "../src/config/platforms/ticketplus/activitySettings.js";
-import { readyInformation, readyOrder, failureDialog, queueDialog } from "./fixtures/ticketplus/submissionPage.js";
-import { activity, checkout } from "./fixtures/ticketplus/pages.js";
+import { runTicketPlus } from "../../../src/app/flows/ticketplus/runTicketPlus.js";
+import { acquirePurchaseLease, purchaseOccupied } from "../../../src/storage/purchaseLock.js";
+import type { TicketPlusActivitySettings } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { readyInformation, readyOrder, failureDialog, queueDialog } from "../../fixtures/ticketplus/submissionPage.js";
+import { activity, checkout } from "../../fixtures/ticketplus/pages.js";
 
 const settings: TicketPlusActivitySettings = {
     platform: "ticketplus",

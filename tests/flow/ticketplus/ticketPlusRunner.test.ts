@@ -1,6 +1,6 @@
-import { ticketPlusEventMessage } from "../src/workers/ticketplus/runMessages.js";
-import { loggedInHome, loggedOutHome } from "./fixtures/ticketplus/loginPage.js";
-import { ticketPlusResultDiagnostic, ticketPlusResultMessage } from "../src/workers/ticketplus/runMessages.js";
+import { ticketPlusEventMessage } from "../../../src/workers/ticketplus/runMessages.js";
+import { loggedInHome, loggedOutHome } from "../../fixtures/ticketplus/loginPage.js";
+import { ticketPlusResultDiagnostic, ticketPlusResultMessage } from "../../../src/workers/ticketplus/runMessages.js";
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -8,13 +8,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import type { BrowserContext } from "playwright";
-import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
-import { runTicketPlusWorker } from "../src/workers/ticketplus/worker.js";
-import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
-import type { TicketPlusActivitySettings } from "../src/config/platforms/ticketplus/activitySettings.js";
-import { activity, checkout } from "./fixtures/ticketplus/pages.js";
-import { readyInformation, readyOrder, failureDialog } from "./fixtures/ticketplus/submissionPage.js";
-import { noticeDialog, noticeTitles } from "./fixtures/ticketplus/activityNotice.js";
+import { runTicketPlus } from "../../../src/app/flows/ticketplus/runTicketPlus.js";
+import { runTicketPlusWorker } from "../../../src/workers/ticketplus/worker.js";
+import { acquirePurchaseLease, purchaseOccupied } from "../../../src/storage/purchaseLock.js";
+import type { TicketPlusActivitySettings } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { activity, checkout } from "../../fixtures/ticketplus/pages.js";
+import { readyInformation, readyOrder, failureDialog } from "../../fixtures/ticketplus/submissionPage.js";
+import { noticeDialog, noticeTitles } from "../../fixtures/ticketplus/activityNotice.js";
 
 const settings: TicketPlusActivitySettings = {
     platform: "ticketplus",
@@ -616,7 +616,7 @@ test("登入診斷：同狀態不洗版，欄位變化與人工停止保留最�
     );
     const launch = mock.method(chromium, "launchPersistentContext", async () => context);
     const controller = new AbortController();
-    const events: import("../src/app/flows/ticketplus/runTicketPlus.js").TicketPlusRunEvent[] = [];
+    const events: import("../../../src/app/flows/ticketplus/runTicketPlus.js").TicketPlusRunEvent[] = [];
     let firstSeen = () => {};
     let changedSeen = () => {};
     const first = new Promise<void>(resolve => {

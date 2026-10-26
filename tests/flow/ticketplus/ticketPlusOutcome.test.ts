@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright";
-import { stoppedSubmissionResult, runTicketPlusSubmission } from "../src/platforms/ticketplus/submissionOutcome.js";
-import { emptySubmissionProgress, TicketPlusSubmissionError } from "../src/platforms/ticketplus/ticketSubmission.js";
-import type { SubmissionProgress } from "../src/platforms/ticketplus/ticketSubmission.js";
-import type { TicketSelectionPage } from "../src/platforms/ticketplus/ticketSelectionPage.js";
-import type { TicketPlusSelection } from "../src/config/platforms/ticketplus/activitySettings.js";
-import { installSubmission, submissionCounts } from "./fixtures/ticketplus/submissionPage.js";
+import {
+    stoppedSubmissionResult,
+    runTicketPlusSubmission,
+} from "../../../src/platforms/ticketplus/submissionOutcome.js";
+import {
+    emptySubmissionProgress,
+    TicketPlusSubmissionError,
+} from "../../../src/platforms/ticketplus/ticketSubmission.js";
+import type { SubmissionProgress } from "../../../src/platforms/ticketplus/ticketSubmission.js";
+import type { TicketSelectionPage } from "../../../src/platforms/ticketplus/ticketSelectionPage.js";
+import type { TicketPlusSelection } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { installSubmission, submissionCounts } from "../../fixtures/ticketplus/submissionPage.js";
 
 const settings: TicketPlusSelection = {
     platform: "ticketplus",
