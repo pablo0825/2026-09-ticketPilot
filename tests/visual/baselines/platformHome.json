@@ -1,0 +1,13 @@
+{
+  "platform": "darwin",
+  "arch": "arm64",
+  "osRelease": "27.0.0",
+  "browser": "153.0.8010.12",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "deviceScaleFactor": 1,
+  "locale": "zh-TW",
+  "colorScheme": "light"
+}

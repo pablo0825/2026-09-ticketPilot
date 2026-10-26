@@ -99,7 +99,10 @@ Work in verifiable steps within the confirmed scope.
 
 Use `node:test`, `node:assert/strict`, and headless Playwright with local fixtures
 or intercepted routes. Name tests `tests/<layer>/<area>/<module>.test.ts` (omit area when unnecessary).
-Use `npm run test:list` to audit discovery; compare test names and files after each move. Cover mismatches,
+Use `npm run test:list` to audit discovery; compare test names and files after each move.
+Environment-specific screenshot pilots use `tests/visual/*.visual.ts` and run separately
+with `npm run test:visual`; they are intentionally excluded from `npm test`. Keep their
+recorded environment fixed and visually review baseline changes before committing. Cover mismatches,
 ambiguous selectors, timeouts, retry boundaries, and unintended clicks; close browsers.
 
 After code changes, run typechecking and relevant tests, then obtain one independent

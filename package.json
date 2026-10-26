@@ -13,7 +13,8 @@
     "pretest": "npm run build:gui",
     "pregui": "npm run build:gui",
     "test:gui": "npm run build:gui && node scripts/runTests.mjs gui",
-    "test:list": "node scripts/runTests.mjs all --list"
+    "test:list": "node scripts/runTests.mjs all --list",
+    "test:visual": "npm run build:gui && node --import tsx --test tests/visual/*.visual.ts"
   },
   "keywords": [],
   "author": "",
@@ -29,8 +30,11 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.6.3",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "pixelmatch": "^8.0.0",
+    "pngjs": "^7.0.0",
     "prettier": "3.9.9",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
