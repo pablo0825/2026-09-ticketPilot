@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chromium } from "playwright";
+import { withBrowserPage } from "../../fixtures/browserPage.js";
 import type { Page } from "playwright";
 import { submitTicketPlusInformation } from "../../../src/platforms/ticketplus/informationSubmission.js";
 import { TicketPlusRunControl } from "../../../src/platforms/ticketplus/runControl.js";
@@ -30,9 +30,7 @@ async function withInformation(
     run: (page: Page, counts: () => Promise<Record<string, number>>) => Promise<void>,
     checkoutHtml = purchaseCheckout,
 ) {
-    const browser = await chromium.launch();
-    try {
-        const page = await browser.newPage();
+    return withBrowserPage(async page => {
         await page.route("**/*", route => {
             const path = new URL(route.request().url()).pathname;
             const body =
@@ -53,9 +51,7 @@ async function withInformation(
                 [...keys],
             );
         await run(page, counts);
-    } finally {
-        await browser.close();
-    }
+    });
 }
 
 const none = { terms: 0, link: 0, next: 0, pay: 0, cancel: 0, back: 0 };

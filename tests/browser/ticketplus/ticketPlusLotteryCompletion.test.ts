@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chromium } from "playwright";
+import { withBrowserPage } from "../../fixtures/browserPage.js";
 import type { Page } from "playwright";
 import { readTicketPlusPageWithMarkers } from "../../../src/platforms/ticketplus/pageState.js";
 import { readTicketPlusDom } from "../../../src/platforms/ticketplus/domSnapshot.js";
@@ -33,9 +33,7 @@ async function withLottery(
     run: (page: Page, counts: () => Promise<Record<string, number>>) => Promise<void>,
     pages: { input?: string; register?: string } = {},
 ) {
-    const browser = await chromium.launch();
-    try {
-        const page = await browser.newPage();
+    return withBrowserPage(async page => {
         await page.route("**/*", route => {
             const path = new URL(route.request().url()).pathname;
             const body =
@@ -57,9 +55,7 @@ async function withLottery(
                 ),
             );
         await run(page, counts);
-    } finally {
-        await browser.close();
-    }
+    });
 }
 
 test("抽選參加者：未填與已填列分別讀成 false／true，空白格不影響，且不帶出個資", async () => {

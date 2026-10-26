@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chromium } from "playwright";
+import { withBrowserPage } from "../../fixtures/browserPage.js";
 import type { Page } from "playwright";
 import { confirmTicketPlusSeats } from "../../../src/platforms/ticketplus/seatConfirmation.js";
 import { TicketPlusRunControl } from "../../../src/platforms/ticketplus/runControl.js";
@@ -30,9 +30,7 @@ async function withSeatPage(
     mode: SeatNextMode,
     run: (page: Page, counts: () => Promise<{ next: number; cancel: number }>) => Promise<void>,
 ) {
-    const browser = await chromium.launch();
-    try {
-        const page = await browser.newPage();
+    return withBrowserPage(async page => {
         await page.route("**/*", route => {
             const path = new URL(route.request().url()).pathname;
             const body =
@@ -46,9 +44,7 @@ async function withSeatPage(
                 cancel: Number(sessionStorage.getItem("seat-cancel") ?? "0"),
             }));
         await run(page, counts);
-    } finally {
-        await browser.close();
-    }
+    });
 }
 
 test("確認選位：票區與張數相符時按一次下一步，抵達同場次資料頁", async () => {
