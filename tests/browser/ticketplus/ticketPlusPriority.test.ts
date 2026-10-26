@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { chromium } from "playwright";
-import { selectTicketPlusPriority } from "../../../src/platforms/ticketplus/ticketPriority.js";
+import { selectTicketPlusPriority, TicketPlusPriorityError } from "../../../src/platforms/ticketplus/ticketPriority.js";
 import type { TicketPlusActivitySettings } from "../../../src/config/platforms/ticketplus/activitySettings.js";
 import { installQuantityFixture, quantityPage, quantityState } from "../../fixtures/ticketplus/quantityPage.js";
 import { presale } from "../../fixtures/ticketplus/pages.js";
@@ -229,6 +229,30 @@ test("順位：所有順位都是暫無票券或售完時零操作，交給更�
             (error: any) => error.reason === "all-targets-sold-out",
         );
         assert.deepEqual((await quantityState(page)).clicks, zero);
+    } finally {
+        await browser.close();
+    }
+});
+
+test("順位輸入：無效起點或期限在操作前拒絕，票數與點擊維持原樣", async () => {
+    const browser = await chromium.launch();
+    try {
+        const page = await browser.newPage();
+        await installQuantityFixture(page);
+        const before = await quantityState(page);
+        for (const startPriorityIndex of [-1, settings.targets.length, 1.5, NaN, Infinity]) {
+            await assert.rejects(
+                selectTicketPlusPriority(page, settings, identity, { startPriorityIndex }),
+                error => error instanceof TicketPlusPriorityError && error.reason === "invalid-options",
+            );
+            assert.deepEqual(await quantityState(page), before);
+        }
+        for (const timeoutMs of [0, -1, NaN, Infinity, 2_147_483_648]) {
+            await assert.rejects(selectTicketPlusPriority(page, settings, identity, { timeoutMs }), {
+                message: "無效的選票期限。",
+            });
+            assert.deepEqual(await quantityState(page), before);
+        }
     } finally {
         await browser.close();
     }
