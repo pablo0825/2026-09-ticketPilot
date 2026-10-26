@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { validateSaleSchedule } from "../src/core/saleSchedule.js";
+import { validateSaleSchedule } from "../../../src/core/saleSchedule.js";
 
 const saleAt = "2026-10-10T10:00:00+08:00";
 const sale = Date.parse(saleAt);

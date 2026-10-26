@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Page } from "playwright";
-import { diagnoseReadFailure } from "../src/platforms/ticketplus/readFailure.js";
-import { readTicketPlusActivityObservation, readTicketPlusPage } from "../src/platforms/ticketplus/pageState.js";
-import type { TicketPlusPageDiagnostic } from "../src/platforms/ticketplus/pageState.js";
-import type { TicketPlusDom } from "../src/platforms/ticketplus/domSnapshot.js";
+import { diagnoseReadFailure } from "../../../src/platforms/ticketplus/readFailure.js";
+import { readTicketPlusActivityObservation, readTicketPlusPage } from "../../../src/platforms/ticketplus/pageState.js";
+import type { TicketPlusPageDiagnostic } from "../../../src/platforms/ticketplus/pageState.js";
+import type { TicketPlusDom } from "../../../src/platforms/ticketplus/domSnapshot.js";
 
 const url = "https://ticketplus.com.tw/activity/event-fixture";
 const target = { eventId: "event-fixture", eventName: "測試活動" };

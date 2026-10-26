@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { z } from "zod";
-import { createSettingsParser, parsePlatformSettings } from "../src/config/settingsRegistry.js";
+import { createSettingsParser, parsePlatformSettings } from "../../../src/config/settingsRegistry.js";
 import {
     parseTicketPlusActivity,
     type TicketPlusActivitySettings,
-} from "../src/config/platforms/ticketplus/activitySettings.js";
+} from "../../../src/config/platforms/ticketplus/activitySettings.js";
 const other = z.object({ platform: z.literal("fixture"), code: z.number().int() }).strict();
 type Other = z.infer<typeof other>;
 
@@ -24,11 +24,11 @@ test("設定登記處分派不同形狀，正式入口拒絕測試平台及未�
     assert.throws(() => wrong({ platform: "ticketplus" }), /平台不符/);
 });
 
-import { createExecutionRegistry, runSnapshotFields } from "../src/app/platforms/platformDefinition.js";
-import type { PlatformDefinition } from "../src/app/platforms/platformDefinition.js";
-import { ticketPlusDefinition } from "../src/app/platforms/ticketplus/definition.js";
-import { executionPlatform } from "../src/app/platforms/executionRegistry.js";
-import type { PurchaseEvent } from "../src/shared/runEvents.js";
+import { createExecutionRegistry, runSnapshotFields } from "../../../src/app/platforms/platformDefinition.js";
+import type { PlatformDefinition } from "../../../src/app/platforms/platformDefinition.js";
+import { ticketPlusDefinition } from "../../../src/app/platforms/ticketplus/definition.js";
+import { executionPlatform } from "../../../src/app/platforms/executionRegistry.js";
+import type { PurchaseEvent } from "../../../src/shared/runEvents.js";
 
 test("執行登記處分派平台事件，正式入口不提供假平台，平台不能加入控制欄位", () => {
     type Event = PurchaseEvent | { type: "fixture"; count: number };

@@ -3,9 +3,9 @@ import { readdir, readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dependencyViolations } from "./fixtures/dependencyGraph.js";
+import { dependencyViolations } from "../fixtures/dependencyGraph.js";
 
-const root = new URL("../", import.meta.url);
+const root = new URL("../../", import.meta.url);
 
 test("frontend, contracts and execution rules keep their dependency boundaries", async () => {
     const entries = await readdir(new URL("src/", root), { recursive: true, withFileTypes: true });

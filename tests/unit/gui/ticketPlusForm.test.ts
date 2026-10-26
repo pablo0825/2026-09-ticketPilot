@@ -7,8 +7,8 @@ import {
     executionInput,
     draftFingerprint,
     ticketPlusRecord,
-} from "../src/gui/platforms/ticketplus/formModel.js";
-import type { TicketPlusActivitySettings } from "../src/config/platforms/ticketplus/activitySettings.js";
+} from "../../../src/gui/platforms/ticketplus/formModel.js";
+import type { TicketPlusActivitySettings } from "../../../src/config/platforms/ticketplus/activitySettings.js";
 
 const settings: TicketPlusActivitySettings = {
     platform: "ticketplus",

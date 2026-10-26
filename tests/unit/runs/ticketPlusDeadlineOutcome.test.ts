@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { TicketPlusStopError } from "../src/platforms/ticketplus/runControl.js";
-import { stoppedSubmissionResult } from "../src/platforms/ticketplus/submissionOutcome.js";
-import { ticketPlusResultMessage } from "../src/workers/ticketplus/runMessages.js";
-import type { SubmissionProgress } from "../src/platforms/ticketplus/ticketSubmission.js";
+import { TicketPlusStopError } from "../../../src/platforms/ticketplus/runControl.js";
+import { stoppedSubmissionResult } from "../../../src/platforms/ticketplus/submissionOutcome.js";
+import { ticketPlusResultMessage } from "../../../src/workers/ticketplus/runMessages.js";
+import type { SubmissionProgress } from "../../../src/platforms/ticketplus/ticketSubmission.js";
 
 test("期限結果保留未提交、排隊及已知失敗事實，訊息區分使用者停止", () => {
     const cases: { progress: SubmissionProgress; outcome: string; message: RegExp }[] = [

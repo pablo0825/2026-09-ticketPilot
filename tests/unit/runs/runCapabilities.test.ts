@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
-import { parseRunRecord } from "../src/server/runs/runRecord.js";
-import { runCapabilities } from "../src/app/platforms/runCapabilities.js";
+import { parseRunRecord } from "../../../src/server/runs/runRecord.js";
+import { runCapabilities } from "../../../src/app/platforms/runCapabilities.js";
 
 test("能力由登記處產生；歷史磁碟不能恢復操作資格", () => {
     const id = randomUUID();

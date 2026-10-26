@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { z } from "zod";
-import { createWorkerEntry, createWorkerRegistry, isStopMessage } from "../src/workers/workerProtocol.js";
-import { createParticipantGate } from "../src/workers/participantConfirmation.js";
+import { createWorkerEntry, createWorkerRegistry, isStopMessage } from "../../../src/workers/workerProtocol.js";
+import { createParticipantGate } from "../../../src/workers/participantConfirmation.js";
 
 test("worker 依平台分派，保留 lease、signal 與同步提交回呼", async () => {
     const schema = z.object({ platform: z.literal("fixture"), count: z.number() });

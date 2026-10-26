@@ -8,8 +8,8 @@ import {
     createPendingStart,
     clearPendingStart,
     matchesPendingRun,
-} from "../src/gui/shared/runs/pendingStart.js";
-import type { PurchaseSnapshot } from "../src/shared/runSnapshot.js";
+} from "../../../src/gui/shared/runs/pendingStart.js";
+import type { PurchaseSnapshot } from "../../../src/shared/runSnapshot.js";
 
 function storage() {
     const entries = new Map<string, string>();

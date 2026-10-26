@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { getEventListeners } from "node:events";
-import { TicketPlusRunControl, TicketPlusStopError } from "../src/platforms/ticketplus/runControl.js";
+import { TicketPlusRunControl, TicketPlusStopError } from "../../../src/platforms/ticketplus/runControl.js";
 
 const isTimeLimit = (error: unknown) => error instanceof TicketPlusStopError && error.stopReason === "time-limit";
 
@@ -66,8 +66,8 @@ test("首個觀察到的停止原因保留，外部原因不外洩且監聽清�
 });
 
 test("剩餘不足一毫秒時，順位與張數讀取不會把全程期限誤報為局部逾時", async () => {
-    const { selectTicketPlusPriority } = await import("../src/platforms/ticketplus/ticketPriority.js");
-    const { selectTicketPlusTickets } = await import("../src/platforms/ticketplus/ticketQuantity.js");
+    const { selectTicketPlusPriority } = await import("../../../src/platforms/ticketplus/ticketPriority.js");
+    const { selectTicketPlusTickets } = await import("../../../src/platforms/ticketplus/ticketQuantity.js");
     const target = { date: "2026-10-30", time: "20:00", ticketType: "預售票", quantity: 1 };
     const selection = {
         platform: "ticketplus" as const,

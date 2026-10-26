@@ -3,8 +3,8 @@ import { test } from "node:test";
 import { EventEmitter } from "node:events";
 import { getEventListeners } from "node:events";
 import type { Page } from "playwright";
-import { waitForTicketPlusSale } from "../src/platforms/ticketplus/saleWait.js";
-import { TicketPlusRunControl, TicketPlusStopError } from "../src/platforms/ticketplus/runControl.js";
+import { waitForTicketPlusSale } from "../../../src/platforms/ticketplus/saleWait.js";
+import { TicketPlusRunControl, TicketPlusStopError } from "../../../src/platforms/ticketplus/runControl.js";
 
 const saleAt = "2026-10-30T12:00:00+08:00";
 const target = Date.parse(saleAt);

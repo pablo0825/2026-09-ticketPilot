@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { PurchaseSnapshot } from "../src/shared/runSnapshot.js";
-import type { TicketPlusWorkerEvent } from "../src/shared/platforms/ticketplus/events.js";
-import { ticketPlusStepsView } from "../src/gui/platforms/ticketplus/runSteps.js";
+import type { PurchaseSnapshot } from "../../../src/shared/runSnapshot.js";
+import type { TicketPlusWorkerEvent } from "../../../src/shared/platforms/ticketplus/events.js";
+import { ticketPlusStepsView } from "../../../src/gui/platforms/ticketplus/runSteps.js";
 
 const now = Date.parse("2026-10-20T03:00:00Z");
 

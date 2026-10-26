@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createPresenterRegistry } from "../src/gui/platforms/runPresenterDefinition.js";
-import { ticketPlusPresenter } from "../src/gui/platforms/ticketplus/runPresenter.js";
-import { presenterFor, platformEventMessage } from "../src/gui/platforms/runPresenterRegistry.js";
-import { purchaseStatus } from "../src/gui/shared/runs/runPresentation.js";
-import type { PurchaseSnapshot } from "../src/shared/runSnapshot.js";
-import type { PurchaseEvent } from "../src/shared/runEvents.js";
+import { createPresenterRegistry } from "../../../src/gui/platforms/runPresenterDefinition.js";
+import { ticketPlusPresenter } from "../../../src/gui/platforms/ticketplus/runPresenter.js";
+import { presenterFor, platformEventMessage } from "../../../src/gui/platforms/runPresenterRegistry.js";
+import { purchaseStatus } from "../../../src/gui/shared/runs/runPresentation.js";
+import type { PurchaseSnapshot } from "../../../src/shared/runSnapshot.js";
+import type { PurchaseEvent } from "../../../src/shared/runEvents.js";
 
 const snapshot: PurchaseSnapshot = {
     platform: null,
