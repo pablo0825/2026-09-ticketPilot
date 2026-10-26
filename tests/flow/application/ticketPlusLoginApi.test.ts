@@ -1,3 +1,4 @@
+import { privateFixtureMarkers } from "../../fixtures/privateMarkers.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
@@ -51,7 +52,7 @@ test("真 API：登入由網頁觀測確認，舊確認不可放行；導航及�
             terms: 0,
         });
         const raw = await readFile(join(h.runtime, "runs", requestId + ".json"), "utf8");
-        assert.doesNotMatch(raw, /0987|PRIVATE_INFORMATION_MARKER/);
+        assert.doesNotMatch(raw, privateFixtureMarkers);
         assert.equal(await readFile(h.report + ".starts", "utf8"), "started\n");
         assert.equal((await h.request("/api/purchase/close-browser", { runId: run.id })).status, 200);
         await h.until(run => !run?.occupied);

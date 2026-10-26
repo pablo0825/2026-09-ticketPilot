@@ -1,3 +1,4 @@
+import { privateFixtureMarkers } from "../../fixtures/privateMarkers.js";
 import { ticketPlusEventMessage } from "../../../src/workers/ticketplus/runMessages.js";
 import { loggedInHome, loggedOutHome } from "../../fixtures/ticketplus/loginPage.js";
 import { ticketPlusResultDiagnostic, ticketPlusResultMessage } from "../../../src/workers/ticketplus/runMessages.js";
@@ -667,7 +668,7 @@ test("登入診斷：同狀態不洗版，欄位變化與人工停止保留最�
         const logs = events.map(ticketPlusEventMessage).filter(Boolean).join("\n");
         assert.match(logs, /登入狀態觀測變化/);
         assert.match(logs, /登入等待停止/);
-        assert.doesNotMatch(JSON.stringify({ events, result, logs }), /PRIVATE_DIALOG|PRIVATE_PASSWORD|0987/);
+        assert.doesNotMatch(JSON.stringify({ events, result, logs }), privateFixtureMarkers);
     } finally {
         controller.abort();
         launch.mock.restore();
