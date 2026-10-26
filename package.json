@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --import tsx --test tests/*.test.ts",
+    "test": "node scripts/runTests.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.react.json --noEmit",
     "gui": "tsx src/main.ts",
     "format": "prettier --write .",
@@ -12,7 +12,8 @@
     "build:gui": "vite build",
     "pretest": "npm run build:gui",
     "pregui": "npm run build:gui",
-    "test:gui": "npm run build:gui && node --import tsx --test tests/*gui*.test.ts tests/react*.test.ts tests/activityHome.test.ts tests/runStatus.test.ts tests/runParticipantsOrdering.test.ts tests/runCloseOrdering.test.ts tests/runEligibility.test.ts tests/runPresenterRegistry.test.ts tests/pendingStart.test.ts"
+    "test:gui": "npm run build:gui && node scripts/runTests.mjs gui",
+    "test:list": "node scripts/runTests.mjs all --list"
   },
   "keywords": [],
   "author": "",

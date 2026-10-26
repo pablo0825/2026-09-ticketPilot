@@ -98,7 +98,8 @@ archived records must not release a lock or allow reuse of an existing request I
 Work in verifiable steps within the confirmed scope.
 
 Use `node:test`, `node:assert/strict`, and headless Playwright with local fixtures
-or intercepted routes. Name tests `tests/<module>.test.ts`. Cover mismatches,
+or intercepted routes. Name tests `tests/<layer>/<area>/<module>.test.ts` (omit area when unnecessary).
+Use `npm run test:list` to audit discovery; compare test names and files after each move. Cover mismatches,
 ambiguous selectors, timeouts, retry boundaries, and unintended clicks; close browsers.
 
 After code changes, run typechecking and relevant tests, then obtain one independent
