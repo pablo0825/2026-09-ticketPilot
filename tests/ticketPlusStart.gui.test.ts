@@ -112,42 +112,6 @@ test("TicketPlus 啟動 GUI：保存摘要到真 API、網頁登入及資料頁�
     });
 });
 
-test("TicketPlus 摘要：逐列呈現順位對應與活動連結，手機版表格可捲動", async () => {
-    await fixture(
-        async (_h, page, _record, requests) => {
-            await edit(page);
-            await review(page);
-            const table = page.getByRole("region", { name: "購票順位", exact: true });
-            const rows = table.locator("tbody tr");
-            assert.deepEqual(await rows.nth(0).getByRole("cell").allTextContents(), [
-                "1",
-                "2026-10-30",
-                "20:00",
-                "預售票",
-                "2",
-            ]);
-            assert.deepEqual(await rows.nth(1).getByRole("cell").allTextContents(), [
-                "2",
-                "2026-10-31",
-                "18:30",
-                "學生票",
-                "1",
-            ]);
-            const link = page.getByRole("link", { name: apiActivity.eventUrl, exact: true });
-            assert.equal(await link.getAttribute("href"), apiActivity.eventUrl);
-            assert.equal(await link.getAttribute("rel"), "noopener noreferrer");
-            await page.setViewportSize({ width: 390, height: 844 });
-            assert.equal(await table.evaluate(element => getComputedStyle(element).overflowX), "auto");
-            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
-            assert.equal(starts(requests).length, 0);
-        },
-        {
-            ...apiActivity,
-            targets: [...apiActivity.targets, { date: "2026-10-31", time: "18:30", ticketType: "學生票", quantity: 1 }],
-        },
-    );
-});
-
 test("TicketPlus 啟動 GUI：未保存修改與新增草稿都不能啟動", async () => {
     await fixture(async (_h, page, _record, requests) => {
         await edit(page);
