@@ -4,9 +4,9 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { parseActivity } from "../src/config/activitySettings.js";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
+import { parseActivity } from "../../../src/config/activitySettings.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { PurchaseRuns } from "../../../src/server/runs/purchaseRuns.js";
 
 const legacySettings = {
     eventUrl: "https://www.klook.com/zh-TW/event-detail/fixture/",
@@ -90,7 +90,7 @@ test("無平台但缺少必要結構、矛盾平台與未知欄位仍計為無�
 
 test("Klook 與錯誤平台在 worker 與占用之前拒絕", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-platform-start-"));
-    const runs = new PurchaseRuns(dir, new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url));
+    const runs = new PurchaseRuns(dir, new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url));
     try {
         for (const input of [
             legacySettings,

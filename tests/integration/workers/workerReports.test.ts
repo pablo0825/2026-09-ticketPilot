@@ -4,10 +4,10 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseWorkerReport } from "../src/workers/workerReports.js";
-import { ticketPlusDefinition } from "../src/app/platforms/ticketplus/definition.js";
-import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
-import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
+import { parseWorkerReport } from "../../../src/workers/workerReports.js";
+import { ticketPlusDefinition } from "../../../src/app/platforms/ticketplus/definition.js";
+import { PurchaseRuns } from "../../../src/server/runs/purchaseRuns.js";
+import { apiActivity } from "../../fixtures/ticketplus/apiHarness.js";
 
 const parse = (value: unknown) => parseWorkerReport(value, ticketPlusDefinition);
 
@@ -64,7 +64,7 @@ test("無效 IPC 結果停止程序、保留去重與占用，重啟仍能讀取
         { type: "finished", extra: true },
     ]) {
         const directory = await mkdtemp(join(tmpdir(), "worker-report-"));
-        const worker = new URL("./fixtures/reportBoundaryWorker.ts", import.meta.url);
+        const worker = new URL("../../fixtures/reportBoundaryWorker.ts", import.meta.url);
         const runs = new PurchaseRuns(directory, worker);
         try {
             await writeFile(join(directory, "report.json"), JSON.stringify(report));

@@ -1,12 +1,12 @@
-import type { ActivityRecord } from "../src/shared/activityRecord.js";
+import type { ActivityRecord } from "../../../src/shared/activityRecord.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
-import { parseActivity } from "../src/config/activitySettings.js";
+import { PurchaseRuns } from "../../../src/server/runs/purchaseRuns.js";
+import { parseActivity } from "../../../src/config/activitySettings.js";
 
 const settings = {
     platform: "ticketplus",
@@ -64,7 +64,7 @@ for (const [flowType, fingerprint, settingsHash] of [
             await mkdir(join(directory, "runs"));
             const file = join(directory, "runs", `${requestId}.json`);
             await writeFile(file, raw);
-            runs = new PurchaseRuns(directory, new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url));
+            runs = new PurchaseRuns(directory, new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url));
             assert.equal(runs.start(requestId, activity.settings, activity.id).id, snapshot.id);
             assert.equal(runs.activityStatus(activity), "已執行");
             if (flowType === "purchase") {

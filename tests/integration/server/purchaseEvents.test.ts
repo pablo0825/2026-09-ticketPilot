@@ -4,9 +4,9 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
-import { eventLogs, purchaseStatus } from "../src/gui/shared/runs/runPresentation.js";
-import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
+import { PurchaseRuns } from "../../../src/server/runs/purchaseRuns.js";
+import { eventLogs, purchaseStatus } from "../../../src/gui/shared/runs/runPresentation.js";
+import { apiActivity } from "../../fixtures/ticketplus/apiHarness.js";
 
 const legacyEvents = [
     { type: "log", message: "舊文字紀錄" },
@@ -62,7 +62,10 @@ test("舊 TicketPlus 的文字、狀態、順位與恢復事件仍可讀取顯�
 
 test("新 worker 接受文字與 TicketPlus 事件，忽略舊 Klook 事件及無效事件", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ticketplus-live-events-"));
-    const runs = new PurchaseRuns(directory, new URL("./fixtures/ticketplus/eventBoundaryWorker.ts", import.meta.url));
+    const runs = new PurchaseRuns(
+        directory,
+        new URL("../../fixtures/ticketplus/eventBoundaryWorker.ts", import.meta.url),
+    );
     try {
         runs.start(randomUUID(), apiActivity);
         const deadline = Date.now() + 5_000;

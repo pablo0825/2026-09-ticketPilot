@@ -4,9 +4,9 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { purchaseOccupied } from "../src/storage/purchaseLock.js";
-import { startLocalServer } from "../src/server/server.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { purchaseOccupied } from "../../../src/storage/purchaseLock.js";
+import { startLocalServer } from "../../../src/server/server.js";
 
 const ticketplus = {
     platform: "ticketplus",
@@ -78,7 +78,7 @@ test("HTTP 可儲存 TicketPlus；購票拒絕誤傳聯絡資料", async () => {
     const contactPath = join(dir, "contact.json");
     const service = await startLocalServer(new ActivityStore(join(dir, "events")), {
         runDirectory: runtime,
-        purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
+        purchaseWorker: new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url),
     });
     try {
         // 透過真實本機 API 建立與讀取活動

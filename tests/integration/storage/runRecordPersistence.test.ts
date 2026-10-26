@@ -4,12 +4,12 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
-import { purchaseOccupied } from "../src/storage/purchaseLock.js";
-import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
-import { historicalRecord } from "./fixtures/runRecords.js";
+import { PurchaseRuns } from "../../../src/server/runs/purchaseRuns.js";
+import { purchaseOccupied } from "../../../src/storage/purchaseLock.js";
+import { apiActivity } from "../../fixtures/ticketplus/apiHarness.js";
+import { historicalRecord } from "../../fixtures/runRecords.js";
 
-const worker = new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url);
+const worker = new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url);
 
 test("執行紀錄資料夾只開放本人存取", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-run-dir-"));

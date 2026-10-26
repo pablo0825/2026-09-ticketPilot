@@ -4,9 +4,9 @@ import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseActivity } from "../src/config/activitySettings.js";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { parseTicketPlusActivity } from "../src/config/platforms/ticketplus/activitySettings.js";
+import { parseActivity } from "../../../src/config/activitySettings.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { parseTicketPlusActivity } from "../../../src/config/platforms/ticketplus/activitySettings.js";
 
 const activity = {
     platform: "ticketplus",

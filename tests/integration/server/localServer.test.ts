@@ -4,9 +4,9 @@ import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { startLocalServer } from "../src/server/server.js";
+import { apiActivity } from "../../fixtures/ticketplus/apiHarness.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { startLocalServer } from "../../../src/server/server.js";
 
 const activity = {
     platform: "klook",
@@ -75,7 +75,7 @@ test("已移除的 Klook 與聯絡 API 拒絕請求，不建立 worker、紀錄�
     const runDirectory = join(dir, "runtime");
     const service = await startLocalServer(store, {
         runDirectory,
-        purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
+        purchaseWorker: new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url),
     });
     try {
         const html = await (await fetch(service.url)).text();
@@ -155,7 +155,7 @@ test("重用 Klook 歷史請求 ID 回覆結果仍待確認，不清除 pending 
     await writeFile(historyPath, raw);
     const service = await startLocalServer(store, {
         runDirectory: runtime,
-        purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
+        purchaseWorker: new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url),
     });
     try {
         const html = await (await fetch(service.url)).text();

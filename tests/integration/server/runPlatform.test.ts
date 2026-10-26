@@ -4,12 +4,12 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
-import { acquirePurchaseLease, purchaseOccupied, releasePurchaseLease } from "../src/storage/purchaseLock.js";
-import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
-import { historicalRecord } from "./fixtures/runRecords.js";
+import { PurchaseRuns } from "../../../src/server/runs/purchaseRuns.js";
+import { acquirePurchaseLease, purchaseOccupied, releasePurchaseLease } from "../../../src/storage/purchaseLock.js";
+import { apiActivity } from "../../fixtures/ticketplus/apiHarness.js";
+import { historicalRecord } from "../../fixtures/runRecords.js";
 
-const worker = new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url);
+const worker = new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url);
 
 for (const platform of [undefined, "klook"]) {
     for (const status of ["running", "unknown", "payment-ready"]) {

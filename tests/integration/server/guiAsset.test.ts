@@ -3,8 +3,8 @@ import { test } from "node:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { startLocalServer } from "../src/server/server.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { startLocalServer } from "../../../src/server/server.js";
 
 test("正式 GUI 提供 React 打包模組與 CSS，不再提供舊腳本", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ticket-gui-asset-"));
@@ -27,7 +27,10 @@ test("正式 GUI 提供 React 打包模組與 CSS，不再提供舊腳本", asyn
             assert.equal(asset.status, 200);
             assert.match(asset.headers.get("content-type")!, path.endsWith(".js") ? /^text\/javascript/ : /^text\/css/);
             assert.equal(asset.headers.get("cache-control"), "no-store");
-            assert.equal(await asset.text(), await readFile(new URL("../dist/react" + path, import.meta.url), "utf8"));
+            assert.equal(
+                await asset.text(),
+                await readFile(new URL("../../../dist/react" + path, import.meta.url), "utf8"),
+            );
         }
         assert.equal((await fetch(service.url + "/app.js", { headers: { "X-Local-Token": token } })).status, 404);
     } finally {

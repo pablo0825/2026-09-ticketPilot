@@ -3,9 +3,9 @@ import { test } from "node:test";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
-import { ticketPlusEventSchema } from "../src/shared/platforms/ticketplus/events.js";
-import { purchaseStatus } from "../src/gui/shared/runs/runPresentation.js";
+import { PurchaseRuns } from "../../../src/server/runs/purchaseRuns.js";
+import { ticketPlusEventSchema } from "../../../src/shared/platforms/ticketplus/events.js";
+import { purchaseStatus } from "../../../src/gui/shared/runs/runPresentation.js";
 
 // 獨立固定磁碟資料，不用待測事件產生器或 fingerprint 函式製造預期答案。
 const requestId = "8f064504-7c33-43b3-b5f2-2d89e4df15d3";
@@ -167,7 +167,7 @@ test("TicketPlus 付款頁結果：主服務接受 payment-ready 與送出資料
     process.env.FIXTURE_OUTCOME = "payment-ready";
     process.env.FIXTURE_STAGE = "submitting-information";
     try {
-        const runs = new PurchaseRuns(directory, new URL("./fixtures/ticketplus/resultWorker.ts", import.meta.url));
+        const runs = new PurchaseRuns(directory, new URL("../../fixtures/ticketplus/resultWorker.ts", import.meta.url));
         runs.start("1f9a3d2e-5c6b-4a7d-8e9f-0a1b2c3d4e5f", {
             platform: "ticketplus",
             eventUrl: "https://ticketplus.com.tw/activity/fixture",
@@ -203,7 +203,7 @@ test("TicketPlus 抽選結果：主服務接受等待參加者階段與 registra
     process.env.FIXTURE_STAGE = "waiting-for-participants";
     process.env.FIXTURE_CONFIRMATION = "6a1f0c7e-2b3d-4e5f-8a9b-0c1d2e3f4a5b";
     try {
-        const runs = new PurchaseRuns(directory, new URL("./fixtures/ticketplus/resultWorker.ts", import.meta.url));
+        const runs = new PurchaseRuns(directory, new URL("../../fixtures/ticketplus/resultWorker.ts", import.meta.url));
         runs.start("2a9b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", {
             platform: "ticketplus",
             eventUrl: "https://ticketplus.com.tw/activity/fixture",
@@ -256,7 +256,7 @@ test("TicketPlus 停止原因：只記錄已知原因，購票流程記錄 purch
         process.env.FIXTURE_OUTCOME = "failed";
         process.env.FIXTURE_STAGE = "selecting-session";
         process.env.FIXTURE_STOP_REASON = "user-stop";
-        const worker = new URL("./fixtures/ticketplus/resultWorker.ts", import.meta.url);
+        const worker = new URL("../../fixtures/ticketplus/resultWorker.ts", import.meta.url);
         const runs = new PurchaseRuns(directory, worker);
         runs.start("3b0c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e", activity);
         const stopped = await finish(runs);

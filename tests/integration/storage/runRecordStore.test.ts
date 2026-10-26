@@ -4,9 +4,9 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { parseRunRecord } from "../src/server/runs/runRecord.js";
-import { RunRecordStore } from "../src/server/runs/runRecordStore.js";
-import { historicalRecord } from "./fixtures/runRecords.js";
+import { parseRunRecord } from "../../../src/server/runs/runRecord.js";
+import { RunRecordStore } from "../../../src/server/runs/runRecordStore.js";
+import { historicalRecord } from "../../fixtures/runRecords.js";
 
 function ticketPlusRecord(requestId: string) {
     const record = parseRunRecord(historicalRecord(requestId, "ticketplus"), requestId);

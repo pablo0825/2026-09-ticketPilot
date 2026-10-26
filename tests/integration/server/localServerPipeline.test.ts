@@ -4,9 +4,9 @@ import { request, type ClientRequest, type IncomingHttpHeaders } from "node:http
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { startLocalServer } from "../src/server/server.js";
+import { apiActivity } from "../../fixtures/ticketplus/apiHarness.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { startLocalServer } from "../../../src/server/server.js";
 
 interface RawResponse {
     status: number;

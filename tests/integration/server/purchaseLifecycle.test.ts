@@ -1,5 +1,5 @@
-import { parseTicketPlusActivity } from "../src/config/platforms/ticketplus/activitySettings.js";
-import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
+import { parseTicketPlusActivity } from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { apiActivity } from "../../fixtures/ticketplus/apiHarness.js";
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -8,11 +8,11 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { chromium } from "playwright";
-import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
-import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
-const worker = new URL("./fixtures/guiPurchaseWorker.ts", import.meta.url);
+import { acquirePurchaseLease, purchaseOccupied } from "../../../src/storage/purchaseLock.js";
+import { PurchaseRuns } from "../../../src/server/runs/purchaseRuns.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { runTicketPlus } from "../../../src/app/flows/ticketplus/runTicketPlus.js";
+const worker = new URL("../../fixtures/guiPurchaseWorker.ts", import.meta.url);
 const activity = { ...apiActivity, eventName: "Fixture" };
 async function until(check: () => boolean) {
     for (let i = 0; i < 100 && !check(); i++) await new Promise(r => setTimeout(r, 30));
@@ -175,7 +175,7 @@ test("關閉只接受目前已結束的自有瀏覽器，重複請求不重啟",
 
 test("正式 worker：失敗後收到關閉指令，實際關閉本機瀏覽器並解除占用", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ticket-worker-close-"));
-    const runs = new PurchaseRuns(dir, new URL("./fixtures/closeBrowserWorker.ts", import.meta.url));
+    const runs = new PurchaseRuns(dir, new URL("../../fixtures/closeBrowserWorker.ts", import.meta.url));
     try {
         const first = runs.start(randomUUID(), activity);
         await until(() => runs.snapshot()?.canCloseBrowser === true);

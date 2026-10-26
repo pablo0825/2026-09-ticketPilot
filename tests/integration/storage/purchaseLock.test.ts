@@ -8,7 +8,7 @@ import {
     releasePurchaseLease,
     verifyPurchaseLease,
     PurchaseLockError,
-} from "../src/storage/purchaseLock.js";
+} from "../../../src/storage/purchaseLock.js";
 
 test("購票占用區分占用、建立失敗及驗證失敗，不清除或改寫原鎖", () => {
     const dir = mkdtempSync(join(tmpdir(), "ticketplus-message-"));

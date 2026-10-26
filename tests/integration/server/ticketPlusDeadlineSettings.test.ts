@@ -10,12 +10,12 @@ import {
     singleTicketPlusSelection,
     ticketPlusSessionSelection,
     validateTicketPlusRunSettings,
-} from "../src/config/platforms/ticketplus/activitySettings.js";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
-import { startLocalServer } from "../src/server/server.js";
-import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
-import { purchaseOccupied } from "../src/storage/purchaseLock.js";
+} from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { PurchaseRuns } from "../../../src/server/runs/purchaseRuns.js";
+import { startLocalServer } from "../../../src/server/server.js";
+import { runTicketPlus } from "../../../src/app/flows/ticketplus/runTicketPlus.js";
+import { purchaseOccupied } from "../../../src/storage/purchaseLock.js";
 
 const activity = {
     platform: "ticketplus" as const,
@@ -113,7 +113,7 @@ test("固定 v4／v5 歷史：未填期限保持相容，新增、變更、移�
                 },
             });
             await writeFile(file, original);
-            const runs = new PurchaseRuns(dir, new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url));
+            const runs = new PurchaseRuns(dir, new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url));
             const settings = history.minutes === undefined ? activity : { ...activity, maxRunMinutes: history.minutes };
             const saved = {
                 id: activityId,
@@ -156,7 +156,7 @@ test("API 期限保存重讀與移除；無效更新不改檔，啟動前比對�
     const service = await startLocalServer(store, {
         runDirectory: runtime,
 
-        purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
+        purchaseWorker: new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url),
     });
     try {
         const html = await (await fetch(service.url)).text();
@@ -233,7 +233,7 @@ test("舊活動缺值及 1／9 分鐘可重讀但新 API 啟動拒絕，不改�
     const service = await startLocalServer(store, {
         runDirectory: runtime,
 
-        purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
+        purchaseWorker: new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url),
     });
     try {
         const html = await (await fetch(service.url)).text();

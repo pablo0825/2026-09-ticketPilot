@@ -8,12 +8,12 @@ import { chromium } from "playwright";
 import {
     parseTicketPlusActivity,
     parseTicketPlusSelection,
-} from "../src/config/platforms/ticketplus/activitySettings.js";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
-import { startLocalServer } from "../src/server/server.js";
-import { runTicketPlus } from "../src/app/flows/ticketplus/runTicketPlus.js";
-import { purchaseOccupied } from "../src/storage/purchaseLock.js";
+} from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { PurchaseRuns } from "../../../src/server/runs/purchaseRuns.js";
+import { startLocalServer } from "../../../src/server/server.js";
+import { runTicketPlus } from "../../../src/app/flows/ticketplus/runTicketPlus.js";
+import { purchaseOccupied } from "../../../src/storage/purchaseLock.js";
 
 const legacy = {
     platform: "ticketplus" as const,
@@ -105,7 +105,7 @@ test("舊 TP v4 請求與活動狀態：等價單順位重播原結果，改設�
         const store = new ActivityStore(join(dir, "events"));
         await mkdir(join(dir, "events"));
         await writeFile(join(dir, "events", activityId + ".json"), JSON.stringify(activityRecord));
-        const runs = new PurchaseRuns(dir, new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url));
+        const runs = new PurchaseRuns(dir, new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url));
         const result = runs.start(requestId, canonical, activityId);
         assert.equal(result.id, "123-old-run");
         assert.equal(result.status, "unknown");
@@ -171,7 +171,7 @@ test("API 可保存跨場次順位但啟動零副作用；新單順位可重播�
     const service = await startLocalServer(store, {
         runDirectory: runtime,
 
-        purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
+        purchaseWorker: new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url),
     });
     try {
         const html = await (await fetch(service.url)).text();

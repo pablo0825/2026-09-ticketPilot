@@ -7,11 +7,11 @@ import { randomUUID } from "node:crypto";
 import {
     parseTicketPlusActivity,
     ticketPlusSessionSelection,
-} from "../src/config/platforms/ticketplus/activitySettings.js";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
-import { startLocalServer } from "../src/server/server.js";
-import { purchaseOccupied } from "../src/storage/purchaseLock.js";
+} from "../../../src/config/platforms/ticketplus/activitySettings.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { PurchaseRuns } from "../../../src/server/runs/purchaseRuns.js";
+import { startLocalServer } from "../../../src/server/server.js";
+import { purchaseOccupied } from "../../../src/storage/purchaseLock.js";
 
 const activity = {
     platform: "ticketplus" as const,
@@ -93,7 +93,7 @@ test("排程不被舊指紋投影丟掉；無排程 v4／v5 指紋及原紀錄�
             const file = join(dir, "runs", requestId + ".json");
             const original = JSON.stringify(record(hashes));
             await writeFile(file, original);
-            const runs = new PurchaseRuns(dir, new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url));
+            const runs = new PurchaseRuns(dir, new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url));
             const saved = {
                 id: activityId,
                 schemaVersion: 3 as const,
@@ -146,7 +146,7 @@ test("API 排程可保存重讀；提前秒數與時間皆比對，過期啟動�
     const service = await startLocalServer(store, {
         runDirectory: runtime,
 
-        purchaseWorker: new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url),
+        purchaseWorker: new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url),
     });
     try {
         const html = await (await fetch(service.url)).text();
@@ -218,7 +218,7 @@ test("固定 v5 排程紀錄：同請求重播先於啟動限制，改時間或�
         );
         const file = join(dir, "runs", requestId + ".json");
         await writeFile(file, original);
-        const runs = new PurchaseRuns(dir, new URL("./fixtures/countedPurchaseWorker.ts", import.meta.url));
+        const runs = new PurchaseRuns(dir, new URL("../../fixtures/countedPurchaseWorker.ts", import.meta.url));
         const scheduled = { ...activity, saleSchedule: schedule };
         const saved = {
             id: activityId,
