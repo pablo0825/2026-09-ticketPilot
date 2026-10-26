@@ -6,10 +6,10 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { chromium } from "playwright";
 import type { Page, Browser } from "playwright";
-import { acquirePurchaseLease, releasePurchaseLease } from "../src/storage/purchaseLock.js";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { startLocalServer } from "../src/server/server.js";
-import { enterTicketPlus, eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
+import { acquirePurchaseLease, releasePurchaseLease } from "../../../src/storage/purchaseLock.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { startLocalServer } from "../../../src/server/server.js";
+import { enterTicketPlus, eventually, snapshotFeed } from "../../fixtures/guiTestHelpers.js";
 
 const settings = {
     platform: "ticketplus",

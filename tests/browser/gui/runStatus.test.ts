@@ -1,12 +1,12 @@
-import { enterTicketPlus, snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
+import { enterTicketPlus, snapshotFeed, eventually } from "../../fixtures/guiTestHelpers.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { chromium } from "playwright";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { startLocalServer } from "../src/server/server.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { startLocalServer } from "../../../src/server/server.js";
 
 test("長紀錄在窄螢幕可捲動，閱讀舊紀錄時不被新事件拉回底部", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ticket-status-scroll-"));

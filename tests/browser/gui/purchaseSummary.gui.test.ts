@@ -4,10 +4,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Page } from "playwright";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { startLocalServer } from "../src/server/server.js";
-import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
-import { enterTicketPlus } from "./fixtures/guiTestHelpers.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { startLocalServer } from "../../../src/server/server.js";
+import { apiActivity } from "../../fixtures/ticketplus/apiHarness.js";
+import { enterTicketPlus } from "../../fixtures/guiTestHelpers.js";
 
 async function fixture(work: (page: Page, starts: string[]) => Promise<void>, settings: unknown) {
     const directory = await mkdtemp(join(tmpdir(), "ticket-summary-layout-"));

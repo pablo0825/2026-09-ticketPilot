@@ -1,9 +1,9 @@
-import { enterTicketPlus } from "./fixtures/guiTestHelpers.js";
+import { enterTicketPlus } from "../../fixtures/guiTestHelpers.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
 import { chromium } from "playwright";
-import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
+import { apiActivity, apiHarness } from "../../fixtures/ticketplus/apiHarness.js";
 
 async function eventually(check: () => Promise<void>, timeout = 10_000) {
     const deadline = Date.now() + timeout;

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium, type Page } from "playwright";
-import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
-import { enterTicketPlus, eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
+import { apiActivity, apiHarness } from "../../fixtures/ticketplus/apiHarness.js";
+import { enterTicketPlus, eventually, snapshotFeed } from "../../fixtures/guiTestHelpers.js";
 
 type Harness = Awaited<ReturnType<typeof apiHarness>>;
 async function fixture(work: (h: Harness, page: Page, id: string) => Promise<void>) {

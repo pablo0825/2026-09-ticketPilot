@@ -4,9 +4,9 @@ import { randomUUID } from "node:crypto";
 import { readFile, writeFile, rename, mkdir, rmdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { ChildProcess } from "node:child_process";
-import { apiHarness, apiActivity } from "./fixtures/ticketplus/apiHarness.js";
-import { PurchaseRuns } from "../src/server/runs/purchaseRuns.js";
-import { purchaseOccupied } from "../src/storage/purchaseLock.js";
+import { apiHarness, apiActivity } from "../../fixtures/ticketplus/apiHarness.js";
+import { PurchaseRuns } from "../../../src/server/runs/purchaseRuns.js";
+import { purchaseOccupied } from "../../../src/storage/purchaseLock.js";
 
 type Harness = Awaited<ReturnType<typeof apiHarness>>;
 async function launch(h: Harness) {

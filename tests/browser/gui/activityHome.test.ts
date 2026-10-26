@@ -1,12 +1,12 @@
-import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
-import { acquirePurchaseLease, releasePurchaseLease } from "../src/storage/purchaseLock.js";
+import { apiActivity } from "../../fixtures/ticketplus/apiHarness.js";
+import { acquirePurchaseLease, releasePurchaseLease } from "../../../src/storage/purchaseLock.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { startLocalServer } from "../src/server/server.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { startLocalServer } from "../../../src/server/server.js";
 const settings = apiActivity;
 
 test("啟動與刪除並發只有一方成功，不刪執行紀錄", async () => {
@@ -15,7 +15,7 @@ test("啟動與刪除並發只有一方成功，不刪執行紀錄", async () =>
     const activity = await store.save(settings);
     const service = await startLocalServer(store, {
         runDirectory: join(dir, "runtime"),
-        purchaseWorker: new URL("./fixtures/guiPurchaseWorker.ts", import.meta.url),
+        purchaseWorker: new URL("../../fixtures/guiPurchaseWorker.ts", import.meta.url),
     });
     const html = await (await fetch(service.url)).text();
     const headers = {

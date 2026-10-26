@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { chromium, type Page } from "playwright";
-import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
-import { enterTicketPlus, eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
-import type { PurchaseSnapshot } from "../src/shared/runSnapshot.js";
+import { apiActivity, apiHarness } from "../../fixtures/ticketplus/apiHarness.js";
+import { enterTicketPlus, eventually, snapshotFeed } from "../../fixtures/guiTestHelpers.js";
+import type { PurchaseSnapshot } from "../../../src/shared/runSnapshot.js";
 
 type Harness = Awaited<ReturnType<typeof apiHarness>>;
 type RequestLog = { path: string; method: string; body: any }[];

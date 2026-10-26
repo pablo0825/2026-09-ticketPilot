@@ -4,9 +4,9 @@ import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
 import { chromium, type Page } from "playwright";
-import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
-import { enterTicketPlus, eventually } from "./fixtures/guiTestHelpers.js";
-import { pendingStartKey } from "../src/gui/shared/runs/pendingStart.js";
+import { apiActivity } from "../../fixtures/ticketplus/apiHarness.js";
+import { enterTicketPlus, eventually } from "../../fixtures/guiTestHelpers.js";
+import { pendingStartKey } from "../../../src/gui/shared/runs/pendingStart.js";
 
 const activity = { schemaVersion: 3, id: "fixture-activity", updatedAt: "2026-10-20T00:00:00Z", settings: apiActivity };
 const run = {
@@ -31,7 +31,7 @@ async function fixture(work: (page: Page, url: string, feed: { publish: (value: 
     };
     const server = await createServer({
         configFile: false,
-        root: fileURLToPath(new URL("../", import.meta.url)),
+        root: fileURLToPath(new URL("../../../", import.meta.url)),
         server: { host: "127.0.0.1", port: 0 },
         esbuild: { jsx: "automatic" },
         optimizeDeps: {
@@ -211,7 +211,7 @@ test("兩平台 App：切換保留全域執行狀態與占用，關閉期間禁�
 });
 
 test("正式 GUI 產物不包含測試平台工作區", async () => {
-    const directory = new URL("../dist/react/assets/", import.meta.url);
+    const directory = new URL("../../../dist/react/assets/", import.meta.url);
     for (const file of await readdir(directory)) {
         if (file.endsWith(".js"))
             assert.doesNotMatch(await readFile(new URL(file, directory), "utf8"), /Fixture Platform Only/);

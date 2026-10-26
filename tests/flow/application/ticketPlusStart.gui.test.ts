@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { chromium, type Page } from "playwright";
-import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
-import { enterTicketPlus, eventually } from "./fixtures/guiTestHelpers.js";
+import { apiActivity, apiHarness } from "../../fixtures/ticketplus/apiHarness.js";
+import { enterTicketPlus, eventually } from "../../fixtures/guiTestHelpers.js";
 
 const pendingKey = "ticketpilot-ticketplus-purchase-request";
 const sharedPendingKey = "ticketpilot-platform-purchase-request";

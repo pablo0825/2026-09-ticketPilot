@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
 import { chromium, type Page } from "playwright";
-import type { PurchaseSnapshot } from "../src/shared/runSnapshot.js";
-import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
-import { enterTicketPlus, eventually, snapshotFeed } from "./fixtures/guiTestHelpers.js";
+import type { PurchaseSnapshot } from "../../../src/shared/runSnapshot.js";
+import { apiActivity, apiHarness } from "../../fixtures/ticketplus/apiHarness.js";
+import { enterTicketPlus, eventually, snapshotFeed } from "../../fixtures/guiTestHelpers.js";
 
 type Harness = Awaited<ReturnType<typeof apiHarness>>;
 const confirmLabel = "我已登入，開始選票";

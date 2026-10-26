@@ -4,10 +4,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { chromium } from "playwright";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { startLocalServer } from "../src/server/server.js";
-import type { PurchaseSnapshot } from "../src/shared/runSnapshot.js";
-import { enterTicketPlus, snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { startLocalServer } from "../../../src/server/server.js";
+import type { PurchaseSnapshot } from "../../../src/shared/runSnapshot.js";
+import { enterTicketPlus, snapshotFeed, eventually } from "../../fixtures/guiTestHelpers.js";
 
 for (const newerSnapshot of [false, true]) {
     test(`參加者確認回應：${newerSnapshot ? "晚到不能覆蓋即時終局" : "沒有新快照時接受回應"}`, async () => {

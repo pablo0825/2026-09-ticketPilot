@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { acquirePurchaseLease, purchaseOccupied } from "../src/storage/purchaseLock.js";
+import { acquirePurchaseLease, purchaseOccupied } from "../../../src/storage/purchaseLock.js";
 
 const settings = {
     platform: "ticketplus",
@@ -25,7 +25,7 @@ async function harness(mode = "success", experiment = "0") {
     });
     const child = await Promise.resolve()
         .then(() =>
-            fork(fileURLToPath(new URL("./fixtures/ticketplus/worker.ts", import.meta.url)), [], {
+            fork(fileURLToPath(new URL("../../fixtures/ticketplus/worker.ts", import.meta.url)), [], {
                 execArgv: ["--import", "tsx"],
                 stdio: ["ignore", "ignore", "pipe", "ipc"],
                 env: {
@@ -146,7 +146,7 @@ test("正式 TicketPlus worker：頁面登入後提交一次、資料頁停止�
         const options = JSON.parse(await readFile(h.report + ".options", "utf8"));
         assert.deepEqual(options.args, ["--disable-blink-features=AutomationControlled"]);
         assert.equal(options.channel, "chrome");
-        assert.equal(options.profile, fileURLToPath(new URL("../browser-profile-ticketplus", import.meta.url)));
+        assert.equal(options.profile, fileURLToPath(new URL("../../../browser-profile-ticketplus", import.meta.url)));
         await h.stop();
         assert.equal(await h.closed, 0);
         assert(!purchaseOccupied(h.directory));

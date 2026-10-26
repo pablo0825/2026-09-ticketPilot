@@ -4,10 +4,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { chromium } from "playwright";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { startLocalServer } from "../src/server/server.js";
-import type { PurchaseSnapshot } from "../src/shared/runSnapshot.js";
-import { enterTicketPlus, snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { startLocalServer } from "../../../src/server/server.js";
+import type { PurchaseSnapshot } from "../../../src/shared/runSnapshot.js";
+import { enterTicketPlus, snapshotFeed, eventually } from "../../fixtures/guiTestHelpers.js";
 
 for (const mode of ["accepted", "late", "wrong-platform"] as const) {
     test(`關窗回應核對身份與即時狀態：${mode}`, async () => {

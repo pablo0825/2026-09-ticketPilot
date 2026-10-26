@@ -1,12 +1,12 @@
-import { enterTicketPlus } from "./fixtures/guiTestHelpers.js";
+import { enterTicketPlus } from "../../fixtures/guiTestHelpers.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { startLocalServer } from "../src/server/server.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { startLocalServer } from "../../../src/server/server.js";
 
 test("React 正式打包由本機同源載入，保留 API 驗證與資源邊界", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ticket-react-asset-"));

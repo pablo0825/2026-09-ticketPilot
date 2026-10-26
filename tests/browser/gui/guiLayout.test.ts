@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium, type Locator } from "playwright";
-import { apiActivity, apiHarness } from "./fixtures/ticketplus/apiHarness.js";
-import { enterTicketPlus, snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
+import { apiActivity, apiHarness } from "../../fixtures/ticketplus/apiHarness.js";
+import { enterTicketPlus, snapshotFeed, eventually } from "../../fixtures/guiTestHelpers.js";
 
 async function assertJoined(top: Locator, bottom: Locator) {
     const topBox = await top.boundingBox();

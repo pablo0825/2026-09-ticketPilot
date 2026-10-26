@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
-import { apiHarness, apiActivity } from "./fixtures/ticketplus/apiHarness.js";
+import { apiHarness, apiActivity } from "../../fixtures/ticketplus/apiHarness.js";
 
 const zeroCounts = { session: 0, plus: 0, submit: 0, dismiss: 0, information: 0, other: 0, terms: 0 };
 type Harness = Awaited<ReturnType<typeof apiHarness>>;

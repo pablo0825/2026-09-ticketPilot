@@ -4,10 +4,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
-import { ActivityStore } from "../src/storage/activityStore.js";
-import { apiActivity } from "./fixtures/ticketplus/apiHarness.js";
-import { startLocalServer } from "../src/server/server.js";
-import { enterTicketPlus, snapshotFeed, eventually } from "./fixtures/guiTestHelpers.js";
+import { ActivityStore } from "../../../src/storage/activityStore.js";
+import { apiActivity } from "../../fixtures/ticketplus/apiHarness.js";
+import { startLocalServer } from "../../../src/server/server.js";
+import { enterTicketPlus, snapshotFeed, eventually } from "../../fixtures/guiTestHelpers.js";
 
 const oldRun = {
     id: "old",
