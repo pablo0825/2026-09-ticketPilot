@@ -5,15 +5,15 @@ import { collectTestFiles, selectTestFiles } from "./testFiles.mjs";
 const root = fileURLToPath(new URL("../tests/", import.meta.url));
 const args = process.argv.slice(2);
 const list = args.includes("--list");
-const positional = args.filter(arg => arg !== "--list");
-const group = positional.shift() ?? "all";
+const nodeArgs = args.filter(arg => arg !== "--list");
+const group = nodeArgs[0] && !nodeArgs[0].startsWith("-") ? nodeArgs.shift() : "all";
 const files = selectTestFiles(await collectTestFiles(root), root, group);
 if (list) {
     for (const file of files) console.log(file);
 } else {
     const child = spawn(
         process.execPath,
-        ["--import", "tsx", "--test", "--test-concurrency=4", ...positional, ...files],
+        ["--import", "tsx", "--test", "--test-concurrency=4", ...nodeArgs, ...files],
         {
             cwd: fileURLToPath(new URL("../", import.meta.url)),
             stdio: "inherit",

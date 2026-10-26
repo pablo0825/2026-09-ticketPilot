@@ -38,9 +38,10 @@ npm run test:gui
 
 `test:gui` 包含 GUI 單元測試、GUI 瀏覽器測試、應用流程，以及原本 GUI 指令涵蓋的執行資格等測試。它比原先逐一列檔名的範圍更廣，也包含應用流程的 API／worker 測試。
 
-傳入 Node 測試選項時，先指定分組：
+傳入 Node 測試選項時，可省略分組（預設全部），也可在選項前指定分組：
 
 ```sh
+npm test -- --test-reporter=tap
 npm test -- all --test-name-pattern="場次"
 node scripts/runTests.mjs browser --list
 ```
